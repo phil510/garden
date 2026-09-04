@@ -107,3 +107,16 @@ export interface PaneResizeMessage {
   cols: number;
   rows: number;
 }
+
+export function applyDelta(sessions: SessionMap, deltas: readonly Delta[]): SessionMap {
+  const next: SessionMap = { ...sessions };
+  for (const delta of deltas) {
+    if (delta.type === 'session-added') {
+      next[delta.session.id] = delta.session;
+      continue;
+    }
+    const prev = next[delta.id];
+    if (prev !== undefined) next[delta.id] = { ...prev, ...delta.changes };
+  }
+  return next;
+}
