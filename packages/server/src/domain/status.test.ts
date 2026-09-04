@@ -27,6 +27,20 @@ describe('hookOutcome', () => {
     ).toBe('Done.');
   });
 
+  it('marks a session needs-approval on a PermissionRequest hook', () => {
+    expect(hookOutcome(aHookEvent({ hook_event_name: 'PermissionRequest' })).status).toBe(
+      'needs-approval',
+    );
+  });
+
+  it('takes the recap from events other than Stop, so a Notification card still has one', () => {
+    expect(
+      hookOutcome(
+        aHookEvent({ hook_event_name: 'Notification', last_assistant_message: 'Mid-turn.' }),
+      ).recap,
+    ).toBe('Mid-turn.');
+  });
+
   it('ends the session on SessionEnd without asserting a status', () => {
     const outcome = hookOutcome(aHookEvent({ hook_event_name: 'SessionEnd' }));
     expect(outcome.ended).toBe(true);

@@ -24,6 +24,34 @@ describe('parseTranscript', () => {
     expect(parseTranscript(text).record.title).toBe('Older transcript');
   });
 
+  it('prefers an ai-title line over a summary line when the transcript carries both', () => {
+    const text = [
+      line({ type: 'summary', summary: 'Older transcript' }),
+      line({ type: 'ai-title', aiTitle: 'Settled title' }),
+    ].join('\n');
+    expect(parseTranscript(text).record.title).toBe('Settled title');
+  });
+
+  it('takes the last text block within one content array, not the first', () => {
+    const text = line(
+      assistant([
+        { type: 'text', text: 'thinking out loud' },
+        { type: 'tool_use', name: 'Bash', input: {} },
+        { type: 'text', text: 'the conclusion' },
+      ]),
+    );
+    expect(parseTranscript(text).record.recap).toBe('the conclusion');
+  });
+
+  it('reads cwd and gitBranch from the same line the sessionId came from', () => {
+    const text = line({ ...envelope, type: 'user', message: { content: 'hi' } });
+    expect(parseTranscript(text).record).toMatchObject({
+      sessionId: 'sid-1',
+      cwd: '/Users/dev/repo',
+      gitBranch: 'feat/x',
+    });
+  });
+
   it('skips back past thinking and tool_use blocks to the last assistant text block', () => {
     const text = [
       assistant([{ type: 'text', text: 'the recap' }]),

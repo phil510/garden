@@ -28,6 +28,12 @@ describe('deriveLiveness', () => {
     });
   });
 
+  it('surfaces the pane exit code when a SessionEnd hook and a tmux snapshot both landed', () => {
+    expect(
+      deriveLiveness({ ...base, ended: true, fact: fact({ paneDead: true, exitCode: 1 }) }),
+    ).toEqual({ liveness: 'exited', exitCode: 1 });
+  });
+
   it('resolves to external when the tmux mapping is gone but the transcript is fresh', () => {
     expect(deriveLiveness({ ...base, tmuxName: null, fact: undefined })).toEqual({
       liveness: 'external',
@@ -53,8 +59,10 @@ describe('deriveLiveness', () => {
   });
 
   it('treats a session with no recorded activity as dead', () => {
-    expect(
-      deriveLiveness({ ...base, tmuxName: null, fact: undefined, lastActivity: 0 }).liveness,
-    ).toBe('dead');
+    const unmapped = { ...base, tmuxName: null, fact: undefined, lastActivity: 0 };
+    expect(deriveLiveness(unmapped).liveness).toBe('dead');
+    // `at` within one window of the epoch is the only input where the arithmetic alone would
+    // read a zero `lastActivity` as fresh.
+    expect(deriveLiveness({ ...unmapped, at: 60_000 }).liveness).toBe('dead');
   });
 });
