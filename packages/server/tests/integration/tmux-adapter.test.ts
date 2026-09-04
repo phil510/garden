@@ -48,18 +48,30 @@ describe('the tmux adapter', () => {
           (text) => text !== '',
         );
         expect(written).toBe('4310');
-
-        await killSession(target, 'alpha');
-        await until(
-          'alpha to be gone',
-          () => listPanes(target),
-          (list) => list.length === 0,
-        );
-        await expect(killSession(target, 'nope')).rejects.toBeInstanceOf(TmuxError);
       });
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }
+  });
+
+  it('kills a session by name and fails with a TmuxError on an unknown name', async () => {
+    await withTmuxServer(async (target) => {
+      await newSession(target, { name: 'alpha', cwd: tmpdir(), port: 4310, command: sleeper });
+      await newSession(target, { name: 'gamma', cwd: tmpdir(), port: 4310, command: sleeper });
+
+      await killSession(target, 'alpha');
+      const remaining = await until(
+        'alpha to be gone',
+        () => listPanes(target),
+        (list) => list.length === 1,
+      );
+      expect(remaining.map((pane) => pane.session)).toEqual(['gamma']);
+
+      // gamma keeps the server alive, so this exercises the unknown-session path
+      // rather than the dead-socket path listPanes swallows.
+      await expect(killSession(target, 'nope')).rejects.toBeInstanceOf(TmuxError);
+      await expect(killSession(target, 'nope')).rejects.toThrow(/can't find session/);
+    });
   });
 
   it('reports no sessions when nothing has started a server on the socket', async () => {
@@ -89,7 +101,8 @@ describe('the tmux adapter', () => {
         () => listPanes(target),
         (list) => list[0]?.dead === false,
       );
-      expect(panes.map((pane) => pane.session)).toEqual(['beta']);
+      // exitCode must clear too: a stale pane_dead_status would keep reporting 4.
+      expect(panes).toEqual([{ session: 'beta', dead: false, exitCode: undefined }]);
     });
   });
 });

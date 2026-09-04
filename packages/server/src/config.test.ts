@@ -1,21 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { loadConfig, parseConfigFile } from './config.js';
+import { DEFAULT_CONFIG_FILE, loadConfig, parseConfigFile } from './config.js';
 
 describe('loadConfig', () => {
   it('reads the port from GARDEN_PORT', () => {
-    expect(loadConfig({ GARDEN_PORT: '5000' }).port).toBe(5000);
-  });
-
-  it('falls back to the default port when GARDEN_PORT is unset', () => {
-    expect(loadConfig({}).port).toBe(loadConfig({ GARDEN_PORT: '' }).port);
+    expect(loadConfig({ GARDEN_PORT: '5000' }, DEFAULT_CONFIG_FILE, '/h').port).toBe(5000);
   });
 
   it('treats an empty GARDEN_PORT as unset rather than as an error', () => {
-    expect(() => loadConfig({ GARDEN_PORT: '' })).not.toThrow();
+    expect(loadConfig({ GARDEN_PORT: '' }, DEFAULT_CONFIG_FILE, '/h').port).toBe(
+      DEFAULT_CONFIG_FILE.port,
+    );
   });
 
   it.each(['0', '65536', '4310.5', 'abc'])('rejects GARDEN_PORT=%s', (raw) => {
-    expect(() => loadConfig({ GARDEN_PORT: raw })).toThrow(/GARDEN_PORT/);
+    expect(() => loadConfig({ GARDEN_PORT: raw }, DEFAULT_CONFIG_FILE, '/h')).toThrow(
+      /GARDEN_PORT/,
+    );
   });
 });
 
@@ -50,6 +50,6 @@ describe('parseConfigFile', () => {
   });
 
   it('supplies defaults for keys the file omits', () => {
-    expect(parseConfigFile('{}', '/c.json')).toEqual({ port: 4310, roots: ['~/Desktop/Extend'] });
+    expect(parseConfigFile('{}', '/c.json')).toEqual(DEFAULT_CONFIG_FILE);
   });
 });

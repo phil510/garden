@@ -4,7 +4,7 @@ import { listPanes, newSession } from '../../src/adapters/tmux.js';
 import { until } from './support/poll.js';
 import { withTmuxServer } from './support/tmux-server.js';
 
-describe('remain-on-exit on a fresh tmux server', () => {
+describe('a session whose command exits', () => {
   it.each([
     ['a clean exit', 'exit 0', 0],
     ['a non-zero exit', 'exit 7', 7],

@@ -1,5 +1,4 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { appDirPath } from './config.js';
 
@@ -19,7 +18,7 @@ export const TMUX_CONF = [
 ].join('\n');
 
 /** Writes the conf, replacing any previous copy, and returns its path. */
-export function writeTmuxConf(home: string = homedir()): string {
+export function writeTmuxConf(home: string): string {
   const dir = appDirPath(home);
   mkdirSync(dir, { recursive: true });
   const path = join(dir, 'tmux.conf');
@@ -70,7 +69,7 @@ export function claudeSettings(): ClaudeSettings {
 }
 
 /** Writes the hook overlay, replacing any previous copy, and returns its path. */
-export function writeClaudeSettings(home: string = homedir()): string {
+export function writeClaudeSettings(home: string): string {
   const dir = appDirPath(home);
   mkdirSync(dir, { recursive: true });
   const path = join(dir, 'claude-settings.json');

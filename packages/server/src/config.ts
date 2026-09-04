@@ -84,7 +84,7 @@ export function loadConfig(
 }
 
 /** Creates the app directory and writes `config.json` on first run, then reads it back. */
-export function ensureConfigFile(home: string = homedir()): ConfigFile {
+export function ensureConfigFile(home: string): ConfigFile {
   const dir = appDirPath(home);
   mkdirSync(dir, { recursive: true });
   const path = join(dir, 'config.json');

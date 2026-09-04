@@ -6,6 +6,25 @@ describe('claudeSettings', () => {
     expect(Object.keys(claudeSettings().hooks).sort()).toEqual([...HOOK_EVENTS].sort());
   });
 
+  it('matches every tool on the tool events and takes no matcher on the lifecycle events', () => {
+    const matchers = Object.fromEntries(
+      Object.entries(claudeSettings().hooks).map(([event, groups]) => [
+        event,
+        groups.map((group) => group.matcher),
+      ]),
+    );
+    expect(matchers).toEqual({
+      SessionStart: [undefined],
+      SessionEnd: [undefined],
+      UserPromptSubmit: [undefined],
+      Stop: [undefined],
+      Notification: [undefined],
+      PreToolUse: ['*'],
+      PostToolUse: ['*'],
+      PermissionRequest: ['*'],
+    });
+  });
+
   it('makes every hook synchronous with a one-second timeout and an unexpanded port', () => {
     const commands = Object.values(claudeSettings().hooks)
       .flat()

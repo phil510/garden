@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
-import type { AddressInfo } from 'node:net';
+import type { AddressInfo, Socket } from 'node:net';
 import { describe, expect, it } from 'vitest';
 import { claudeSettings } from '../../src/appdir.js';
 
@@ -45,15 +45,33 @@ describe('the generated hook command', () => {
     }
   });
 
-  it('exits zero and promptly when no server is listening', async () => {
+  it('exits zero when the connection is refused, so the hook never blocks the tool call', async () => {
     const probe = createServer();
     await new Promise<void>((resolve) => probe.listen(0, '127.0.0.1', resolve));
     const { port } = probe.address() as AddressInfo;
     await new Promise<void>((resolve) => probe.close(() => resolve()));
 
-    const started = Date.now();
-    // Zero because of `|| true`: a non-zero PreToolUse hook would block the tool call.
+    // curl exits 7 on a refused connection; `|| true` is what turns that into zero,
+    // and a non-zero PreToolUse hook would block the tool call.
     expect(await runHook('{}', port)).toBe(0);
-    expect(Date.now() - started).toBeLessThan(3_000);
+  });
+
+  it('gives up on a server that accepts but never answers', async () => {
+    const sockets: Socket[] = [];
+    const server = createServer(() => {
+      // Deliberately never responds: only --max-time ends this request.
+    });
+    server.on('connection', (socket) => sockets.push(socket));
+    try {
+      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+      const { port } = server.address() as AddressInfo;
+      const started = Date.now();
+      expect(await runHook('{}', port)).toBe(0);
+      // --max-time 1 plus process startup; without the flag curl would hang forever.
+      expect(Date.now() - started).toBeLessThan(3_000);
+    } finally {
+      for (const socket of sockets) socket.destroy();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
   });
 });

@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { ensureConfigFile } from '../../src/config.js';
+import { DEFAULT_CONFIG_FILE, ensureConfigFile } from '../../src/config.js';
 
 function withTempHome(fn: (home: string) => void): void {
   const home = mkdtempSync(join(tmpdir(), 'garden-home-'));
@@ -16,9 +16,9 @@ function withTempHome(fn: (home: string) => void): void {
 describe('ensureConfigFile', () => {
   it('creates the app directory and a default config.json on first run', () => {
     withTempHome((home) => {
-      expect(ensureConfigFile(home).port).toBe(4310);
+      expect(ensureConfigFile(home)).toEqual(DEFAULT_CONFIG_FILE);
       const written = readFileSync(join(home, '.garden', 'config.json'), 'utf8');
-      expect(JSON.parse(written)).toEqual({ port: 4310, roots: ['~/Desktop/Extend'] });
+      expect(JSON.parse(written)).toEqual(DEFAULT_CONFIG_FILE);
     });
   });
 

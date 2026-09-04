@@ -21,10 +21,10 @@ export async function withTmuxServer(fn: (ctx: TmuxServerContext) => Promise<voi
   const socket = `garden-test-${randomBytes(4).toString('hex')}`;
   const dir = mkdtempSync(join(tmpdir(), 'garden-tmux-'));
   const confPath = join(dir, 'tmux.conf');
-  // Passed as -f on the first command that touches the socket: that command starts
-  // the server, and remain-on-exit has to be set by then.
-  writeFileSync(confPath, 'set-option -g remain-on-exit on\n', 'utf8');
   try {
+    // Passed as -f on the first command that touches the socket: that command starts
+    // the server, and remain-on-exit has to be set by then.
+    writeFileSync(confPath, 'set-option -g remain-on-exit on\n', 'utf8');
     await fn({ socket, confPath });
   } finally {
     await execFileAsync('tmux', ['-L', socket, 'kill-server']).catch(() => {});
