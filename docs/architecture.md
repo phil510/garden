@@ -92,6 +92,7 @@ packages/server/src/
     ws/            events socket, attach socket
     server.ts      fastify factory
   config.ts
+  appdir.ts        writes tmux.conf and the Claude hook-settings overlay under ~/.garden
   main.ts          composition root
   cli/             the garden bin
 ```
@@ -235,6 +236,11 @@ One row is enforced only in part: the lint rules block node builtins and the sib
 out of `domain/`, but an arbitrary npm import into `domain/` still passes, because catching
 that needs an allowlist of every permitted specifier. Treat "no libraries in `domain/`" as a
 rule review has to hold up, and revisit the allowlist if it starts being broken.
+
+The `http/` row's "any business logic" ban is not lint-enforced at all: `no-restricted-imports`
+can only police what a file imports, not what it does with the result, so a route that imports
+nothing but `app/` and `shared` can still contain an `if` about session state. That half of the
+row is a rule for review to catch, not `pnpm lint`.
 
 The server never parses terminal output. Status comes from hooks, session facts from
 transcripts, liveness from tmux.

@@ -56,7 +56,8 @@ export default tseslint.config(
   // The dependency rules from docs/architecture.md, one config block per layer.
   // They are the reason "the core is pure" and "no logic in http/" survive
   // contact with a convenient shortcut. main.ts and config.ts are the
-  // composition root and are deliberately unrestricted.
+  // composition root, and appdir.ts (the startup file generation main.ts
+  // calls) is deliberately unrestricted alongside them.
   //
   // Blocks for directories that do not exist yet are intentional: they fire the
   // moment someone creates the layer.
