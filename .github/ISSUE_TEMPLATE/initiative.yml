@@ -1,0 +1,23 @@
+name: Initiative
+description: Top-level grouping for a whole body of work — parents the PRD, spec, and epic issues.
+title: '[initiative] '
+labels: ['type:initiative']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        An initiative groups everything for one body of work, from ideation through completion. Its direct sub-issues are the PRD issue, the spec issue, and one or more epic issues, linked via GitHub's native sub-issue UI or `gh api`.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What this body of work delivers and why. One or two paragraphs.
+    validations:
+      required: true
+  - type: textarea
+    id: child-issues
+    attributes:
+      label: Child issues
+      description: Human-readable index of the PRD/spec/epic sub-issues. The source of truth is GitHub's native sub-issue relationships.
+    validations:
+      required: false

@@ -1,0 +1,33 @@
+name: Epic
+description: A body of work driven by a merged spec doc, grouped under an initiative. Decomposed into sub-issue tasks.
+title: '[epic] '
+labels: ['type:epic']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Open an epic only after its spec has merged. Tasks under this epic are tracked as native GitHub sub-issues, not as a static checklist.
+  - type: input
+    id: linked-spec
+    attributes:
+      label: Linked spec
+      description: Path to the spec doc this epic implements.
+      placeholder: docs/specs/YYYY-MM-DD-<slug>.md
+    validations:
+      required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What this epic delivers. One paragraph.
+    validations:
+      required: true
+  - type: textarea
+    id: sub-tasks
+    attributes:
+      label: Sub-tasks
+      description: Human-readable index of child work. The source of truth is GitHub's native sub-issue relationships.
+      value: |
+        Sub-issues created and linked via GitHub's native sub-issue UI or `gh api`.
+    validations:
+      required: false

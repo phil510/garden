@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    // Overrides the base's Node-oriented resolution: this package is never
+    // run by Node, only bundled by Vite, so it follows Vite's own tsconfig
+    // convention (module/moduleResolution "bundler") instead of NodeNext.
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["vite/client", "node"]
+  },
+  "include": ["src/**/*", "vite.config.ts"]
+}

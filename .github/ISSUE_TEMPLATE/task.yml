@@ -1,0 +1,35 @@
+name: Task
+description: A unit of work under an epic. Becomes a branch, a PR, and a merge.
+title: '[task] '
+labels: ['type:task']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        After creating this task, link it as a sub-issue of its parent epic via the GitHub UI or `gh api`.
+  - type: input
+    id: parent-epic
+    attributes:
+      label: Parent epic
+      description: Issue number of the parent epic.
+      placeholder: '#N'
+    validations:
+      required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What this task does.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance criteria
+      description: Checkbox list of conditions for done.
+      value: |
+        - [ ]
+        - [ ]
+        - [ ]
+    validations:
+      required: true
