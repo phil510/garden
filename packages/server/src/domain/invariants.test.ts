@@ -58,6 +58,18 @@ const sequences: GardenEvent[][] = [
   ],
   [
     transcript({}, now),
+    {
+      type: 'hook',
+      payload: aHookEvent({
+        session_id: 'sid-1',
+        hook_event_name: 'Notification',
+        message: 'Claude needs your permission to run rm',
+      }),
+      at: now,
+    },
+  ],
+  [
+    transcript({}, now),
     { type: 'hook', payload: aHookEvent({ session_id: 'sid-3' }), at: now },
     {
       type: 'session-registered',
@@ -113,14 +125,21 @@ describe('boot replay equals steady state', () => {
   });
 });
 
-const everyVariant: GardenEvent[] = [
-  { type: 'store-loaded', tmuxNames: { 'sid-1': 'repo' }, at: now },
-  { type: 'session-registered', id: 'sid-1', tmuxName: 'repo', cwd: '/Users/dev/repo', at: now },
-  transcript({}, now),
-  { type: 'hook', payload: aHookEvent({ session_id: 'sid-1' }), at: now },
-  snapshot(false, now),
-  { type: 'tick', at: now },
-];
+// Keyed by variant so a new event type fails to compile until it has a row here.
+const everyVariant: Record<GardenEvent['type'], GardenEvent> = {
+  'store-loaded': { type: 'store-loaded', tmuxNames: { 'sid-1': 'repo' }, at: now },
+  'session-registered': {
+    type: 'session-registered',
+    id: 'sid-1',
+    tmuxName: 'repo',
+    cwd: '/Users/dev/repo',
+    at: now,
+  },
+  'transcript-changed': transcript({}, now),
+  hook: { type: 'hook', payload: aHookEvent({ session_id: 'sid-1' }), at: now },
+  'tmux-snapshot': snapshot(false, now),
+  tick: { type: 'tick', at: now },
+};
 
 const aged = [
   transcript({}, now),
@@ -134,12 +153,12 @@ const states = {
 };
 
 describe('reduce is total', () => {
-  for (const event of everyVariant) {
+  for (const event of Object.values(everyVariant)) {
     for (const [label, state] of Object.entries(states)) {
-      it(`folds ${event.type} into the ${label} state without throwing`, () => {
+      it(`folds ${event.type} into the ${label} state idempotently and without losing sessions`, () => {
         const once = reduce(state, event);
-        expect(Object.keys(once.sessions).length).toBeGreaterThanOrEqual(
-          Object.keys(state.sessions).length,
+        expect(Object.keys(once.sessions)).toEqual(
+          expect.arrayContaining(Object.keys(state.sessions)),
         );
         expect(reduce(once, event)).toEqual(once);
         // An event from before the state's clock must not move derivation time backwards.

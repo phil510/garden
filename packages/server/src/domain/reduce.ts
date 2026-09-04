@@ -125,7 +125,9 @@ export function reduce(state: GardenState, event: GardenEvent): GardenState {
     }
     case 'tick':
       return rederive({ ...state, lastEventAt: at }, at);
-    default:
-      return state;
   }
+  // No default arm: a switch without one narrows to never here, so a new event
+  // variant fails to compile rather than being silently swallowed.
+  event satisfies never;
+  return state;
 }

@@ -29,6 +29,32 @@ describe('diff', () => {
     expect(diff(prev, next)).toEqual([]);
   });
 
+  it('reports every field that differs, so a field added to a session cannot be missed', () => {
+    const before = aSession({ id: 'sid-1' });
+    const after: typeof before = {
+      ...before,
+      cwd: '/Users/dev/other',
+      repoRoot: '/Users/dev/other',
+      branch: 'topic',
+      title: 'Another session',
+      recap: 'Done.',
+      liveness: 'exited',
+      status: 'waiting',
+      statusReason: 'Needs approval',
+      exitCode: 130,
+      tmuxName: 'other',
+      attached: true,
+      lastActivity: before.lastActivity + 1,
+    };
+    const [delta] = diff(withSessions(before), withSessions(after));
+    const changed = delta?.type === 'session-changed' ? Object.keys(delta.changes) : [];
+    expect(changed.sort()).toEqual(
+      Object.keys(before)
+        .filter((key) => key !== 'id')
+        .sort(),
+    );
+  });
+
   it('ignores sessions that are only in the previous state, because garden never forgets one', () => {
     expect(diff(withSessions(aSession({ id: 'sid-1' })), initialState)).toEqual([]);
   });
