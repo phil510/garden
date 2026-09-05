@@ -1,0 +1,77 @@
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, describe, expect, it } from 'vitest';
+import { GitError, branch, repoRoot, status } from '../../src/adapters/git.js';
+
+function git(cwd: string, args: readonly string[]): void {
+  execFileSync('git', args, { cwd });
+}
+
+function initRepo(dir: string): void {
+  git(dir, ['init', '--initial-branch=main']);
+  git(dir, ['config', 'user.email', 'garden-test@example.com']);
+  git(dir, ['config', 'user.name', 'garden test']);
+  writeFileSync(join(dir, 'README.md'), 'hello\n');
+  git(dir, ['add', 'README.md']);
+  git(dir, ['commit', '-m', 'initial commit']);
+}
+
+describe('the git adapter', () => {
+  let dir: string | undefined;
+
+  afterEach(() => {
+    if (dir !== undefined) rmSync(dir, { recursive: true, force: true });
+    dir = undefined;
+  });
+
+  it('resolves a worktree and its parent repo to the same root', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'garden-git-'));
+    const repoDir = join(dir, 'repo');
+    mkdirSync(repoDir);
+    initRepo(repoDir);
+    const worktreeDir = join(dir, 'worktree');
+    git(repoDir, ['worktree', 'add', worktreeDir, '-b', 'feat/x']);
+
+    const rootFromRepo = await repoRoot(repoDir);
+    const rootFromWorktree = await repoRoot(worktreeDir);
+    expect(rootFromWorktree).toBe(rootFromRepo);
+    // git resolves symlinks in its output (e.g. macOS's /var -> /private/var),
+    // so the comparison must resolve the same way.
+    expect(rootFromRepo).toBe(realpathSync(repoDir));
+  });
+
+  it('reports the checked-out branch', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'garden-git-'));
+    initRepo(dir);
+    git(dir, ['checkout', '-b', 'feat/y']);
+    expect(await branch(dir)).toBe('feat/y');
+  });
+
+  it('reports untracked and modified paths from status --porcelain', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'garden-git-'));
+    initRepo(dir);
+    writeFileSync(join(dir, 'README.md'), 'changed\n');
+    writeFileSync(join(dir, 'new.txt'), 'new\n');
+
+    const entries = await status(dir);
+    expect(entries).toContainEqual({ path: 'README.md', status: ' M' });
+    expect(entries).toContainEqual({ path: 'new.txt', status: '??' });
+  });
+
+  it('reports a rename by its new path', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'garden-git-'));
+    initRepo(dir);
+    git(dir, ['mv', 'README.md', 'RENAMED.md']);
+
+    const entries = await status(dir);
+    expect(entries).toContainEqual({ path: 'RENAMED.md', status: 'R ' });
+  });
+
+  it('fails with a GitError outside a git repository', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'garden-git-'));
+    await expect(repoRoot(dir)).rejects.toBeInstanceOf(GitError);
+    await expect(repoRoot(dir)).rejects.toThrow(/not a git repository/);
+  });
+});
