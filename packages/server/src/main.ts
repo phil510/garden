@@ -99,7 +99,7 @@ export async function main(): Promise<void> {
   const home = homedir();
   const config = loadConfig(process.env, ensureConfigFile(home), home);
   const confPath = writeTmuxConf(home);
-  writeClaudeSettings(home);
+  const settingsPath = writeClaudeSettings(home);
 
   const logger = createLogger();
   const store = storePort(home, logger);
@@ -113,7 +113,7 @@ export async function main(): Promise<void> {
     projection.dispatch(event);
   });
 
-  const app = createServer({ projection });
+  const app = createServer({ projection, tmux, store, serverPort: config.port, settingsPath });
   app.addHook('onClose', () => watcher.close());
   for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     process.once(signal, () => void app.close());

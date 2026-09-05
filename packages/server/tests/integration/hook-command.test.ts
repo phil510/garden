@@ -94,7 +94,18 @@ function fakeStore(): StorePort {
 describe('a real Claude Code hook command against the real /hooks route', () => {
   it('reaches the endpoint and is folded into that session', async () => {
     const projection = createProjection(fakeStore());
-    const app = createGardenServer({ projection });
+    const app = createGardenServer({
+      projection,
+      tmux: {
+        listPanes: () => Promise.reject(new Error('not used by this test')),
+        newSession: () => Promise.reject(new Error('not used by this test')),
+        respawnPane: () => Promise.reject(new Error('not used by this test')),
+        killSession: () => Promise.reject(new Error('not used by this test')),
+      },
+      store: fakeStore(),
+      serverPort: 4310,
+      settingsPath: '/home/.garden/claude-settings.json',
+    });
     try {
       await app.listen({ port: 0, host: '127.0.0.1' });
       const { port } = app.server.address() as AddressInfo;

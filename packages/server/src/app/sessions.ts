@@ -36,9 +36,11 @@ export interface SessionsDeps {
   readonly settingsPath: string;
 }
 
+export class SessionNotFoundError extends Error {}
+
 function findSession(projection: Projection, id: string): SessionState {
   const session = projection.sessions().find((candidate) => candidate.id === id);
-  if (session === undefined) throw new Error(`no such session: ${id}`);
+  if (session === undefined) throw new SessionNotFoundError(`no such session: ${id}`);
   return session;
 }
 

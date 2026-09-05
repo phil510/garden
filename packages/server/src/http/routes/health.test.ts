@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Projection } from '../../app/projection.js';
+import type { ServerDeps } from '../server.js';
 import { createServer } from '../server.js';
 
 function fakeProjection(): Projection {
@@ -17,9 +18,31 @@ function fakeProjection(): Projection {
   };
 }
 
+function fakeDeps(): ServerDeps {
+  return {
+    projection: fakeProjection(),
+    tmux: {
+      listPanes: () => Promise.reject(new Error('not used by this test')),
+      newSession: () => Promise.reject(new Error('not used by this test')),
+      respawnPane: () => Promise.reject(new Error('not used by this test')),
+      killSession: () => Promise.reject(new Error('not used by this test')),
+    },
+    store: {
+      read: () => {
+        throw new Error('not used by this test');
+      },
+      write: () => {
+        throw new Error('not used by this test');
+      },
+    },
+    serverPort: 4310,
+    settingsPath: '/home/.garden/claude-settings.json',
+  };
+}
+
 describe('GET /health', () => {
   it('is mounted and answers 200 with an ok status', async () => {
-    const app = createServer({ projection: fakeProjection() });
+    const app = createServer(fakeDeps());
     try {
       const response = await app.inject({ method: 'GET', url: '/health' });
 
