@@ -100,10 +100,10 @@ export default tseslint.config(
       ],
     },
   },
-  // Two blocks, because the relative form of a cross-adapter import depends on
-  // where the importing file sits: `**/adapters/**` only matches specifiers
-  // that spell the directory out, so `./git.js` from inside adapters/ needs a
-  // relative pattern of its own.
+  // Two of these blocks are split by directory depth, because the relative form
+  // of a cross-adapter import depends on where the importing file sits:
+  // `**/adapters/**` only matches specifiers that spell the directory out, so
+  // `./git.js` from inside adapters/ needs a relative pattern of its own.
   {
     files: ['packages/server/src/adapters/*.ts'],
     rules: {
@@ -120,6 +120,17 @@ export default tseslint.config(
           ],
         },
       ],
+    },
+  },
+  // A colocated unit test necessarily imports the module it tests, which is a
+  // same-directory import the block above would otherwise flag. The ban that
+  // block exists for is about production code composing adapters together
+  // outside main.ts; a test file ships nowhere, so only the inward-import ban
+  // still applies here.
+  {
+    files: ['packages/server/src/adapters/*.test.ts'],
+    rules: {
+      'no-restricted-imports': ['error', { patterns: [adaptersInward] }],
     },
   },
   {
