@@ -6,13 +6,12 @@ import type { GardenEvent, TranscriptRecord } from './types.js';
 const now = 1_700_000_000_000;
 const fold = (events: GardenEvent[]) => events.reduce(reduce, initialState);
 
-const mapped: GardenEvent = { type: 'store-loaded', tmuxNames: { 'sid-1': 'repo' }, at: now };
+const mapped: GardenEvent = { type: 'store-loaded', tmuxNames: { 'sid-1': 'repo' } };
 
-const transcript = (o: Partial<TranscriptRecord> = {}, at = now): GardenEvent => ({
+const transcript = (o: Partial<TranscriptRecord> = {}, mtime = now): GardenEvent => ({
   type: 'transcript-changed',
   path: '/t.jsonl',
-  mtime: at,
-  at,
+  mtime,
   record: {
     sessionId: 'sid-1',
     cwd: '/Users/dev/repo',
@@ -24,25 +23,23 @@ const transcript = (o: Partial<TranscriptRecord> = {}, at = now): GardenEvent =>
   },
 });
 
-const snapshot = (paneDead: boolean, at = now): GardenEvent => ({
+const snapshot = (paneDead: boolean, name = 'repo'): GardenEvent => ({
   type: 'tmux-snapshot',
-  sessions: [{ name: 'repo', paneDead, exitCode: paneDead ? 1 : null, attached: !paneDead }],
-  at,
+  sessions: [{ name, paneDead, exitCode: paneDead ? 1 : null, attached: !paneDead }],
 });
 
-const hook = (name: string, at = now, id = 'sid-1'): GardenEvent => ({
+const hook = (name: string, id = 'sid-1'): GardenEvent => ({
   type: 'hook',
   payload: aHookEvent({ session_id: id, hook_event_name: name }),
-  at,
 });
 
 describe('reduce', () => {
-  it('stores a hook for a session with no transcript yet under its own id', () => {
-    const state = fold([hook('UserPromptSubmit', now, 'sid-9')]);
-    expect(state.sessions['sid-9']).toMatchObject({ cwd: '/Users/dev/repo', status: 'working' });
+  it('creates a session from a hook alone, under the hook id and with the hook cwd', () => {
+    const state = fold([hook('UserPromptSubmit', 'sid-9')]);
+    expect(state.sessions['sid-9']).toMatchObject({ id: 'sid-9', cwd: '/Users/dev/repo' });
   });
 
-  it('keeps a live session working after a tmux snapshot confirms the pane', () => {
+  it('keeps the status of a hook that arrived before the tmux snapshot confirmed the pane', () => {
     const state = fold([mapped, transcript(), hook('UserPromptSubmit'), snapshot(false)]);
     expect(state.sessions['sid-1']).toMatchObject({
       liveness: 'live',
@@ -55,24 +52,49 @@ describe('reduce', () => {
     });
   });
 
-  it('reports exited and drops the status when a hook says working after the pane died', () => {
-    const state = fold([mapped, transcript(), snapshot(true), hook('UserPromptSubmit', now + 1)]);
-    expect(state.sessions['sid-1']).toMatchObject({
-      liveness: 'exited',
-      exitCode: 1,
-      status: 'unknown',
+  it('keeps a notification reason a hook set before the tmux snapshot confirmed the pane', () => {
+    const notification: GardenEvent = {
+      type: 'hook',
+      payload: aHookEvent({
+        session_id: 'sid-1',
+        hook_event_name: 'Notification',
+        message: 'Claude needs your permission to run rm',
+      }),
+    };
+    expect(fold([mapped, notification, snapshot(false)]).sessions['sid-1']).toMatchObject({
+      status: 'waiting',
+      statusReason: 'Claude needs your permission to run rm',
     });
   });
 
-  it('ages an unmapped session out to dead on a tick eleven minutes later', () => {
-    expect(fold([transcript()]).sessions['sid-1']?.liveness).toBe('external');
-    const tick: GardenEvent = { type: 'tick', at: now + 11 * 60_000 };
-    expect(fold([transcript(), tick]).sessions['sid-1']?.liveness).toBe('dead');
+  it('reports dead and drops the status when a hook says working after the pane died', () => {
+    const state = fold([mapped, transcript(), snapshot(true), hook('UserPromptSubmit')]);
+    expect(state.sessions['sid-1']).toMatchObject({
+      liveness: 'dead',
+      exitCode: 1,
+      status: null,
+    });
   });
 
-  it('does not revive a dead session when an event arrives with an older timestamp', () => {
-    const aged = fold([transcript(), { type: 'tick', at: now + 11 * 60_000 }]);
-    expect(reduce(aged, { type: 'tick', at: now }).sessions['sid-1']?.liveness).toBe('dead');
+  it('reports a session garden never started as dead with no status', () => {
+    expect(fold([transcript()]).sessions['sid-1']).toMatchObject({
+      liveness: 'dead',
+      status: null,
+      exitCode: null,
+      tmuxName: null,
+    });
+  });
+
+  it('reports a mapped session dead once tmux no longer has that session', () => {
+    const vanished: GardenEvent = { type: 'tmux-snapshot', sessions: [] };
+    expect(fold([mapped, transcript(), snapshot(false), vanished]).sessions['sid-1']).toMatchObject(
+      {
+        liveness: 'dead',
+        status: null,
+        exitCode: null,
+        attached: false,
+      },
+    );
   });
 
   it('falls back to the last prompt when the transcript has no ai-title', () => {
@@ -87,8 +109,8 @@ describe('reduce', () => {
 
   it('brings a session back to live when SessionStart follows SessionEnd on the same pane', () => {
     const ended = [mapped, snapshot(false), hook('SessionEnd')];
-    expect(fold(ended).sessions['sid-1']?.liveness).toBe('exited');
-    expect(fold([...ended, hook('SessionStart', now + 1)]).sessions['sid-1']).toMatchObject({
+    expect(fold(ended).sessions['sid-1']?.liveness).toBe('dead');
+    expect(fold([...ended, hook('SessionStart')]).sessions['sid-1']).toMatchObject({
       liveness: 'live',
       status: 'working',
     });
@@ -100,11 +122,24 @@ describe('reduce', () => {
       id: 'sid-2',
       tmuxName: 'repo-2',
       cwd: '/Users/dev/repo',
-      at: now,
     };
     expect(fold([created]).sessions['sid-2']).toMatchObject({
       tmuxName: 'repo-2',
       cwd: '/Users/dev/repo',
+    });
+  });
+
+  it('holds a newly registered session dead until a tmux snapshot reports its pane', () => {
+    const created: GardenEvent = {
+      type: 'session-registered',
+      id: 'sid-2',
+      tmuxName: 'repo-2',
+      cwd: '/Users/dev/repo',
+    };
+    expect(fold([created]).sessions['sid-2']?.liveness).toBe('dead');
+    expect(fold([created, snapshot(false, 'repo-2')]).sessions['sid-2']).toMatchObject({
+      liveness: 'live',
+      status: 'unknown',
     });
   });
 });

@@ -38,7 +38,7 @@ describe('diff', () => {
       branch: 'topic',
       title: 'Another session',
       recap: 'Done.',
-      liveness: 'exited',
+      liveness: 'dead',
       status: 'waiting',
       statusReason: 'Needs approval',
       exitCode: 130,

@@ -3,7 +3,7 @@ export interface HealthStatus {
   status: 'ok';
 }
 
-export type Liveness = 'live' | 'exited' | 'external' | 'dead';
+export type Liveness = 'live' | 'dead';
 export type Status = 'working' | 'needs-approval' | 'waiting' | 'unknown';
 export type StagePreset = 'single' | 'two-side' | 'two-stack' | 'three' | '2x2';
 
@@ -15,13 +15,13 @@ export interface SessionState {
   title: string | null;
   recap: string | null;
   liveness: Liveness;
-  /** Meaningful while `live` or `external`; forced to `unknown` once a session is gone. */
-  status: Status;
+  /** Live sessions only, `unknown` until the first hook arrives. Null while dead. */
+  status: Status | null;
   statusReason: string | null;
   exitCode: number | null;
   tmuxName: string | null;
   attached: boolean;
-  /** Transcript mtime, or the time of the last hook, in epoch ms. */
+  /** Transcript mtime, in epoch ms. Display and filtering only; liveness never reads it. */
   lastActivity: number;
 }
 

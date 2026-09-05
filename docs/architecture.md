@@ -20,11 +20,11 @@ into events. One pure function folds events into state. One diff turns state cha
 deltas. If you are unsure where code belongs, ask which of those three jobs it is doing.
 
 The hard part of garden is not any individual feature — it is that those four sources are
-unsynchronised. A hook arrives before the transcript file exists. A pane dies while a client
-is attached. The server restarts and has to re-associate session ids to tmux names. A session
-is assumed live because its transcript was touched nine minutes ago. Keeping that folding
-logic in one pure, testable place is the central architectural decision here, and most of the
-rules below follow from protecting it.
+unsynchronised. A hook arrives before the transcript file exists. A pane dies while a client is
+attached. The server restarts and has to re-associate session ids to tmux names. A hook reporting
+`working` lands after tmux has already seen the pane die. Keeping that folding logic in one pure,
+testable place is the central architectural decision here, and most of the rules below follow from
+protecting it.
 
 ## 2. Shape
 
@@ -36,7 +36,7 @@ repositories, because nothing in garden has invariants worth defending. And ther
 dependency-injection container; a single composition root wires everything by hand.
 
 Ports (TypeScript interfaces for outbound dependencies) exist only where something needs to be
-faked in a test — realistically tmux, the clock, the store, and the transcript watcher.
+faked in a test — realistically tmux, the store, and the transcript watcher.
 Everything else is imported concretely. An interface with one implementation and no test fake
 is ceremony.
 
@@ -65,7 +65,7 @@ packages/server/src/
   domain/          pure. no node builtins, no libraries
     types.ts       SessionState, Liveness, Status, GardenEvent, Delta
     reduce.ts      reduce(state, event) -> state
-    sessions.ts    merge tmux facts + transcript facts -> liveness
+    sessions.ts    merge tmux facts + transcript facts -> session state
     transcript.ts  jsonl line -> session record
     status.ts      hook event -> status
     groups.ts      repo grouping and pin ordering
@@ -78,10 +78,9 @@ packages/server/src/
     transcripts.ts chokidar watch + read
     pty.ts         node-pty attach
     store.ts       ~/.garden/state.json, atomic writes (overlay only)
-    clock.ts       now()
     logger.ts
   app/
-    ports.ts       interfaces app requires: TmuxPort, ClockPort, StorePort, TranscriptPort
+    ports.ts       interfaces app requires: TmuxPort, StorePort, TranscriptPort
     projection.ts  owns current state; dispatch(event); subscribe(fn)
     sessions.ts    create / resume / kill use cases
     hooks.ts
@@ -115,34 +114,28 @@ subscribe(fn); // the events WebSocket subscribes; so does anything else that ca
 
 Adapters never touch state. They emit events:
 
-- the transcript watcher emits `{ type: 'transcript-changed', path, at }`
-- the hook route emits `{ type: 'hook', payload, at }`
-- a tmux poll emits `{ type: 'tmux-snapshot', sessions, at }`
-- a timer emits `{ type: 'tick', at }`
+- the transcript watcher emits `{ type: 'transcript-changed', path, record, mtime }`
+- the hook route emits `{ type: 'hook', payload }`
+- a tmux poll emits `{ type: 'tmux-snapshot', sessions }`
+
+Nothing in `domain/` reads the current time. The only timestamp any event carries is the
+transcript's own modification time, and that is display data no derivation reads. Liveness asks
+tmux what is true now and believes the answer, so the same events produce the same state whenever
+they are folded — which is what makes `reduce` a pure function of its arguments and testable as
+one.
 
 Commands are asymmetric and this matters: a use case calls the outside world first, then
 dispatches the resulting fact. `createSession` runs tmux, and only then dispatches the id-to-name
 mapping. It does not optimistically mutate state and hope tmux agrees.
 
-### 4.2 Keeping reduce pure when time is a factor
-
-Liveness depends on the current time — a session with no tmux mapping is `external` if its
-transcript was touched within ten minutes, and `dead` otherwise. That is exactly the kind of
-rule that ends up as a `Date.now()` call buried in a getter, at which point it can no longer
-be tested.
-
-So: every event carries `at: number`, the clock is an adapter, and the ten-minute expiry is
-driven by a `tick` event. `reduce` is a pure function of its arguments, and "a session goes
-stale after ten minutes" is a unit test that dispatches two events.
-
-### 4.3 Boot, and what is persisted
+### 4.2 Boot, and what is persisted
 
 `~/.garden/state.json` holds **overlay facts only** — things garden itself decided and cannot
 recompute: the session id to tmux name map, group order and pins, collapsed groups, stage
 preset and slot assignments, focused slot, and the hide-dead toggle. It does **not** hold a
-`SessionState` snapshot. Every session fact — cwd, branch, title, recap, liveness, status — is
-derived from tmux and the transcripts on every boot, because those are the sources of truth
-and a persisted copy of them can only be wrong.
+`SessionState` snapshot. Every session fact is derived on every boot — liveness, exit code and
+tmux name from tmux, cwd, branch, title and recap from the transcripts, status from hooks —
+because those are the sources of truth and a persisted copy of them can only be wrong.
 
 So the startup sequence is a replay, not a restore:
 
@@ -151,19 +144,19 @@ So the startup sequence is a replay, not a restore:
    UI preferences, and nothing else.
 3. Dispatch a full `tmux-snapshot`.
 4. Scan `~/.claude/projects/**` and dispatch a `transcript-changed` per file.
-5. Start the watcher, the tmux poll, and the tick timer; serve HTTP.
+5. Start the watcher and the tmux poll; serve HTTP.
 
 Nothing is reconciled by hand, because steps 3 and 4 are the same events the adapters emit
 during normal operation — boot is just the first batch of them. A live session recovered this
 way has `unknown` status until its next hook event, which is correct rather than a limitation.
 
-### 4.4 What goes in `http/`
+### 4.3 What goes in `http/`
 
 Translation only: parse and validate the request, call one use case, serialise the result.
 A route that contains an `if` about session state is in the wrong file. If you find yourself
 wanting logic there, it belongs in `app/` (orchestration) or `domain/` (rules).
 
-### 4.5 The CLI
+### 4.4 The CLI
 
 `cli/` is a thin HTTP client against the local server, so the CLI and the browser drive one
 code path. It does not import `app/` or `adapters/`, and it never shells out to tmux itself.
@@ -257,8 +250,8 @@ could not, and `adapters/transcripts.ts` owns the logging and the once-per-file 
 with it. Reporting a problem is I/O; deciding a line is unusable is not. Together these are the
 rules that keep one malformed file from taking the whole console down.
 
-The client renders degraded state rather than error dialogs — `unknown` status, a stale
-badge, an empty tree. The event socket reconnects with backoff and reattaches on-stage panes.
+The client renders degraded state rather than error dialogs — `unknown` status, a session
+with no title, an empty tree. The event socket reconnects with backoff and reattaches on-stage panes.
 
 ## 8. Testing boundaries
 

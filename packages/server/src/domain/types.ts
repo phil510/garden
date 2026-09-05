@@ -1,4 +1,4 @@
-import type { HookPayload, SessionMap } from '@garden/shared';
+import type { HookPayload, SessionMap, Status } from '@garden/shared';
 
 export type { HookPayload };
 
@@ -18,19 +18,18 @@ export interface TmuxSessionFact {
   attached: boolean;
 }
 
+/** The status a hook reported, with the reason that came with it. */
+export interface ReportedStatus {
+  status: Status;
+  reason: string | null;
+}
+
 export type GardenEvent =
-  | { type: 'store-loaded'; tmuxNames: Record<string, string>; at: number }
-  | { type: 'session-registered'; id: string; tmuxName: string; cwd: string; at: number }
-  | {
-      type: 'transcript-changed';
-      path: string;
-      record: TranscriptRecord;
-      mtime: number;
-      at: number;
-    }
-  | { type: 'hook'; payload: HookPayload; at: number }
-  | { type: 'tmux-snapshot'; sessions: TmuxSessionFact[]; at: number }
-  | { type: 'tick'; at: number };
+  | { type: 'store-loaded'; tmuxNames: Record<string, string> }
+  | { type: 'session-registered'; id: string; tmuxName: string; cwd: string }
+  | { type: 'transcript-changed'; path: string; record: TranscriptRecord; mtime: number }
+  | { type: 'hook'; payload: HookPayload }
+  | { type: 'tmux-snapshot'; sessions: TmuxSessionFact[] };
 
 export interface GardenState {
   sessions: SessionMap;
@@ -38,6 +37,6 @@ export interface GardenState {
   tmuxNames: Record<string, string>;
   tmux: Record<string, TmuxSessionFact>;
   ended: Record<string, boolean>;
-  /** Monotonic: an event arriving with an older `at` never moves it backwards. */
-  lastEventAt: number;
+  /** The latest status-bearing hook per session, by session id. */
+  reported: Record<string, ReportedStatus>;
 }

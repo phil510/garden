@@ -8,7 +8,7 @@ export const initialState: GardenState = {
   tmuxNames: {},
   tmux: {},
   ended: {},
-  lastEventAt: 0,
+  reported: {},
 };
 
 function blank(id: string): SessionState {
@@ -20,7 +20,7 @@ function blank(id: string): SessionState {
     title: null,
     recap: null,
     liveness: 'dead',
-    status: 'unknown',
+    status: null,
     statusReason: null,
     exitCode: null,
     tmuxName: null,
@@ -29,58 +29,46 @@ function blank(id: string): SessionState {
   };
 }
 
-/** Re-derives every session's tmux-dependent and time-dependent fields, so the order events
- *  arrive in cannot change the outcome. */
-function rederive(state: GardenState, at: number): GardenState {
+/** Projects the raw tmux and hook facts onto every session, so the order events arrive in
+ *  cannot change the outcome. */
+function rederive(state: GardenState): GardenState {
   const sessions: SessionMap = {};
   for (const [id, session] of Object.entries(state.sessions)) {
     const tmuxName = state.tmuxNames[id] ?? null;
     const fact = tmuxName === null ? undefined : state.tmux[tmuxName];
-    const { liveness, exitCode } = deriveLiveness({
-      tmuxName,
-      fact,
-      ended: state.ended[id] === true,
-      lastActivity: session.lastActivity,
-      at,
-    });
-    const gone = liveness === 'exited' || liveness === 'dead';
+    const { liveness, exitCode } = deriveLiveness({ fact, ended: state.ended[id] === true });
+    const dead = liveness === 'dead';
+    const reported = state.reported[id];
     sessions[id] = {
       ...session,
       tmuxName,
       attached: fact?.attached ?? false,
       liveness,
       exitCode,
-      status: gone ? 'unknown' : session.status,
-      statusReason: gone ? null : session.statusReason,
+      // Status belongs to live sessions: none yet heard from reads `unknown`, dead reads nothing.
+      status: dead ? null : (reported?.status ?? 'unknown'),
+      statusReason: dead ? null : (reported?.reason ?? null),
     };
   }
   return { ...state, sessions };
 }
 
 export function reduce(state: GardenState, event: GardenEvent): GardenState {
-  const at = Math.max(state.lastEventAt, event.at);
   switch (event.type) {
     case 'store-loaded':
-      return rederive(
-        { ...state, tmuxNames: { ...state.tmuxNames, ...event.tmuxNames }, lastEventAt: at },
-        at,
-      );
+      return rederive({ ...state, tmuxNames: { ...state.tmuxNames, ...event.tmuxNames } });
     case 'session-registered': {
       const prev = state.sessions[event.id] ?? blank(event.id);
-      return rederive(
-        {
-          ...state,
-          tmuxNames: { ...state.tmuxNames, [event.id]: event.tmuxName },
-          sessions: { ...state.sessions, [event.id]: { ...prev, cwd: event.cwd } },
-          lastEventAt: at,
-        },
-        at,
-      );
+      return rederive({
+        ...state,
+        tmuxNames: { ...state.tmuxNames, [event.id]: event.tmuxName },
+        sessions: { ...state.sessions, [event.id]: { ...prev, cwd: event.cwd } },
+      });
     }
     case 'transcript-changed': {
       const { record } = event;
       const id = record.sessionId;
-      if (id === null) return { ...state, lastEventAt: at };
+      if (id === null) return state;
       const prev = state.sessions[id] ?? blank(id);
       const session: SessionState = {
         ...prev,
@@ -90,41 +78,33 @@ export function reduce(state: GardenState, event: GardenEvent): GardenState {
         recap: record.recap ?? prev.recap,
         lastActivity: Math.max(prev.lastActivity, event.mtime),
       };
-      return rederive(
-        { ...state, sessions: { ...state.sessions, [id]: session }, lastEventAt: at },
-        at,
-      );
+      return rederive({ ...state, sessions: { ...state.sessions, [id]: session } });
     }
     case 'hook': {
       const id = event.payload.session_id;
-      if (id === '') return { ...state, lastEventAt: at };
+      if (id === '') return state;
       const prev = state.sessions[id] ?? blank(id);
       const outcome = hookOutcome(event.payload);
       const session: SessionState = {
         ...prev,
         cwd: prev.cwd === '' ? event.payload.cwd : prev.cwd,
-        status: outcome.status ?? prev.status,
-        statusReason: outcome.status === null ? prev.statusReason : outcome.reason,
         recap: outcome.recap ?? prev.recap,
-        lastActivity: Math.max(prev.lastActivity, event.at),
       };
-      return rederive(
-        {
-          ...state,
-          sessions: { ...state.sessions, [id]: session },
-          ended: outcome.ended === null ? state.ended : { ...state.ended, [id]: outcome.ended },
-          lastEventAt: at,
-        },
-        at,
-      );
+      return rederive({
+        ...state,
+        sessions: { ...state.sessions, [id]: session },
+        ended: outcome.ended === null ? state.ended : { ...state.ended, [id]: outcome.ended },
+        reported:
+          outcome.status === null
+            ? state.reported
+            : { ...state.reported, [id]: { status: outcome.status, reason: outcome.reason } },
+      });
     }
     case 'tmux-snapshot': {
       const tmux: Record<string, TmuxSessionFact> = {};
       for (const fact of event.sessions) tmux[fact.name] = fact;
-      return rederive({ ...state, tmux, lastEventAt: at }, at);
+      return rederive({ ...state, tmux });
     }
-    case 'tick':
-      return rederive({ ...state, lastEventAt: at }, at);
   }
   // No default arm: a switch without one narrows to never here, so a new event
   // variant fails to compile rather than being silently swallowed.

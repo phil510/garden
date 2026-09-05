@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { EXTERNAL_WINDOW_MS, deriveLiveness } from './sessions.js';
+import { describe, expect, it, vi } from 'vitest';
+import { deriveLiveness, type LivenessInput, type LivenessResult } from './sessions.js';
 import type { TmuxSessionFact } from './types.js';
 
 const fact = (o: Partial<TmuxSessionFact> = {}): TmuxSessionFact => ({
@@ -10,59 +10,71 @@ const fact = (o: Partial<TmuxSessionFact> = {}): TmuxSessionFact => ({
   ...o,
 });
 
-const now = 1_700_000_000_000;
-const base = { tmuxName: 'repo', fact: fact(), ended: false, lastActivity: now, at: now };
+const base = { fact: fact(), ended: false };
+
+/** Every combination of the two inputs, so the derivation is pinned exhaustively. */
+const cases: { name: string; input: LivenessInput; expected: LivenessResult }[] = [
+  {
+    name: 'is live while tmux reports a pane that is not dead',
+    input: base,
+    expected: { liveness: 'live', exitCode: null },
+  },
+  {
+    name: 'is dead with the pane exit code once the pane is dead',
+    input: { ...base, fact: fact({ paneDead: true, exitCode: 130 }) },
+    expected: { liveness: 'dead', exitCode: 130 },
+  },
+  {
+    name: 'is dead with no exit code when the pane died without reporting one',
+    input: { ...base, fact: fact({ paneDead: true }) },
+    expected: { liveness: 'dead', exitCode: null },
+  },
+  {
+    name: 'is dead when tmux has no session for it, whether garden never started one or tmux lost it',
+    input: { ...base, fact: undefined },
+    expected: { liveness: 'dead', exitCode: null },
+  },
+  {
+    name: 'is dead on a SessionEnd hook before tmux has been polled',
+    input: { ...base, ended: true },
+    expected: { liveness: 'dead', exitCode: null },
+  },
+  {
+    name: 'surfaces the pane exit code when a SessionEnd hook and a tmux snapshot both landed',
+    input: { fact: fact({ paneDead: true, exitCode: 1 }), ended: true },
+    expected: { liveness: 'dead', exitCode: 1 },
+  },
+  {
+    name: 'is dead with no exit code when it ended and the dead pane reported none',
+    input: { fact: fact({ paneDead: true }), ended: true },
+    expected: { liveness: 'dead', exitCode: null },
+  },
+  {
+    name: 'is dead with no exit code when it ended and tmux no longer holds the session',
+    input: { fact: undefined, ended: true },
+    expected: { liveness: 'dead', exitCode: null },
+  },
+];
 
 describe('deriveLiveness', () => {
-  it('resolves to exited rather than external when the pane is dead and the transcript is fresh', () => {
-    expect(deriveLiveness({ ...base, fact: fact({ paneDead: true, exitCode: 130 }) })).toEqual({
-      liveness: 'exited',
-      exitCode: 130,
+  for (const { name, input, expected } of cases) {
+    it(`a session ${name}`, () => {
+      expect(deriveLiveness(input)).toEqual(expected);
     });
-  });
+  }
 
-  it('resolves to exited on a SessionEnd hook before tmux has been polled', () => {
-    expect(deriveLiveness({ ...base, ended: true })).toEqual({
-      liveness: 'exited',
-      exitCode: null,
-    });
-  });
-
-  it('surfaces the pane exit code when a SessionEnd hook and a tmux snapshot both landed', () => {
-    expect(
-      deriveLiveness({ ...base, ended: true, fact: fact({ paneDead: true, exitCode: 1 }) }),
-    ).toEqual({ liveness: 'exited', exitCode: 1 });
-  });
-
-  it('resolves to external when the tmux mapping is gone but the transcript is fresh', () => {
-    expect(deriveLiveness({ ...base, tmuxName: null, fact: undefined })).toEqual({
-      liveness: 'external',
-      exitCode: null,
-    });
-  });
-
-  it('resolves to external when the mapping exists but tmux has no such session', () => {
-    expect(deriveLiveness({ ...base, fact: undefined })).toEqual({
-      liveness: 'external',
-      exitCode: null,
-    });
-  });
-
-  it('treats a transcript touched exactly ten minutes ago as dead, not external', () => {
-    const input = { ...base, tmuxName: null, fact: undefined };
-    expect(deriveLiveness({ ...input, lastActivity: now - EXTERNAL_WINDOW_MS }).liveness).toBe(
-      'dead',
-    );
-    expect(deriveLiveness({ ...input, lastActivity: now - EXTERNAL_WINDOW_MS + 1 }).liveness).toBe(
-      'external',
-    );
-  });
-
-  it('treats a session with no recorded activity as dead', () => {
-    const unmapped = { ...base, tmuxName: null, fact: undefined, lastActivity: 0 };
-    expect(deriveLiveness(unmapped).liveness).toBe('dead');
-    // `at` within one window of the epoch is the only input where the arithmetic alone would
-    // read a zero `lastActivity` as fresh.
-    expect(deriveLiveness({ ...unmapped, at: 60_000 }).liveness).toBe('dead');
+  it('answers identically at any wall-clock time, so no clock can leak back into the derivation', () => {
+    const instants = [0, 1_700_000_000_000, 4_100_000_000_000];
+    vi.useFakeTimers();
+    try {
+      for (const { input, expected } of cases) {
+        for (const instant of instants) {
+          vi.setSystemTime(instant);
+          expect(deriveLiveness(input)).toEqual(expected);
+        }
+      }
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -17,45 +17,33 @@ const record = (o: Partial<TranscriptRecord> = {}): TranscriptRecord => ({
   ...o,
 });
 
-const transcript = (o: Partial<TranscriptRecord>, at: number): GardenEvent => ({
+const transcript = (o: Partial<TranscriptRecord>, mtime: number): GardenEvent => ({
   type: 'transcript-changed',
   path: '/t.jsonl',
   record: record(o),
-  mtime: at,
-  at,
+  mtime,
 });
 
-const snapshot = (paneDead: boolean, at: number): GardenEvent => ({
+const snapshot = (paneDead: boolean): GardenEvent => ({
   type: 'tmux-snapshot',
   sessions: [{ name: 'repo', paneDead, exitCode: paneDead ? 130 : null, attached: !paneDead }],
-  at,
 });
+
+const storeLoaded: GardenEvent = { type: 'store-loaded', tmuxNames: { 'sid-1': 'repo' } };
 
 const sequences: GardenEvent[][] = [
   [],
-  [{ type: 'store-loaded', tmuxNames: { 'sid-1': 'repo' }, at: now }],
+  [storeLoaded],
   [transcript({}, now)],
-  [transcript({}, now), snapshot(false, now)],
+  [transcript({}, now), snapshot(false)],
   [
-    { type: 'store-loaded', tmuxNames: { 'sid-1': 'repo' }, at: now },
+    storeLoaded,
     transcript({}, now),
-    {
-      type: 'hook',
-      payload: aHookEvent({ session_id: 'sid-1', hook_event_name: 'Stop' }),
-      at: now,
-    },
-    snapshot(false, now),
+    { type: 'hook', payload: aHookEvent({ session_id: 'sid-1', hook_event_name: 'Stop' }) },
+    snapshot(false),
   ],
-  [
-    { type: 'store-loaded', tmuxNames: { 'sid-1': 'repo' }, at: now },
-    transcript({}, now),
-    snapshot(true, now),
-  ],
-  [
-    transcript({}, now),
-    transcript({ sessionId: 'sid-2', title: 'Another' }, now),
-    { type: 'tick', at: now + 11 * 60_000 },
-  ],
+  [storeLoaded, transcript({}, now), snapshot(true)],
+  [transcript({}, now), transcript({ sessionId: 'sid-2', title: 'Another' }, now)],
   [
     transcript({}, now),
     {
@@ -65,19 +53,12 @@ const sequences: GardenEvent[][] = [
         hook_event_name: 'Notification',
         message: 'Claude needs your permission to run rm',
       }),
-      at: now,
     },
   ],
   [
     transcript({}, now),
-    { type: 'hook', payload: aHookEvent({ session_id: 'sid-3' }), at: now },
-    {
-      type: 'session-registered',
-      id: 'sid-3',
-      tmuxName: 'repo-2',
-      cwd: '/Users/dev/repo',
-      at: now,
-    },
+    { type: 'hook', payload: aHookEvent({ session_id: 'sid-3' }) },
+    { type: 'session-registered', id: 'sid-3', tmuxName: 'repo-2', cwd: '/Users/dev/repo' },
   ],
 ];
 
@@ -92,29 +73,29 @@ describe('the delta round trip', () => {
 });
 
 const boot: GardenEvent[] = [
-  { type: 'store-loaded', tmuxNames: { 'sid-1': 'repo' }, at: now },
-  snapshot(false, now),
+  storeLoaded,
+  snapshot(false),
   transcript({}, now),
   transcript({ sessionId: 'sid-2', title: 'Another' }, now),
 ];
 
 describe('boot replay equals steady state', () => {
   it('does not depend on whether the tmux snapshot or the transcripts arrive first', () => {
-    const storeLoaded: GardenEvent = {
-      type: 'store-loaded',
-      tmuxNames: { 'sid-1': 'repo' },
-      at: now,
-    };
     const files = [transcript({}, now), transcript({ sessionId: 'sid-2', title: 'Another' }, now)];
-    const snapshotFirst = [storeLoaded, snapshot(false, now), ...files].reduce(
-      reduce,
-      initialState,
-    );
-    const transcriptsFirst = [storeLoaded, ...files, snapshot(false, now)].reduce(
-      reduce,
-      initialState,
-    );
+    const snapshotFirst = [storeLoaded, snapshot(false), ...files].reduce(reduce, initialState);
+    const transcriptsFirst = [storeLoaded, ...files, snapshot(false)].reduce(reduce, initialState);
     expect(transcriptsFirst).toEqual(snapshotFirst);
+  });
+
+  it('does not depend on whether a status-bearing hook or the tmux snapshot arrives first', () => {
+    const prompt: GardenEvent = {
+      type: 'hook',
+      payload: aHookEvent({ session_id: 'sid-1', hook_event_name: 'UserPromptSubmit' }),
+    };
+    const hookFirst = [storeLoaded, prompt, snapshot(false)].reduce(reduce, initialState);
+    const snapshotFirst = [storeLoaded, snapshot(false), prompt].reduce(reduce, initialState);
+    expect(hookFirst).toEqual(snapshotFirst);
+    expect(hookFirst.sessions['sid-1']).toMatchObject({ liveness: 'live', status: 'working' });
   });
 
   it('is a no-op when the same boot batch is replayed onto the state it produced', () => {
@@ -127,29 +108,22 @@ describe('boot replay equals steady state', () => {
 
 // Keyed by variant so a new event type fails to compile until it has a row here.
 const everyVariant: Record<GardenEvent['type'], GardenEvent> = {
-  'store-loaded': { type: 'store-loaded', tmuxNames: { 'sid-1': 'repo' }, at: now },
+  'store-loaded': storeLoaded,
   'session-registered': {
     type: 'session-registered',
     id: 'sid-1',
     tmuxName: 'repo',
     cwd: '/Users/dev/repo',
-    at: now,
   },
   'transcript-changed': transcript({}, now),
-  hook: { type: 'hook', payload: aHookEvent({ session_id: 'sid-1' }), at: now },
-  'tmux-snapshot': snapshot(false, now),
-  tick: { type: 'tick', at: now },
+  hook: { type: 'hook', payload: aHookEvent({ session_id: 'sid-1' }) },
+  'tmux-snapshot': snapshot(false),
 };
-
-const aged = [
-  transcript({}, now),
-  { type: 'tick', at: now + 11 * 60_000 } satisfies GardenEvent,
-].reduce(reduce, initialState);
 
 const states = {
   empty: initialState,
   'unknown session id': reduce(initialState, transcript({ sessionId: 'sid-other' }, now)),
-  aged,
+  booted: boot.reduce(reduce, initialState),
 };
 
 describe('reduce is total', () => {
@@ -160,10 +134,8 @@ describe('reduce is total', () => {
         expect(Object.keys(once.sessions)).toEqual(
           expect.arrayContaining(Object.keys(state.sessions)),
         );
+        // With no clock in the state, re-applying an event can never move anything.
         expect(reduce(once, event)).toEqual(once);
-        // An event from before the state's clock must not move derivation time backwards.
-        const stale = reduce(once, { ...event, at: now - 60 * 60_000 });
-        expect(stale.lastEventAt).toBe(once.lastEventAt);
       });
     }
   }

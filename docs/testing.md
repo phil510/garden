@@ -80,7 +80,7 @@ for (const events of sequences) {
 
 **Boot replay equals steady state.** The same events — `store-loaded`, a `tmux-snapshot`, a
 `transcript-changed` per file — must produce the same state whether they arrive at startup or
-during a long-running session. `architecture.md` §4.3 claims boot is just the first batch of
+during a long-running session. `architecture.md` §4.2 claims boot is just the first batch of
 ordinary events; this is what holds that claim to it.
 
 **`reduce` is total.** `architecture.md` §7 promises it never throws, and every fact garden
@@ -88,13 +88,13 @@ holds flows through it, so that promise gets a test rather than a sentence. With
 property-testing library this cannot be proven for all inputs, so make it a concrete, bounded
 obligation instead: a table with every event variant crossed against the states that break
 naive implementations — the empty state, a state where the event's session id is unknown, the
-same event applied twice, and events arriving with an `at:` earlier than the state's last
-timestamp. When you add an event variant, you add a row. That is checkable in review, where
+same event applied twice, and two events about one session arriving in either order. When you
+add an event variant, you add a row. That is checkable in review, where
 "for any event in any state" is not.
 
 ## Fixture builders
 
-Build test data with small builders taking overrides — `aSession({ liveness: 'exited' })`,
+Build test data with small builders taking overrides — `aSession({ liveness: 'dead' })`,
 `aHookEvent({ hook_event_name: 'Stop' })` — kept beside the code they describe. The point is
 that each test shows its difference from the default instead of restating a whole object, so
 the interesting field is the only one you read. When a type gains a field, the builder is the
@@ -218,11 +218,11 @@ distinguish the round-trip invariant from a test asserting a default port.
 A test name states the behaviour it pins — not the event, method, or document that prompted
 it. `it('handles PermissionRequest')` names the input and says nothing about the expectation;
 `it('marks a session needs-approval on a PermissionRequest hook')` gives you the assertion
-without opening the body. This matters most on the subtle cases: `it('resolves liveness to
-exited when a hook reports working after the pane is already dead')` names a precedence rule,
-where `it('resolves conflicting state correctly')` has to be re-read every time.
+without opening the body. This matters most on the subtle cases: `it('keeps a session dead when a
+working hook arrives after tmux reported the pane dead')` names a precedence rule, where
+`it('resolves conflicting state correctly')` has to be re-read every time.
 
-Use the vocabulary the types use. Liveness is `live | exited | external | dead`; status is
-`working | needs-approval | waiting | unknown`. A name that calls `exited` a status describes a
-state that cannot exist, and the reader then has to go and find out which of the two the test
-actually meant.
+Use the vocabulary the types use. Liveness is `live | dead`, asked of tmux alone; status is
+`working | needs-approval | waiting | unknown` and belongs to live sessions only, a dead session
+having none. A name that calls `dead` a status describes a state that cannot exist, and the reader
+then has to go and find out what the test actually meant.
