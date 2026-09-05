@@ -60,6 +60,24 @@ describe('the git adapter', () => {
     expect(entries).toContainEqual({ path: 'new.txt', status: '??' });
   });
 
+  it('reports a path with non-ASCII characters unescaped', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'garden-git-'));
+    initRepo(dir);
+    writeFileSync(join(dir, 'café.txt'), 'x\n');
+
+    const entries = await status(dir);
+    expect(entries).toContainEqual({ path: 'café.txt', status: '??' });
+  });
+
+  it('reports a path containing an arrow as itself and not as a rename', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'garden-git-'));
+    initRepo(dir);
+    writeFileSync(join(dir, 'a -> b'), 'x\n');
+
+    const entries = await status(dir);
+    expect(entries).toContainEqual({ path: 'a -> b', status: '??' });
+  });
+
   it('reports a rename by its new path', async () => {
     dir = mkdtempSync(join(tmpdir(), 'garden-git-'));
     initRepo(dir);

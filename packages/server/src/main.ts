@@ -28,9 +28,9 @@ function tmuxPort(target: TmuxTarget): TmuxPort {
   };
 }
 
-function storePort(home: string): StorePort {
+function storePort(home: string, logger: Logger): StorePort {
   return {
-    read: () => readOverlayState(home),
+    read: () => readOverlayState(home, logger),
     write: (state) => {
       writeOverlayState(home, state);
     },
@@ -102,7 +102,7 @@ export async function main(): Promise<void> {
   writeClaudeSettings(home);
 
   const logger = createLogger();
-  const store = storePort(home);
+  const store = storePort(home, logger);
   const tmux = tmuxPort({ socket: TMUX_SOCKET, confPath });
   const transcripts = transcriptPort(config, home, logger);
   const projection = createProjection(store);

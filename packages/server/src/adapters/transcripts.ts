@@ -14,8 +14,8 @@ export interface TranscriptLogger {
   error(message: string): void;
 }
 
-/** A 10 MB transcript can be 329 lines, so a window this size holds many lines
- *  of ordinary conversation while staying far cheaper than a full read. */
+/** Large enough to hold many lines of an ordinary conversation, small enough that
+ *  a multi-megabyte transcript is never read whole. */
 export const WINDOW_BYTES = 64 * 1024;
 
 /** Every in-scope `*.jsonl` path under `~/.claude/projects/<slug>/`, one level deep. */
@@ -96,7 +96,8 @@ function isWatchedPath(projectsDir: string, roots: readonly string[], path: stri
   if (rel === '') return true;
   const segments = rel.split(sep);
   if (segments.length === 1) return inScopeDirs([segments[0]!], roots).length > 0;
-  if (segments.length === 2) return segments[1]!.endsWith('.jsonl');
+  if (segments.length === 2)
+    return segments[1]!.endsWith('.jsonl') && inScopeDirs([segments[0]!], roots).length > 0;
   return false;
 }
 

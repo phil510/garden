@@ -123,7 +123,7 @@ export function parseTranscript(text: string): TranscriptParse {
       sessionId,
       cwd,
       gitBranch,
-      // `summary` no longer appears; it is read so older transcripts still get a title.
+      // Older transcripts carry the title as a `summary` line instead.
       title: lastField(lines, 'ai-title', 'aiTitle') ?? lastField(lines, 'summary', 'summary'),
       lastPrompt: lastField(lines, 'last-prompt', 'lastPrompt') ?? firstUserPrompt(lines),
       recap: recapText(lines),

@@ -24,15 +24,25 @@ export interface RespawnRequest {
   readonly command: readonly string[];
 }
 
-/** The tmux binary exited non-zero. app/ decides what that means for a use case. */
+/** The tmux command failed. app/ decides what that means for a use case. */
 export class TmuxError extends Error {
   constructor(
     readonly args: readonly string[],
     readonly stderr: string,
+    cause?: unknown,
   ) {
-    super(`tmux ${args.join(' ')} failed: ${stderr.trim() || '(no stderr)'}`);
+    super(`tmux ${args.join(' ')} failed: ${describeFailure(stderr, cause)}`, { cause });
     this.name = 'TmuxError';
   }
+}
+
+/** stderr is empty when tmux never ran at all — the binary missing is the common
+ *  case, and its errno is the only thing that says so. */
+function describeFailure(stderr: string, cause: unknown): string {
+  const trimmed = stderr.trim();
+  if (trimmed !== '') return trimmed;
+  const code = (cause as NodeJS.ErrnoException | undefined)?.code;
+  return code ?? '(no stderr)';
 }
 
 // -f is read only by a starting server and ignored by a running one, so passing it
@@ -43,7 +53,7 @@ async function run(target: TmuxTarget, args: readonly string[]): Promise<string>
     const { stdout } = await execFileAsync('tmux', argv);
     return stdout;
   } catch (error) {
-    throw new TmuxError(argv, (error as { stderr?: string }).stderr ?? '');
+    throw new TmuxError(argv, (error as { stderr?: string }).stderr ?? '', error);
   }
 }
 

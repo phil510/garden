@@ -219,3 +219,21 @@ describe('ui state', () => {
     expect(seen).toEqual([]);
   });
 });
+
+describe('updateUiState when the store write fails', () => {
+  it('leaves the reported ui state and its subscribers untouched', () => {
+    const failing: StorePort = {
+      read: () => emptyOverlay,
+      write: () => {
+        throw new Error('EACCES');
+      },
+    };
+    const projection = createProjection(failing);
+    const seen: UiState[] = [];
+    projection.subscribeUiState((ui) => void seen.push(ui));
+
+    expect(() => projection.updateUiState({ hideDead: true })).toThrow('EACCES');
+    expect(projection.uiState().hideDead).toBe(false);
+    expect(seen).toEqual([]);
+  });
+});

@@ -9,15 +9,25 @@ export interface GitStatusEntry {
   readonly status: string;
 }
 
-/** The git binary exited non-zero. app/ decides what that means for a use case. */
+/** The git command failed. app/ decides what that means for a use case. */
 export class GitError extends Error {
   constructor(
     readonly args: readonly string[],
     readonly stderr: string,
+    cause?: unknown,
   ) {
-    super(`git ${args.join(' ')} failed: ${stderr.trim() || '(no stderr)'}`);
+    super(`git ${args.join(' ')} failed: ${describeFailure(stderr, cause)}`, { cause });
     this.name = 'GitError';
   }
+}
+
+/** stderr is empty when git never ran at all — the binary missing is the common
+ *  case, and its errno is the only thing that says so. */
+function describeFailure(stderr: string, cause: unknown): string {
+  const trimmed = stderr.trim();
+  if (trimmed !== '') return trimmed;
+  const code = (cause as NodeJS.ErrnoException | undefined)?.code;
+  return code ?? '(no stderr)';
 }
 
 async function run(cwd: string, args: readonly string[]): Promise<string> {
@@ -25,7 +35,7 @@ async function run(cwd: string, args: readonly string[]): Promise<string> {
     const { stdout } = await execFileAsync('git', args, { cwd });
     return stdout;
   } catch (error) {
-    throw new GitError(args, (error as { stderr?: string }).stderr ?? '');
+    throw new GitError(args, (error as { stderr?: string }).stderr ?? '', error);
   }
 }
 
@@ -45,19 +55,23 @@ export async function branch(cwd: string): Promise<string> {
   return stdout.trim();
 }
 
-const RENAME_SEPARATOR = ' -> ';
-
-/** One entry per changed path, in `git status --porcelain` order. */
+/**
+ * One entry per changed path, in `git status --porcelain` order. The `-z` form is
+ * what makes the paths usable: without it git quotes anything non-ASCII into octal
+ * escapes, and a rename is one ` -> `-joined record that a path containing that
+ * substring is indistinguishable from. With it, paths are raw and a rename is two
+ * NUL-separated records — new path first, original second — so the original is
+ * dropped by consuming it alongside its own entry.
+ */
 export async function status(cwd: string): Promise<GitStatusEntry[]> {
-  const stdout = await run(cwd, ['status', '--porcelain']);
-  return stdout
-    .split('\n')
-    .filter((line) => line !== '')
-    .map((line) => {
-      const code = line.slice(0, 2);
-      const rest = line.slice(3);
-      const arrowIndex = rest.indexOf(RENAME_SEPARATOR);
-      const path = arrowIndex === -1 ? rest : rest.slice(arrowIndex + RENAME_SEPARATOR.length);
-      return { path, status: code };
-    });
+  const stdout = await run(cwd, ['status', '--porcelain', '-z']);
+  const records = stdout.split('\0').filter((record) => record !== '');
+  const entries: GitStatusEntry[] = [];
+  for (let i = 0; i < records.length; i += 1) {
+    const record = records[i]!;
+    const code = record.slice(0, 2);
+    entries.push({ path: record.slice(3), status: code });
+    if (code.includes('R') || code.includes('C')) i += 1;
+  }
+  return entries;
 }

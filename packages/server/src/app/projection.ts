@@ -72,9 +72,12 @@ export function createProjection(store: StorePort): Projection {
     },
 
     updateUiState(patch) {
+      // The store write is what makes the change real, so it lands before the
+      // in-memory slice moves: a failed write leaves nothing claiming to have applied.
       const base = store.read();
-      ui = { ...toUiState(base), ...patch };
-      store.write(toOverlay(base, ui));
+      const next = { ...toUiState(base), ...patch };
+      store.write(toOverlay(base, next));
+      ui = next;
       for (const listener of [...uiListeners]) listener(ui);
     },
 

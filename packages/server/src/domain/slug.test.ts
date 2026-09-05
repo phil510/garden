@@ -3,8 +3,8 @@ import { inScopeDirs, slugify } from './slug.js';
 
 describe('slugify', () => {
   it('replaces slashes, dots and underscores with a dash', () => {
-    expect(slugify('/Users/phil/dbt_snowflake/.worktrees/chore/XAD-4425')).toBe(
-      '-Users-phil-dbt-snowflake--worktrees-chore-XAD-4425',
+    expect(slugify('/Users/phil/dbt_snowflake/.worktrees/chore/tidy-2')).toBe(
+      '-Users-phil-dbt-snowflake--worktrees-chore-tidy-2',
     );
   });
 
