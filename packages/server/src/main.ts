@@ -113,7 +113,7 @@ export async function main(): Promise<void> {
     projection.dispatch(event);
   });
 
-  const app = createServer();
+  const app = createServer({ projection });
   app.addHook('onClose', () => watcher.close());
   for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     process.once(signal, () => void app.close());

@@ -1,8 +1,13 @@
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import type { AddressInfo, Socket } from 'node:net';
+import { aHookEvent } from '@garden/shared/fixtures';
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_OVERLAY_STATE } from '../../src/adapters/store.js';
+import { createProjection } from '../../src/app/projection.js';
+import type { OverlayState, StorePort } from '../../src/app/ports.js';
 import { claudeSettings } from '../../src/appdir.js';
+import { createServer as createGardenServer } from '../../src/http/server.js';
 
 function hookCommand(): string {
   const command = claudeSettings().hooks.SessionStart?.[0]?.hooks[0]?.command;
@@ -72,6 +77,39 @@ describe('the generated hook command', () => {
     } finally {
       for (const socket of sockets) socket.destroy();
       await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+});
+
+function fakeStore(): StorePort {
+  let current: OverlayState = DEFAULT_OVERLAY_STATE;
+  return {
+    read: () => current,
+    write: (state) => {
+      current = state;
+    },
+  };
+}
+
+describe('a real Claude Code hook command against the real /hooks route', () => {
+  it('reaches the endpoint and is folded into that session', async () => {
+    const projection = createProjection(fakeStore());
+    const app = createGardenServer({ projection });
+    try {
+      await app.listen({ port: 0, host: '127.0.0.1' });
+      const { port } = app.server.address() as AddressInfo;
+      const payload = aHookEvent({
+        session_id: 'sid-real-hook',
+        cwd: '/Users/dev/real-repo',
+        hook_event_name: 'SessionStart',
+      });
+
+      expect(await runHook(JSON.stringify(payload), port)).toBe(0);
+
+      const session = projection.sessions().find((s) => s.id === 'sid-real-hook');
+      expect(session?.cwd).toBe('/Users/dev/real-repo');
+    } finally {
+      await app.close();
     }
   });
 });
