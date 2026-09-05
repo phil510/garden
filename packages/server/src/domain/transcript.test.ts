@@ -148,7 +148,17 @@ describe('parseTranscript', () => {
     expect(parseTranscript(text).record.lastPrompt).toBe('the real question');
   });
 
-  it('prefers an away_summary over the last assistant text as the recap', () => {
+  it('takes the last assistant text as the recap when it follows the away_summary', () => {
+    const text = [
+      { type: 'system', subtype: 'away_summary', content: 'While you were away…' },
+      assistant([{ type: 'text', text: 'back to work' }]),
+    ]
+      .map(line)
+      .join('\n');
+    expect(parseTranscript(text).record.recap).toBe('back to work');
+  });
+
+  it('takes an away_summary as the recap when it follows the last assistant text', () => {
     const text = [
       assistant([{ type: 'text', text: 'the last assistant text' }]),
       { type: 'system', subtype: 'away_summary', content: 'While you were away…' },

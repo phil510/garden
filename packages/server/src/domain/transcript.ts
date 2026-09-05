@@ -57,14 +57,20 @@ function firstUserPrompt(lines: Line[]): string | null {
   return null;
 }
 
-/** The prose recap Claude Code writes when a session resumes after an idle gap. */
-function lastAwaySummary(lines: Line[]): string | null {
+/** Two lines can carry a recap: an assistant text block, and the prose `away_summary` Claude
+ *  Code writes when a session resumes after an idle gap. Whichever comes later is the current
+ *  one, so a session that idled and then worked reads its work rather than the idle summary. */
+function recapText(lines: Line[]): string | null {
   for (let i = lines.length - 1; i >= 0; i -= 1) {
     const line = lines[i];
-    if (line === undefined || line['type'] !== 'system' || line['subtype'] !== 'away_summary') {
+    if (line === undefined) continue;
+    if (line['type'] === 'system' && line['subtype'] === 'away_summary') {
+      const text = asText(line['content']);
+      if (text !== null) return text;
       continue;
     }
-    const text = asText(line['content']);
+    if (line['type'] !== 'assistant') continue;
+    const text = contentText(asObject(line['message'])?.['content']);
     if (text !== null) return text;
   }
   return null;
@@ -77,16 +83,6 @@ function lastTimestamp(lines: Line[]): number | null {
     if (raw === null) continue;
     const ms = Date.parse(raw);
     if (!Number.isNaN(ms)) return ms;
-  }
-  return null;
-}
-
-function lastRoleText(lines: Line[], role: 'user' | 'assistant'): string | null {
-  for (let i = lines.length - 1; i >= 0; i -= 1) {
-    const line = lines[i];
-    if (line === undefined || line['type'] !== role) continue;
-    const text = contentText(asObject(line['message'])?.['content']);
-    if (text !== null) return text;
   }
   return null;
 }
@@ -130,7 +126,7 @@ export function parseTranscript(text: string): TranscriptParse {
       // `summary` no longer appears; it is read so older transcripts still get a title.
       title: lastField(lines, 'ai-title', 'aiTitle') ?? lastField(lines, 'summary', 'summary'),
       lastPrompt: lastField(lines, 'last-prompt', 'lastPrompt') ?? firstUserPrompt(lines),
-      recap: lastAwaySummary(lines) ?? lastRoleText(lines, 'assistant'),
+      recap: recapText(lines),
       lastActivity: lastTimestamp(lines),
     },
     skipped,
