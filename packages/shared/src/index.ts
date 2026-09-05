@@ -5,7 +5,7 @@ export interface HealthStatus {
 
 export type Liveness = 'live' | 'dead';
 export type Status = 'working' | 'needs-approval' | 'waiting' | 'unknown';
-export type StagePreset = 'single' | 'two-side' | 'two-stack' | 'three' | '2x2';
+export type StagePreset = 'single' | 'two-across' | 'two-stacked' | 'three' | 'grid-2x2';
 
 export interface SessionState {
   id: string;
@@ -21,7 +21,8 @@ export interface SessionState {
   exitCode: number | null;
   tmuxName: string | null;
   attached: boolean;
-  /** Transcript mtime, in epoch ms. Display and filtering only; liveness never reads it. */
+  /** The last timestamped transcript line, in epoch ms. Display, sorting and filtering only;
+   *  liveness never reads it. */
   lastActivity: number;
 }
 

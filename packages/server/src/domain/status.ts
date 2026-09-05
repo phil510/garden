@@ -4,7 +4,6 @@ export interface HookOutcome {
   /** null leaves the session's current status alone. */
   status: Status | null;
   reason: string | null;
-  recap: string | null;
   /** null leaves the ended flag alone. */
   ended: boolean | null;
 }
@@ -24,7 +23,6 @@ export function hookOutcome(payload: HookPayload): HookOutcome {
   return {
     status: HOOK_STATUS[name] ?? null,
     reason: name === 'Notification' ? (payload.message ?? null) : null,
-    recap: payload.last_assistant_message ?? null,
     ended: name === 'SessionEnd' ? true : name === 'SessionStart' ? false : null,
   };
 }

@@ -10,7 +10,6 @@ describe('hookOutcome', () => {
     expect(outcome).toEqual({
       status: 'waiting',
       reason: 'Claude needs your permission',
-      recap: null,
       ended: null,
     });
   });
@@ -21,24 +20,10 @@ describe('hookOutcome', () => {
     ).toBeNull();
   });
 
-  it('takes the recap from last_assistant_message on Stop', () => {
-    expect(
-      hookOutcome(aHookEvent({ hook_event_name: 'Stop', last_assistant_message: 'Done.' })).recap,
-    ).toBe('Done.');
-  });
-
   it('marks a session needs-approval on a PermissionRequest hook', () => {
     expect(hookOutcome(aHookEvent({ hook_event_name: 'PermissionRequest' })).status).toBe(
       'needs-approval',
     );
-  });
-
-  it('takes the recap from events other than Stop, so a Notification card still has one', () => {
-    expect(
-      hookOutcome(
-        aHookEvent({ hook_event_name: 'Notification', last_assistant_message: 'Mid-turn.' }),
-      ).recap,
-    ).toBe('Mid-turn.');
   });
 
   it('ends the session on SessionEnd without asserting a status', () => {
@@ -53,6 +38,6 @@ describe('hookOutcome', () => {
 
   it('returns no status for an unrecognised event name rather than throwing', () => {
     const outcome = hookOutcome(aHookEvent({ hook_event_name: 'SomeFutureHook' }));
-    expect(outcome).toEqual({ status: null, reason: null, recap: null, ended: null });
+    expect(outcome).toEqual({ status: null, reason: null, ended: null });
   });
 });

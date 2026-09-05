@@ -113,6 +113,7 @@ describe('parseTranscript', () => {
         title: null,
         lastPrompt: null,
         recap: null,
+        lastActivity: null,
       },
       skipped: 0,
     });
@@ -127,6 +128,82 @@ describe('parseTranscript', () => {
     const { record, skipped } = parseTranscript(text);
     expect(record.title).toBe('Survived');
     expect(skipped).toBe(2);
+  });
+
+  it('falls back to the first real prompt, skipping a slash-command wrapper line', () => {
+    const text = [
+      line({ ...envelope, type: 'user', message: { content: '<command-name>compact' } }),
+      line({ ...envelope, type: 'user', message: { content: 'the real question' } }),
+      line({ ...envelope, type: 'user', message: { content: 'a later follow-up' } }),
+    ].join('\n');
+    expect(parseTranscript(text).record.lastPrompt).toBe('the real question');
+  });
+
+  it('skips an isMeta caveat line when falling back to the first prompt', () => {
+    const text = [
+      line({ ...envelope, type: 'user', isMeta: true, message: { content: 'Caveat: the user…' } }),
+      line({ ...envelope, type: 'user', message: { content: 'the real question' } }),
+      line({ ...envelope, type: 'user', message: { content: 'a later follow-up' } }),
+    ].join('\n');
+    expect(parseTranscript(text).record.lastPrompt).toBe('the real question');
+  });
+
+  it('prefers an away_summary over the last assistant text as the recap', () => {
+    const text = [
+      assistant([{ type: 'text', text: 'the last assistant text' }]),
+      { type: 'system', subtype: 'away_summary', content: 'While you were away…' },
+    ]
+      .map(line)
+      .join('\n');
+    expect(parseTranscript(text).record.recap).toBe('While you were away…');
+  });
+
+  it('falls back to the last assistant text when no away_summary line exists', () => {
+    const text = [
+      assistant([{ type: 'text', text: 'the last assistant text' }]),
+      { type: 'system', subtype: 'other', content: 'not a recap' },
+    ]
+      .map(line)
+      .join('\n');
+    expect(parseTranscript(text).record.recap).toBe('the last assistant text');
+  });
+
+  it('takes last activity from the last timestamped line, past untimestamped sidecar lines', () => {
+    const text = [
+      line({
+        ...envelope,
+        type: 'user',
+        timestamp: '2026-09-01T10:00:00.000Z',
+        message: { content: 'hi' },
+      }),
+      line({
+        ...envelope,
+        type: 'assistant',
+        timestamp: '2026-09-01T11:30:00.000Z',
+        message: { content: [] },
+      }),
+      line({ type: 'ai-title', aiTitle: 'Settled title' }),
+      line({ type: 'last-prompt', lastPrompt: 'hi' }),
+    ].join('\n');
+    expect(parseTranscript(text).record.lastActivity).toBe(Date.parse('2026-09-01T11:30:00.000Z'));
+  });
+
+  it('reports no last activity when no line carries a timestamp', () => {
+    const text = line({ ...envelope, type: 'user', message: { content: 'hi' } });
+    expect(parseTranscript(text).record.lastActivity).toBeNull();
+  });
+
+  it('ignores a timestamp that is not a parseable date', () => {
+    const text = [
+      line({
+        ...envelope,
+        type: 'user',
+        timestamp: '2026-09-01T10:00:00.000Z',
+        message: { content: 'hi' },
+      }),
+      line({ ...envelope, type: 'assistant', timestamp: 'not a date', message: { content: [] } }),
+    ].join('\n');
+    expect(parseTranscript(text).record.lastActivity).toBe(Date.parse('2026-09-01T10:00:00.000Z'));
   });
 
   it('drops sidechain lines from the recap', () => {

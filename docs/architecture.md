@@ -114,12 +114,12 @@ subscribe(fn); // the events WebSocket subscribes; so does anything else that ca
 
 Adapters never touch state. They emit events:
 
-- the transcript watcher emits `{ type: 'transcript-changed', path, record, mtime }`
+- the transcript watcher emits `{ type: 'transcript-changed', path, record }`
 - the hook route emits `{ type: 'hook', payload }`
 - a tmux poll emits `{ type: 'tmux-snapshot', sessions }`
 
-Nothing in `domain/` reads the current time. The only timestamp any event carries is the
-transcript's own modification time, and that is display data no derivation reads. Liveness asks
+Nothing in `domain/` reads the current time. The only timestamp any event carries is the one the
+transcript's own last timestamped line holds, and that is display data no derivation reads. Liveness asks
 tmux what is true now and believes the answer, so the same events produce the same state whenever
 they are folded — which is what makes `reduce` a pure function of its arguments and testable as
 one.

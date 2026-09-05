@@ -76,7 +76,8 @@ export function reduce(state: GardenState, event: GardenEvent): GardenState {
         branch: record.gitBranch ?? prev.branch,
         title: record.title ?? record.lastPrompt ?? prev.title,
         recap: record.recap ?? prev.recap,
-        lastActivity: Math.max(prev.lastActivity, event.mtime),
+        // A transcript with no timestamped line reports no activity, so the previous stands.
+        lastActivity: Math.max(prev.lastActivity, record.lastActivity ?? 0),
       };
       return rederive({ ...state, sessions: { ...state.sessions, [id]: session } });
     }
@@ -88,7 +89,6 @@ export function reduce(state: GardenState, event: GardenEvent): GardenState {
       const session: SessionState = {
         ...prev,
         cwd: prev.cwd === '' ? event.payload.cwd : prev.cwd,
-        recap: outcome.recap ?? prev.recap,
       };
       return rederive({
         ...state,

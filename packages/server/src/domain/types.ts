@@ -9,6 +9,8 @@ export interface TranscriptRecord {
   title: string | null;
   lastPrompt: string | null;
   recap: string | null;
+  /** Epoch ms of the last line carrying a `timestamp`; null when no line carries one. */
+  lastActivity: number | null;
 }
 
 export interface TmuxSessionFact {
@@ -27,7 +29,7 @@ export interface ReportedStatus {
 export type GardenEvent =
   | { type: 'store-loaded'; tmuxNames: Record<string, string> }
   | { type: 'session-registered'; id: string; tmuxName: string; cwd: string }
-  | { type: 'transcript-changed'; path: string; record: TranscriptRecord; mtime: number }
+  | { type: 'transcript-changed'; path: string; record: TranscriptRecord }
   | { type: 'hook'; payload: HookPayload }
   | { type: 'tmux-snapshot'; sessions: TmuxSessionFact[] };
 

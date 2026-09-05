@@ -8,10 +8,9 @@ const fold = (events: GardenEvent[]) => events.reduce(reduce, initialState);
 
 const mapped: GardenEvent = { type: 'store-loaded', tmuxNames: { 'sid-1': 'repo' } };
 
-const transcript = (o: Partial<TranscriptRecord> = {}, mtime = now): GardenEvent => ({
+const transcript = (o: Partial<TranscriptRecord> = {}): GardenEvent => ({
   type: 'transcript-changed',
   path: '/t.jsonl',
-  mtime,
   record: {
     sessionId: 'sid-1',
     cwd: '/Users/dev/repo',
@@ -19,6 +18,7 @@ const transcript = (o: Partial<TranscriptRecord> = {}, mtime = now): GardenEvent
     title: 'Wire up the fold',
     lastPrompt: 'wire up the fold please',
     recap: 'Done.',
+    lastActivity: now,
     ...o,
   },
 });
@@ -101,6 +101,37 @@ describe('reduce', () => {
     expect(fold([transcript({ title: null })]).sessions['sid-1']?.title).toBe(
       'wire up the fold please',
     );
+  });
+
+  it('leaves the recap to the transcript when a hook carries a last assistant message', () => {
+    const stop: GardenEvent = {
+      type: 'hook',
+      payload: aHookEvent({
+        session_id: 'sid-1',
+        hook_event_name: 'Stop',
+        last_assistant_message: 'From the hook.',
+      }),
+    };
+    expect(
+      fold([transcript({ recap: 'From the transcript.' }), stop]).sessions['sid-1']?.recap,
+    ).toBe('From the transcript.');
+    expect(fold([stop]).sessions['sid-1']?.recap).toBeNull();
+  });
+
+  it('takes last activity from the transcript record, not from a later file mtime', () => {
+    const lastLine = now - 6 * 60 * 60 * 1000;
+    expect(fold([transcript({ lastActivity: lastLine })]).sessions['sid-1']?.lastActivity).toBe(
+      lastLine,
+    );
+  });
+
+  it('keeps the last activity it already had when a slice carries no timestamped line', () => {
+    const state = fold([transcript({ lastActivity: now }), transcript({ lastActivity: null })]);
+    expect(state.sessions['sid-1']?.lastActivity).toBe(now);
+  });
+
+  it('reports no activity for a session whose only slice carries no timestamped line', () => {
+    expect(fold([transcript({ lastActivity: null })]).sessions['sid-1']?.lastActivity).toBe(0);
   });
 
   it('ignores a transcript slice whose session id could not be read', () => {

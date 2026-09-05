@@ -14,14 +14,14 @@ const record = (o: Partial<TranscriptRecord> = {}): TranscriptRecord => ({
   title: 'A session',
   lastPrompt: 'do the thing',
   recap: 'Done.',
+  lastActivity: 1_700_000_000_000,
   ...o,
 });
 
-const transcript = (o: Partial<TranscriptRecord>, mtime: number): GardenEvent => ({
+const transcript = (o: Partial<TranscriptRecord>, lastActivity: number): GardenEvent => ({
   type: 'transcript-changed',
   path: '/t.jsonl',
-  record: record(o),
-  mtime,
+  record: record({ lastActivity, ...o }),
 });
 
 const snapshot = (paneDead: boolean): GardenEvent => ({

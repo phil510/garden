@@ -42,6 +42,45 @@ function contentText(content: unknown): string | null {
   return null;
 }
 
+/** Slash-command output and caveat lines are `user` lines wrapping a tag, not typed prompts. */
+const SYNTHETIC_PREFIXES = ['<command-name>', '<local-command-stdout>', '<local-command-caveat>'];
+
+function firstUserPrompt(lines: Line[]): string | null {
+  for (const line of lines) {
+    if (line['type'] !== 'user' || line['isMeta'] === true) continue;
+    const text = contentText(asObject(line['message'])?.['content']);
+    if (text === null) continue;
+    const start = text.trimStart();
+    if (SYNTHETIC_PREFIXES.some((prefix) => start.startsWith(prefix))) continue;
+    return text;
+  }
+  return null;
+}
+
+/** The prose recap Claude Code writes when a session resumes after an idle gap. */
+function lastAwaySummary(lines: Line[]): string | null {
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    const line = lines[i];
+    if (line === undefined || line['type'] !== 'system' || line['subtype'] !== 'away_summary') {
+      continue;
+    }
+    const text = asText(line['content']);
+    if (text !== null) return text;
+  }
+  return null;
+}
+
+/** Sidecar lines carry no `timestamp`, so the last line is not the last activity. */
+function lastTimestamp(lines: Line[]): number | null {
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    const raw = asText(lines[i]?.['timestamp']);
+    if (raw === null) continue;
+    const ms = Date.parse(raw);
+    if (!Number.isNaN(ms)) return ms;
+  }
+  return null;
+}
+
 function lastRoleText(lines: Line[], role: 'user' | 'assistant'): string | null {
   for (let i = lines.length - 1; i >= 0; i -= 1) {
     const line = lines[i];
@@ -90,8 +129,9 @@ export function parseTranscript(text: string): TranscriptParse {
       gitBranch,
       // `summary` no longer appears; it is read so older transcripts still get a title.
       title: lastField(lines, 'ai-title', 'aiTitle') ?? lastField(lines, 'summary', 'summary'),
-      lastPrompt: lastField(lines, 'last-prompt', 'lastPrompt') ?? lastRoleText(lines, 'user'),
-      recap: lastRoleText(lines, 'assistant'),
+      lastPrompt: lastField(lines, 'last-prompt', 'lastPrompt') ?? firstUserPrompt(lines),
+      recap: lastAwaySummary(lines) ?? lastRoleText(lines, 'assistant'),
+      lastActivity: lastTimestamp(lines),
     },
     skipped,
   };
