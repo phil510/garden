@@ -2,6 +2,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import type { AttachSocketDeps } from './ws/attach.js';
 import type { ReposDeps } from '../app/repos.js';
 import type { SessionsDeps } from '../app/sessions.js';
+import { fsRoutes } from './routes/fs.js';
 import { healthRoutes } from './routes/health.js';
 import { hookRoutes } from './routes/hooks.js';
 import { repoRoutes } from './routes/repos.js';
@@ -20,6 +21,7 @@ export function createServer(deps: ServerDeps): FastifyInstance {
   app.register((instance) => sessionRoutes(instance, deps));
   app.register((instance) => repoRoutes(instance, deps));
   app.register((instance) => uiStateRoutes(instance, deps));
+  app.register((instance) => fsRoutes(instance, deps));
 
   const eventsWss = registerEventsSocket(app, deps);
   const attachWss = registerAttachSocket(app, deps);
