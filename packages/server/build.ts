@@ -1,5 +1,7 @@
 import { build } from 'esbuild';
-import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, mkdirSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 mkdirSync('dist', { recursive: true });
 
@@ -26,10 +28,24 @@ await build({
   // Debug from src via `tsx bin/garden.ts` instead.
   sourcemap: false,
   outdir: 'dist',
+  // node-pty ships a native addon; esbuild cannot bundle a .node file, so the
+  // import stays a real module reference and Node resolves it from node_modules
+  // at runtime, the same as any other unbundled dependency.
+  external: ['node-pty'],
 });
 
 chmodSync('dist/garden.js', 0o755);
 
 writeFileSync('dist/package.json', JSON.stringify({ type: 'module' }));
 
-console.log('Build succeeded: dist/garden.js dist/package.json');
+// node-pty finds its native binary through paths relative to its own package
+// directory, one of which is prebuilds/<platform>-<arch>. Ship that directory
+// next to dist/ so the built server still finds pty.node when run somewhere
+// that doesn't carry the full node_modules tree.
+const platformDir = `${process.platform}-${process.arch}`;
+const nodePtyRoot = dirname(fileURLToPath(import.meta.resolve('node-pty/package.json')));
+cpSync(join(nodePtyRoot, 'prebuilds', platformDir), join('dist', 'prebuilds', platformDir), {
+  recursive: true,
+});
+
+console.log(`Build succeeded: dist/garden.js dist/package.json dist/prebuilds/${platformDir}`);

@@ -16,6 +16,7 @@
     "@garden/shared": "workspace:*",
     "chokidar": "catalog:",
     "fastify": "catalog:",
+    "node-pty": "catalog:",
     "ws": "catalog:"
   },
   "devDependencies": {
