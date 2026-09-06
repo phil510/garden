@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { connectEventSocket } from './api/eventSocket';
 import { Sidebar } from './features/sidebar/Sidebar';
+import { Stage } from './features/stage/Stage';
 import { useSessionStore } from './state/sessionStore';
 import { useUiStore } from './state/uiStore';
 
@@ -30,7 +31,9 @@ export function App() {
         <div className="sidebar">
           <Sidebar />
         </div>
-        <div className="stage-wrap" />
+        <div className="stage-wrap">
+          <Stage />
+        </div>
         <div className="filepanel" />
       </div>
     </div>
