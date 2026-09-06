@@ -71,7 +71,12 @@ describe('registerEventsSocket', () => {
   it('unsubscribes from both the delta and ui-state feeds once the socket closes', async () => {
     const { projection, listeners, uiListeners } = fakeProjection();
     app = Fastify();
-    registerEventsSocket(app, { projection });
+    const wss = registerEventsSocket(app, { projection });
+    // `registerEventsSocket` runs in `noServer` mode; production wiring of the shared
+    // `upgrade` listener lives in `http/server.ts`, so this standalone test does it too.
+    app.server.on('upgrade', (request, socket, head) => {
+      wss.handleUpgrade(request, socket, head, (ws) => wss.emit('connection', ws, request));
+    });
     await app.listen({ port: 0, host: '127.0.0.1' });
     const { port } = app.server.address() as AddressInfo;
 

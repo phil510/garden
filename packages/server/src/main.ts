@@ -1,6 +1,8 @@
 import { homedir } from 'node:os';
 import { branch, repoRoot, status } from './adapters/git.js';
 import { createLogger, type Logger } from './adapters/logger.js';
+import { attachPty } from './adapters/pty.js';
+import type { PtyTarget } from './adapters/pty.js';
 import { readOverlayState, writeOverlayState } from './adapters/store.js';
 import {
   listTranscriptFiles,
@@ -9,7 +11,15 @@ import {
 } from './adapters/transcripts.js';
 import { killSession, listPanes, newSession, respawnPane } from './adapters/tmux.js';
 import type { TmuxTarget } from './adapters/tmux.js';
-import type { GitPort, StorePort, TmuxPaneFact, TmuxPort, TranscriptPort } from './app/ports.js';
+import { createAttachRegistry, type AttachRegistry } from './app/attach.js';
+import type {
+  GitPort,
+  PtyPort,
+  StorePort,
+  TmuxPaneFact,
+  TmuxPort,
+  TranscriptPort,
+} from './app/ports.js';
 import { createProjection, type Projection } from './app/projection.js';
 import { writeClaudeSettings, writeTmuxConf } from './appdir.js';
 import { ensureConfigFile, loadConfig, type Config } from './config.js';
@@ -51,6 +61,12 @@ function transcriptPort(config: Config, home: string, logger: Logger): Transcrip
 
 function gitPort(): GitPort {
   return { repoRoot, branch, status };
+}
+
+function ptyPort(target: PtyTarget): PtyPort {
+  return {
+    attach: (tmuxName, size, handlers) => attachPty(target, tmuxName, size, handlers),
+  };
 }
 
 /**
@@ -112,6 +128,10 @@ export async function main(): Promise<void> {
   const tmux = tmuxPort({ socket: TMUX_SOCKET, confPath });
   const transcripts = transcriptPort(config, home, logger);
   const projection = createProjection(store);
+  const attach: AttachRegistry = createAttachRegistry({
+    pty: ptyPort({ socket: TMUX_SOCKET, confPath }),
+    projection,
+  });
 
   await replay(projection, store, tmux, transcripts, logger);
 
@@ -130,6 +150,7 @@ export async function main(): Promise<void> {
     tmux,
     store,
     git: gitPort(),
+    attach,
     roots: config.roots,
     serverPort: config.port,
     settingsPath,

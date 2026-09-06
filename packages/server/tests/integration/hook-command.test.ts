@@ -108,6 +108,11 @@ describe('a real Claude Code hook command against the real /hooks route', () => 
         branch: () => Promise.reject(new Error('not used by this test')),
         status: () => Promise.reject(new Error('not used by this test')),
       },
+      attach: {
+        attach: () => {
+          throw new Error('not used by this test');
+        },
+      },
       roots: [],
       serverPort: 4310,
       settingsPath: '/home/.garden/claude-settings.json',

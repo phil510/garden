@@ -11,10 +11,10 @@ function send(socket: WebSocket, message: ServerMessage): void {
   socket.send(JSON.stringify(message));
 }
 
-/** `ws` ignores an upgrade whose path does not match, so `WS /attach/:id` can mount its
- *  own `WebSocketServer` on the same underlying HTTP server without conflict. */
-export function registerEventsSocket(app: FastifyInstance, deps: EventsDeps): void {
-  const wss = new WebSocketServer({ server: app.server, path: '/events' });
+/** `noServer` mode: `http/server.ts` owns the single `upgrade` listener on the shared HTTP
+ *  server and dispatches to this `wss` by path, so it can also dispatch to `WS /attach/:id`. */
+export function registerEventsSocket(app: FastifyInstance, deps: EventsDeps): WebSocketServer {
+  const wss = new WebSocketServer({ noServer: true });
   // An upgraded socket keeps the HTTP server from closing, and that happens before `onClose`
   // runs — so the clients have to go in `preClose`. `wss.close()` terminates none of them itself.
   app.addHook('preClose', () => {
@@ -41,4 +41,6 @@ export function registerEventsSocket(app: FastifyInstance, deps: EventsDeps): vo
       unsubscribeUiState();
     });
   });
+
+  return wss;
 }
