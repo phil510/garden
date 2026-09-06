@@ -69,6 +69,26 @@ export interface TranscriptPort {
   ): TranscriptWatcher;
 }
 
+export interface PaneSize {
+  readonly cols: number;
+  readonly rows: number;
+}
+
+/** One pty attached to one tmux session. Killing it detaches; the session survives. */
+export interface PaneAttachment {
+  write(data: string): void;
+  resize(size: PaneSize): void;
+  kill(): void;
+}
+
+export interface PtyPort {
+  attach(
+    tmuxName: string,
+    size: PaneSize,
+    handlers: { onData: (chunk: string) => void; onExit: () => void },
+  ): PaneAttachment;
+}
+
 export interface GitStatusEntry {
   readonly path: string;
   readonly status: string;
