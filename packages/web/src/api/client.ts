@@ -4,6 +4,7 @@ import type {
   ErrorResponse,
   OkResponse,
   ReposResponse,
+  TreeResponse,
   UiStateRequest,
 } from '@garden/shared';
 
@@ -42,6 +43,11 @@ export function killSession(id: string): Promise<OkResponse> {
 
 export function listRepos(): Promise<ReposResponse> {
   return request('/repos');
+}
+
+export function getFileTree(sessionId: string, path: string): Promise<TreeResponse> {
+  const query = new URLSearchParams({ session: sessionId, path });
+  return request(`/fs/tree?${query.toString()}`);
 }
 
 export function updateUiState(patch: UiStateRequest): Promise<OkResponse> {

@@ -87,6 +87,18 @@ describe('the git adapter', () => {
     expect(entries).toContainEqual({ path: 'RENAMED.md', status: 'R ' });
   });
 
+  it('reports a gitignored path with the ignored code', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'garden-git-'));
+    initRepo(dir);
+    writeFileSync(join(dir, '.gitignore'), 'ignored.log\n');
+    git(dir, ['add', '.gitignore']);
+    git(dir, ['commit', '-m', 'add gitignore']);
+    writeFileSync(join(dir, 'ignored.log'), 'x\n');
+
+    const entries = await status(dir);
+    expect(entries).toContainEqual({ path: 'ignored.log', status: '!!' });
+  });
+
   it('fails with a GitError outside a git repository', async () => {
     dir = mkdtempSync(join(tmpdir(), 'garden-git-'));
     await expect(repoRoot(dir)).rejects.toBeInstanceOf(GitError);

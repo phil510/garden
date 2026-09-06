@@ -61,10 +61,12 @@ export async function branch(cwd: string): Promise<string> {
  * escapes, and a rename is one ` -> `-joined record that a path containing that
  * substring is indistinguishable from. With it, paths are raw and a rename is two
  * NUL-separated records — new path first, original second — so the original is
- * dropped by consuming it alongside its own entry.
+ * dropped by consuming it alongside its own entry. `--ignored=matching` adds a `!!`
+ * entry for every ignored path, reported as a whole directory rather than each file
+ * inside it once an entire directory is ignored.
  */
 export async function status(cwd: string): Promise<GitStatusEntry[]> {
-  const stdout = await run(cwd, ['status', '--porcelain', '-z']);
+  const stdout = await run(cwd, ['status', '--porcelain', '-z', '--ignored=matching']);
   const records = stdout.split('\0').filter((record) => record !== '');
   const entries: GitStatusEntry[] = [];
   for (let i = 0; i < records.length; i += 1) {

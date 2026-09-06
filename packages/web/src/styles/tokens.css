@@ -132,7 +132,16 @@ button.danger:hover {
 .filepanel {
   flex: 0 0 320px;
   width: 320px;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   background: var(--surface);
   border-left: 1px solid var(--border);
+}
+.filepanel[hidden] {
+  display: none;
+}
+
+.topbar-spacer {
+  flex: 1;
 }
