@@ -1,0 +1,87 @@
+:root {
+  --ground: #1e1e1e;
+  --surface: #252526;
+  --raised: #2d2d30;
+  --border: #3e3e42;
+  --border-strong: #4a4a50;
+  --text: #d4d4d4;
+  --text-muted: #9d9d9d;
+  --text-faint: #6a6a6a;
+  --accent: #34c268;
+  --accent-dim: rgba(52, 194, 104, 0.16);
+  --danger: #d16969;
+
+  --st-working: #4ec9b0;
+  --st-needs-approval: #d7ba7d;
+  --st-waiting: #569cd6;
+  --st-unknown: #6a6a6a;
+
+  --syn-keyword: #569cd6;
+  --syn-string: #ce9178;
+  --syn-comment: #6a9955;
+  --syn-function: #dcdcaa;
+  --syn-type: #4ec9b0;
+  --syn-number: #b5cea8;
+
+  --font-ui: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.app-shell {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--ground);
+}
+
+.topbar {
+  flex: 0 0 40px;
+  height: 40px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.body-row {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.sidebar {
+  flex: 0 0 280px;
+  width: 280px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+}
+
+.stage-wrap {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--ground);
+}
+
+.filepanel {
+  flex: 0 0 320px;
+  width: 320px;
+  overflow: hidden;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+}
