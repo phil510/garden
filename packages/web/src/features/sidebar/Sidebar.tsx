@@ -2,6 +2,7 @@ import { updateUiState } from '../../api/client';
 import { useSessionStore } from '../../state/sessionStore';
 import { useUiStore } from '../../state/uiStore';
 import { groupSessions } from './groupSessions';
+import { placeOnStage } from './placeOnStage';
 import { RepoGroup } from './RepoGroup';
 import './sidebar.css';
 
@@ -19,6 +20,10 @@ export function Sidebar() {
 
   function toggleHideDead() {
     void updateUiState({ hideDead: !uiState.hideDead });
+  }
+
+  function selectSession(id: string) {
+    void updateUiState(placeOnStage(uiState.slots, uiState.focusedSlot, id));
   }
 
   const onStageIds = new Set(uiState.slots.filter((id): id is string => id !== null));
@@ -43,6 +48,7 @@ export function Sidebar() {
           hideDead={uiState.hideDead}
           onStageIds={onStageIds}
           onToggleCollapse={toggleCollapse}
+          onSelectSession={selectSession}
         />
       ))}
     </>

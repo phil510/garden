@@ -35,6 +35,12 @@
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
+.muted {
+  color: var(--text-muted);
+}
+.faint {
+  color: var(--text-faint);
+}
 
 body {
   margin: 0;
@@ -43,6 +49,34 @@ body {
   font-family: var(--font-ui);
   font-size: 13px;
   line-height: 1.45;
+}
+
+button {
+  cursor: pointer;
+  background: var(--raised);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 4px;
+  padding: 5px 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  line-height: 1.2;
+}
+button:hover {
+  border-color: var(--border-strong);
+}
+button.ghost {
+  background: transparent;
+  border-color: transparent;
+}
+button.ghost:hover {
+  background: var(--raised);
+  border-color: var(--border);
+}
+button.danger:hover {
+  border-color: var(--danger);
+  color: var(--danger);
 }
 
 .app-shell {

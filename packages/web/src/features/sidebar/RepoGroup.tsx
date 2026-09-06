@@ -10,6 +10,7 @@ interface RepoGroupProps {
   hideDead: boolean;
   onStageIds: ReadonlySet<string>;
   onToggleCollapse: (repoRoot: string) => void;
+  onSelectSession: (id: string) => void;
 }
 
 export function RepoGroup({
@@ -18,6 +19,7 @@ export function RepoGroup({
   hideDead,
   onStageIds,
   onToggleCollapse,
+  onSelectSession,
 }: RepoGroupProps) {
   const [showOlder, setShowOlder] = useState(false);
 
@@ -62,6 +64,7 @@ export function RepoGroup({
             session={session}
             onStage={onStageIds.has(session.id)}
             now={now}
+            onSelect={onSelectSession}
           />
         ))}
         {!showOlder && hiddenCount > 0 && (
