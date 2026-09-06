@@ -1,5 +1,5 @@
 import { build } from 'esbuild';
-import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 
 mkdirSync('dist', { recursive: true });
 
@@ -36,4 +36,9 @@ chmodSync('dist/garden.js', 0o755);
 
 writeFileSync('dist/package.json', JSON.stringify({ type: 'module' }));
 
-console.log('Build succeeded: dist/garden.js dist/package.json');
+// Bundles the built web client alongside the server so the shipped binary is self-contained;
+// resolveClientDir (http/static.ts) looks for it at dist/web.
+rmSync('dist/web', { recursive: true, force: true });
+cpSync('../web/dist', 'dist/web', { recursive: true });
+
+console.log('Build succeeded: dist/garden.js dist/package.json dist/web');

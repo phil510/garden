@@ -1,3 +1,5 @@
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { AttachSocketDeps } from './ws/attach.js';
 import type { FilesystemDeps } from '../app/filesystem.js';
@@ -9,6 +11,7 @@ import { hookRoutes } from './routes/hooks.js';
 import { repoRoutes } from './routes/repos.js';
 import { sessionRoutes } from './routes/sessions.js';
 import { uiStateRoutes } from './routes/ui-state.js';
+import { registerStaticRoutes, resolveClientDir } from './static.js';
 import { registerAttachSocket } from './ws/attach.js';
 import { registerEventsSocket } from './ws/events.js';
 
@@ -23,6 +26,9 @@ export function createServer(deps: ServerDeps): FastifyInstance {
   app.register((instance) => repoRoutes(instance, deps));
   app.register((instance) => uiStateRoutes(instance, deps));
   app.register((instance) => fsRoutes(instance, deps));
+
+  const clientDir = resolveClientDir(dirname(fileURLToPath(import.meta.url)));
+  registerStaticRoutes(app, clientDir);
 
   const eventsWss = registerEventsSocket(app, deps);
   const attachWss = registerAttachSocket(app, deps);
