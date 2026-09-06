@@ -1,5 +1,18 @@
-import { describe, expect, it } from 'vitest';
-import { chromeInstalled } from './browser.js';
+import { execFile } from 'node:child_process';
+import { describe, expect, it, vi } from 'vitest';
+import { chromeInstalled, openChromeWindow } from './browser.js';
+
+vi.mock('node:child_process', () => ({
+  execFile: vi.fn(
+    (
+      _file: string,
+      _args: string[],
+      callback: (error: null, stdout: string, stderr: string) => void,
+    ) => {
+      callback(null, '', '');
+    },
+  ),
+}));
 
 describe('chromeInstalled', () => {
   it('reflects whatever the injected existence check reports', () => {
@@ -14,5 +27,17 @@ describe('chromeInstalled', () => {
       return false;
     });
     expect(checked).toBe('/Applications/Google Chrome.app');
+  });
+});
+
+describe('openChromeWindow', () => {
+  it('passes -n so `open` launches a new instance and forwards --args to Chrome', async () => {
+    await openChromeWindow('http://localhost:1234');
+
+    expect(execFile).toHaveBeenCalledWith(
+      'open',
+      ['-na', 'Google Chrome', '--args', '--app=http://localhost:1234'],
+      expect.any(Function),
+    );
   });
 });

@@ -11,5 +11,7 @@ export function chromeInstalled(exists: (path: string) => boolean = existsSync):
 }
 
 export async function openChromeWindow(url: string): Promise<void> {
-  await execFileAsync('open', ['-a', 'Google Chrome', '--args', `--app=${url}`]);
+  // -n forces a new `open` launch so --args reaches Chrome; without it, an already-running
+  // Chrome is just activated and the args are silently dropped.
+  await execFileAsync('open', ['-na', 'Google Chrome', '--args', `--app=${url}`]);
 }
