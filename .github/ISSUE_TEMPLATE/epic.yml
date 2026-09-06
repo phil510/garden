@@ -1,20 +1,20 @@
 name: Epic
-description: A body of work driven by a merged spec doc, grouped under an initiative. Decomposed into sub-issue tasks.
+description: A body of work grouped under an initiative, decomposed into sub-issue tasks.
 title: '[epic] '
 labels: ['type:epic']
 body:
   - type: markdown
     attributes:
       value: |
-        Open an epic only after its spec has merged. Tasks under this epic are tracked as native GitHub sub-issues, not as a static checklist.
+        Tasks under this epic are tracked as native GitHub sub-issues, not as a static checklist.
   - type: input
     id: linked-spec
     attributes:
       label: Linked spec
-      description: Path to the spec doc this epic implements.
+      description: Path to the spec doc this epic implements, if it has one. Epics small enough that a spec would cost more than the work can leave this blank.
       placeholder: docs/specs/YYYY-MM-DD-<slug>.md
     validations:
-      required: true
+      required: false
   - type: textarea
     id: summary
     attributes:
