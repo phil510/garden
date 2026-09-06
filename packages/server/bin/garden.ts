@@ -1,11 +1,10 @@
 import { isCliCommand, runCli } from '../src/cli/run.js';
+import { runStart, SERVER_PROCESS_ENV } from '../src/cli/start.js';
 import { main } from '../src/main.js';
 
-const [command, ...rest] = process.argv.slice(2);
+const io = { stdout: process.stdout, stderr: process.stderr };
 
-if (isCliCommand(command)) {
-  process.exit(await runCli(command, rest, { stdout: process.stdout, stderr: process.stderr }));
-} else {
+async function runServer(): Promise<void> {
   try {
     await main();
   } catch (error) {
@@ -13,4 +12,17 @@ if (isCliCommand(command)) {
     process.stderr.write(`garden: ${error instanceof Error ? error.message : String(error)}\n`);
     process.exit(1);
   }
+}
+
+const [command, ...rest] = process.argv.slice(2);
+
+if (process.env[SERVER_PROCESS_ENV] === '1') {
+  // `garden` re-invokes this same entry point detached, marked, to run the server in the background.
+  await runServer();
+} else if (isCliCommand(command)) {
+  process.exit(await runCli(command, rest, io));
+} else if (command === undefined) {
+  process.exit(await runStart(io));
+} else {
+  await runServer();
 }

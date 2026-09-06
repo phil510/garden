@@ -1,8 +1,9 @@
 import { parseArgs } from 'node:util';
 import type { CliClient, Io } from './commands.js';
 import { defaultClient, runKill, runLs, runNew, runResume } from './commands.js';
+import { runStop } from './stop.js';
 
-const CLI_COMMANDS = ['new', 'ls', 'kill', 'resume'] as const;
+const CLI_COMMANDS = ['new', 'ls', 'kill', 'resume', 'stop'] as const;
 export type CliCommand = (typeof CLI_COMMANDS)[number];
 
 export function isCliCommand(command: string | undefined): command is CliCommand {
@@ -43,5 +44,7 @@ export async function runCli(
       return positionals[0] === undefined
         ? usage(io, 'garden resume <id>')
         : runResume(io, positionals[0], json, client);
+    case 'stop':
+      return runStop(io);
   }
 }

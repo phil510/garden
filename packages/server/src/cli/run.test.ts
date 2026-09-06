@@ -40,12 +40,13 @@ function recordingClient(): { client: CliClient; calls: string[] } {
 }
 
 describe('isCliCommand', () => {
-  it('recognises the four subcommands and nothing else', () => {
+  it('recognises the five subcommands and nothing else', () => {
     expect(isCliCommand('new')).toBe(true);
     expect(isCliCommand('ls')).toBe(true);
     expect(isCliCommand('kill')).toBe(true);
     expect(isCliCommand('resume')).toBe(true);
-    expect(isCliCommand('stop')).toBe(false);
+    expect(isCliCommand('stop')).toBe(true);
+    expect(isCliCommand('uninstall')).toBe(false);
     expect(isCliCommand(undefined)).toBe(false);
   });
 });
