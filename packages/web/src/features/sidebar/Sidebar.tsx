@@ -7,10 +7,12 @@ import {
   type DragEndEvent,
 } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { useState } from 'react';
 import { updateUiState } from '../../api/client';
 import { useSessionStore } from '../../state/sessionStore';
 import { useUiStore } from '../../state/uiStore';
 import { groupSessions } from './groupSessions';
+import { NewSessionModal } from './NewSessionModal';
 import { placeOnStage } from './placeOnStage';
 import { reorderGroups } from './reorderGroups';
 import { RepoGroup } from './RepoGroup';
@@ -20,6 +22,7 @@ export function Sidebar() {
   const sessions = useSessionStore((state) => state.sessions);
   const uiState = useUiStore((state) => state.uiState);
   const groups = groupSessions(sessions, uiState);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   function toggleCollapse(repoRoot: string) {
     const collapsedRepos = uiState.collapsedRepos.includes(repoRoot)
@@ -61,6 +64,19 @@ export function Sidebar() {
           <span className="dot" />
           <span>Hide dead</span>
         </button>
+        <button className="btn-new" onClick={() => setPickerOpen(true)}>
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2.5}
+          >
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          <span>New session</span>
+        </button>
       </div>
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <SortableContext items={visibleOrder} strategy={verticalListSortingStrategy}>
@@ -77,6 +93,15 @@ export function Sidebar() {
           ))}
         </SortableContext>
       </DndContext>
+      {pickerOpen && (
+        <NewSessionModal
+          onClose={() => setPickerOpen(false)}
+          onCreated={(id) => {
+            selectSession(id);
+            setPickerOpen(false);
+          }}
+        />
+      )}
     </>
   );
 }

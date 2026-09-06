@@ -41,6 +41,11 @@
 .faint {
   color: var(--text-faint);
 }
+.upper {
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-weight: 600;
+}
 
 body {
   margin: 0;
