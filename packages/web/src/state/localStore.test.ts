@@ -61,4 +61,11 @@ describe('localStore', () => {
       line: 7,
     });
   });
+
+  it('gives every connection its own epoch, so a pane can tell a reconnect from a redraw', () => {
+    const start = useLocalStore.getState().connectionEpoch;
+    useLocalStore.getState().noteConnected();
+    useLocalStore.getState().noteConnected();
+    expect(useLocalStore.getState().connectionEpoch).toBe(start + 2);
+  });
 });

@@ -4,6 +4,7 @@ import { updateUiState } from '../../api/client';
 import { reportCommandFailure } from '../../api/reportCommandFailure';
 import { useUiStore } from '../../state/uiStore';
 import { detachPane } from '../../terminals/registry';
+import { applyLayout } from './applyLayout';
 import { EMPTY_SLOT_COMPONENT, PANE_COMPONENT, isEmptySlotId, presetLayout } from './presetLayout';
 import { EmptySlotPane, StagePane } from './StagePane';
 import { stageLayout } from './storedLayout';
@@ -28,13 +29,7 @@ export function Stage() {
   const applyRef = useRef<() => void>(() => undefined);
   applyRef.current = () => {
     if (api === null) return;
-    // fromJSON on a maximized stage would rebuild the grid underneath the hidden siblings.
-    if (api.hasMaximizedGroup()) api.exitMaximizedGroup();
-    // `reuseExistingPanels` matches on panel id, so a pane the new layout still holds keeps the
-    // xterm instance and pane socket the registry gave it instead of being rebuilt.
-    api.fromJSON(stageLayout(presetLayout(preset, slots), storedLayout), {
-      reuseExistingPanels: true,
-    });
+    applyLayout(api, stageLayout(presetLayout(preset, slots), storedLayout));
   };
 
   // Every `ui-state` message brings a fresh object, so identity says nothing about whether the

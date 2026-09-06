@@ -3,6 +3,7 @@ import { useEffect, useRef, type MouseEvent } from 'react';
 import { resumeSession, updateUiState } from '../../api/client';
 import { reportCommandFailure } from '../../api/reportCommandFailure';
 import { StatusPill } from '../../components/StatusPill';
+import { useLocalStore } from '../../state/localStore';
 import { useSessionStore } from '../../state/sessionStore';
 import { useUiStore } from '../../state/uiStore';
 import { attachPane, detachPane } from '../../terminals/registry';
@@ -30,18 +31,20 @@ export function StagePane(props: IDockviewPanelProps) {
   const slot = uiState.slots.indexOf(props.api.id);
   const focused = slot !== -1 && slot === uiState.focusedSlot;
   const live = session?.liveness === 'live';
+  const connectionEpoch = useLocalStore((state) => state.connectionEpoch);
   const terminalRef = useRef<HTMLDivElement>(null);
 
   // Mounts the session's terminal into this pane's container while it is live, and tears it
   // down — never keeping a socket warm behind the dead placeholder — once it stops being live,
   // whether that is a session ending or this pane being dropped from the layout entirely.
+  // A new connection is a third teardown trigger: the attach it held died with the old one.
   useEffect(() => {
     if (!live) return;
     const container = terminalRef.current;
     if (container === null) return;
     attachPane(props.api.id, container);
     return () => detachPane(props.api.id);
-  }, [props.api.id, live]);
+  }, [props.api.id, live, connectionEpoch]);
 
   function focus() {
     if (slot === -1 || focused) return;

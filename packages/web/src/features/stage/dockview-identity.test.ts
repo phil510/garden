@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { DockviewComponent } from 'dockview-core';
 import { describe, expect, it } from 'vitest';
+import { applyLayout } from './applyLayout';
 import { PANE_COMPONENT } from './presetLayout';
 
 /** Stands in for garden's xterm pane: what matters is that it is one long-lived instance per
@@ -29,14 +30,14 @@ function addTwoPanels(component: DockviewComponent): void {
 }
 
 describe('dockview identity across a preset switch', () => {
-  it('keeps a surviving panel on its existing content renderer when reuseExistingPanels is set', () => {
+  it('keeps a surviving panel on its existing content renderer when the stage applies a layout', () => {
     const component = makeComponent();
     addTwoPanels(component);
     const before = new Map(RecordingRenderer.instances.map((renderer) => [renderer.id, renderer]));
     const layout = component.toJSON();
     const countBefore = RecordingRenderer.instances.length;
 
-    component.fromJSON(layout, { reuseExistingPanels: true });
+    applyLayout(component.api, layout);
 
     expect(RecordingRenderer.instances).toHaveLength(countBefore);
     expect(RecordingRenderer.instances.find((renderer) => renderer.id === 'session-a')).toBe(

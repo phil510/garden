@@ -6,8 +6,7 @@ import { useLocalStore } from '../state/localStore.js';
 import { findPathLineLinks } from './pathLineLinks.js';
 import { terminalTheme } from './theme.js';
 
-export interface PaneHandle {
-  readonly terminal: Terminal;
+interface PaneHandle {
   /** Moves the terminal's already-open DOM element into `container`, a no-op if it is already
    *  there, and fits it to the container's current size. */
   mount(container: HTMLElement): void;
@@ -87,7 +86,6 @@ function createPane(sessionId: string, container: HTMLElement): PaneHandle {
   }
 
   return {
-    terminal,
     mount(nextContainer) {
       if (terminal.element !== undefined && terminal.element.parentElement !== nextContainer) {
         nextContainer.appendChild(terminal.element);
@@ -101,19 +99,17 @@ function createPane(sessionId: string, container: HTMLElement): PaneHandle {
   };
 }
 
-/** Returns the session's pane, moved into `container` and fitted to it. A session already in
+/** Puts the session's pane in `container`, fitted to it. A session already in
  *  the registry is never attached a second time — the server refuses a second concurrent attach
  *  per session, so reusing the existing socket and moving its terminal is what keeps that
  *  refusal from ever being reached. */
-export function attachPane(sessionId: string, container: HTMLElement): PaneHandle {
+export function attachPane(sessionId: string, container: HTMLElement): void {
   const existing = panes.get(sessionId);
   if (existing !== undefined) {
     existing.mount(container);
-    return existing;
+    return;
   }
-  const handle = createPane(sessionId, container);
-  panes.set(sessionId, handle);
-  return handle;
+  panes.set(sessionId, createPane(sessionId, container));
 }
 
 /** Ends a session's pane socket and disposes its terminal. Safe to call on a session with no

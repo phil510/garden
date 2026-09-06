@@ -3,6 +3,7 @@ import { connectEventSocket } from './api/eventSocket';
 import { Sidebar } from './features/sidebar/Sidebar';
 import { PresetSwitcher } from './features/stage/PresetSwitcher';
 import { Stage } from './features/stage/Stage';
+import { useLocalStore } from './state/localStore';
 import { useSessionStore } from './state/sessionStore';
 import { useUiStore } from './state/uiStore';
 
@@ -10,6 +11,7 @@ export function App() {
   useEffect(() => {
     const sessionStore = useSessionStore.getState();
     const uiStore = useUiStore.getState();
+    const localStore = useLocalStore.getState();
     return connectEventSocket({
       onSnapshot: (message) => {
         sessionStore.setSnapshot(message.sessions);
@@ -21,7 +23,7 @@ export function App() {
       onUiState: (message) => {
         uiStore.setUiState(message.uiState);
       },
-      onConnect: () => {},
+      onConnect: localStore.noteConnected,
     });
   }, []);
 

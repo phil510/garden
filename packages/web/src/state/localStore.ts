@@ -18,6 +18,10 @@ interface LocalStore {
    *  whichever endpoint later opens it. Null once nothing is pending. */
   openFileRequest: OpenFileRequest | null;
   requestOpenFile: (sessionId: string, path: string, line: number) => void;
+  /** Counts connections of the event socket. A dropped connection takes every pane attach on the
+   *  server with it, so a pane keys its attach on this and opens a fresh socket on reconnect. */
+  connectionEpoch: number;
+  noteConnected: () => void;
 }
 
 export const useLocalStore = create<LocalStore>((set) => ({
@@ -35,4 +39,6 @@ export const useLocalStore = create<LocalStore>((set) => ({
     }),
   openFileRequest: null,
   requestOpenFile: (sessionId, path, line) => set({ openFileRequest: { sessionId, path, line } }),
+  connectionEpoch: 0,
+  noteConnected: () => set((state) => ({ connectionEpoch: state.connectionEpoch + 1 })),
 }));
