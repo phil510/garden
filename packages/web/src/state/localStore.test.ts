@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { useLocalStore } from './localStore';
 
 beforeEach(() => {
-  useLocalStore.setState({ scrollOffsets: {}, expandedPaths: {} });
+  useLocalStore.setState({ scrollOffsets: {}, expandedPaths: {}, openFileRequest: null });
 });
 
 describe('localStore', () => {
@@ -40,6 +40,25 @@ describe('localStore', () => {
     expect(useLocalStore.getState().expandedPaths).toEqual({
       'sid-1': ['src'],
       'sid-2': ['lib'],
+    });
+  });
+
+  it('records a requested file open', () => {
+    useLocalStore.getState().requestOpenFile('sid-1', 'src/foo.ts', 42);
+    expect(useLocalStore.getState().openFileRequest).toEqual({
+      sessionId: 'sid-1',
+      path: 'src/foo.ts',
+      line: 42,
+    });
+  });
+
+  it('overwrites a pending open request with the latest one', () => {
+    useLocalStore.getState().requestOpenFile('sid-1', 'src/foo.ts', 42);
+    useLocalStore.getState().requestOpenFile('sid-2', 'src/bar.ts', 7);
+    expect(useLocalStore.getState().openFileRequest).toEqual({
+      sessionId: 'sid-2',
+      path: 'src/bar.ts',
+      line: 7,
     });
   });
 });

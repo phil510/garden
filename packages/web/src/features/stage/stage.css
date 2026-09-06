@@ -39,6 +39,110 @@
   padding: 16px;
 }
 
+.pane-header {
+  flex: 0 0 52px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px 0 10px;
+  background: var(--raised);
+  border-bottom: 1px solid var(--border);
+  min-width: 0;
+}
+
+.pane-title-wrap {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+  justify-content: center;
+  gap: 1px;
+  line-height: 1.2;
+}
+
+.pane-title {
+  font-size: 12px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pane-meta-row {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+  font-size: 10px;
+}
+
+.pane-meta-k {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+}
+
+.pane-meta-v {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.pane-header .status-pill {
+  flex: 0 0 auto;
+}
+
+.pane-header-actions {
+  display: flex;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+
+.pane-header-actions button {
+  padding: 4px;
+}
+
+.pane-header-actions svg {
+  width: 13px;
+  height: 13px;
+}
+
+.pane-term {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.dead-pane-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 20px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.dead-pane-body .dp-icon {
+  color: var(--text-faint);
+}
+
+.dead-pane-body .dp-line1 {
+  font-size: 12.5px;
+  color: var(--text);
+}
+
+.dead-pane-body .dp-line2 {
+  font-size: 11.5px;
+  color: var(--text-faint);
+  max-width: 320px;
+}
+
 /* The preset switcher lives in the topbar, beside the stage it drives. */
 .preset-group {
   display: flex;

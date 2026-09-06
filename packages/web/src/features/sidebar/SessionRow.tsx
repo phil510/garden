@@ -1,32 +1,11 @@
-import type { SessionState, Status } from '@garden/shared';
+import type { SessionState } from '@garden/shared';
 import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { killSession, resumeSession } from '../../api/client';
 import { reportCommandFailure } from '../../api/reportCommandFailure';
+import { StatusPill } from '../../components/StatusPill';
 import { HoverCard } from './HoverCard';
 import { lastPathSegment } from './lastPathSegment';
 import { formatRelativeTime } from './relativeTime';
-
-const STATUS_LABEL: Record<Status, string> = {
-  working: 'working',
-  'needs-approval': 'needs approval',
-  waiting: 'waiting',
-  unknown: 'unknown',
-};
-
-const STATUS_COLOR_VAR: Record<Status, string> = {
-  working: 'var(--st-working)',
-  'needs-approval': 'var(--st-needs-approval)',
-  waiting: 'var(--st-waiting)',
-  unknown: 'var(--st-unknown)',
-};
-
-/** The pill's border carries its status colour at a third of the text's opacity. */
-const STATUS_BORDER_VAR: Record<Status, string> = {
-  working: 'var(--st-working-border)',
-  'needs-approval': 'var(--st-needs-approval-border)',
-  waiting: 'var(--st-waiting-border)',
-  unknown: 'var(--st-unknown-border)',
-};
 
 const COPIED_RESET_MS = 1400;
 
@@ -94,16 +73,7 @@ export function SessionRow({ session, onStage, now, onSelect }: SessionRowProps)
       <div className="row-top">
         <span className="row-title">{title}</span>
         {session.liveness === 'live' && session.status !== null && (
-          <span
-            className="status-pill"
-            style={{
-              color: STATUS_COLOR_VAR[session.status],
-              borderColor: STATUS_BORDER_VAR[session.status],
-            }}
-          >
-            <span className="dot" style={{ background: STATUS_COLOR_VAR[session.status] }} />
-            {STATUS_LABEL[session.status]}
-          </span>
+          <StatusPill status={session.status} />
         )}
       </div>
       <div className="row-meta">
