@@ -132,6 +132,39 @@ describe('registerAttachSocket', () => {
     expect(resizes).toEqual([{ cols: 120, rows: 40 }]);
   });
 
+  it('drops a text frame that is not a usable resize, keeping the connection open', async () => {
+    const { registry, written, resizes } = attachingRegistry();
+    const server = await startServer(registry);
+    app = server.app;
+
+    socket = new WebSocket(server.url('/attach/one?cols=80&rows=24'));
+    await opened(socket);
+
+    socket.send('not json at all');
+    socket.send(JSON.stringify({ type: 'resize' }));
+    socket.send(JSON.stringify({ type: 'resize', cols: 0, rows: -4 }));
+    socket.send(JSON.stringify({ type: 'resize', cols: 120, rows: 40 }));
+
+    await until(
+      () => resizes.length,
+      (length) => length === 1,
+      'the one usable resize to arrive',
+    );
+    expect(resizes).toEqual([{ cols: 120, rows: 40 }]);
+    expect(written).toEqual([]);
+    expect(socket.readyState).toBe(WebSocket.OPEN);
+  });
+
+  it('closes with a distinguishable code when the attach fails unexpectedly', async () => {
+    const server = await startServer(refusingRegistry(new Error('pty layer blew up')));
+    app = server.app;
+
+    socket = new WebSocket(server.url('/attach/one?cols=80&rows=24'));
+    const result = await closed(socket);
+
+    expect(result.code).toBe(4500);
+  });
+
   it('delivers pty output to the client as a binary frame', async () => {
     const { registry, emitData } = attachingRegistry();
     const server = await startServer(registry);

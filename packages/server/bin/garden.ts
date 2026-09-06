@@ -1,4 +1,4 @@
-import { isCliCommand, runCli } from '../src/cli/run.js';
+import { isCliCommand, runCli, usageLines } from '../src/cli/run.js';
 import { runStart, SERVER_PROCESS_ENV } from '../src/cli/start.js';
 import { main } from '../src/main.js';
 
@@ -24,5 +24,6 @@ if (process.env[SERVER_PROCESS_ENV] === '1') {
 } else if (command === undefined) {
   process.exit(await runStart(io));
 } else {
-  await runServer();
+  process.stderr.write(`garden: unknown command "${command}"\n${usageLines()}`);
+  process.exit(1);
 }

@@ -16,13 +16,30 @@ const CLOSE_BAD_REQUEST = 4000;
 const CLOSE_SESSION_NOT_FOUND = 4004;
 const CLOSE_SESSION_NOT_RUNNING = 4001;
 const CLOSE_ALREADY_ATTACHED = 4009;
+const CLOSE_ATTACH_FAILED = 4500;
+
+function toSize(cols: unknown, rows: unknown): PaneSize | undefined {
+  if (!Number.isInteger(cols) || !Number.isInteger(rows)) return undefined;
+  if ((cols as number) <= 0 || (rows as number) <= 0) return undefined;
+  return { cols: cols as number, rows: rows as number };
+}
 
 function parseSize(url: URL): PaneSize | undefined {
-  const cols = Number(url.searchParams.get('cols'));
-  const rows = Number(url.searchParams.get('rows'));
-  if (!Number.isInteger(cols) || !Number.isInteger(rows) || cols <= 0 || rows <= 0)
+  return toSize(Number(url.searchParams.get('cols')), Number(url.searchParams.get('rows')));
+}
+
+/** A text frame is client input: anything that is not a resize with usable dimensions is
+ *  dropped. A throw in a `message` listener is an uncaught exception, not a socket error. */
+function parseResize(frame: string): PaneSize | undefined {
+  let message: unknown;
+  try {
+    message = JSON.parse(frame);
+  } catch {
     return undefined;
-  return { cols, rows };
+  }
+  if (typeof message !== 'object' || message === null) return undefined;
+  const { cols, rows } = message as Partial<PaneResizeMessage>;
+  return toSize(cols, rows);
 }
 
 /** `noServer` mode: `http/server.ts` owns the single `upgrade` listener on the shared HTTP
@@ -67,7 +84,9 @@ export function registerAttachSocket(
       } else if (error instanceof SessionAlreadyAttachedError) {
         socket.close(CLOSE_ALREADY_ATTACHED, error.message);
       } else {
-        throw error;
+        // Rethrowing here would be an uncaught exception in a `ws` listener, taking every
+        // other pane socket down with this one.
+        socket.close(CLOSE_ATTACH_FAILED, 'attach failed');
       }
       return;
     }
@@ -77,8 +96,8 @@ export function registerAttachSocket(
         attachment.write(data.toString('utf8'));
         return;
       }
-      const message = JSON.parse(data.toString('utf8')) as PaneResizeMessage;
-      attachment.resize({ cols: message.cols, rows: message.rows });
+      const nextSize = parseResize(data.toString('utf8'));
+      if (nextSize !== undefined) attachment.resize(nextSize);
     });
     socket.on('close', () => attachment.close());
   });

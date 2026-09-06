@@ -6,7 +6,7 @@ import { createInterface } from 'node:readline/promises';
 import { promisify } from 'node:util';
 import { appDirPath } from '../config.js';
 import type { Io } from './commands.js';
-import { runStop } from './stop.js';
+import { defaultStopDeps, runStop } from './stop.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -15,7 +15,7 @@ const TMUX_SOCKET = 'garden';
 
 export interface UninstallDeps {
   readonly confirm: () => Promise<boolean>;
-  readonly stop: (io: Io) => Promise<0 | 1>;
+  readonly stop: (io: Io, home: string) => Promise<0 | 1>;
   readonly killTmuxServer: (confPath: string) => Promise<void>;
   readonly removeAppDir: (path: string) => void;
   readonly home: string;
@@ -47,7 +47,7 @@ async function killTmuxServer(confPath: string): Promise<void> {
 
 export const defaultUninstallDeps: UninstallDeps = {
   confirm: promptConfirm,
-  stop: (io) => runStop(io),
+  stop: (io, home) => runStop(io, { ...defaultStopDeps, home }),
   killTmuxServer,
   removeAppDir: (path) => {
     rmSync(path, { recursive: true, force: true });
@@ -66,7 +66,7 @@ export async function runUninstall(
     return 0;
   }
 
-  const stopResult = await deps.stop(io);
+  const stopResult = await deps.stop(io, deps.home);
   if (stopResult !== 0) return stopResult;
 
   await deps.killTmuxServer(join(appDirPath(deps.home), 'tmux.conf'));

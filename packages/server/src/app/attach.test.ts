@@ -197,4 +197,27 @@ describe('createAttachRegistry', () => {
     );
     expect(pty.spawned).toHaveLength(0);
   });
+
+  it('frees the session when the pty fails to spawn', () => {
+    let failNext = true;
+    const pty = fakePty();
+    const failing: PtyPort = {
+      attach: (tmuxName, requested, handlers) => {
+        if (failNext) {
+          failNext = false;
+          throw new Error('fork failed');
+        }
+        return pty.port.attach(tmuxName, requested, handlers);
+      },
+    };
+    const registry = createAttachRegistry({
+      pty: failing,
+      projection: fakeProjection([aSession({ id: 'one', tmuxName: 'garden-one' })]),
+    });
+
+    expect(() => registry.attach({ id: 'one', size, ...noHandlers })).toThrow('fork failed');
+
+    expect(() => registry.attach({ id: 'one', size, ...noHandlers })).not.toThrow();
+    expect(pty.spawned).toHaveLength(1);
+  });
 });

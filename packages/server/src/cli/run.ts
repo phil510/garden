@@ -11,6 +11,10 @@ export function isCliCommand(command: string | undefined): command is CliCommand
   return command !== undefined && (CLI_COMMANDS as readonly string[]).includes(command);
 }
 
+export function usageLines(): string {
+  return 'usage: garden [new <dir> | ls | kill <id> | resume <id> | stop | uninstall]\n';
+}
+
 function usage(io: Io, line: string): 1 {
   io.stderr.write(`garden: usage: ${line}\n`);
   return 1;

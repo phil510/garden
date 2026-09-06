@@ -57,13 +57,21 @@ export function createAttachRegistry(deps: AttachDeps): AttachRegistry {
         open.delete(request.id);
       };
 
-      const attachment = deps.pty.attach(session.tmuxName, request.size, {
-        onData: request.onData,
-        onExit: () => {
-          release();
-          request.onExit();
-        },
-      });
+      // A pty that never spawned holds no slot: without this the session would be refused
+      // as already attached for the life of the process.
+      let attachment;
+      try {
+        attachment = deps.pty.attach(session.tmuxName, request.size, {
+          onData: request.onData,
+          onExit: () => {
+            release();
+            request.onExit();
+          },
+        });
+      } catch (error) {
+        release();
+        throw error;
+      }
 
       return {
         write: (data) => attachment.write(data),

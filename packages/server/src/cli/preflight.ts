@@ -4,7 +4,7 @@ import { promisify } from 'node:util';
 const execFileAsync = promisify(execFile);
 
 /** `window-size latest` and `terminal-features`, both in `appdir.ts`'s tmux.conf, need 3.2. */
-export const MINIMUM_TMUX_VERSION = { major: 3, minor: 2 } as const;
+const MINIMUM_TMUX_VERSION = { major: 3, minor: 2 } as const;
 
 export type PreflightResult =
   { readonly ok: true } | { readonly ok: false; readonly message: string };

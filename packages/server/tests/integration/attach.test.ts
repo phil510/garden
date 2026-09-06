@@ -87,6 +87,20 @@ async function paneSize(target: TmuxTarget, name: string): Promise<string> {
   return stdout.trim();
 }
 
+/** One line per tmux client attached to `name`; a pty that outlived its socket shows up here. */
+async function listClients(target: TmuxTarget, name: string): Promise<string> {
+  const { stdout } = await execFileAsync('tmux', [
+    '-L',
+    target.socket,
+    '-f',
+    target.confPath,
+    'list-clients',
+    '-t',
+    name,
+  ]);
+  return stdout.trim();
+}
+
 function opened(socket: WebSocket): Promise<void> {
   return new Promise((resolve, reject) => {
     socket.once('open', resolve);
@@ -169,6 +183,18 @@ describe('WS /attach/:id against a real tmux pane and a real pty', () => {
         second = new WebSocket(url(`/attach/${id}?cols=80&rows=24`));
         const refusal = await closed(second);
         expect(refusal.code).toBe(4009);
+
+        await until(
+          'one tmux client for the open pane socket',
+          () => listClients(target, tmuxName),
+          (clients) => clients.split('\n').filter(Boolean).length === 1,
+        );
+        socket.close();
+        await until(
+          'the pty to detach from tmux once its socket closes',
+          () => listClients(target, tmuxName),
+          (clients) => clients === '',
+        );
       } finally {
         socket?.close();
         second?.close();
