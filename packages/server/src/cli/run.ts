@@ -2,8 +2,9 @@ import { parseArgs } from 'node:util';
 import type { CliClient, Io } from './commands.js';
 import { defaultClient, runKill, runLs, runNew, runResume } from './commands.js';
 import { runStop } from './stop.js';
+import { runUninstall } from './uninstall.js';
 
-const CLI_COMMANDS = ['new', 'ls', 'kill', 'resume', 'stop'] as const;
+const CLI_COMMANDS = ['new', 'ls', 'kill', 'resume', 'stop', 'uninstall'] as const;
 export type CliCommand = (typeof CLI_COMMANDS)[number];
 
 export function isCliCommand(command: string | undefined): command is CliCommand {
@@ -24,7 +25,10 @@ export async function runCli(
 ): Promise<0 | 1> {
   const { values, positionals } = parseArgs({
     args: rest,
-    options: { json: { type: 'boolean', default: false } },
+    options: {
+      json: { type: 'boolean', default: false },
+      yes: { type: 'boolean', default: false },
+    },
     allowPositionals: true,
   });
   const json = values.json === true;
@@ -46,5 +50,7 @@ export async function runCli(
         : runResume(io, positionals[0], json, client);
     case 'stop':
       return runStop(io);
+    case 'uninstall':
+      return runUninstall(io, values.yes === true);
   }
 }
