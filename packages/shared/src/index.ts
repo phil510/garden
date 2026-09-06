@@ -40,6 +40,9 @@ export interface UiState {
   preset: StagePreset;
   slots: (string | null)[];
   focusedSlot: number;
+  /** dockview's own `toJSON()` output, carrying the track sizes the user dragged. Opaque
+   *  everywhere but `fromJSON`; null until the stage has been laid out once. */
+  layout: unknown;
 }
 
 /** Claude Code's hook payload, verbatim snake_case. `permission_mode` is absent on

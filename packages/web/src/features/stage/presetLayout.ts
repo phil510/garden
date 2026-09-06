@@ -18,6 +18,11 @@ export const EMPTY_SLOT_COMPONENT = 'empty-slot';
 
 const EMPTY_SLOT_PREFIX = 'empty-slot-';
 
+/** Distinguishes a placeholder panel from a pane, whose id is a session id. */
+export function isEmptySlotId(panelId: string): boolean {
+  return panelId.startsWith(EMPTY_SLOT_PREFIX);
+}
+
 /** An empty slot still gets a panel so the preset's shape stays visible with nothing on stage.
  *  Session ids are uuids, so no session can collide with one of these. */
 function panelIdForSlot(slots: readonly (string | null)[], slot: number): string {
@@ -113,9 +118,7 @@ export function presetLayout(
   for (const panelId of collectViews(grid.root)) {
     panels[panelId] = {
       id: panelId,
-      contentComponent: panelId.startsWith(EMPTY_SLOT_PREFIX)
-        ? EMPTY_SLOT_COMPONENT
-        : PANE_COMPONENT,
+      contentComponent: isEmptySlotId(panelId) ? EMPTY_SLOT_COMPONENT : PANE_COMPONENT,
       renderer: 'always',
     };
   }

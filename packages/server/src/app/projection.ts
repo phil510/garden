@@ -1,6 +1,7 @@
 import type { Delta, SessionState, UiState, UiStateRequest } from '@garden/shared';
 import { diff } from '../domain/diff.js';
 import { initialState, reduce } from '../domain/reduce.js';
+import { switchPreset } from '../domain/stage.js';
 import type { GardenEvent } from '../domain/types.js';
 import type { OverlayGroup, OverlayState, StorePort } from './ports.js';
 
@@ -24,11 +25,12 @@ function toUiState(overlay: OverlayState): UiState {
     preset: overlay.stage.preset,
     slots: [...overlay.stage.slots],
     focusedSlot: overlay.stage.focusedSlot,
+    layout: overlay.stage.layout,
   };
 }
 
 /** Folds the UI slice back onto an overlay read moments earlier, so fields the client
- *  never sees — the tmux name map, dockview's layout blob — survive the write. */
+ *  never sees — the tmux name map — survive the write. */
 function toOverlay(base: OverlayState, ui: UiState): OverlayState {
   const named = new Set([...ui.groupOrder, ...ui.pinnedRepos, ...ui.collapsedRepos]);
   const ordered = [...ui.groupOrder, ...[...named].filter((p) => !ui.groupOrder.includes(p))];
@@ -49,6 +51,7 @@ function toOverlay(base: OverlayState, ui: UiState): OverlayState {
       preset: ui.preset,
       slots: [...ui.slots],
       focusedSlot: ui.focusedSlot,
+      layout: ui.layout,
     },
   };
 }
@@ -75,7 +78,11 @@ export function createProjection(store: StorePort): Projection {
       // The store write is what makes the change real, so it lands before the
       // in-memory slice moves: a failed write leaves nothing claiming to have applied.
       const base = store.read();
-      const next = { ...toUiState(base), ...patch };
+      const merged = { ...toUiState(base), ...patch };
+      // The preset decides how many slots exist, so the slot array is fitted to it here rather
+      // than trusted from the client: a patch naming a smaller preset returns the panes that no
+      // longer fit to the sidebar, and every other patch leaves an already-fitting stage alone.
+      const next = { ...merged, ...switchPreset(merged.slots, merged.focusedSlot, merged.preset) };
       store.write(toOverlay(base, next));
       ui = next;
       for (const listener of [...uiListeners]) listener(ui);

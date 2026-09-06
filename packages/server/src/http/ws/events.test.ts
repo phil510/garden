@@ -35,6 +35,7 @@ const UI_STATE: UiState = {
   preset: 'single',
   slots: [null],
   focusedSlot: 0,
+  layout: null,
 };
 
 function fakeProjection() {

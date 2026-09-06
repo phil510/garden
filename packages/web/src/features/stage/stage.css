@@ -38,3 +38,30 @@
   text-align: center;
   padding: 16px;
 }
+
+/* The preset switcher lives in the topbar, beside the stage it drives. */
+.preset-group {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  height: 100%;
+  padding: 0 8px;
+}
+
+.preset-btn {
+  padding: 5px;
+  border-radius: 4px;
+}
+
+.preset-btn svg {
+  width: 20px;
+  height: 16px;
+}
+
+.preset-btn rect {
+  fill: var(--border-strong);
+}
+
+.preset-btn.active-btn rect {
+  fill: var(--accent);
+}

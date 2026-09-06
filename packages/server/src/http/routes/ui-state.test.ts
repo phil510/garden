@@ -13,6 +13,7 @@ const baseUiState: UiState = {
   preset: 'single',
   slots: [null],
   focusedSlot: 0,
+  layout: null,
 };
 
 function fakeProjection(overrides: Partial<Projection> = {}): Projection {

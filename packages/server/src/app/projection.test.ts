@@ -144,6 +144,7 @@ describe('ui state', () => {
       preset: 'two-across',
       slots: ['sid-1', null],
       focusedSlot: 1,
+      layout: { grid: 'opaque' },
     });
   });
 
@@ -167,8 +168,36 @@ describe('ui state', () => {
     projection.updateUiState({ hideDead: false });
 
     expect(store.written().tmuxNames).toEqual({ 'sid-1': 'repo' });
-    expect(store.written().stage.layout).toEqual({ grid: 'opaque' });
     expect(store.written().version).toBe(1);
+  });
+
+  it('writes the layout blob through untouched', () => {
+    const store = fakeStore(overlay);
+    const projection = createProjection(store.port);
+
+    projection.updateUiState({ layout: { grid: 'dragged' } });
+
+    expect(store.written().stage.layout).toEqual({ grid: 'dragged' });
+  });
+
+  it('drops the panes a smaller preset has no slot for', () => {
+    const store = fakeStore(overlay);
+    const projection = createProjection(store.port);
+
+    projection.updateUiState({ preset: 'single' });
+
+    expect(projection.uiState().slots).toEqual(['sid-1']);
+    expect(projection.uiState().focusedSlot).toBe(0);
+    expect(store.written().stage.slots).toEqual(['sid-1']);
+  });
+
+  it('pads the slot array out when a larger preset arrives', () => {
+    const projection = createProjection(fakeStore(overlay).port);
+
+    projection.updateUiState({ preset: 'grid-2x2' });
+
+    expect(projection.uiState().slots).toEqual(['sid-1', null, null, null]);
+    expect(projection.uiState().focusedSlot).toBe(1);
   });
 
   it('writes a reordered group list back as store orders', () => {
