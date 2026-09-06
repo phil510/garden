@@ -6,7 +6,6 @@ const fact = (o: Partial<TmuxSessionFact> = {}): TmuxSessionFact => ({
   name: 'repo',
   paneDead: false,
   exitCode: null,
-  attached: false,
   ...o,
 });
 

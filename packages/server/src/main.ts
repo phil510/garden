@@ -55,8 +55,7 @@ function gitPort(): GitPort {
 
 /**
  * tmux lists panes, not sessions. garden gives every session exactly one pane, so the
- * first pane carrying a name is that session's; a pane list carries no attach state,
- * which is the attach registry's business rather than a fact about the session.
+ * first pane carrying a name is that session's.
  */
 function toSessionFacts(panes: readonly TmuxPaneFact[]): TmuxSessionFact[] {
   const facts = new Map<string, TmuxSessionFact>();
@@ -66,7 +65,6 @@ function toSessionFacts(panes: readonly TmuxPaneFact[]): TmuxSessionFact[] {
       name: pane.session,
       paneDead: pane.dead,
       exitCode: pane.exitCode ?? null,
-      attached: false,
     });
   }
   return [...facts.values()];

@@ -13,7 +13,6 @@ export function aSession(overrides: Partial<SessionState> = {}): SessionState {
     statusReason: null,
     exitCode: null,
     tmuxName: 'repo',
-    attached: false,
     lastActivity: 1_000_000,
     ...overrides,
   };

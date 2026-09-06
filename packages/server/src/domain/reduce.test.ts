@@ -25,7 +25,7 @@ const transcript = (o: Partial<TranscriptRecord> = {}): GardenEvent => ({
 
 const snapshot = (paneDead: boolean, name = 'repo'): GardenEvent => ({
   type: 'tmux-snapshot',
-  sessions: [{ name, paneDead, exitCode: paneDead ? 1 : null, attached: !paneDead }],
+  sessions: [{ name, paneDead, exitCode: paneDead ? 1 : null }],
 });
 
 const hook = (name: string, id = 'sid-1'): GardenEvent => ({
@@ -44,7 +44,6 @@ describe('reduce', () => {
     expect(state.sessions['sid-1']).toMatchObject({
       liveness: 'live',
       status: 'working',
-      attached: true,
       tmuxName: 'repo',
       title: 'Wire up the fold',
       branch: 'main',
@@ -92,7 +91,6 @@ describe('reduce', () => {
         liveness: 'dead',
         status: null,
         exitCode: null,
-        attached: false,
       },
     );
   });

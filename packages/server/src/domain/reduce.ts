@@ -24,7 +24,6 @@ function blank(id: string): SessionState {
     statusReason: null,
     exitCode: null,
     tmuxName: null,
-    attached: false,
     lastActivity: 0,
   };
 }
@@ -42,7 +41,6 @@ function rederive(state: GardenState): GardenState {
     sessions[id] = {
       ...session,
       tmuxName,
-      attached: fact?.attached ?? false,
       liveness,
       exitCode,
       // Status belongs to live sessions: none yet heard from reads `unknown`, dead reads nothing.

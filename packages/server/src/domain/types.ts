@@ -17,7 +17,6 @@ export interface TmuxSessionFact {
   name: string;
   paneDead: boolean;
   exitCode: number | null;
-  attached: boolean;
 }
 
 /** The status a hook reported, with the reason that came with it. */

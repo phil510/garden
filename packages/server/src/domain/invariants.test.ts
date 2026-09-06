@@ -26,7 +26,7 @@ const transcript = (o: Partial<TranscriptRecord>, lastActivity: number): GardenE
 
 const snapshot = (paneDead: boolean): GardenEvent => ({
   type: 'tmux-snapshot',
-  sessions: [{ name: 'repo', paneDead, exitCode: paneDead ? 130 : null, attached: !paneDead }],
+  sessions: [{ name: 'repo', paneDead, exitCode: paneDead ? 130 : null }],
 });
 
 const storeLoaded: GardenEvent = { type: 'store-loaded', tmuxNames: { 'sid-1': 'repo' } };

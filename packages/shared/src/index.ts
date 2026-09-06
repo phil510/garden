@@ -20,7 +20,6 @@ export interface SessionState {
   statusReason: string | null;
   exitCode: number | null;
   tmuxName: string | null;
-  attached: boolean;
   /** The last timestamped transcript line, in epoch ms. Display, sorting and filtering only;
    *  liveness never reads it. */
   lastActivity: number;

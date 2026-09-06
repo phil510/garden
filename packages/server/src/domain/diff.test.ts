@@ -43,7 +43,6 @@ describe('diff', () => {
       statusReason: 'Needs approval',
       exitCode: 130,
       tmuxName: 'other',
-      attached: true,
       lastActivity: before.lastActivity + 1,
     };
     const [delta] = diff(withSessions(before), withSessions(after));
