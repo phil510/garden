@@ -4,7 +4,6 @@ import type {
   ErrorResponse,
   OkResponse,
   ReposResponse,
-  SessionsResponse,
   UiStateRequest,
 } from '@garden/shared';
 
@@ -23,10 +22,6 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new ApiError(body?.error ?? `garden server returned ${String(response.status)}`);
   }
   return (await response.json()) as T;
-}
-
-export function listSessions(): Promise<SessionsResponse> {
-  return request('/sessions');
 }
 
 export function createSession(cwd: string): Promise<CreateSessionResponse> {

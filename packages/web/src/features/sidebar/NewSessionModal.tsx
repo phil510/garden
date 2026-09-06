@@ -1,6 +1,7 @@
 import type { RepoEntry } from '@garden/shared';
 import { useEffect, useState, type MouseEvent } from 'react';
 import { createSession, listRepos } from '../../api/client';
+import { reportCommandFailure } from '../../api/reportCommandFailure';
 import { buildPickerGroups } from './pickerItems';
 
 interface NewSessionModalProps {
@@ -10,13 +11,19 @@ interface NewSessionModalProps {
 
 export function NewSessionModal({ onClose, onCreated }: NewSessionModalProps) {
   const [repos, setRepos] = useState<RepoEntry[] | null>(null);
+  const [failed, setFailed] = useState(false);
   const [query, setQuery] = useState('');
 
   useEffect(() => {
     let cancelled = false;
-    void listRepos().then((response) => {
-      if (!cancelled) setRepos(response.repos);
-    });
+    listRepos()
+      .then((response) => {
+        if (!cancelled) setRepos(response.repos);
+      })
+      .catch((error: unknown) => {
+        reportCommandFailure(error);
+        if (!cancelled) setFailed(true);
+      });
     return () => {
       cancelled = true;
     };
@@ -35,7 +42,9 @@ export function NewSessionModal({ onClose, onCreated }: NewSessionModalProps) {
   }
 
   function pick(path: string) {
-    void createSession(path).then((result) => onCreated(result.id));
+    createSession(path)
+      .then((result) => onCreated(result.id))
+      .catch(reportCommandFailure);
   }
 
   const groups = repos === null ? [] : buildPickerGroups(repos, query);
@@ -54,6 +63,8 @@ export function NewSessionModal({ onClose, onCreated }: NewSessionModalProps) {
           />
         </div>
         <div className="modal-list">
+          {failed && <div className="modal-empty">Could not load repos.</div>}
+          {!failed && repos === null && <div className="modal-empty">Loading repos…</div>}
           {repos !== null && groups.length === 0 && (
             <div className="modal-empty">No repos or worktrees match &quot;{query}&quot;.</div>
           )}

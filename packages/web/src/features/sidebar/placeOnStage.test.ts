@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { placeOnStage } from './placeOnStage.js';
+import { placeOnStage } from './placeOnStage';
 
 describe('placeOnStage', () => {
   it('fills the first empty slot', () => {

@@ -1,7 +1,9 @@
 import type { SessionState, Status } from '@garden/shared';
 import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { killSession, resumeSession } from '../../api/client';
+import { reportCommandFailure } from '../../api/reportCommandFailure';
 import { HoverCard } from './HoverCard';
+import { lastPathSegment } from './lastPathSegment';
 import { formatRelativeTime } from './relativeTime';
 
 const STATUS_LABEL: Record<Status, string> = {
@@ -16,6 +18,14 @@ const STATUS_COLOR_VAR: Record<Status, string> = {
   'needs-approval': 'var(--st-needs-approval)',
   waiting: 'var(--st-waiting)',
   unknown: 'var(--st-unknown)',
+};
+
+/** The pill's border carries its status colour at a third of the text's opacity. */
+const STATUS_BORDER_VAR: Record<Status, string> = {
+  working: 'var(--st-working-border)',
+  'needs-approval': 'var(--st-needs-approval-border)',
+  waiting: 'var(--st-waiting-border)',
+  unknown: 'var(--st-unknown-border)',
 };
 
 const COPIED_RESET_MS = 1400;
@@ -33,7 +43,7 @@ export function SessionRow({ session, onStage, now, onSelect }: SessionRowProps)
   const [confirmingKill, setConfirmingKill] = useState(false);
   const [copied, setCopied] = useState(false);
   const dead = session.liveness === 'dead';
-  const title = session.title ?? repoRelativeTitle(session.cwd);
+  const title = session.title ?? lastPathSegment(session.cwd);
 
   useEffect(() => {
     if (!copied) return;
@@ -54,19 +64,21 @@ export function SessionRow({ session, onStage, now, onSelect }: SessionRowProps)
   function handleKillConfirm(event: MouseEvent) {
     event.stopPropagation();
     setConfirmingKill(false);
-    void killSession(session.id);
+    killSession(session.id).catch(reportCommandFailure);
   }
 
   function handleResume(event: MouseEvent) {
     event.stopPropagation();
-    void resumeSession(session.id);
+    resumeSession(session.id).catch(reportCommandFailure);
   }
 
   function handleCopyAttach(event: MouseEvent) {
     event.stopPropagation();
     if (session.tmuxName === null) return;
-    void navigator.clipboard.writeText(`tmux -L garden attach -t ${session.tmuxName}`);
-    setCopied(true);
+    navigator.clipboard
+      .writeText(`tmux -L garden attach -t ${session.tmuxName}`)
+      .then(() => setCopied(true))
+      .catch(reportCommandFailure);
   }
 
   return (
@@ -82,7 +94,13 @@ export function SessionRow({ session, onStage, now, onSelect }: SessionRowProps)
       <div className="row-top">
         <span className="row-title">{title}</span>
         {session.liveness === 'live' && session.status !== null && (
-          <span className="status-pill" style={{ color: STATUS_COLOR_VAR[session.status] }}>
+          <span
+            className="status-pill"
+            style={{
+              color: STATUS_COLOR_VAR[session.status],
+              borderColor: STATUS_BORDER_VAR[session.status],
+            }}
+          >
             <span className="dot" style={{ background: STATUS_COLOR_VAR[session.status] }} />
             {STATUS_LABEL[session.status]}
           </span>
@@ -121,9 +139,4 @@ export function SessionRow({ session, onStage, now, onSelect }: SessionRowProps)
       )}
     </div>
   );
-}
-
-function repoRelativeTitle(cwd: string): string {
-  const segments = cwd.split('/').filter((segment) => segment.length > 0);
-  return segments[segments.length - 1] ?? cwd;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeHoverCardPosition } from './hoverCardPosition.js';
+import { computeHoverCardPosition } from './hoverCardPosition';
 
 const viewport = { width: 1200, height: 800 };
 

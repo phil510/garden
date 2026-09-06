@@ -1,4 +1,5 @@
 import type { SessionMap, SessionState, UiState } from '@garden/shared';
+import { lastPathSegment } from './lastPathSegment';
 
 export interface SidebarGroup {
   repoRoot: string;
@@ -8,11 +9,6 @@ export interface SidebarGroup {
   attention: boolean;
   pinned: boolean;
   collapsed: boolean;
-}
-
-function repoName(repoRoot: string): string {
-  const segments = repoRoot.split('/').filter((segment) => segment.length > 0);
-  return segments[segments.length - 1] ?? repoRoot;
 }
 
 /**
@@ -46,7 +42,7 @@ export function groupSessions(
 
   const groups: SidebarGroup[] = Array.from(byRoot.entries(), ([repoRoot, members]) => ({
     repoRoot,
-    repoName: repoName(repoRoot),
+    repoName: lastPathSegment(repoRoot),
     sessionIds: [...members]
       .sort((a, b) => b.lastActivity - a.lastActivity)
       .map((session) => session.id),

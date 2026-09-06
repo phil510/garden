@@ -10,6 +10,7 @@ interface RepoGroupProps {
   group: SidebarGroup;
   sessions: SessionMap;
   hideDead: boolean;
+  now: number;
   onStageIds: ReadonlySet<string>;
   onToggleCollapse: (repoRoot: string) => void;
   onSelectSession: (id: string) => void;
@@ -19,6 +20,7 @@ export function RepoGroup({
   group,
   sessions,
   hideDead,
+  now,
   onStageIds,
   onToggleCollapse,
   onSelectSession,
@@ -38,7 +40,6 @@ export function RepoGroup({
     toggle();
   }
 
-  const now = Date.now();
   const members = group.sessionIds
     .map((id) => sessions[id])
     .filter((s): s is NonNullable<typeof s> => s !== undefined);

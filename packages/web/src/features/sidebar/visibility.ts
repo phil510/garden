@@ -7,7 +7,7 @@ export interface VisibilityState {
   showOlder: boolean;
 }
 
-export function isOldDead(session: SessionState, now: number): boolean {
+function isOldDead(session: SessionState, now: number): boolean {
   return session.liveness === 'dead' && now - session.lastActivity > OLD_DEAD_THRESHOLD_MS;
 }
 

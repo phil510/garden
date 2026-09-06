@@ -9,6 +9,7 @@ import {
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useState } from 'react';
 import { updateUiState } from '../../api/client';
+import { reportCommandFailure } from '../../api/reportCommandFailure';
 import { useSessionStore } from '../../state/sessionStore';
 import { useUiStore } from '../../state/uiStore';
 import { groupSessions } from './groupSessions';
@@ -28,17 +29,18 @@ export function Sidebar() {
     const collapsedRepos = uiState.collapsedRepos.includes(repoRoot)
       ? uiState.collapsedRepos.filter((root) => root !== repoRoot)
       : [...uiState.collapsedRepos, repoRoot];
-    void updateUiState({ collapsedRepos });
+    updateUiState({ collapsedRepos }).catch(reportCommandFailure);
   }
 
   function toggleHideDead() {
-    void updateUiState({ hideDead: !uiState.hideDead });
+    updateUiState({ hideDead: !uiState.hideDead }).catch(reportCommandFailure);
   }
 
   function selectSession(id: string) {
-    void updateUiState(placeOnStage(uiState.slots, uiState.focusedSlot, id));
+    updateUiState(placeOnStage(uiState.slots, uiState.focusedSlot, id)).catch(reportCommandFailure);
   }
 
+  const now = Date.now();
   const onStageIds = new Set(uiState.slots.filter((id): id is string => id !== null));
   const visibleOrder = groups.map((group) => group.repoRoot);
 
@@ -48,9 +50,9 @@ export function Sidebar() {
     const activeRepoRoot = event.active.id as string;
     const overRepoRoot = event.over?.id as string | undefined;
     if (overRepoRoot === undefined || overRepoRoot === activeRepoRoot) return;
-    void updateUiState(
+    updateUiState(
       reorderGroups(visibleOrder, uiState.pinnedRepos, activeRepoRoot, overRepoRoot),
-    );
+    ).catch(reportCommandFailure);
   }
 
   return (
@@ -86,6 +88,7 @@ export function Sidebar() {
               group={group}
               sessions={sessions}
               hideDead={uiState.hideDead}
+              now={now}
               onStageIds={onStageIds}
               onToggleCollapse={toggleCollapse}
               onSelectSession={selectSession}

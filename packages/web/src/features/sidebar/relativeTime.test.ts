@@ -20,6 +20,10 @@ describe('formatRelativeTime', () => {
     expect(formatRelativeTime(NOW - 19 * 86_400_000, NOW)).toBe('19d ago');
   });
 
+  it('reports an absent reading rather than an age of decades', () => {
+    expect(formatRelativeTime(0, NOW)).toBe('no activity yet');
+  });
+
   it('never reports a negative elapsed time for a future timestamp', () => {
     expect(formatRelativeTime(NOW + 60_000, NOW)).toBe('just now');
   });
