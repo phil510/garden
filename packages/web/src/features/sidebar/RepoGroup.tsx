@@ -1,12 +1,26 @@
-import type { KeyboardEvent } from 'react';
+import type { SessionMap } from '@garden/shared';
+import { useState, type KeyboardEvent } from 'react';
 import type { SidebarGroup } from './groupSessions';
+import { SessionRow } from './SessionRow';
+import { hiddenOldDeadCount, visibleSessions } from './visibility';
 
 interface RepoGroupProps {
   group: SidebarGroup;
+  sessions: SessionMap;
+  hideDead: boolean;
+  onStageIds: ReadonlySet<string>;
   onToggleCollapse: (repoRoot: string) => void;
 }
 
-export function RepoGroup({ group, onToggleCollapse }: RepoGroupProps) {
+export function RepoGroup({
+  group,
+  sessions,
+  hideDead,
+  onStageIds,
+  onToggleCollapse,
+}: RepoGroupProps) {
+  const [showOlder, setShowOlder] = useState(false);
+
   function toggle() {
     onToggleCollapse(group.repoRoot);
   }
@@ -16,6 +30,13 @@ export function RepoGroup({ group, onToggleCollapse }: RepoGroupProps) {
     event.preventDefault();
     toggle();
   }
+
+  const now = Date.now();
+  const members = group.sessionIds
+    .map((id) => sessions[id])
+    .filter((s): s is NonNullable<typeof s> => s !== undefined);
+  const visible = visibleSessions(members, { hideDead, showOlder }, now);
+  const hiddenCount = hiddenOldDeadCount(members, hideDead, now);
 
   return (
     <div className="repo-group">
@@ -33,7 +54,22 @@ export function RepoGroup({ group, onToggleCollapse }: RepoGroupProps) {
         {group.attention && <span className="attn-badge" title="Needs attention" />}
         <span className="repo-count mono">{group.liveCount} live</span>
       </div>
-      <div className={`repo-rows${group.collapsed ? ' collapsed' : ''}`} />
+      <div className={`repo-rows${group.collapsed ? ' collapsed' : ''}`}>
+        {visible.length === 0 && <div className="empty-groups-note">Nothing to show.</div>}
+        {visible.map((session) => (
+          <SessionRow
+            key={session.id}
+            session={session}
+            onStage={onStageIds.has(session.id)}
+            now={now}
+          />
+        ))}
+        {!showOlder && hiddenCount > 0 && (
+          <div className="show-older-row" onClick={() => setShowOlder(true)}>
+            Show {hiddenCount} older dead session{hiddenCount === 1 ? '' : 's'}…
+          </div>
+        )}
+      </div>
     </div>
   );
 }

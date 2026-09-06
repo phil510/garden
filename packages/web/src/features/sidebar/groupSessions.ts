@@ -47,7 +47,9 @@ export function groupSessions(
   const groups: SidebarGroup[] = Array.from(byRoot.entries(), ([repoRoot, members]) => ({
     repoRoot,
     repoName: repoName(repoRoot),
-    sessionIds: members.map((session) => session.id),
+    sessionIds: [...members]
+      .sort((a, b) => b.lastActivity - a.lastActivity)
+      .map((session) => session.id),
     liveCount: members.filter((session) => session.liveness === 'live').length,
     attention: members.some(
       (session) => session.status === 'needs-approval' || session.status === 'waiting',

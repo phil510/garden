@@ -17,10 +17,33 @@ export function Sidebar() {
     void updateUiState({ collapsedRepos });
   }
 
+  function toggleHideDead() {
+    void updateUiState({ hideDead: !uiState.hideDead });
+  }
+
+  const onStageIds = new Set(uiState.slots.filter((id): id is string => id !== null));
+
   return (
     <>
+      <div className="sidebar-toolbar">
+        <button
+          className={`toggle-pill${uiState.hideDead ? ' on' : ''}`}
+          title="Hide dead sessions"
+          onClick={toggleHideDead}
+        >
+          <span className="dot" />
+          <span>Hide dead</span>
+        </button>
+      </div>
       {groups.map((group) => (
-        <RepoGroup key={group.repoRoot} group={group} onToggleCollapse={toggleCollapse} />
+        <RepoGroup
+          key={group.repoRoot}
+          group={group}
+          sessions={sessions}
+          hideDead={uiState.hideDead}
+          onStageIds={onStageIds}
+          onToggleCollapse={toggleCollapse}
+        />
       ))}
     </>
   );

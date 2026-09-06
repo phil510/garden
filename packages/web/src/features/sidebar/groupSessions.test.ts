@@ -73,6 +73,13 @@ describe('groupSessions', () => {
     expect(groups.map((g) => g.repoRoot)).toEqual(['/pinned', '/unpinned']);
   });
 
+  it('orders sessionIds within a group by most recent activity, newest first', () => {
+    const stale = aSession({ id: 'sid-stale', repoRoot: '/repo', lastActivity: 100 });
+    const fresh = aSession({ id: 'sid-fresh', repoRoot: '/repo', lastActivity: 9000 });
+    const [group] = groupSessions(asMap(stale, fresh), uiState);
+    expect(group?.sessionIds).toEqual(['sid-fresh', 'sid-stale']);
+  });
+
   it('orders pinned groups by the user drag order rather than activity', () => {
     const first = aSession({ id: 'sid-1', repoRoot: '/first', lastActivity: 100 });
     const second = aSession({ id: 'sid-2', repoRoot: '/second', lastActivity: 9000 });
