@@ -1,4 +1,5 @@
 import { homedir } from 'node:os';
+import { branch, repoRoot, status } from './adapters/git.js';
 import { createLogger, type Logger } from './adapters/logger.js';
 import { readOverlayState, writeOverlayState } from './adapters/store.js';
 import {
@@ -8,7 +9,7 @@ import {
 } from './adapters/transcripts.js';
 import { killSession, listPanes, newSession, respawnPane } from './adapters/tmux.js';
 import type { TmuxTarget } from './adapters/tmux.js';
-import type { StorePort, TmuxPaneFact, TmuxPort, TranscriptPort } from './app/ports.js';
+import type { GitPort, StorePort, TmuxPaneFact, TmuxPort, TranscriptPort } from './app/ports.js';
 import { createProjection, type Projection } from './app/projection.js';
 import { writeClaudeSettings, writeTmuxConf } from './appdir.js';
 import { ensureConfigFile, loadConfig, type Config } from './config.js';
@@ -43,6 +44,10 @@ function transcriptPort(config: Config, home: string, logger: Logger): Transcrip
     readRecord: (path) => readTranscriptRecord(path),
     watch: (onEvent) => watchTranscripts(home, config.roots, onEvent, logger),
   };
+}
+
+function gitPort(): GitPort {
+  return { repoRoot, branch, status };
 }
 
 /**
@@ -113,7 +118,15 @@ export async function main(): Promise<void> {
     projection.dispatch(event);
   });
 
-  const app = createServer({ projection, tmux, store, serverPort: config.port, settingsPath });
+  const app = createServer({
+    projection,
+    tmux,
+    store,
+    git: gitPort(),
+    roots: config.roots,
+    serverPort: config.port,
+    settingsPath,
+  });
   app.addHook('onClose', () => watcher.close());
   for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     process.once(signal, () => void app.close());
