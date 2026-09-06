@@ -5,6 +5,7 @@ import { healthRoutes } from './routes/health.js';
 import { hookRoutes } from './routes/hooks.js';
 import { repoRoutes } from './routes/repos.js';
 import { sessionRoutes } from './routes/sessions.js';
+import { uiStateRoutes } from './routes/ui-state.js';
 
 export type ServerDeps = SessionsDeps & ReposDeps;
 
@@ -15,5 +16,6 @@ export function createServer(deps: ServerDeps): FastifyInstance {
   app.register((instance) => hookRoutes(instance, deps));
   app.register((instance) => sessionRoutes(instance, deps));
   app.register((instance) => repoRoutes(instance, deps));
+  app.register((instance) => uiStateRoutes(instance, deps));
   return app;
 }
