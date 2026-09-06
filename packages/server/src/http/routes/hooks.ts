@@ -1,4 +1,4 @@
-import type { HookPayload } from '@garden/shared';
+import type { ErrorResponse, HookPayload } from '@garden/shared';
 import type { FastifyInstance } from 'fastify';
 import { handleHook, type HooksDeps } from '../../app/hooks.js';
 
@@ -16,7 +16,7 @@ function isHookPayload(body: unknown): body is HookPayload {
 export function hookRoutes(app: FastifyInstance, deps: HooksDeps) {
   app.post('/hooks', (request, reply) => {
     if (!isHookPayload(request.body))
-      return reply.code(400).send({ error: 'invalid hook payload' });
+      return reply.code(400).send({ error: 'invalid hook payload' } satisfies ErrorResponse);
     handleHook(deps, request.body);
     return reply.code(204).send();
   });

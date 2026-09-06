@@ -119,7 +119,10 @@ export async function main(): Promise<void> {
     projection.dispatch(event);
   });
   const poll = setInterval(() => {
-    void dispatchTmuxSnapshot(projection, tmux);
+    // A tmux that fails mid-run leaves liveness stale until the next tick; it does not end the server.
+    dispatchTmuxSnapshot(projection, tmux).catch((error: unknown) => {
+      logger.error(`tmux poll failed: ${error instanceof Error ? error.message : String(error)}`);
+    });
   }, TMUX_POLL_INTERVAL_MS);
 
   const app = createServer({

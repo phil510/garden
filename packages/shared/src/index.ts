@@ -5,7 +5,8 @@ export interface HealthStatus {
 
 export type Liveness = 'live' | 'dead';
 export type Status = 'working' | 'needs-approval' | 'waiting' | 'unknown';
-export type StagePreset = 'single' | 'two-across' | 'two-stacked' | 'three' | 'grid-2x2';
+export const STAGE_PRESETS = ['single', 'two-across', 'two-stacked', 'three', 'grid-2x2'] as const;
+export type StagePreset = (typeof STAGE_PRESETS)[number];
 
 export interface SessionState {
   id: string;

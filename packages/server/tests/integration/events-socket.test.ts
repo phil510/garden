@@ -1,4 +1,4 @@
-import type { AddressInfo } from 'node:net';
+import type { AddressInfo, Socket } from 'node:net';
 import type { Delta, ServerMessage } from '@garden/shared';
 import { WebSocket } from 'ws';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -33,12 +33,30 @@ function unusedPorts() {
   };
 }
 
+function opened(socket: WebSocket): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    socket.once('open', resolve);
+    socket.once('error', reject);
+  });
+}
+
 function receiveOne(socket: WebSocket): Promise<ServerMessage> {
   return new Promise((resolve, reject) => {
     socket.once('message', (data: Buffer) =>
       resolve(JSON.parse(data.toString('utf8')) as ServerMessage),
     );
     socket.once('error', reject);
+  });
+}
+
+function serverWithProjection() {
+  return createServer({
+    projection: createProjection(fakeStore()),
+    store: fakeStore(),
+    roots: [],
+    serverPort: 4310,
+    settingsPath: '/home/.garden/claude-settings.json',
+    ...unusedPorts(),
   });
 }
 
@@ -88,5 +106,35 @@ describe('WS /events against the real server', () => {
     const delta = (await nextDelta) as { type: 'deltas'; deltas: Delta[] };
     expect(delta.type).toBe('deltas');
     expect(delta.deltas).toEqual([expect.objectContaining({ type: 'session-added' })]);
+  });
+
+  it('shuts down while a client is still connected', async () => {
+    app = serverWithProjection();
+    await app.listen({ port: 0, host: '127.0.0.1' });
+    const { port } = app.server.address() as AddressInfo;
+
+    socket = new WebSocket(`ws://127.0.0.1:${String(port)}/events`);
+    await opened(socket);
+
+    // A close that waits on the client would hang here rather than fail.
+    await app.close();
+    app = undefined;
+  });
+
+  it('drops a client that sends a malformed frame and keeps serving', async () => {
+    app = serverWithProjection();
+    await app.listen({ port: 0, host: '127.0.0.1' });
+    const { port } = app.server.address() as AddressInfo;
+
+    socket = new WebSocket(`ws://127.0.0.1:${String(port)}/events`);
+    await opened(socket);
+    const closed = new Promise<void>((resolve) => socket?.once('close', () => resolve()));
+    // A masked, empty frame carrying reserved opcode 0x3.
+    const raw = (socket as unknown as { _socket: Socket })._socket;
+    raw.write(Buffer.from([0x83, 0x80, 0, 0, 0, 0]));
+    await closed;
+
+    const health = await app.inject({ method: 'GET', url: '/health' });
+    expect(health.statusCode).toBe(200);
   });
 });
