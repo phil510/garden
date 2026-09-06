@@ -19,6 +19,13 @@ function isSlotsArray(value: unknown): value is (string | null)[] {
   );
 }
 
+/** A slot index, so a whole number and never negative. How many slots exist is the preset's
+ *  business and the projection fits `focusedSlot` to whichever preset the patch lands on, but
+ *  no preset has a slot below 0. */
+function isSlotIndex(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0;
+}
+
 function isUiStateRequest(body: unknown): body is UiStateRequest {
   if (typeof body !== 'object' || body === null) return false;
   const patch = body as Record<string, unknown>;
@@ -28,7 +35,7 @@ function isUiStateRequest(body: unknown): body is UiStateRequest {
   if ('collapsedRepos' in patch && !isStringArray(patch.collapsedRepos)) return false;
   if ('preset' in patch && !presets.has(patch.preset as StagePreset)) return false;
   if ('slots' in patch && !isSlotsArray(patch.slots)) return false;
-  if ('focusedSlot' in patch && typeof patch.focusedSlot !== 'number') return false;
+  if ('focusedSlot' in patch && !isSlotIndex(patch.focusedSlot)) return false;
   return true;
 }
 

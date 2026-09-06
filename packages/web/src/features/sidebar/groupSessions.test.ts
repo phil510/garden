@@ -90,4 +90,20 @@ describe('groupSessions', () => {
     });
     expect(groups.map((g) => g.repoRoot)).toEqual(['/first', '/second']);
   });
+  it('does not flag attention for a group with no needs-approval or waiting session', () => {
+    const working = aSession({ id: 'sid-1', repoRoot: '/repo', status: 'working' });
+    const [group] = groupSessions(asMap(working), uiState);
+    expect(group?.attention).toBe(false);
+  });
+
+  it('falls back to activity to order a pinned group absent from groupOrder', () => {
+    const ordered = aSession({ id: 'sid-1', repoRoot: '/ordered', lastActivity: 100 });
+    const unordered = aSession({ id: 'sid-2', repoRoot: '/unordered', lastActivity: 9000 });
+    const groups = groupSessions(asMap(ordered, unordered), {
+      ...uiState,
+      pinnedRepos: ['/ordered', '/unordered'],
+      groupOrder: ['/ordered'],
+    });
+    expect(groups.map((g) => g.repoRoot)).toEqual(['/ordered', '/unordered']);
+  });
 });

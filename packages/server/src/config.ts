@@ -19,6 +19,11 @@ export const DEFAULT_CONFIG_FILE: ConfigFile = { port: 4310, roots: ['~/Desktop/
 /** Loopback-only, and deliberately not configurable: garden is not a remote-access tool. */
 const HOST = '127.0.0.1';
 
+/** Every garden tmux session lives on this socket, so `tmux -L garden` reaches them
+ *  and nothing garden does can disturb a user's own tmux server. Shared between main.ts
+ *  and cli/uninstall.ts, the one cli/ command that talks to tmux directly. */
+export const TMUX_SOCKET = 'garden';
+
 function isPort(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 65535;
 }

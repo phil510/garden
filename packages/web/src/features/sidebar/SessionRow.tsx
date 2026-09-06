@@ -1,5 +1,5 @@
 import type { SessionState } from '@garden/shared';
-import { useEffect, useRef, useState, type MouseEvent } from 'react';
+import { useEffect, useState, type MouseEvent } from 'react';
 import { killSession, resumeSession } from '../../api/client';
 import { reportCommandFailure } from '../../api/reportCommandFailure';
 import { StatusPill } from '../../components/StatusPill';
@@ -17,7 +17,9 @@ interface SessionRowProps {
 }
 
 export function SessionRow({ session, onStage, now, onSelect }: SessionRowProps) {
-  const rowRef = useRef<HTMLDivElement>(null);
+  // A callback ref feeding state, not a plain ref, so the hover card's anchor is safe to
+  // read during render — a raw ref's `.current` is not.
+  const [rowEl, setRowEl] = useState<HTMLDivElement | null>(null);
   const [hovered, setHovered] = useState(false);
   const [confirmingKill, setConfirmingKill] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -62,7 +64,7 @@ export function SessionRow({ session, onStage, now, onSelect }: SessionRowProps)
 
   return (
     <div
-      ref={rowRef}
+      ref={setRowEl}
       className={`session-row${onStage ? ' on-stage' : ''}${dead ? ' dead' : ''}`}
       tabIndex={0}
       onClick={() => onSelect(session.id)}
@@ -104,8 +106,8 @@ export function SessionRow({ session, onStage, now, onSelect }: SessionRowProps)
           )}
         </div>
       )}
-      {hovered && rowRef.current !== null && (
-        <HoverCard title={title} session={session} anchor={rowRef.current} now={now} />
+      {hovered && rowEl !== null && (
+        <HoverCard title={title} session={session} anchor={rowEl} now={now} />
       )}
     </div>
   );

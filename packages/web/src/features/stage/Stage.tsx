@@ -1,5 +1,5 @@
 import { DockviewReact, type DockviewApi, type DockviewReadyEvent } from 'dockview-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { updateUiState } from '../../api/client';
 import { reportCommandFailure } from '../../api/reportCommandFailure';
 import { useUiStore } from '../../state/uiStore';
@@ -27,10 +27,12 @@ export function Stage() {
   // The layout the server's state asks for. Read through a ref inside the effects so a change
   // to the stored blob — which every persist round-trips back — never itself re-applies a layout.
   const applyRef = useRef<() => void>(() => undefined);
-  applyRef.current = () => {
-    if (api === null) return;
-    applyLayout(api, stageLayout(presetLayout(preset, slots), storedLayout));
-  };
+  useLayoutEffect(() => {
+    applyRef.current = () => {
+      if (api === null) return;
+      applyLayout(api, stageLayout(presetLayout(preset, slots), storedLayout));
+    };
+  });
 
   // Every `ui-state` message brings a fresh object, so identity says nothing about whether the
   // stage changed. Re-applying an unchanged arrangement would reset the preset's track sizes and

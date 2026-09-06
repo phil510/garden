@@ -1,5 +1,6 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { AttachSocketDeps } from './ws/attach.js';
+import type { FilesystemDeps } from '../app/filesystem.js';
 import type { ReposDeps } from '../app/repos.js';
 import type { SessionsDeps } from '../app/sessions.js';
 import { fsRoutes } from './routes/fs.js';
@@ -11,7 +12,7 @@ import { uiStateRoutes } from './routes/ui-state.js';
 import { registerAttachSocket } from './ws/attach.js';
 import { registerEventsSocket } from './ws/events.js';
 
-export type ServerDeps = SessionsDeps & ReposDeps & AttachSocketDeps;
+export type ServerDeps = SessionsDeps & ReposDeps & FilesystemDeps & AttachSocketDeps;
 
 /** Builds the Fastify instance and mounts the routes. Listening is main.ts's job. */
 export function createServer(deps: ServerDeps): FastifyInstance {

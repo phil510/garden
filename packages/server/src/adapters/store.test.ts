@@ -32,6 +32,26 @@ describe('readOverlayState', () => {
     }
   });
 
+  it('warns and returns the defaults when a v1 overlay carries an unusable stage', () => {
+    const stages = [
+      '{}',
+      '{"preset":"single","slots":[null]}',
+      '{"preset":"nope","slots":[null],"focusedSlot":0}',
+    ];
+    for (const stage of stages) {
+      withTempHome((home) => {
+        mkdirSync(join(home, '.garden'), { recursive: true });
+        writeFileSync(
+          join(home, '.garden', 'state.json'),
+          `{"version":1,"tmuxNames":{},"hideDead":false,"groups":{},"stage":${stage}}`,
+        );
+        const logger = collectingLogger();
+        expect(readOverlayState(home, logger)).toEqual(DEFAULT_OVERLAY_STATE);
+        expect(logger.warnings).toHaveLength(1);
+      });
+    }
+  });
+
   it('warns rather than discarding silently when state.json is unparseable', () => {
     withTempHome((home) => {
       mkdirSync(join(home, '.garden'), { recursive: true });

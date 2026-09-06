@@ -4,10 +4,11 @@ function folderName(cwd: string): string {
   return segments[segments.length - 1] ?? '';
 }
 
-/** tmux reads a leading `-` as a flag and `:` as the session:window.pane separator;
- *  every other character is fine in a session name. */
+/** tmux reads a leading `-` as a flag, and `:` and `.` as the session:window.pane
+ *  separators — a name containing `.` is silently stored with `_` in its place and can
+ *  then never be targeted, attached or killed. Every other character is fine. */
 function sanitize(name: string): string {
-  const cleaned = name.replace(/:/g, '-').replace(/^-+/, '');
+  const cleaned = name.replace(/:/g, '-').replace(/\./g, '-').replace(/^-+/, '');
   return cleaned === '' ? 'session' : cleaned;
 }
 

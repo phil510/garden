@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { StagePreset } from '@garden/shared';
+import { STAGE_PRESETS, type StagePreset } from '@garden/shared';
 import { appDirPath } from '../config.js';
 
 export interface OverlayGroup {
@@ -45,8 +45,25 @@ export interface StoreLogger {
   warn(message: string): void;
 }
 
+const presets: ReadonlySet<string> = new Set(STAGE_PRESETS);
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** `layout` is deliberately absent: it is dockview's own opaque blob, and the only reader
+ *  is its `fromJSON`. The rest of `stage` is spread and indexed unchecked on boot. */
+function isOverlayStage(value: unknown): value is OverlayStage {
+  if (!isRecord(value)) return false;
+  const preset = value['preset'];
+  const slots = value['slots'];
+  return (
+    typeof preset === 'string' &&
+    presets.has(preset) &&
+    Array.isArray(slots) &&
+    slots.every((slot) => slot === null || typeof slot === 'string') &&
+    typeof value['focusedSlot'] === 'number'
+  );
 }
 
 /** Every field the rest of the server reads without checking. A file that parses as
@@ -58,7 +75,7 @@ function isOverlayState(value: unknown): value is OverlayState {
     isRecord(value['tmuxNames']) &&
     typeof value['hideDead'] === 'boolean' &&
     isRecord(value['groups']) &&
-    isRecord(value['stage'])
+    isOverlayStage(value['stage'])
   );
 }
 

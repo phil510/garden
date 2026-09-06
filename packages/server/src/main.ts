@@ -1,5 +1,5 @@
 import { homedir } from 'node:os';
-import { branch, repoRoot, status } from './adapters/git.js';
+import { branch, repoRoot, status, workTreePrefix } from './adapters/git.js';
 import { createLogger, type Logger } from './adapters/logger.js';
 import { attachPty } from './adapters/pty.js';
 import type { PtyTarget } from './adapters/pty.js';
@@ -21,14 +21,11 @@ import type {
   TranscriptPort,
 } from './app/ports.js';
 import { createProjection, type Projection } from './app/projection.js';
+import { watchRepoRoots } from './app/repoRoots.js';
 import { writeClaudeSettings, writeTmuxConf } from './appdir.js';
-import { ensureConfigFile, loadConfig, type Config } from './config.js';
+import { ensureConfigFile, loadConfig, TMUX_SOCKET, type Config } from './config.js';
 import type { TmuxSessionFact } from './domain/types.js';
 import { createServer } from './http/server.js';
-
-/** Every garden tmux session lives on this socket, so `tmux -L garden` reaches them
- *  and nothing garden does can disturb a user's own tmux server. */
-const TMUX_SOCKET = 'garden';
 
 /** How often the tmux poll re-derives liveness. It is the only recurring timer the server has. */
 const TMUX_POLL_INTERVAL_MS = 2000;
@@ -60,7 +57,7 @@ function transcriptPort(config: Config, home: string, logger: Logger): Transcrip
 }
 
 function gitPort(): GitPort {
-  return { repoRoot, branch, status };
+  return { repoRoot, branch, status, workTreePrefix };
 }
 
 function ptyPort(target: PtyTarget): PtyPort {
@@ -127,11 +124,15 @@ export async function main(): Promise<void> {
   const store = storePort(home, logger);
   const tmux = tmuxPort({ socket: TMUX_SOCKET, confPath });
   const transcripts = transcriptPort(config, home, logger);
+  const git = gitPort();
   const projection = createProjection(store);
   const attach: AttachRegistry = createAttachRegistry({
     pty: ptyPort({ socket: TMUX_SOCKET, confPath }),
     projection,
   });
+
+  // Subscribed before the replay so boot's own dispatches are what drive the first resolutions.
+  const stopRepoRoots = watchRepoRoots({ git, projection });
 
   await replay(projection, store, tmux, transcripts, logger);
 
@@ -149,7 +150,7 @@ export async function main(): Promise<void> {
     projection,
     tmux,
     store,
-    git: gitPort(),
+    git,
     attach,
     roots: config.roots,
     serverPort: config.port,
@@ -157,6 +158,7 @@ export async function main(): Promise<void> {
   });
   app.addHook('onClose', () => {
     clearInterval(poll);
+    stopRepoRoots();
     return watcher.close();
   });
   for (const signal of ['SIGINT', 'SIGTERM'] as const) {

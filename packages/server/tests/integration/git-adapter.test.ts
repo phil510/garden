@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { GitError, branch, repoRoot, status } from '../../src/adapters/git.js';
+import { GitError, branch, repoRoot, status, workTreePrefix } from '../../src/adapters/git.js';
 
 function git(cwd: string, args: readonly string[]): void {
   execFileSync('git', args, { cwd });
@@ -40,6 +40,26 @@ describe('the git adapter', () => {
     // git resolves symlinks in its output (e.g. macOS's /var -> /private/var),
     // so the comparison must resolve the same way.
     expect(rootFromRepo).toBe(realpathSync(repoDir));
+  });
+
+  it('reports a subdirectory as the prefix status paths are relative to', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'garden-git-'));
+    const repoDir = join(dir, 'repo');
+    mkdirSync(repoDir);
+    initRepo(repoDir);
+    const worktreeDir = join(dir, 'worktree');
+    git(repoDir, ['worktree', 'add', worktreeDir, '-b', 'feat/x']);
+    const nested = join(worktreeDir, 'src', 'lib');
+    mkdirSync(nested, { recursive: true });
+    writeFileSync(join(nested, 'tracked.txt'), 'one\n');
+    git(worktreeDir, ['add', 'src/lib/tracked.txt']);
+    git(worktreeDir, ['commit', '-m', 'add a nested file']);
+    writeFileSync(join(nested, 'tracked.txt'), 'two\n');
+
+    expect(await workTreePrefix(worktreeDir)).toBe('');
+    expect(await workTreePrefix(nested)).toBe('src/lib/');
+    // The prefix and the status paths share a basis: the worktree, not the repo it came from.
+    expect(await status(nested)).toContainEqual({ path: 'src/lib/tracked.txt', status: ' M' });
   });
 
   it('reports the checked-out branch', async () => {

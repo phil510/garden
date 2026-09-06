@@ -6,9 +6,11 @@ import type { GitPort } from './ports.js';
 import type { Projection } from './projection.js';
 import { SessionNotFoundError } from './sessions.js';
 
+type FilesystemGit = Pick<GitPort, 'workTreePrefix' | 'status'>;
+
 export interface FilesystemDeps {
   readonly projection: Projection;
-  readonly git: GitPort;
+  readonly git: FilesystemGit;
 }
 
 export interface TreeRequest {
@@ -59,10 +61,11 @@ async function resolveScoped(
   cwd: string,
   requestedPath: string,
 ): Promise<{ readonly absolute: string; readonly relative: string }> {
-  const root = await realpath(cwd);
   const joined = join(cwd, requestedPath);
+  let root: string;
   let resolved: string;
   try {
+    root = await realpath(cwd);
     resolved = await realpath(joined);
   } catch (error) {
     throw new PathNotFoundError(`no such path: ${requestedPath}`, { cause: error });
@@ -72,16 +75,21 @@ async function resolveScoped(
   return { absolute: resolved, relative: relative(cwd, joined) };
 }
 
-/** One `git status --porcelain` per refresh, keyed by the path relative to `cwd` it already
- *  reports paths in. A directory entry's trailing slash is stripped so it matches the same
- *  key a tree entry would look up. A `cwd` outside any git repo decorates nothing rather
- *  than failing the whole listing. */
-async function gitStatusMap(git: GitPort, cwd: string): Promise<Map<string, string>> {
+/** One `git status --porcelain` per refresh, re-keyed to the cwd-relative paths tree entries
+ *  carry: git reports every path relative to the working tree root, so the prefix `cwd` sits
+ *  at is what translates the two. A path outside `cwd` has no entry to decorate and is
+ *  dropped; a directory entry's trailing slash is stripped so it matches the same key a tree
+ *  entry would look up. A `cwd` outside any git repo decorates nothing rather than failing the
+ *  whole listing. */
+async function gitStatusMap(git: FilesystemGit, cwd: string): Promise<Map<string, string>> {
   const map = new Map<string, string>();
+  const prefix = await git.workTreePrefix(cwd).catch(() => undefined);
+  if (prefix === undefined) return map;
   const entries = await git.status(cwd).catch(() => []);
   for (const entry of entries) {
-    const path = entry.path.endsWith('/') ? entry.path.slice(0, -1) : entry.path;
-    map.set(path, entry.status);
+    if (!entry.path.startsWith(prefix)) continue;
+    const path = entry.path.slice(prefix.length);
+    map.set(path.endsWith('/') ? path.slice(0, -1) : path, entry.status);
   }
   return map;
 }

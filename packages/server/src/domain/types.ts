@@ -29,6 +29,7 @@ export type GardenEvent =
   | { type: 'store-loaded'; tmuxNames: Record<string, string> }
   | { type: 'session-registered'; id: string; tmuxName: string; cwd: string }
   | { type: 'transcript-changed'; path: string; record: TranscriptRecord }
+  | { type: 'repo-root-resolved'; cwd: string; repoRoot: string }
   | { type: 'hook'; payload: HookPayload }
   | { type: 'tmux-snapshot'; sessions: TmuxSessionFact[] };
 
@@ -37,6 +38,10 @@ export interface GardenState {
   /** The overlay fact from `state.json`: session id to tmux session name. */
   tmuxNames: Record<string, string>;
   tmux: Record<string, TmuxSessionFact>;
+  /** Resolved repo root by cwd. Keyed by directory rather than by session because that is
+   *  what the root is a function of: sessions sharing a cwd share one answer, and an answer
+   *  that lands before the session it describes is still waiting when the session appears. */
+  repoRoots: Record<string, string>;
   ended: Record<string, boolean>;
   /** The latest status-bearing hook per session, by session id. */
   reported: Record<string, ReportedStatus>;

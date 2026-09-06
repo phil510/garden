@@ -159,8 +159,9 @@ wanting logic there, it belongs in `app/` (orchestration) or `domain/` (rules).
 ### 4.4 The CLI
 
 `cli/` is a thin HTTP client against the local server, so the CLI and the browser drive one
-code path. It does not import `app/` or `adapters/`, and it never shells out to tmux itself.
-`garden ls` is a `GET /sessions`.
+code path. It does not import `app/` or `adapters/`, and it never shells out to tmux itself —
+with one carve-out: `uninstall` kills the tmux server directly, because it has to work when
+the garden server is not running to do it. `garden ls` is a `GET /sessions`.
 
 ## 5. Client
 

@@ -18,6 +18,18 @@ describe('deriveTmuxName', () => {
     expect(deriveTmuxName('/Users/dev/a:b', [])).toBe('a-b');
   });
 
+  it('replaces a dot, which tmux reads as the window.pane separator', () => {
+    expect(deriveTmuxName('/Users/dev/a.b', [])).toBe('a-b');
+  });
+
+  it('replaces every dot in a dotted folder name', () => {
+    expect(deriveTmuxName('/Users/dev/.worktrees/feat.one.two', [])).toBe('feat-one-two');
+  });
+
+  it('falls back to a fixed name when the folder name is all dots', () => {
+    expect(deriveTmuxName('/Users/dev/...', [])).toBe('session');
+  });
+
   it('falls back to a fixed name when the folder name sanitises to nothing', () => {
     expect(deriveTmuxName('/Users/dev/---', [])).toBe('session');
   });

@@ -16,6 +16,8 @@ import type { GitPort, GitStatusEntry } from './ports.js';
 import type { Projection } from './projection.js';
 import { SessionNotFoundError } from './sessions.js';
 
+type FilesystemGit = Pick<GitPort, 'workTreePrefix' | 'status'>;
+
 function fakeProjection(sessions: SessionState[]): Projection {
   return {
     sessions: () => sessions,
@@ -33,11 +35,20 @@ function fakeProjection(sessions: SessionState[]): Projection {
   };
 }
 
-function fakeGit(entries: GitStatusEntry[] = []): GitPort {
+/** `prefix` is where the session's cwd sits inside the working tree, the way the real adapter
+ *  reports it: empty when the cwd is the working tree root, slash-terminated below it. */
+function fakeGit(entries: GitStatusEntry[] = [], prefix = ''): FilesystemGit {
   return {
-    repoRoot: () => Promise.reject(new Error('not used by this test')),
-    branch: () => Promise.reject(new Error('not used by this test')),
     status: () => Promise.resolve(entries),
+    workTreePrefix: () => Promise.resolve(prefix),
+  };
+}
+
+/** A cwd in no git repo at all: `git rev-parse` fails before any status is asked for. */
+function fakeGitOutsideRepo(): FilesystemGit {
+  return {
+    status: () => Promise.reject(new Error('not a git repository')),
+    workTreePrefix: () => Promise.reject(new Error('not a git repository')),
   };
 }
 
@@ -102,6 +113,52 @@ describe('readSessionTree', () => {
       { name: 'changed.txt', path: 'changed.txt', kind: 'file', gitStatus: ' M' },
       { name: 'new.txt', path: 'new.txt', kind: 'file', gitStatus: '??' },
     ]);
+  });
+
+  it('decorates entries when the cwd sits below the working tree root', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'garden-fs-'));
+    mkdirSync(join(dir, 'src'));
+    writeFileSync(join(dir, 'src', 'changed.txt'), 'x');
+    const session = aSession({ cwd: join(dir, 'src') });
+    const deps = {
+      projection: fakeProjection([session]),
+      git: fakeGit(
+        [
+          { path: 'src/changed.txt', status: ' M' },
+          { path: 'README.md', status: ' M' },
+        ],
+        'src/',
+      ),
+    };
+
+    const result = await readSessionTree(deps, { sessionId: session.id, path: '' });
+
+    expect(result.entries).toEqual([
+      { name: 'changed.txt', path: 'changed.txt', kind: 'file', gitStatus: ' M' },
+    ]);
+  });
+
+  it('lists a cwd in no git repo, decorating nothing', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'garden-fs-'));
+    writeFileSync(join(dir, 'a.txt'), 'a');
+    const session = aSession({ cwd: dir });
+    const deps = { projection: fakeProjection([session]), git: fakeGitOutsideRepo() };
+
+    const result = await readSessionTree(deps, { sessionId: session.id, path: '' });
+
+    expect(result.entries).toEqual([
+      { name: 'a.txt', path: 'a.txt', kind: 'file', gitStatus: null },
+    ]);
+  });
+
+  it('rejects a session whose cwd no longer exists', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'garden-fs-'));
+    const session = aSession({ cwd: join(dir, 'gone') });
+    const deps = { projection: fakeProjection([session]), git: fakeGit() };
+
+    await expect(readSessionTree(deps, { sessionId: session.id, path: '' })).rejects.toBeInstanceOf(
+      PathNotFoundError,
+    );
   });
 
   it('rejects a path that climbs above the session cwd with `..`', async () => {

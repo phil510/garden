@@ -3,8 +3,10 @@ import { basename, join } from 'node:path';
 import type { RepoEntry } from '@garden/shared';
 import type { GitPort } from './ports.js';
 
+type ReposGit = Pick<GitPort, 'repoRoot' | 'branch'>;
+
 export interface ReposDeps {
-  readonly git: GitPort;
+  readonly git: ReposGit;
   readonly roots: readonly string[];
 }
 
@@ -38,7 +40,7 @@ async function isGitWorkingTree(dir: string): Promise<boolean> {
 
 /** A repo with no commits yet has no branch to resolve; that failure is reported as
  *  `branch: null` rather than dropping the repo. */
-async function repoEntry(git: GitPort, dir: string, isWorktree: boolean): Promise<RepoEntry> {
+async function repoEntry(git: ReposGit, dir: string, isWorktree: boolean): Promise<RepoEntry> {
   const branch = await git.branch(dir).catch(() => null);
   return { path: dir, name: basename(dir), branch, isWorktree };
 }
@@ -48,7 +50,7 @@ async function repoEntry(git: GitPort, dir: string, isWorktree: boolean): Promis
  * branch `feat/x`), so a worktree can sit several levels deep. Recurse until a directory is a
  * git working tree in its own right, then stop — nothing inside a worktree is another one.
  */
-async function findWorktrees(git: GitPort, dir: string): Promise<RepoEntry[]> {
+async function findWorktrees(git: ReposGit, dir: string): Promise<RepoEntry[]> {
   const entries: RepoEntry[] = [];
   for (const child of await subdirectories(dir)) {
     if (await isGitWorkingTree(child)) {
@@ -68,7 +70,7 @@ async function findWorktrees(git: GitPort, dir: string): Promise<RepoEntry[]> {
  * resolves symlinks in the path it hands back (macOS's `/var` is a symlink to `/private/var`),
  * so `dir` is resolved the same way before the comparison.
  */
-async function isRepo(git: GitPort, dir: string): Promise<boolean> {
+async function isRepo(git: ReposGit, dir: string): Promise<boolean> {
   const root = await git.repoRoot(dir).catch(() => undefined);
   if (root === undefined) return false;
   const resolvedDir = await realpath(dir).catch(() => dir);

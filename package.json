@@ -12,6 +12,7 @@
     "@types/node": "catalog:",
     "eslint": "catalog:",
     "eslint-config-prettier": "catalog:",
+    "eslint-plugin-react-hooks": "catalog:",
     "lefthook": "catalog:",
     "prettier": "catalog:",
     "tsx": "catalog:",

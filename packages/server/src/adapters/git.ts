@@ -50,6 +50,19 @@ export async function repoRoot(cwd: string): Promise<string> {
   return dirname(stdout.trim());
 }
 
+/**
+ * Where `cwd` sits inside its working tree, spelled the way `status` reports paths: a
+ * slash-terminated relative path, empty at the working tree root itself. This is the working
+ * tree's own root and not `repoRoot`'s common-dir parent, which a linked worktree shares with
+ * the repo it was created from and so does not anchor that worktree's status paths. Answering
+ * with the prefix rather than the root keeps the comparison in git's basis, where neither side
+ * has to be resolved to an absolute path first.
+ */
+export async function workTreePrefix(cwd: string): Promise<string> {
+  const stdout = await run(cwd, ['rev-parse', '--show-prefix']);
+  return stdout.trim();
+}
+
 export async function branch(cwd: string): Promise<string> {
   const stdout = await run(cwd, ['rev-parse', '--abbrev-ref', 'HEAD']);
   return stdout.trim();

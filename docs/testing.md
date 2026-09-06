@@ -55,9 +55,12 @@ that the tmux calls are right.
 - **`http/`** gets a thin smoke pass via `fastify.inject()`: mounted, bad body rejected before
   it reaches `app/`, typed error mapped to the intended status. If a route seems to need more
   than that, it is holding logic that belongs in `app/` or `domain/`.
-- **`packages/web`** tests `applyDelta` and nothing else. It is a function from store state
-  and a delta to a new store state, so it tests exactly like `reduce`. Because it is the only
-  writer of the session store, a suite over it covers every client state transition there is.
+- **`packages/web`** tests `applyDelta` — a function from store state and a delta to a new
+  store state, so it tests exactly like `reduce` — plus the plain-function helpers each feature
+  pulls out of its components: parsing, formatting, small derivations. Because `applyDelta` is
+  the only writer of the session store, a suite over it covers every client state transition
+  there is; a helper gets its own suite wherever a feature has logic worth pulling out of a
+  component to test as a function over plain data.
 
 ## Invariants over examples
 

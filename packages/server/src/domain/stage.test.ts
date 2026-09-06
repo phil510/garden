@@ -37,6 +37,13 @@ describe('switchPreset', () => {
     });
   });
 
+  it('resets focus to slot 0 for a negative focused slot', () => {
+    expect(switchPreset(['a', 'b'], -1, 'two-across')).toEqual({
+      slots: ['a', 'b'],
+      focusedSlot: 0,
+    });
+  });
+
   it('leaves focus alone when it still fits after eviction', () => {
     expect(switchPreset(['a', 'b', 'c', 'd'], 1, 'three')).toEqual({
       slots: ['a', 'b', 'c'],

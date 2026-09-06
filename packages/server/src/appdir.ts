@@ -58,8 +58,6 @@ const LIFECYCLE_EVENTS = [
 ] as const;
 const TOOL_EVENTS = ['PreToolUse', 'PostToolUse', 'PermissionRequest'] as const;
 
-export const HOOK_EVENTS: readonly string[] = [...LIFECYCLE_EVENTS, ...TOOL_EVENTS];
-
 export function claudeSettings(): ClaudeSettings {
   const hooks: Record<string, readonly HookMatcherGroup[]> = {};
   // Session-lifecycle events take no matcher; the tool events match every tool.

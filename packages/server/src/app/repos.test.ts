@@ -13,7 +13,10 @@ import { listRepos } from './repos.js';
  * so the fake matches real behaviour on a filesystem where the temp directory itself sits
  * behind a symlink (macOS's `/var` for one).
  */
-function fakeGit(roots: Record<string, string>, branches: Record<string, string> = {}): GitPort {
+function fakeGit(
+  roots: Record<string, string>,
+  branches: Record<string, string> = {},
+): Pick<GitPort, 'repoRoot' | 'branch'> {
   return {
     repoRoot: (cwd) => {
       const root = roots[cwd];
@@ -27,7 +30,6 @@ function fakeGit(roots: Record<string, string>, branches: Record<string, string>
         ? Promise.reject(new Error(`no branch: ${cwd}`))
         : Promise.resolve(branch);
     },
-    status: () => Promise.reject(new Error('not used by this test')),
   };
 }
 

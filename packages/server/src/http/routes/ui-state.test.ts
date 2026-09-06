@@ -67,6 +67,27 @@ describe('PUT /ui-state', () => {
     expect(response.statusCode).toBe(400);
   });
 
+  it('rejects a focusedSlot that is not a slot index', async () => {
+    const calls: UiStateRequest[] = [];
+    const app = buildApp({
+      projection: fakeProjection({
+        updateUiState: (patch) => {
+          calls.push(patch);
+        },
+      }),
+    });
+
+    for (const focusedSlot of [-1, 1.5]) {
+      const response = await app.inject({
+        method: 'PUT',
+        url: '/ui-state',
+        payload: { focusedSlot },
+      });
+      expect(response.statusCode).toBe(400);
+    }
+    expect(calls).toEqual([]);
+  });
+
   it('forwards a valid partial patch to the projection and answers ok', async () => {
     const calls: UiStateRequest[] = [];
     const app = buildApp({

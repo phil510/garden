@@ -112,6 +112,18 @@ export interface PaneResizeMessage {
   rows: number;
 }
 
+/** Close codes `WS /attach/:id` uses to end the connection: a normal close (RFC 6455 §7.4.1)
+ *  for the pty having exited, and one private-use code (RFC 6455 §7.4.2) per refusal reason so
+ *  the client can tell them apart. */
+export const PANE_CLOSE_CODES = {
+  PTY_EXITED: 1000,
+  BAD_REQUEST: 4000,
+  SESSION_NOT_RUNNING: 4001,
+  SESSION_NOT_FOUND: 4004,
+  ALREADY_ATTACHED: 4009,
+  ATTACH_FAILED: 4500,
+} as const;
+
 export function applyDelta(sessions: SessionMap, deltas: readonly Delta[]): SessionMap {
   const next: SessionMap = { ...sessions };
   for (const delta of deltas) {

@@ -7,6 +7,7 @@ export const initialState: GardenState = {
   sessions: {},
   tmuxNames: {},
   tmux: {},
+  repoRoots: {},
   ended: {},
   reported: {},
 };
@@ -28,8 +29,8 @@ function blank(id: string): SessionState {
   };
 }
 
-/** Projects the raw tmux and hook facts onto every session, so the order events arrive in
- *  cannot change the outcome. */
+/** Projects the raw tmux, hook and repo-root facts onto every session, so the order events
+ *  arrive in cannot change the outcome. */
 function rederive(state: GardenState): GardenState {
   const sessions: SessionMap = {};
   for (const [id, session] of Object.entries(state.sessions)) {
@@ -41,6 +42,8 @@ function rederive(state: GardenState): GardenState {
     sessions[id] = {
       ...session,
       tmuxName,
+      // Null covers both a cwd nothing has resolved yet and one that is not in a repo.
+      repoRoot: state.repoRoots[session.cwd] ?? null,
       liveness,
       exitCode,
       // Status belongs to live sessions: none yet heard from reads `unknown`, dead reads nothing.
@@ -61,6 +64,9 @@ export function reduce(state: GardenState, event: GardenEvent): GardenState {
         ...state,
         tmuxNames: { ...state.tmuxNames, [event.id]: event.tmuxName },
         sessions: { ...state.sessions, [event.id]: { ...prev, cwd: event.cwd } },
+        // Registering means a process was just started under this id, whether by create or
+        // by resume. Whatever ended the previous run no longer describes the session.
+        ended: { ...state.ended, [event.id]: false },
       });
     }
     case 'transcript-changed': {
@@ -79,6 +85,11 @@ export function reduce(state: GardenState, event: GardenEvent): GardenState {
       };
       return rederive({ ...state, sessions: { ...state.sessions, [id]: session } });
     }
+    case 'repo-root-resolved':
+      return rederive({
+        ...state,
+        repoRoots: { ...state.repoRoots, [event.cwd]: event.repoRoot },
+      });
     case 'hook': {
       const id = event.payload.session_id;
       if (id === '') return state;

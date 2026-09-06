@@ -4,8 +4,8 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { slugify } from '../domain/slug.js';
 import type { GardenEvent } from '../domain/types.js';
-import type { Logger } from './logger.js';
 import { listTranscriptFiles, readTranscriptRecord, watchTranscripts } from './transcripts.js';
+import type { TranscriptLogger } from './transcripts.js';
 
 /** Polls until `predicate` holds or the deadline passes, failing with the last observation. */
 async function until<T>(
@@ -28,8 +28,8 @@ async function until<T>(
   return last;
 }
 
-function silentLogger(): Logger {
-  return { info: () => {}, warn: () => {}, error: () => {} };
+function silentLogger(): TranscriptLogger {
+  return { warn: () => {}, error: () => {} };
 }
 
 function withTempHome(fn: (home: string) => Promise<void>): Promise<void> {
@@ -278,7 +278,7 @@ describe('watchTranscripts', () => {
       const root = '/Users/phil/Desktop/Extend/garden';
       const events: TranscriptChangedEvent[] = [];
       const warnings: string[] = [];
-      const logger: Logger = { info: () => {}, warn: (m) => warnings.push(m), error: () => {} };
+      const logger: TranscriptLogger = { warn: (m) => warnings.push(m), error: () => {} };
       const watcher = watchTranscripts(home, [root], (event) => events.push(event), logger, 20);
       try {
         const path = writeProjectFile(

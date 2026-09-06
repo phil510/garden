@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { TreeResponse } from '@garden/shared';
 import { afterEach, describe, expect, it } from 'vitest';
-import { branch, repoRoot, status } from '../../src/adapters/git.js';
+import { branch, repoRoot, status, workTreePrefix } from '../../src/adapters/git.js';
 import { DEFAULT_OVERLAY_STATE } from '../../src/adapters/store.js';
 import { createProjection } from '../../src/app/projection.js';
 import type { OverlayState, StorePort } from '../../src/app/ports.js';
@@ -53,7 +53,7 @@ describe('/fs routes against a real temp repo', () => {
         killSession: () => Promise.reject(new Error('not used by this test')),
       },
       store: fakeStore(),
-      git: { repoRoot, branch, status },
+      git: { repoRoot, branch, status, workTreePrefix },
       attach: {
         attach: () => {
           throw new Error('not used by this test');

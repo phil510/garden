@@ -31,6 +31,12 @@ const snapshot = (paneDead: boolean): GardenEvent => ({
 
 const storeLoaded: GardenEvent = { type: 'store-loaded', tmuxNames: { 'sid-1': 'repo' } };
 
+const rootResolved: GardenEvent = {
+  type: 'repo-root-resolved',
+  cwd: '/Users/dev/repo',
+  repoRoot: '/Users/dev/repo',
+};
+
 const sequences: GardenEvent[][] = [
   [],
   [storeLoaded],
@@ -44,6 +50,8 @@ const sequences: GardenEvent[][] = [
   ],
   [storeLoaded, transcript({}, now), snapshot(true)],
   [transcript({}, now), transcript({ sessionId: 'sid-2', title: 'Another' }, now)],
+  [rootResolved, transcript({}, now)],
+  [transcript({}, now), rootResolved],
   [
     transcript({}, now),
     {
@@ -77,6 +85,7 @@ const boot: GardenEvent[] = [
   snapshot(false),
   transcript({}, now),
   transcript({ sessionId: 'sid-2', title: 'Another' }, now),
+  rootResolved,
 ];
 
 describe('boot replay equals steady state', () => {
@@ -116,6 +125,7 @@ const everyVariant: Record<GardenEvent['type'], GardenEvent> = {
     cwd: '/Users/dev/repo',
   },
   'transcript-changed': transcript({}, now),
+  'repo-root-resolved': rootResolved,
   hook: { type: 'hook', payload: aHookEvent({ session_id: 'sid-1' }) },
   'tmux-snapshot': snapshot(false),
 };

@@ -18,8 +18,10 @@ interface LocalStore {
    *  whichever endpoint later opens it. Null once nothing is pending. */
   openFileRequest: OpenFileRequest | null;
   requestOpenFile: (sessionId: string, path: string, line: number) => void;
-  /** Counts connections of the event socket. A dropped connection takes every pane attach on the
-   *  server with it, so a pane keys its attach on this and opens a fresh socket on reconnect. */
+  /** Counts connections of the event socket. A pane keys its attach on this and opens a fresh
+   *  socket on reconnect — the failure modes that drop this socket (server restart, sleep/wake)
+   *  usually take pane attaches with them, and rebuilding a pane that was still fine costs only
+   *  its local scrollback. */
   connectionEpoch: number;
   noteConnected: () => void;
 }

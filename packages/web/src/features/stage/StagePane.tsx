@@ -34,17 +34,23 @@ export function StagePane(props: IDockviewPanelProps) {
   const connectionEpoch = useLocalStore((state) => state.connectionEpoch);
   const terminalRef = useRef<HTMLDivElement>(null);
 
-  // Mounts the session's terminal into this pane's container while it is live, and tears it
-  // down — never keeping a socket warm behind the dead placeholder — once it stops being live,
-  // whether that is a session ending or this pane being dropped from the layout entirely.
-  // A new connection is a third teardown trigger: the attach it held died with the old one.
+  // Mounts the session's terminal into this pane's container while it is live. Disposal is
+  // deliberately not this cleanup: dockview reuses a panel across a layout change, remounting
+  // React around a terminal that kept its socket, so the layout and liveness own a pane's
+  // lifetime — Stage's `onDidRemovePanel` and the effect below.
   useEffect(() => {
     if (!live) return;
     const container = terminalRef.current;
     if (container === null) return;
-    attachPane(props.api.id, container);
-    return () => detachPane(props.api.id);
+    attachPane(props.api.id, container, connectionEpoch);
   }, [props.api.id, live, connectionEpoch]);
+
+  // Nothing renders a dead session's bytes, so its pane goes rather than staying warm behind
+  // the placeholder. Fires on the render that stopped being live, not on unmount.
+  useEffect(() => {
+    if (live) return;
+    detachPane(props.api.id);
+  }, [props.api.id, live]);
 
   function focus() {
     if (slot === -1 || focused) return;

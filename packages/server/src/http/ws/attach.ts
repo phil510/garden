@@ -1,4 +1,4 @@
-import type { PaneResizeMessage } from '@garden/shared';
+import { PANE_CLOSE_CODES, type PaneResizeMessage } from '@garden/shared';
 import type { FastifyInstance } from 'fastify';
 import { WebSocketServer, type WebSocket } from 'ws';
 import type { AttachRegistry } from '../../app/attach.js';
@@ -9,14 +9,6 @@ import { SessionNotFoundError } from '../../app/sessions.js';
 export interface AttachSocketDeps {
   readonly attach: AttachRegistry;
 }
-
-/** Private-use WebSocket close codes (RFC 6455 §7.4.2), one per refusal reason so the
- *  client can tell "attach elsewhere" apart from "already on stage, move the pane". */
-const CLOSE_BAD_REQUEST = 4000;
-const CLOSE_SESSION_NOT_FOUND = 4004;
-const CLOSE_SESSION_NOT_RUNNING = 4001;
-const CLOSE_ALREADY_ATTACHED = 4009;
-const CLOSE_ATTACH_FAILED = 4500;
 
 function toSize(cols: unknown, rows: unknown): PaneSize | undefined {
   if (!Number.isInteger(cols) || !Number.isInteger(rows)) return undefined;
@@ -64,7 +56,7 @@ export function registerAttachSocket(
     const id = url.pathname.slice('/attach/'.length);
     const size = parseSize(url);
     if (size === undefined) {
-      socket.close(CLOSE_BAD_REQUEST, 'cols and rows query parameters are required');
+      socket.close(PANE_CLOSE_CODES.BAD_REQUEST, 'cols and rows query parameters are required');
       return;
     }
 
@@ -74,19 +66,19 @@ export function registerAttachSocket(
         id,
         size,
         onData: (chunk) => socket.send(Buffer.from(chunk, 'utf8')),
-        onExit: () => socket.close(),
+        onExit: () => socket.close(PANE_CLOSE_CODES.PTY_EXITED),
       });
     } catch (error) {
       if (error instanceof SessionNotFoundError) {
-        socket.close(CLOSE_SESSION_NOT_FOUND, error.message);
+        socket.close(PANE_CLOSE_CODES.SESSION_NOT_FOUND, error.message);
       } else if (error instanceof SessionNotRunningError) {
-        socket.close(CLOSE_SESSION_NOT_RUNNING, error.message);
+        socket.close(PANE_CLOSE_CODES.SESSION_NOT_RUNNING, error.message);
       } else if (error instanceof SessionAlreadyAttachedError) {
-        socket.close(CLOSE_ALREADY_ATTACHED, error.message);
+        socket.close(PANE_CLOSE_CODES.ALREADY_ATTACHED, error.message);
       } else {
         // Rethrowing here would be an uncaught exception in a `ws` listener, taking every
         // other pane socket down with this one.
-        socket.close(CLOSE_ATTACH_FAILED, 'attach failed');
+        socket.close(PANE_CLOSE_CODES.ATTACH_FAILED, 'attach failed');
       }
       return;
     }

@@ -96,6 +96,9 @@ export interface GitStatusEntry {
 
 export interface GitPort {
   repoRoot(cwd: string): Promise<string>;
+  /** `cwd` relative to its working tree root, slash-terminated, empty at the root — the basis
+   *  `status` reports its paths in. */
+  workTreePrefix(cwd: string): Promise<string>;
   branch(cwd: string): Promise<string>;
   status(cwd: string): Promise<GitStatusEntry[]>;
 }

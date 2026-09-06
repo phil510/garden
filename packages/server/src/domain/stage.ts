@@ -27,5 +27,6 @@ export function switchPreset(
   const capacity = SLOT_COUNTS[preset];
   const next: (string | null)[] = [];
   for (let i = 0; i < capacity; i++) next.push(slots[i] ?? null);
-  return { slots: next, focusedSlot: focusedSlot < capacity ? focusedSlot : 0 };
+  const focusFits = focusedSlot >= 0 && focusedSlot < capacity;
+  return { slots: next, focusedSlot: focusFits ? focusedSlot : 0 };
 }

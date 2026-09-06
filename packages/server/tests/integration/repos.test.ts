@@ -5,9 +5,9 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { listRepos } from '../../src/app/repos.js';
 import type { GitPort } from '../../src/app/ports.js';
-import { branch, repoRoot, status } from '../../src/adapters/git.js';
+import { branch, repoRoot } from '../../src/adapters/git.js';
 
-const git: GitPort = { repoRoot, branch, status };
+const git: Pick<GitPort, 'repoRoot' | 'branch'> = { repoRoot, branch };
 
 function runGit(cwd: string, args: readonly string[]): void {
   execFileSync('git', args, { cwd });

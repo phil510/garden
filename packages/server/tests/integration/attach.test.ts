@@ -5,6 +5,7 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { promisify } from 'node:util';
+import { PANE_CLOSE_CODES } from '@garden/shared';
 import { afterEach, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
 import { attachPty, type PtyTarget } from '../../src/adapters/pty.js';
@@ -55,6 +56,7 @@ function unusedGitPort(): GitPort {
     repoRoot: () => Promise.reject(new Error('not used by this test')),
     branch: () => Promise.reject(new Error('not used by this test')),
     status: () => Promise.reject(new Error('not used by this test')),
+    workTreePrefix: () => Promise.reject(new Error('not used by this test')),
   };
 }
 
@@ -198,6 +200,57 @@ describe('WS /attach/:id against a real tmux pane and a real pty', () => {
       } finally {
         socket?.close();
         second?.close();
+        await app.close();
+      }
+    });
+  });
+
+  it('closes with code 1000, not an unrecognised code, when the pty exits on its own', async () => {
+    await withTmuxServer(async (target) => {
+      const cwd = mkdtempSync(join(tmpdir(), 'garden-attach-'));
+      dirs.push(cwd);
+      const tmuxName = basename(cwd);
+      const id = randomUUID();
+
+      await newSession(target, { name: tmuxName, cwd, port: 4310, command: ['sh'] });
+
+      const projection = createProjection(fakeStore());
+      projection.dispatch({ type: 'session-registered', id, tmuxName, cwd });
+
+      const app = createServer({
+        tmux: tmuxPort(target),
+        store: fakeStore(),
+        projection,
+        serverPort: 4310,
+        settingsPath: '/nonexistent/claude-settings.json',
+        git: unusedGitPort(),
+        roots: [],
+        attach: createAttachRegistry({ pty: ptyPort(target), projection }),
+      });
+      await app.listen({ port: 0, host: '127.0.0.1' });
+      const { port } = app.server.address() as AddressInfo;
+      const url = (path: string) => `ws://127.0.0.1:${String(port)}${path}`;
+
+      let socket: WebSocket | undefined;
+      try {
+        socket = new WebSocket(url(`/attach/${id}?cols=80&rows=24`));
+        await opened(socket);
+
+        await until(
+          'one tmux client for the attached pane socket',
+          () => listClients(target, tmuxName),
+          (clients) => clients.split('\n').filter(Boolean).length === 1,
+        );
+
+        // Killing the session (rather than exiting the shell inside it, which
+        // remain-on-exit would just leave as a dead pane) is what ends the attach
+        // pty's own process — the exit path this test pins.
+        await killSession(target, tmuxName);
+
+        const exit = await closed(socket);
+        expect(exit.code).toBe(PANE_CLOSE_CODES.PTY_EXITED);
+      } finally {
+        socket?.close();
         await app.close();
       }
     });

@@ -28,6 +28,12 @@ const snapshot = (paneDead: boolean, name = 'repo'): GardenEvent => ({
   sessions: [{ name, paneDead, exitCode: paneDead ? 1 : null }],
 });
 
+const resolvedRoot = (cwd: string, repoRoot: string): GardenEvent => ({
+  type: 'repo-root-resolved',
+  cwd,
+  repoRoot,
+});
+
 const hook = (name: string, id = 'sid-1'): GardenEvent => ({
   type: 'hook',
   payload: aHookEvent({ session_id: id, hook_event_name: name }),
@@ -155,6 +161,46 @@ describe('reduce', () => {
     expect(fold([created]).sessions['sid-2']).toMatchObject({
       tmuxName: 'repo-2',
       cwd: '/Users/dev/repo',
+    });
+  });
+
+  it('reports no repo root for a session whose cwd nothing has resolved', () => {
+    expect(fold([transcript()]).sessions['sid-1']?.repoRoot).toBeNull();
+  });
+
+  it('takes a session repo root from the resolution for its cwd', () => {
+    const state = fold([transcript(), resolvedRoot('/Users/dev/repo', '/Users/dev/repo')]);
+    expect(state.sessions['sid-1']?.repoRoot).toBe('/Users/dev/repo');
+  });
+
+  it('folds a worktree session into the root its cwd resolved to, not its own directory', () => {
+    const worktree = '/Users/dev/repo/.worktrees/feat/x';
+    const state = fold([transcript({ cwd: worktree }), resolvedRoot(worktree, '/Users/dev/repo')]);
+    expect(state.sessions['sid-1']?.repoRoot).toBe('/Users/dev/repo');
+  });
+
+  it('gives every session in one directory that root, whichever arrived first', () => {
+    const resolution = resolvedRoot('/Users/dev/repo', '/Users/dev/repo');
+    const second = transcript({ sessionId: 'sid-2' });
+    const before = fold([resolution, transcript(), second]);
+    const after = fold([transcript(), second, resolution]);
+    expect(before).toEqual(after);
+    expect(before.sessions['sid-1']?.repoRoot).toBe('/Users/dev/repo');
+    expect(before.sessions['sid-2']?.repoRoot).toBe('/Users/dev/repo');
+  });
+
+  it('clears the ended flag when a resumed session is registered again', () => {
+    const ended = [mapped, snapshot(false), hook('SessionEnd')];
+    expect(fold(ended).sessions['sid-1']?.liveness).toBe('dead');
+    const resumed: GardenEvent = {
+      type: 'session-registered',
+      id: 'sid-1',
+      tmuxName: 'repo',
+      cwd: '/Users/dev/repo',
+    };
+    expect(fold([...ended, resumed]).sessions['sid-1']).toMatchObject({
+      liveness: 'live',
+      status: 'unknown',
     });
   });
 

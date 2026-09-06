@@ -2,6 +2,7 @@
 import eslint from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import prettierConfig from 'eslint-config-prettier';
+import reactHooks from 'eslint-plugin-react-hooks';
 
 const NODE_BUILTINS = [
   'fs',
@@ -81,6 +82,18 @@ export default tseslint.config(
     },
   },
   {
+    files: ['packages/web/src/**/*.{ts,tsx}'],
+    plugins: { 'react-hooks': reactHooks },
+    // The hook-correctness rules, not the plugin's whole `recommended` set: that also carries the
+    // React Compiler rules, which this codebase's effect-based state resets and render-time
+    // `Date.now()` do not satisfy.
+    rules: {
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'error',
+      'react-hooks/refs': 'error',
+    },
+  },
+  {
     files: ['packages/server/src/domain/**/*.ts'],
     rules: {
       'no-restricted-imports': [
@@ -123,14 +136,27 @@ export default tseslint.config(
     },
   },
   // A colocated unit test necessarily imports the module it tests, which is a
-  // same-directory import the block above would otherwise flag. The ban that
-  // block exists for is about production code composing adapters together
-  // outside main.ts; a test file ships nowhere, so only the inward-import ban
-  // still applies here.
+  // same-directory import the block above would otherwise flag. Only that
+  // self-import is justified — a test reaching into a different adapter's
+  // module is the same composition-outside-main.ts problem production code
+  // has, so the same-directory ban stays for everything except each test's
+  // own module.
   {
     files: ['packages/server/src/adapters/*.test.ts'],
     rules: {
-      'no-restricted-imports': ['error', { patterns: [adaptersInward] }],
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            adaptersInward,
+            {
+              group: ['./*', './*/**', '**/adapters/**', '!./store.js', '!./transcripts.js'],
+              message:
+                'adapters/ must not import another adapter. One adapter per external system; compose them in main.ts. An adapter that needs several files becomes a directory, whose files may import each other.',
+            },
+          ],
+        },
+      ],
     },
   },
   {
@@ -208,8 +234,10 @@ export default tseslint.config(
   },
   // Nothing outside api/ calls fetch: components request through the typed
   // wrappers so every server call has one shape and one place to change.
+  // api/ is excluded below, since it's exactly where that call lives.
   {
     files: ['packages/web/src/**/*.{ts,tsx}'],
+    ignores: ['packages/web/src/api/**/*.{ts,tsx}'],
     rules: {
       'no-restricted-globals': [
         'error',
@@ -218,12 +246,6 @@ export default tseslint.config(
           message: 'Only packages/web/src/api/ calls fetch; components use the typed wrappers.',
         },
       ],
-    },
-  },
-  {
-    files: ['packages/web/src/api/**/*.{ts,tsx}'],
-    rules: {
-      'no-restricted-globals': 'off',
     },
   },
   // Type-aware rules need a tsconfig that includes the file. These are the only

@@ -4,14 +4,11 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { promisify } from 'node:util';
-import { appDirPath } from '../config.js';
+import { appDirPath, TMUX_SOCKET } from '../config.js';
 import type { Io } from './commands.js';
 import { defaultStopDeps, runStop } from './stop.js';
 
 const execFileAsync = promisify(execFile);
-
-/** Matches main.ts's socket: every garden tmux session lives here. */
-const TMUX_SOCKET = 'garden';
 
 export interface UninstallDeps {
   readonly confirm: () => Promise<boolean>;
@@ -33,7 +30,8 @@ async function promptConfirm(): Promise<boolean> {
   }
 }
 
-/** cli/ may not import adapters/tmux.ts, so this mirrors its `-L`/`-f` invocation directly. */
+/** The documented exception in docs/architecture.md §4.4: uninstall must work with the
+ *  garden server dead, so it shells out to tmux directly instead of going through it. */
 async function killTmuxServer(confPath: string): Promise<void> {
   try {
     await execFileAsync('tmux', ['-L', TMUX_SOCKET, '-f', confPath, 'kill-server']);

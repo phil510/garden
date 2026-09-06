@@ -12,10 +12,9 @@ export interface SidebarGroup {
 }
 
 /**
- * Client-side mirror of the server's `domain/groups.ts`: the layering forbids importing it
- * directly, so the same folding and ordering rules are reproduced here over the session map
- * the client already has. Pinned groups sort first in the user's drag order, then unpinned
- * groups by most recent activity. A session with no known repo root belongs to no group.
+ * Folds the session map into sidebar groups, one per repo root. Pinned groups sort first in
+ * the user's drag order, then unpinned groups by most recent activity. A session with no
+ * known repo root belongs to no group.
  */
 export function groupSessions(
   sessions: SessionMap,
