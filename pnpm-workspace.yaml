@@ -30,3 +30,11 @@ catalog:
   '@xterm/xterm': 6.0.0
   '@xterm/addon-fit': 0.11.0
   node-pty: 1.2.0-beta.15
+  zustand: 5.0.15
+  dockview-react: 8.2.0
+  dockview-core: 8.2.0
+  '@dnd-kit/core': 6.3.1
+  '@dnd-kit/sortable': 10.0.0
+  '@dnd-kit/utilities': 3.2.2
+  shiki: 4.4.3
+  happy-dom: 20.11.15
