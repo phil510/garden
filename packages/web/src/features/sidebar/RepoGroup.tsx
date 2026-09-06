@@ -1,4 +1,6 @@
 import type { SessionMap } from '@garden/shared';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { useState, type KeyboardEvent } from 'react';
 import type { SidebarGroup } from './groupSessions';
 import { SessionRow } from './SessionRow';
@@ -22,6 +24,9 @@ export function RepoGroup({
   onSelectSession,
 }: RepoGroupProps) {
   const [showOlder, setShowOlder] = useState(false);
+  const { setNodeRef, attributes, listeners, transform, transition, isDragging } = useSortable({
+    id: group.repoRoot,
+  });
 
   function toggle() {
     onToggleCollapse(group.repoRoot);
@@ -40,14 +45,19 @@ export function RepoGroup({
   const visible = visibleSessions(members, { hideDead, showOlder }, now);
   const hiddenCount = hiddenOldDeadCount(members, hideDead, now);
 
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
   return (
-    <div className="repo-group">
+    <div className="repo-group" ref={setNodeRef} style={style}>
       <div
-        className={`repo-header${group.collapsed ? ' collapsed' : ''}`}
-        role="button"
-        tabIndex={0}
+        className={`repo-header${group.collapsed ? ' collapsed' : ''}${isDragging ? ' dragging' : ''}`}
         onClick={toggle}
         onKeyDown={onHeaderKeyDown}
+        {...attributes}
+        {...listeners}
       >
         <svg className="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3}>
           <path d="M6 9l6 6 6-6" />

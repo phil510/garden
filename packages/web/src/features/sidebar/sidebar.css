@@ -25,6 +25,9 @@
 .repo-header.collapsed .chev {
   transform: rotate(-90deg);
 }
+.repo-header.dragging {
+  opacity: 0.5;
+}
 .repo-name {
   font-weight: 600;
   font-size: 12.5px;
