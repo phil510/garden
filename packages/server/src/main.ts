@@ -20,6 +20,9 @@ import { createServer } from './http/server.js';
  *  and nothing garden does can disturb a user's own tmux server. */
 const TMUX_SOCKET = 'garden';
 
+/** How often the tmux poll re-derives liveness. It is the only recurring timer the server has. */
+const TMUX_POLL_INTERVAL_MS = 2000;
+
 function tmuxPort(target: TmuxTarget): TmuxPort {
   return {
     listPanes: () => listPanes(target),
@@ -117,6 +120,9 @@ export async function main(): Promise<void> {
   const watcher = transcripts.watch((event) => {
     projection.dispatch(event);
   });
+  const poll = setInterval(() => {
+    void dispatchTmuxSnapshot(projection, tmux);
+  }, TMUX_POLL_INTERVAL_MS);
 
   const app = createServer({
     projection,
@@ -127,7 +133,10 @@ export async function main(): Promise<void> {
     serverPort: config.port,
     settingsPath,
   });
-  app.addHook('onClose', () => watcher.close());
+  app.addHook('onClose', () => {
+    clearInterval(poll);
+    return watcher.close();
+  });
   for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     process.once(signal, () => void app.close());
   }
