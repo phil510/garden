@@ -2,6 +2,7 @@ import type {
   CreateSessionRequest,
   CreateSessionResponse,
   ErrorResponse,
+  FileResponse,
   OkResponse,
   ReposResponse,
   TreeResponse,
@@ -48,6 +49,11 @@ export function listRepos(): Promise<ReposResponse> {
 export function getFileTree(sessionId: string, path: string): Promise<TreeResponse> {
   const query = new URLSearchParams({ session: sessionId, path });
   return request(`/fs/tree?${query.toString()}`);
+}
+
+export function getFile(sessionId: string, path: string): Promise<FileResponse> {
+  const query = new URLSearchParams({ session: sessionId, path });
+  return request(`/fs/file?${query.toString()}`);
 }
 
 export function updateUiState(patch: UiStateRequest): Promise<OkResponse> {

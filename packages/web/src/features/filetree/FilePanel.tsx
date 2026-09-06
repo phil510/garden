@@ -6,6 +6,7 @@ import { useSessionStore } from '../../state/sessionStore';
 import { useUiStore } from '../../state/uiStore';
 import { gitStatusBadge } from './gitStatusBadge';
 import { visibleTreeRows, type FlatTreeRow } from './treeRows';
+import { Viewer } from './Viewer';
 import './filetree.css';
 
 /** Long enough to collapse a burst of hook events into one refetch, short enough that a
@@ -89,6 +90,8 @@ export function FilePanel() {
 
   const [childrenByPath, setChildrenByPath] = useState<Record<string, readonly TreeEntry[]>>({});
   const [showGitignored, setShowGitignored] = useState(false);
+  const [activeTab, setActiveTab] = useState<'files' | 'editor'>('files');
+  const [openedName, setOpenedName] = useState<string | null>(null);
 
   function loadPath(id: string, path: string) {
     getFileTree(id, path)
@@ -100,6 +103,8 @@ export function FilePanel() {
 
   useEffect(() => {
     setChildrenByPath({});
+    setActiveTab('files');
+    setOpenedName(null);
     if (sessionId !== null) loadPath(sessionId, '');
   }, [sessionId]);
 
@@ -128,7 +133,7 @@ export function FilePanel() {
     if (sessionId !== null) requestOpenFile(sessionId, path, 1);
   }
 
-  if (session === undefined) {
+  if (sessionId === null || session === undefined) {
     return (
       <>
         <div className="fp-header">
@@ -145,28 +150,54 @@ export function FilePanel() {
         <div className="fp-session">{session.title ?? session.cwd}</div>
         <div className="fp-cwd">{session.cwd}</div>
       </div>
-      <div className="fp-tree-toolbar">
-        <span className="upper faint">Files</span>
+      <div className="fp-tabs">
         <button
-          className={`toggle-pill${showGitignored ? ' on' : ''}`}
-          onClick={() => setShowGitignored((value) => !value)}
+          className={`fp-tab${activeTab === 'files' ? ' active' : ''}`}
+          onClick={() => setActiveTab('files')}
         >
-          <span className="dot" />
-          <span>Show gitignored</span>
+          Files
+        </button>
+        <button
+          className={`fp-tab${activeTab === 'editor' ? ' active' : ''}`}
+          title={openedName ?? undefined}
+          onClick={() => setActiveTab('editor')}
+        >
+          {openedName ?? 'Editor'}
         </button>
       </div>
-      <div className="fp-tree">
-        {rows.map((row) => (
-          <TreeRow
-            key={row.entry.path}
-            row={row}
-            selected={
-              openFileRequest?.sessionId === sessionId && openFileRequest.path === row.entry.path
-            }
-            onToggleDir={toggleDir}
-            onOpenFile={openFile}
-          />
-        ))}
+      <div className="fp-tab-content" hidden={activeTab !== 'files'}>
+        <div className="fp-tree-toolbar">
+          <span className="upper faint">Files</span>
+          <button
+            className={`toggle-pill${showGitignored ? ' on' : ''}`}
+            onClick={() => setShowGitignored((value) => !value)}
+          >
+            <span className="dot" />
+            <span>Show gitignored</span>
+          </button>
+        </div>
+        <div className="fp-tree">
+          {rows.map((row) => (
+            <TreeRow
+              key={row.entry.path}
+              row={row}
+              selected={
+                openFileRequest?.sessionId === sessionId && openFileRequest.path === row.entry.path
+              }
+              onToggleDir={toggleDir}
+              onOpenFile={openFile}
+            />
+          ))}
+        </div>
+      </div>
+      <div className="fp-tab-content" hidden={activeTab !== 'editor'}>
+        <Viewer
+          sessionId={sessionId}
+          onFileOpened={(path) => {
+            setOpenedName(path);
+            setActiveTab('editor');
+          }}
+        />
       </div>
     </>
   );

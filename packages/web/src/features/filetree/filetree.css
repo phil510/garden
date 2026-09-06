@@ -105,3 +105,109 @@
 .gstat.gU {
   color: var(--st-waiting);
 }
+
+.fp-tabs {
+  flex: 0 0 auto;
+  display: flex;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.fp-tab {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  border-radius: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  padding: 7px 10px;
+  font-size: 11.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fp-tab:hover {
+  background: var(--raised);
+  color: var(--text);
+}
+.fp-tab.active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+.fp-tab-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.fp-tab-content[hidden] {
+  display: none;
+}
+
+.fp-viewer {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.fp-viewer-header {
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fp-viewer-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+  padding: 6px 0;
+  counter-reset: code-line;
+}
+.fp-viewer-empty {
+  padding: 16px 12px;
+  color: var(--text-faint);
+  font-size: 12px;
+}
+.size-cap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 20px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.code-line {
+  display: flex;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.65;
+  counter-increment: code-line;
+}
+.code-line::before {
+  content: counter(code-line);
+  flex: 0 0 36px;
+  text-align: right;
+  padding-right: 10px;
+  color: var(--text-faint);
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+}
+.code-line .lc {
+  flex: 1;
+  min-width: 0;
+  white-space: pre;
+  color: var(--text);
+}
