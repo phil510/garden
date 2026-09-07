@@ -12,6 +12,7 @@ class FakeTerminal {
   element: HTMLElement | undefined;
   readonly resizes: PaneSize[] = [];
   disposed = false;
+  customKeyEventHandler: ((event: KeyboardEvent) => boolean) | undefined;
 
   constructor() {
     FakeTerminal.instances.push(this);
@@ -26,6 +27,9 @@ class FakeTerminal {
   write(): void {}
   resize(cols: number, rows: number): void {
     this.resizes.push({ cols, rows });
+  }
+  attachCustomKeyEventHandler(handler: (event: KeyboardEvent) => boolean): void {
+    this.customKeyEventHandler = handler;
   }
   dispose(): void {
     this.disposed = true;
@@ -217,6 +221,14 @@ describe('attachPane', () => {
     attachPane('session-a', aContainer(), 0);
 
     expect(lastSocket().initialSize).toEqual({ cols: 80, rows: 24 });
+  });
+
+  it('registers a custom key event handler on the terminal', async () => {
+    const { attachPane } = await loadRegistry();
+
+    attachPane('session-a', aContainer({ width: '800px', height: '600px' }), 0);
+
+    expect(lastTerminal().customKeyEventHandler).toBeInstanceOf(Function);
   });
 });
 
