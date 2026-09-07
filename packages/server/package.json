@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts",
+    "dev": "GARDEN_SERVER_PROCESS=1 tsx bin/garden.ts",
     "build": "tsx ./build.ts"
   },
   "dependencies": {

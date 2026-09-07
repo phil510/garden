@@ -20,6 +20,8 @@
     "typescript-eslint": "catalog:"
   },
   "scripts": {
+    "dev:server": "pnpm --filter @garden/server dev",
+    "dev:web": "pnpm --filter @garden/web dev",
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint .",
     "format": "prettier --write .",
