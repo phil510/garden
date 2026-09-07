@@ -36,7 +36,7 @@ repositories, because nothing in garden has invariants worth defending. And ther
 dependency-injection container; a single composition root wires everything by hand.
 
 Ports (TypeScript interfaces for outbound dependencies) exist only where something needs to be
-faked in a test — realistically tmux, the store, and the transcript watcher.
+faked in a test — realistically tmux, the store, the transcript watcher, git, and the pty attach.
 Everything else is imported concretely. An interface with one implementation and no test fake
 is ceremony.
 
@@ -63,24 +63,23 @@ client ever disagree about a shape, it is because something bypassed this packag
 ```
 packages/server/src/
   domain/          pure. no node builtins, no libraries
-    types.ts       SessionState, Liveness, Status, GardenEvent, Delta
+    types.ts       GardenEvent, GardenState, TranscriptRecord, TmuxSessionFact, ReportedStatus
     reduce.ts      reduce(state, event) -> state
-    sessions.ts    merge tmux facts + transcript facts -> session state
+    sessions.ts    deriveLiveness(fact) -> liveness, exit code
     transcript.ts  jsonl line -> session record
     status.ts      hook event -> status
-    groups.ts      repo grouping and pin ordering
     stage.ts       slot arithmetic across preset changes
     paths.ts       filesystem scoping
     diff.ts        (prev, next) -> Delta[]
   adapters/        one external system each
     tmux.ts        execFile wrapper: list, new-session, respawn-pane, kill
-    git.ts         toplevel, branch, status --porcelain
+    git.ts         git-common-dir, branch, status --porcelain, worktree prefix
     transcripts.ts chokidar watch + read
     pty.ts         node-pty attach
     store.ts       ~/.garden/state.json, atomic writes (overlay only)
     logger.ts
   app/
-    ports.ts       interfaces app requires: TmuxPort, StorePort, TranscriptPort
+    ports.ts       interfaces app requires: TmuxPort, StorePort, TranscriptPort, PtyPort, GitPort
     projection.ts  owns current state; dispatch(event); subscribe(fn)
     sessions.ts    create / resume / kill use cases
     hooks.ts
@@ -96,12 +95,16 @@ packages/server/src/
   cli/             the garden bin
 ```
 
+Repo grouping and pin ordering are not server-side: that logic lives in
+`packages/web/src/features/sidebar/groupSessions.ts`, run client-side against the session map.
+
 The server ships as a single esbuild bundle, which constrains one adapter: `node-pty` has a
 native addon that cannot be bundled — the build succeeds and then fails at runtime looking for
-`pty.node` relative to the bundle. When `adapters/pty.ts` lands, node-pty comes back as a
-dependency and the bundle needs it marked external, with either `node_modules` shipped
-alongside or the platform's `prebuilds/` directory copied into `dist/`. It is a distribution
-decision, not a layering one, but it is cheaper to know now than to discover at attach time.
+`pty.node` relative to the bundle. `adapters/pty.ts` is wired into `main.ts`, `node-pty` is a
+dependency, and the bundle marks it external. What is still undecided is how the native addon
+reaches `dist/` — shipping `node_modules` alongside, or copying the platform's `prebuilds/`
+directory into it. It is a distribution decision, not a layering one, but it is cheaper to know
+now than to discover at attach time.
 
 ### 4.1 The projection is the spine
 
@@ -169,7 +172,8 @@ the garden server is not running to do it. `garden ls` is a `GET /sessions`.
 packages/web/src/
   state/
     sessionStore.ts   zustand. applyDelta is the only writer
-    localStore.ts     scroll positions, tree expansion
+    uiStore.ts        stage preset, slots, group order/pins, hide-dead — mirrors state.json
+    localStore.ts     scroll positions, tree expansion, and other per-browser state
   api/
     client.ts         typed fetch wrappers
     eventSocket.ts    WS /events -> applyDelta
@@ -192,7 +196,7 @@ outside `api/` calls `fetch`.
 Note that this covers more than it first appears. Stage preset, slot assignments, focused
 slot, group order, pins, and collapsed groups all live in the server's `state.json`, so
 dragging a group or switching preset is a command that round-trips like any other. Only
-genuinely per-browser state — scroll offsets, which tree directories are expanded — lives in
+genuinely per-browser state — scroll offsets, tree expansion, and the like — lives in
 `localStore.ts`.
 
 ### 5.1 The terminal registry, the one escape hatch
@@ -262,8 +266,9 @@ which kind of test.
 - **`domain/`** carries the bulk of the tests. They are a list of events and an expected
   state — no tmux, no filesystem, no clock. If a behaviour is hard to test here, it is
   usually because a decision leaked into an adapter.
-- **`adapters/`** get integration tests against the real thing: tmux on an isolated `-L`
-  socket, git in a temp repo.
+- **`adapters/`** get integration tests against the real thing where one exists: `store.ts`
+  and `transcripts.ts` exercise real temp-directory I/O; `tmux.ts` and `git.ts` have no tests
+  yet.
 - **`app/`** gets tests with faked adapters, covering orchestration order.
 - **`http/`** gets a thin smoke pass. There is little to test in translation.
 - **`packages/web`** tests pure state logic only. No browser end-to-end tests in v1.
