@@ -205,13 +205,20 @@ logic can be tested by mounting a component — by construction. That is the int
 function: if logic cannot be exercised as a plain function over plain data, extract it into
 one rather than adding a DOM environment to reach it.
 
-The one exception: pinning a third-party layout library's own documented-but-unverifiable
-behavior (identity preservation across a `fromJSON`, for example) that cannot be reduced to a
-pure function because the behavior belongs to the library, not to garden's code. That test file,
-and only that file, may declare `// @vitest-environment happy-dom` at its top —
-`vitest.config.ts` stays on `node` for everything else. This is not a licence to mount garden's
-own components; if garden's own logic needs a DOM to exercise, the forcing function above still
-applies.
+The exception is a file whose subject _is_ DOM wiring, where extracting a pure function would
+leave the part that actually breaks untested. Two files qualify. One pins a third-party layout
+library's own documented-but-unverifiable behavior (identity preservation across a `fromJSON`,
+for example), which belongs to the library rather than to garden's code. The other is the
+terminal registry, garden's one imperative escape hatch, whose whole content is the wiring
+between xterm, the fit addon, a `ResizeObserver` and a pane socket — reparenting a live terminal
+on remount, handing the observer over, closing the right socket. Those files may declare
+`// @vitest-environment happy-dom` at their top; `vitest.config.ts` stays on `node` for
+everything else.
+
+A pure decision inside such a file still belongs outside it: the pane epoch reuse rule lives in
+`paneReuse.ts` and is tested under `node`. And this is not a licence to mount feature
+components — if logic can be exercised as a function over data, the forcing function above
+still applies.
 
 **Coverage as a number.** No threshold is enforced and none should be. A percentage cannot
 distinguish the round-trip invariant from a test asserting a default port.

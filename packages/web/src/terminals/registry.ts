@@ -4,6 +4,7 @@ import '@xterm/xterm/css/xterm.css';
 import { connectPaneSocket, type PaneSize } from '../api/paneSocket.js';
 import { useLocalStore } from '../state/localStore.js';
 import { findPathLineLinks } from './pathLineLinks.js';
+import { shouldReusePane } from './paneReuse.js';
 import { terminalTheme } from './theme.js';
 
 interface PaneHandle {
@@ -130,7 +131,7 @@ function createPane(sessionId: string, container: HTMLElement, epoch: number): P
  *  where that socket is already gone, so it is replaced rather than reused. */
 export function attachPane(sessionId: string, container: HTMLElement, epoch: number): void {
   const existing = panes.get(sessionId);
-  if (existing !== undefined && existing.epoch === epoch) {
+  if (existing !== undefined && shouldReusePane(existing.epoch, epoch)) {
     existing.mount(container);
     return;
   }

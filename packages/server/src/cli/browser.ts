@@ -10,8 +10,14 @@ export function chromeInstalled(exists: (path: string) => boolean = existsSync):
   return exists(CHROME_APP_PATH);
 }
 
+/** The `open` argv that launches Chrome as an app window at `url`. -n forces a new `open`
+ *  launch so --args reaches Chrome; without it, an already-running Chrome is just activated
+ *  and the args are silently dropped. */
+export function chromeWindowArgs(url: string): readonly [command: string, args: string[]] {
+  return ['open', ['-na', 'Google Chrome', '--args', `--app=${url}`]];
+}
+
 export async function openChromeWindow(url: string): Promise<void> {
-  // -n forces a new `open` launch so --args reaches Chrome; without it, an already-running
-  // Chrome is just activated and the args are silently dropped.
-  await execFileAsync('open', ['-na', 'Google Chrome', '--args', `--app=${url}`]);
+  const [command, args] = chromeWindowArgs(url);
+  await execFileAsync(command, args);
 }
