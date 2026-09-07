@@ -38,6 +38,10 @@ describe('resolvePaneKeydown', () => {
     expect(resolvePaneKeydown(anEvent({ key: 'a', shiftKey: true }))).toBe('default');
   });
 
+  it('leaves Ctrl+Shift+Enter to xterm, unlike Shift+Enter alone', () => {
+    expect(resolvePaneKeydown(anEvent({ shiftKey: true, ctrlKey: true }))).toBe('default');
+  });
+
   it('suppresses, but does not re-send, the keyup for the same Shift+Enter press', () => {
     expect(resolvePaneKeydown(anEvent({ type: 'keyup', shiftKey: true }))).toBe('suppress');
   });
