@@ -4,6 +4,7 @@ import '@xterm/xterm/css/xterm.css';
 import { connectPaneSocket, type PaneSize } from '../api/paneSocket.js';
 import { useLocalStore } from '../state/localStore.js';
 import { findPathLineLinks } from './pathLineLinks.js';
+import { resolvePaneKeydown } from './paneKeydown.js';
 import { shouldReusePane } from './paneReuse.js';
 import { terminalTheme } from './theme.js';
 
@@ -101,6 +102,16 @@ function createPane(sessionId: string, container: HTMLElement, epoch: number): P
     onClose: dispose,
   });
   terminal.onData((data) => socket.write(data));
+
+  // Shift+Enter inserts a newline into the pane instead of submitting. xterm has no key binding
+  // for this itself, so it is intercepted before xterm's own handling — which every other key,
+  // including plain and ctrl/alt/meta Enter, still reaches unchanged.
+  terminal.attachCustomKeyEventHandler((event) => {
+    if (resolvePaneKeydown(event) !== 'literal-newline') return true;
+    event.preventDefault();
+    socket.write('\n');
+    return false;
+  });
 
   function fit(): void {
     const dims = proposeSize();
