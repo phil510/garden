@@ -4,7 +4,6 @@
 .stage {
   width: 100%;
   height: 100%;
-  padding: 8px;
 
   --dv-group-view-background-color: var(--surface);
   --dv-separator-border: transparent;
@@ -12,7 +11,10 @@
   --dv-active-sash-color: var(--accent);
 }
 
-.stage .pane {
+/* Every panel uses dockview's `always` renderer, which portals its content into an overlay
+ * rooted directly on the shell rather than into the grid subtree `.stage` wraps — so a `.stage`
+ * ancestor selector never matches a pane at all. `.pane` stands alone. */
+.pane {
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -24,12 +26,12 @@
   overflow: hidden;
 }
 
-.stage .pane.focused {
+.pane.focused {
   border-color: var(--accent);
   border-width: 2px;
 }
 
-.stage .pane.empty {
+.pane.empty {
   align-items: center;
   justify-content: center;
   border-style: dashed;
@@ -114,6 +116,13 @@
   flex: 1;
   min-height: 0;
   overflow: hidden;
+}
+
+/* xterm's own stylesheet gives `.xterm` no size at all — it is a plain block element, so it
+   shrinks to the height of its rendered rows instead of filling this flex-sized container. */
+.pane-term .xterm {
+  height: 100%;
+  width: 100%;
 }
 
 .dead-pane-body {

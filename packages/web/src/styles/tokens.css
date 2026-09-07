@@ -126,6 +126,7 @@ button.danger:hover {
   flex: 1;
   min-width: 0;
   overflow: hidden;
+  padding: 8px;
   background: var(--ground);
 }
 

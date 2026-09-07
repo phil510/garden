@@ -41,7 +41,7 @@ function hasSize(element: HTMLElement): boolean {
  *  keypress would use — there is nothing beyond a normally-configured terminal to wire up for
  *  CC's wheel scrolling to work. */
 function createPane(sessionId: string, container: HTMLElement, epoch: number): PaneHandle {
-  const terminal = new Terminal({ theme: terminalTheme(readCssVar) });
+  const terminal = new Terminal({ fontSize: 13, theme: terminalTheme(readCssVar) });
   const fitAddon = new FitAddon();
   terminal.loadAddon(fitAddon);
   terminal.open(container);
