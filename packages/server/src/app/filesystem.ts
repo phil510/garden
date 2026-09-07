@@ -4,7 +4,7 @@ import type { FileResponse, TreeEntry, TreeResponse } from '@garden/shared';
 import { isWithinRoot } from '../domain/paths.js';
 import type { GitPort } from './ports.js';
 import type { Projection } from './projection.js';
-import { SessionNotFoundError } from './sessions.js';
+import { findSession } from './sessions.js';
 
 type FilesystemGit = Pick<GitPort, 'workTreePrefix' | 'status'>;
 
@@ -39,12 +39,6 @@ export class NotADirectoryError extends Error {}
 
 /** Above this many bytes a file response is truncated rather than read whole. */
 const FILE_SIZE_CAP_BYTES = 1024 * 1024;
-
-function findSession(projection: Projection, id: string) {
-  const session = projection.sessions().find((candidate) => candidate.id === id);
-  if (session === undefined) throw new SessionNotFoundError(`no such session: ${id}`);
-  return session;
-}
 
 /**
  * Resolves `requestedPath` against `cwd` and proves it never escapes that root. `join`

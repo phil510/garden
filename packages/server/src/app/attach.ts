@@ -1,6 +1,6 @@
 import type { PaneSize, PtyPort } from './ports.js';
 import type { Projection } from './projection.js';
-import { SessionNotFoundError } from './sessions.js';
+import { findSession } from './sessions.js';
 
 export interface AttachDeps {
   readonly pty: PtyPort;
@@ -42,8 +42,7 @@ export function createAttachRegistry(deps: AttachDeps): AttachRegistry {
 
   return {
     attach(request) {
-      const session = deps.projection.sessions().find((candidate) => candidate.id === request.id);
-      if (session === undefined) throw new SessionNotFoundError(`no such session: ${request.id}`);
+      const session = findSession(deps.projection, request.id);
       if (session.tmuxName === null)
         throw new SessionNotRunningError(`session has no tmux session: ${request.id}`);
       if (open.has(request.id))

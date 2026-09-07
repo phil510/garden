@@ -1,6 +1,8 @@
-import type { StagePreset } from '@garden/shared';
 import type { TranscriptParse } from '../domain/transcript.js';
 import type { GardenEvent } from '../domain/types.js';
+import type { OverlayGroup, OverlayStage, OverlayState } from '../domain/overlay.js';
+
+export type { OverlayGroup, OverlayStage, OverlayState };
 
 /** app/ never sees the tmux target (socket, conf path): main.ts binds it once when it
  *  wires the adapter into this port. */
@@ -27,29 +29,6 @@ export interface TmuxPort {
   newSession(request: TmuxNewSessionRequest): Promise<void>;
   respawnPane(request: TmuxRespawnRequest): Promise<void>;
   killSession(name: string): Promise<void>;
-}
-
-/** `~/.garden/state.json`'s shape: overlay facts only, never a `SessionState` snapshot. */
-export interface OverlayGroup {
-  readonly pinned: boolean;
-  readonly order: number;
-  readonly collapsed: boolean;
-}
-
-export interface OverlayStage {
-  readonly preset: StagePreset;
-  readonly slots: readonly (string | null)[];
-  readonly focusedSlot: number;
-  /** dockview's own `toJSON()` output. Opaque here; only `fromJSON` reads inside it. */
-  readonly layout: unknown;
-}
-
-export interface OverlayState {
-  readonly version: 1;
-  readonly tmuxNames: Readonly<Record<string, string>>;
-  readonly hideDead: boolean;
-  readonly groups: Readonly<Record<string, OverlayGroup>>;
-  readonly stage: OverlayStage;
 }
 
 export interface StorePort {

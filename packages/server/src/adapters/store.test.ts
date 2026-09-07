@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_OVERLAY_STATE, readOverlayState, writeOverlayState } from './store.js';
-import type { OverlayState } from './store.js';
+import type { OverlayState } from '../domain/overlay.js';
 
 function collectingLogger(): { warn(message: string): void; warnings: string[] } {
   const warnings: string[] = [];
