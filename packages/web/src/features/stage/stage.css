@@ -28,7 +28,6 @@
 
 .pane.focused {
   border-color: var(--accent);
-  border-width: 2px;
 }
 
 .pane.empty {
@@ -116,6 +115,9 @@
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  /* Margin, not padding: the fit addon sizes the pty from this element's own box, and
+     padding inside it would buy a visual gap while telling the pty it had the full width. */
+  margin: 4px 8px;
 }
 
 /* xterm's own stylesheet gives `.xterm` no size at all — it is a plain block element, so it
