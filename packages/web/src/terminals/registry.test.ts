@@ -49,6 +49,7 @@ class FakeFitAddon {
 class FakeSocket {
   static instances: FakeSocket[] = [];
   readonly resizes: PaneSize[] = [];
+  readonly writes: string[] = [];
   closed = false;
 
   constructor(
@@ -57,7 +58,9 @@ class FakeSocket {
   ) {
     FakeSocket.instances.push(this);
   }
-  write(): void {}
+  write(data: string): void {
+    this.writes.push(data);
+  }
   resize(size: PaneSize): void {
     this.resizes.push(size);
   }
@@ -229,6 +232,49 @@ describe('attachPane', () => {
     attachPane('session-a', aContainer({ width: '800px', height: '600px' }), 0);
 
     expect(lastTerminal().customKeyEventHandler).toBeInstanceOf(Function);
+  });
+});
+
+describe('the custom key event handler', () => {
+  function keyHandler(): (event: KeyboardEvent) => boolean {
+    const handler = lastTerminal().customKeyEventHandler;
+    if (handler === undefined) throw new Error('no handler registered');
+    return handler;
+  }
+
+  it('writes a literal newline to the pty and suppresses xterm for Shift+Enter', async () => {
+    const { attachPane } = await loadRegistry();
+    attachPane('session-a', aContainer({ width: '800px', height: '600px' }), 0);
+    const event = new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, cancelable: true });
+
+    const handled = keyHandler()(event);
+
+    expect(handled).toBe(false);
+    expect(event.defaultPrevented).toBe(true);
+    expect(lastSocket().writes).toEqual(['\n']);
+  });
+
+  it('leaves plain Enter to xterm without writing to the pty', async () => {
+    const { attachPane } = await loadRegistry();
+    attachPane('session-a', aContainer({ width: '800px', height: '600px' }), 0);
+    const event = new KeyboardEvent('keydown', { key: 'Enter', cancelable: true });
+
+    const handled = keyHandler()(event);
+
+    expect(handled).toBe(true);
+    expect(event.defaultPrevented).toBe(false);
+    expect(lastSocket().writes).toEqual([]);
+  });
+
+  it('suppresses the keyup that follows a Shift+Enter keydown without writing again', async () => {
+    const { attachPane } = await loadRegistry();
+    attachPane('session-a', aContainer({ width: '800px', height: '600px' }), 0);
+    const event = new KeyboardEvent('keyup', { key: 'Enter', shiftKey: true });
+
+    const handled = keyHandler()(event);
+
+    expect(handled).toBe(false);
+    expect(lastSocket().writes).toEqual([]);
   });
 });
 
