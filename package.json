@@ -22,6 +22,7 @@
   "scripts": {
     "dev:server": "pnpm --filter @garden/server dev",
     "dev:web": "pnpm --filter @garden/web dev",
+    "screenshot": "tsx scripts/screenshot.ts",
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint .",
     "format": "prettier --write .",

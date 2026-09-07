@@ -29,3 +29,6 @@ pnpm-debug.log*
 
 # Local-only implementation plans (never committed)
 docs/plans/
+
+# Dev screenshot tool output
+.screenshots/
