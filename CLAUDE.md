@@ -1,0 +1,33 @@
+# CLAUDE.md
+
+Runbook for Claude Code sessions working in this repo. Read this first; load other docs on demand.
+
+## About this project
+
+garden is a local web console for running many Claude Code sessions at once across many repos and worktrees. tmux owns the Claude Code processes; garden is a viewport and control surface over them — it never becomes the thing keeping a session alive.
+
+Two docs carry the detail, and each has a trigger:
+
+- `docs/specs/2026-09-03-garden-v1-design.md` — canonical for what garden does, what it deliberately doesn't, and why. Load it for any task that touches scope, behavior, or a design decision. If a feature isn't in there, it isn't deferred by accident and it isn't yours to add unasked — ask.
+- `docs/architecture.md` — canonical for where code goes: the layering, the dependency rules between layers, and the state projection at the centre of the server. Read it before writing server or web code, not only when a task is explicitly about structure. Its boundaries are enforced by scoped `no-restricted-imports` rules, so crossing one fails `pnpm lint` instead of starting a design conversation — when that happens, the layering is what's wrong, not the lint config.
+
+## Environment and tests
+
+Node 22 (`.nvmrc`) and pnpm 10 via corepack. `.npmrc` pins the public registry on purpose, so a user-level CodeArtifact config can't capture installs here — leave it alone.
+
+`package.json` holds the script roster. `pnpm validate` (typecheck, lint, format check, unit tests) is the gate worth running before pushing; lefthook runs the same set pre-commit, and CI adds a build.
+
+Tests come in two tiers, and the split matters: `pnpm test` is the unit tier only. The integration tier is `pnpm test:integration`, it drives real tmux, and it needs tmux installed locally — which is why pre-commit skips it and CI runs it as its own job. A clean commit is a good signal, not a guarantee. `docs/testing.md` is canonical for how to write either tier.
+
+## Conventions
+
+- Doc filenames: `YYYY-MM-DD-<kebab-slug>.md`. The date is the day the doc lands, not a target date.
+- Branch names: `<type>/<issue-number>-<slug>` — type is one of `feat|fix|chore|docs`, chosen from the nature of the change; the number is the GitHub issue. **This is a GitHub issue number, not an Extend `XAD-####` ticket ID.**
+- Commit messages: descriptive sentences, in logical chunks that each stand on their own. No conventional-commits prefixes (`feat:`, `fix:`, etc.).
+- PRs follow `.github/pull_request_template.md` and include `Closes #N`.
+- Use the `gh` CLI for issues and PRs. Issue templates live in `.github/ISSUE_TEMPLATE/`.
+- Stay inside the scope of the issue. Work you find outside it gets surfaced, not silently absorbed.
+
+## Docs
+
+`docs/README.md` is the index and decides where a new doc goes. `docs/architecture.md` and `docs/testing.md` are living docs — current truth, updated in place. Specs under `docs/specs/` are frozen once merged and go stale as the code moves past them; load only the one relevant to the task. `docs/plans/` and `.handoffs/` are gitignored working state.

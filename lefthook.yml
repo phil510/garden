@@ -1,0 +1,17 @@
+# format rewrites the staged files, so nothing may read them while it runs.
+# piped runs the commands in order and stops at the first failure, which is what
+# keeps the readers below looking at a settled tree.
+pre-commit:
+  piped: true
+  commands:
+    1_format:
+      glob: '*.{ts,tsx,js,mjs,cjs,json,md,yml,yaml}'
+      run: pnpm prettier --write {staged_files}
+      stage_fixed: true
+    2_typecheck:
+      run: pnpm -r typecheck
+    3_lint:
+      glob: '*.{ts,tsx,js,mjs,cjs}'
+      run: pnpm eslint {staged_files}
+    4_test:
+      run: pnpm -r test

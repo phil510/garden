@@ -1,0 +1,36 @@
+name: Spec
+description: Solution spec — the technical answer to a PRD. Says HOW to build it.
+title: '[spec] '
+labels: ['type:spec']
+body:
+  - type: input
+    id: parent-initiative
+    attributes:
+      label: Parent initiative
+      description: Issue number of the initiative this sits under.
+      placeholder: '#N'
+    validations:
+      required: true
+  - type: input
+    id: linked-prd
+    attributes:
+      label: Linked PRD
+      description: The PRD issue this spec answers.
+      placeholder: '#N'
+    validations:
+      required: false
+  - type: input
+    id: doc-path
+    attributes:
+      label: Doc path
+      description: Where the spec markdown lives.
+      placeholder: docs/specs/YYYY-MM-DD-<slug>.md
+    validations:
+      required: false
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: The technical approach and the one-way-door decisions it commits to.
+    validations:
+      required: true

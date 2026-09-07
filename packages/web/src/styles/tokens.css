@@ -1,0 +1,148 @@
+:root {
+  --ground: #1e1e1e;
+  --surface: #252526;
+  --raised: #2d2d30;
+  --border: #3e3e42;
+  --border-strong: #4a4a50;
+  --text: #d4d4d4;
+  --text-muted: #9d9d9d;
+  --text-faint: #6a6a6a;
+  --accent: #34c268;
+  --accent-dim: rgba(52, 194, 104, 0.16);
+  --danger: #d16969;
+
+  --st-working: #4ec9b0;
+  --st-needs-approval: #d7ba7d;
+  --st-waiting: #569cd6;
+  --st-unknown: #6a6a6a;
+
+  --st-working-border: color-mix(in srgb, var(--st-working) 40%, transparent);
+  --st-needs-approval-border: color-mix(in srgb, var(--st-needs-approval) 40%, transparent);
+  --st-waiting-border: color-mix(in srgb, var(--st-waiting) 40%, transparent);
+  --st-unknown-border: color-mix(in srgb, var(--st-unknown) 40%, transparent);
+
+  --syn-keyword: #569cd6;
+  --syn-string: #ce9178;
+  --syn-comment: #6a9955;
+  --syn-function: #dcdcaa;
+  --syn-type: #4ec9b0;
+  --syn-number: #b5cea8;
+
+  --font-ui: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.muted {
+  color: var(--text-muted);
+}
+.faint {
+  color: var(--text-faint);
+}
+.upper {
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-weight: 600;
+}
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+button {
+  cursor: pointer;
+  background: var(--raised);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 4px;
+  padding: 5px 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  line-height: 1.2;
+}
+button:hover {
+  border-color: var(--border-strong);
+}
+button.ghost {
+  background: transparent;
+  border-color: transparent;
+}
+button.ghost:hover {
+  background: var(--raised);
+  border-color: var(--border);
+}
+button.danger:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.app-shell {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--ground);
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  flex: 0 0 40px;
+  height: 40px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.body-row {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.sidebar {
+  flex: 0 0 280px;
+  width: 280px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+}
+
+.stage-wrap {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  padding: 8px;
+  background: var(--ground);
+}
+
+.filepanel {
+  flex: 0 0 320px;
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+}
+.filepanel[hidden] {
+  display: none;
+}
+
+.topbar-spacer {
+  flex: 1;
+}

@@ -1,0 +1,152 @@
+import { applyDelta } from '@garden/shared';
+import { aHookEvent } from '@garden/shared/fixtures';
+import { describe, expect, it } from 'vitest';
+import { diff } from './diff.js';
+import { initialState, reduce } from './reduce.js';
+import type { GardenEvent, TranscriptRecord } from './types.js';
+
+const now = 1_700_000_000_000;
+
+const record = (o: Partial<TranscriptRecord> = {}): TranscriptRecord => ({
+  sessionId: 'sid-1',
+  cwd: '/Users/dev/repo',
+  gitBranch: 'main',
+  title: 'A session',
+  lastPrompt: 'do the thing',
+  recap: 'Done.',
+  lastActivity: 1_700_000_000_000,
+  ...o,
+});
+
+const transcript = (o: Partial<TranscriptRecord>, lastActivity: number): GardenEvent => ({
+  type: 'transcript-changed',
+  path: '/t.jsonl',
+  record: record({ lastActivity, ...o }),
+});
+
+const snapshot = (paneDead: boolean): GardenEvent => ({
+  type: 'tmux-snapshot',
+  sessions: [{ name: 'repo', paneDead, exitCode: paneDead ? 130 : null }],
+});
+
+const storeLoaded: GardenEvent = { type: 'store-loaded', tmuxNames: { 'sid-1': 'repo' } };
+
+const rootResolved: GardenEvent = {
+  type: 'repo-root-resolved',
+  cwd: '/Users/dev/repo',
+  repoRoot: '/Users/dev/repo',
+};
+
+const sequences: GardenEvent[][] = [
+  [],
+  [storeLoaded],
+  [transcript({}, now)],
+  [transcript({}, now), snapshot(false)],
+  [
+    storeLoaded,
+    transcript({}, now),
+    { type: 'hook', payload: aHookEvent({ session_id: 'sid-1', hook_event_name: 'Stop' }) },
+    snapshot(false),
+  ],
+  [storeLoaded, transcript({}, now), snapshot(true)],
+  [transcript({}, now), transcript({ sessionId: 'sid-2', title: 'Another' }, now)],
+  [rootResolved, transcript({}, now)],
+  [transcript({}, now), rootResolved],
+  [
+    transcript({}, now),
+    {
+      type: 'hook',
+      payload: aHookEvent({
+        session_id: 'sid-1',
+        hook_event_name: 'Notification',
+        message: 'Claude needs your permission to run rm',
+      }),
+    },
+  ],
+  [
+    transcript({}, now),
+    { type: 'hook', payload: aHookEvent({ session_id: 'sid-3' }) },
+    { type: 'session-registered', id: 'sid-3', tmuxName: 'repo-2', cwd: '/Users/dev/repo' },
+  ],
+];
+
+describe('the delta round trip', () => {
+  it('reproduces the next session map from the previous one plus its deltas', () => {
+    const prev = reduce(initialState, transcript({ sessionId: 'sid-0', title: 'Existing' }, now));
+    for (const events of sequences) {
+      const next = events.reduce(reduce, prev);
+      expect(applyDelta(prev.sessions, diff(prev, next))).toEqual(next.sessions);
+    }
+  });
+});
+
+const boot: GardenEvent[] = [
+  storeLoaded,
+  snapshot(false),
+  transcript({}, now),
+  transcript({ sessionId: 'sid-2', title: 'Another' }, now),
+  rootResolved,
+];
+
+describe('boot replay equals steady state', () => {
+  it('does not depend on whether the tmux snapshot or the transcripts arrive first', () => {
+    const files = [transcript({}, now), transcript({ sessionId: 'sid-2', title: 'Another' }, now)];
+    const snapshotFirst = [storeLoaded, snapshot(false), ...files].reduce(reduce, initialState);
+    const transcriptsFirst = [storeLoaded, ...files, snapshot(false)].reduce(reduce, initialState);
+    expect(transcriptsFirst).toEqual(snapshotFirst);
+  });
+
+  it('does not depend on whether a status-bearing hook or the tmux snapshot arrives first', () => {
+    const prompt: GardenEvent = {
+      type: 'hook',
+      payload: aHookEvent({ session_id: 'sid-1', hook_event_name: 'UserPromptSubmit' }),
+    };
+    const hookFirst = [storeLoaded, prompt, snapshot(false)].reduce(reduce, initialState);
+    const snapshotFirst = [storeLoaded, snapshot(false), prompt].reduce(reduce, initialState);
+    expect(hookFirst).toEqual(snapshotFirst);
+    expect(hookFirst.sessions['sid-1']).toMatchObject({ liveness: 'live', status: 'working' });
+  });
+
+  it('is a no-op when the same boot batch is replayed onto the state it produced', () => {
+    const booted = boot.reduce(reduce, initialState);
+    const replayed = boot.reduce(reduce, booted);
+    expect(diff(booted, replayed)).toEqual([]);
+    expect(replayed).toEqual(booted);
+  });
+});
+
+// Keyed by variant so a new event type fails to compile until it has a row here.
+const everyVariant: Record<GardenEvent['type'], GardenEvent> = {
+  'store-loaded': storeLoaded,
+  'session-registered': {
+    type: 'session-registered',
+    id: 'sid-1',
+    tmuxName: 'repo',
+    cwd: '/Users/dev/repo',
+  },
+  'transcript-changed': transcript({}, now),
+  'repo-root-resolved': rootResolved,
+  hook: { type: 'hook', payload: aHookEvent({ session_id: 'sid-1' }) },
+  'tmux-snapshot': snapshot(false),
+};
+
+const states = {
+  empty: initialState,
+  'unknown session id': reduce(initialState, transcript({ sessionId: 'sid-other' }, now)),
+  booted: boot.reduce(reduce, initialState),
+};
+
+describe('reduce is total', () => {
+  for (const event of Object.values(everyVariant)) {
+    for (const [label, state] of Object.entries(states)) {
+      it(`folds ${event.type} into the ${label} state idempotently and without losing sessions`, () => {
+        const once = reduce(state, event);
+        expect(Object.keys(once.sessions)).toEqual(
+          expect.arrayContaining(Object.keys(state.sessions)),
+        );
+        // With no clock in the state, re-applying an event can never move anything.
+        expect(reduce(once, event)).toEqual(once);
+      });
+    }
+  }
+});

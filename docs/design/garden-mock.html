@@ -1,0 +1,1912 @@
+<title>garden console</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --ground:#1E1E1E;
+  --surface:#252526;
+  --raised:#2D2D30;
+  --border:#3E3E42;
+  --border-strong:#4A4A50;
+  --text:#D4D4D4;
+  --text-muted:#9D9D9D;
+  --text-faint:#6A6A6A;
+  --accent:#34C268;
+  --accent-dim:rgba(52,194,104,0.16);
+  --danger:#D16969;
+
+  --st-working:#4EC9B0;
+  --st-needs-approval:#D7BA7D;
+  --st-waiting:#569CD6;
+  --st-unknown:#6A6A6A;
+
+  --syn-keyword:#569CD6;
+  --syn-string:#CE9178;
+  --syn-comment:#6A9955;
+  --syn-function:#DCDCAA;
+  --syn-type:#4EC9B0;
+  --syn-number:#B5CEA8;
+
+  --font-ui: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+*{box-sizing:border-box;}
+body{
+  background:var(--ground);
+  color:var(--text);
+  font-family:var(--font-ui);
+  font-size:13px;
+  line-height:1.45;
+}
+button,input{font-family:inherit;font-size:inherit;color:inherit;}
+::selection{background:var(--accent-dim);color:var(--text);}
+
+::-webkit-scrollbar{width:9px;height:9px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:4px;border:2px solid var(--surface);background-clip:padding-box;}
+::-webkit-scrollbar-thumb:hover{background:var(--text-faint);}
+
+a{color:inherit;}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums;}
+.muted{color:var(--text-muted);}
+.faint{color:var(--text-faint);}
+.upper{text-transform:uppercase;letter-spacing:0.07em;font-weight:600;}
+
+:focus{outline:none;}
+:focus-visible{outline:2px solid var(--accent);outline-offset:1px;border-radius:2px;}
+
+@media (prefers-reduced-motion: no-preference){
+  .anim-fade{animation:fadeIn 120ms ease-out;}
+  .toast{animation:toastIn 160ms ease-out;}
+}
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+@keyframes toastIn{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
+
+button{
+  cursor:pointer;
+  background:var(--raised);
+  border:1px solid var(--border);
+  color:var(--text);
+  border-radius:4px;
+  padding:5px 9px;
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  line-height:1.2;
+}
+button:hover{border-color:var(--border-strong);}
+button:disabled{opacity:0.45;cursor:default;}
+button.ghost{background:transparent;border-color:transparent;}
+button.ghost:hover{background:var(--raised);border-color:var(--border);}
+button.danger:hover{border-color:var(--danger);color:var(--danger);}
+button.primary{border-color:var(--border-strong);}
+button.primary:hover{border-color:var(--accent);color:var(--accent);}
+button.icon-btn{padding:5px;}
+button.active-btn{border-color:var(--accent);color:var(--accent);background:var(--accent-dim);}
+
+svg{display:block;flex-shrink:0;}
+
+/* ---------- app shell ---------- */
+.app-shell{
+  height:100vh;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  background:var(--ground);
+}
+
+/* ---------- topbar ---------- */
+.topbar{
+  height:40px;
+  flex:0 0 40px;
+  display:flex;
+  align-items:center;
+  gap:14px;
+  padding:0 10px;
+  border-bottom:1px solid var(--border);
+  background:var(--surface);
+}
+.wordmark{
+  font-weight:600;
+  font-size:13px;
+  letter-spacing:0.02em;
+  color:var(--text);
+  display:flex;
+  align-items:center;
+  gap:6px;
+  padding-right:8px;
+  border-right:1px solid var(--border);
+  margin-right:2px;
+}
+.wordmark svg{color:var(--accent);}
+.preset-group{display:flex;gap:3px;align-items:center;}
+.preset-btn{padding:5px;border-radius:4px;}
+.preset-btn svg{width:20px;height:16px;}
+.preset-btn rect{fill:var(--border-strong);}
+.preset-btn.active-btn rect{fill:var(--accent);}
+.topbar-spacer{flex:1;}
+.topbar-right{display:flex;align-items:center;gap:8px;}
+.toggle-pill{
+  display:inline-flex;align-items:center;gap:6px;
+  background:var(--raised);border:1px solid var(--border);border-radius:4px;
+  padding:5px 9px;cursor:pointer;user-select:none;
+}
+.toggle-pill:hover{border-color:var(--border-strong);}
+.toggle-pill .dot{width:8px;height:8px;border-radius:50%;background:var(--border-strong);transition:none;}
+.toggle-pill.on .dot{background:var(--accent);}
+.btn-new{border-color:var(--border-strong);}
+.btn-new:hover{border-color:var(--accent);color:var(--accent);}
+
+/* ---------- body row ---------- */
+.body-row{flex:1;display:flex;min-height:0;overflow:hidden;}
+
+/* draggable splitter between sidebar/filepanel and the stage */
+.v-splitter{flex:0 0 4px;cursor:col-resize;background:transparent;}
+.v-splitter:hover,.v-splitter.dragging{background:var(--accent);}
+
+/* ---------- sidebar ---------- */
+.sidebar{
+  width:280px;flex:0 0 280px;
+  background:var(--surface);
+  border-right:1px solid var(--border);
+  overflow-y:auto;overflow-x:hidden;
+  display:flex;flex-direction:column;
+}
+.repo-group{border-bottom:1px solid var(--border);}
+.repo-header{
+  display:flex;align-items:center;gap:6px;
+  padding:8px 10px;cursor:pointer;user-select:none;
+  background:var(--surface);
+  position:sticky;top:0;z-index:1;
+}
+.repo-header:hover{background:var(--raised);}
+.repo-header .chev{
+  width:10px;height:10px;color:var(--text-faint);flex:0 0 auto;
+  transition:none;
+}
+.repo-header.collapsed .chev{transform:rotate(-90deg);}
+.repo-name{font-weight:600;font-size:12.5px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.repo-count{font-size:11px;color:var(--text-muted);}
+.attn-badge{
+  width:7px;height:7px;border-radius:50%;background:var(--st-needs-approval);
+  flex:0 0 auto;
+}
+.repo-rows{}
+.repo-rows.collapsed{display:none;}
+
+.session-row{
+  position:relative;
+  display:flex;flex-direction:column;gap:3px;
+  padding:7px 10px 7px 22px;
+  cursor:pointer;
+  border-left:2px solid transparent;
+}
+.session-row:hover{background:var(--raised);}
+.session-row.on-stage{border-left-color:var(--accent);}
+/* A dead session carries no status, so its row recedes to keep live work legible at a glance.
+   De-emphasis only — text drops a step in contrast, actions keep theirs, and hover or stage
+   presence brings the row back to full strength. */
+.session-row.dead .row-title{font-weight:400;color:var(--text-muted);}
+.session-row.dead .row-meta{color:var(--text-faint);}
+.session-row.dead:hover .row-title,
+.session-row.dead.on-stage .row-title{color:var(--text);}
+.session-row.dead:hover .row-meta,
+.session-row.dead.on-stage .row-meta{color:var(--text-muted);}
+.row-top{display:flex;align-items:center;gap:6px;min-width:0;}
+.row-title{font-size:12.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;}
+.status-pill{
+  display:inline-flex;align-items:center;gap:4px;
+  font-size:10.5px;font-weight:500;padding:1px 6px 1px 5px;border-radius:99px;
+  border:1px solid var(--border-strong);white-space:nowrap;flex:0 0 auto;
+}
+.status-pill .dot{width:6px;height:6px;border-radius:50%;flex:0 0 auto;}
+.row-meta{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-muted);min-width:0;}
+.row-branch{font-family:var(--font-mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}
+.row-dot-sep{flex:0 0 auto;}
+.row-time{flex:0 0 auto;font-family:var(--font-mono);}
+.on-stage-mark{
+  position:absolute;left:9px;top:12px;width:5px;height:5px;border-radius:50%;background:var(--accent);
+}
+.row-actions{
+  display:flex;gap:5px;margin-top:2px;
+}
+.row-actions button{padding:3px 7px;font-size:11px;}
+.row-confirm{
+  display:flex;align-items:center;gap:6px;margin-top:2px;font-size:11.5px;
+}
+.row-confirm button{padding:3px 7px;font-size:11px;}
+
+.show-older-row{
+  padding:6px 10px 6px 22px;font-size:11.5px;color:var(--text-muted);
+  cursor:pointer;border-top:1px dashed var(--border);
+}
+.show-older-row:hover{color:var(--text);}
+.empty-groups-note{padding:14px 12px;color:var(--text-faint);font-size:12px;}
+
+/* hover card */
+.hover-card{
+  position:fixed;z-index:50;width:280px;
+  background:var(--raised);border:1px solid var(--border-strong);border-radius:4px;
+  padding:10px 11px;box-shadow:0 6px 20px rgba(0,0,0,0.4);
+  font-size:11.5px;
+  pointer-events:none;
+}
+.hover-card .hc-title{font-weight:600;font-size:12.5px;margin-bottom:4px;color:var(--text);}
+.hover-card .hc-row{display:flex;gap:6px;margin-top:4px;color:var(--text-muted);}
+.hover-card .hc-row .hc-k{flex:0 0 62px;color:var(--text-faint);}
+.hover-card .hc-row .hc-v{flex:1;min-width:0;word-break:break-word;font-family:var(--font-mono);font-size:11px;}
+.hover-card .hc-recap{color:var(--text-muted);margin-bottom:2px;}
+
+/* ---------- stage ---------- */
+.stage-wrap{
+  flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden;background:var(--ground);
+}
+.stage{
+  flex:1;min-height:0;display:grid;gap:0;padding:8px;
+}
+/* grid-template-columns/rows and per-pane grid-column/grid-row are set inline by JS
+   (see LAYOUT_GRID / applyTrackStyle) so track sizes can be dragged with the splitters below. */
+
+.splitter{background:transparent;position:relative;z-index:2;}
+.splitter.axis-col{cursor:col-resize;}
+.splitter.axis-row{cursor:row-resize;}
+.splitter:hover,.splitter.dragging{background:var(--accent);}
+
+.pane{
+  display:flex;flex-direction:column;min-width:0;min-height:0;
+  background:var(--surface);
+  border:1px solid var(--border);border-radius:4px;
+  overflow:hidden;
+}
+.pane.focused{border-color:var(--accent);border-width:2px;}
+.pane.empty{
+  align-items:center;justify-content:center;
+  border-style:dashed;color:var(--text-faint);font-size:12px;text-align:center;padding:16px;
+}
+.pane-header{
+  flex:0 0 52px;display:flex;align-items:center;gap:8px;
+  padding:0 8px 0 10px;
+  background:var(--raised);border-bottom:1px solid var(--border);
+  min-width:0;
+}
+.pane-title-wrap{display:flex;flex-direction:column;min-width:0;flex:1;justify-content:center;gap:1px;line-height:1.2;}
+.pane-title{font-size:12px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.pane-meta-row{display:flex;align-items:baseline;gap:4px;min-width:0;font-size:10px;}
+.pane-meta-k{flex:0 0 auto;color:var(--text-faint);}
+.pane-meta-v{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-muted);font-family:var(--font-mono);}
+.pane-meta-v.copyable{cursor:pointer;}
+.pane-meta-v.copyable:hover{color:var(--text);text-decoration:underline;}
+.pane-header .status-pill{flex:0 0 auto;}
+.pane-header-actions{display:flex;gap:2px;flex:0 0 auto;}
+.pane-header-actions button{padding:4px;}
+.pane-header-actions svg{width:13px;height:13px;}
+
+.pane-body{
+  flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;
+  padding:10px 12px;
+  font-family:var(--font-mono);font-size:12px;line-height:1.55;
+  display:flex;flex-direction:column;
+}
+.tx-line{white-space:pre-wrap;word-break:break-word;margin-bottom:6px;}
+.tx-user{color:var(--text);}
+.tx-user .gt{color:var(--accent);margin-right:5px;}
+.tx-assistant{color:var(--text);}
+.tx-tool{color:var(--text-muted);display:flex;gap:6px;}
+.tx-tool .glyph{color:var(--accent);flex:0 0 auto;}
+.tx-tool.active .glyph{color:var(--st-working);}
+.tx-tool .hint{color:var(--text-faint);font-size:10.5px;margin-left:4px;}
+.tx-result{color:var(--text-faint);font-size:11.5px;margin-left:15px;white-space:pre-wrap;}
+.tx-system{color:var(--text-faint);font-size:11px;font-style:normal;}
+
+.pane-spacer{flex:1;}
+
+.prompt-box{
+  flex:0 0 auto;margin-top:8px;
+  border:1px solid var(--border-strong);border-radius:4px;
+  padding:7px 10px;display:flex;align-items:center;gap:8px;
+  background:var(--ground);
+}
+.prompt-box .chevron{color:var(--accent);font-weight:600;}
+.prompt-box .ph{color:var(--text-faint);}
+.prompt-box.disabled{opacity:0.5;}
+.prompt-box.disabled .chevron{color:var(--text-faint);}
+
+.permission-box{
+  flex:0 0 auto;margin-top:8px;
+  border:1px solid var(--st-needs-approval);border-radius:4px;
+  background:rgba(215,186,125,0.08);padding:9px 11px;
+}
+.permission-q{font-size:11.5px;color:var(--text);margin-bottom:7px;}
+.permission-q b{color:var(--st-needs-approval);font-weight:600;}
+.permission-opt{
+  font-size:11.5px;padding:4px 6px;border-radius:3px;color:var(--text-muted);
+}
+.permission-opt.sel{background:rgba(215,186,125,0.18);color:var(--text);}
+
+.dead-pane-body{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+  padding:20px;text-align:center;color:var(--text-muted);
+}
+.dead-pane-body .dp-icon{color:var(--text-faint);}
+.dead-pane-body .dp-line1{font-size:12.5px;color:var(--text);}
+.dead-pane-body .dp-line2{font-size:11.5px;color:var(--text-faint);max-width:320px;}
+
+/* ---------- file panel ---------- */
+.filepanel{
+  width:320px;flex:0 0 320px;
+  background:var(--surface);border-left:1px solid var(--border);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.filepanel[hidden]{display:none;}
+.fp-header{
+  flex:0 0 auto;padding:9px 11px;border-bottom:1px solid var(--border);background:var(--raised);
+}
+.fp-session{font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.fp-cwd{font-size:10.5px;color:var(--text-muted);font-family:var(--font-mono);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.fp-none{padding:16px 12px;color:var(--text-faint);font-size:12px;}
+
+.fp-tabs{flex:0 0 auto;display:flex;background:var(--surface);border-bottom:1px solid var(--border);}
+.fp-tab{
+  flex:1;min-width:0;border:none;border-radius:0;border-bottom:2px solid transparent;
+  background:transparent;color:var(--text-muted);
+  padding:7px 10px;font-size:11.5px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.fp-tab:hover{background:var(--raised);color:var(--text);}
+.fp-tab.active{color:var(--text);border-bottom-color:var(--accent);}
+.fp-tab-content{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;}
+.fp-tab-content[hidden]{display:none;}
+
+.fp-tree-toolbar{
+  flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;
+  padding:6px 10px;border-bottom:1px solid var(--border);
+}
+.fp-tree{flex:1;min-height:0;overflow-y:auto;padding:5px 0;}
+.tree-node-row{
+  display:flex;align-items:center;gap:5px;
+  padding:3px 8px;cursor:pointer;font-size:12px;
+  white-space:nowrap;
+}
+.tree-node-row:hover{background:var(--raised);}
+.tree-node-row.selected{background:var(--accent-dim);color:var(--text);}
+.tree-node-row .tchev{width:9px;height:9px;color:var(--text-faint);flex:0 0 auto;}
+.tree-node-row .tchev.leaf{visibility:hidden;}
+.tree-node-row .ticon{width:12px;height:12px;flex:0 0 auto;color:var(--text-muted);}
+.tree-node-row .tname{overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;}
+.tree-node-row .gstat{
+  font-family:var(--font-mono);font-size:9.5px;font-weight:600;
+  width:13px;height:13px;border-radius:2px;display:inline-flex;align-items:center;justify-content:center;
+  flex:0 0 auto;
+}
+.gstat.gM{color:var(--st-needs-approval);}
+.gstat.gA{color:var(--st-working);}
+.gstat.gU{color:var(--st-waiting);}
+.tree-children{}
+.tree-node-row.gitignored{color:var(--text-faint);}
+
+.fp-viewer{
+  flex:1;min-height:0;
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.fp-viewer-header{
+  flex:0 0 auto;padding:6px 10px;border-bottom:1px solid var(--border);
+  font-family:var(--font-mono);font-size:11px;color:var(--text-muted);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.fp-viewer-body{flex:1;min-height:0;overflow:auto;padding:6px 0;}
+.fp-viewer-empty{padding:16px 12px;color:var(--text-faint);font-size:12px;}
+.code-line{display:flex;font-family:var(--font-mono);font-size:11.5px;line-height:1.65;}
+.code-line .ln{
+  flex:0 0 36px;text-align:right;padding-right:10px;color:var(--text-faint);user-select:none;
+  font-variant-numeric:tabular-nums;
+}
+.code-line .lc{flex:1;min-width:0;white-space:pre;color:var(--text);}
+.tok-s{color:var(--syn-string);}
+.tok-k{color:var(--syn-keyword);}
+.tok-c{color:var(--syn-comment);font-style:italic;}
+.tok-n{color:var(--syn-number);}
+.tok-f{color:var(--syn-function);}
+.tok-t{color:var(--syn-type);}
+.size-cap{padding:14px 12px;color:var(--text-muted);font-size:12px;}
+.size-cap button{margin-top:8px;}
+
+/* ---------- modal ---------- */
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,0.55);
+  display:flex;align-items:flex-start;justify-content:center;padding-top:12vh;
+  z-index:100;
+}
+.modal-overlay[hidden]{display:none;}
+.modal-box{
+  width:480px;max-width:92vw;max-height:70vh;
+  background:var(--surface);border:1px solid var(--border-strong);border-radius:4px;
+  display:flex;flex-direction:column;overflow:hidden;
+  box-shadow:0 20px 60px rgba(0,0,0,0.5);
+}
+.modal-search{
+  flex:0 0 auto;padding:10px;border-bottom:1px solid var(--border);
+}
+.modal-search input{
+  width:100%;background:var(--raised);border:1px solid var(--border);border-radius:4px;
+  padding:8px 10px;color:var(--text);
+}
+.modal-search input::placeholder{color:var(--text-faint);}
+.modal-list{flex:1;overflow-y:auto;padding:4px;}
+.modal-group-label{padding:8px 8px 3px;font-size:10.5px;color:var(--text-faint);}
+.modal-item{
+  display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:3px;cursor:pointer;
+}
+.modal-item:hover{background:var(--raised);}
+.modal-item .mi-icon{color:var(--text-muted);}
+.modal-item .mi-name{font-size:12.5px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.modal-item .mi-path{font-size:10.5px;color:var(--text-faint);font-family:var(--font-mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px;}
+.modal-empty{padding:20px;text-align:center;color:var(--text-faint);font-size:12px;}
+
+/* ---------- toast ---------- */
+.toast-stack{
+  position:fixed;bottom:14px;left:50%;transform:translateX(-50%);
+  display:flex;flex-direction:column;gap:6px;z-index:200;align-items:center;
+}
+.toast{
+  background:var(--raised);border:1px solid var(--border-strong);border-radius:4px;
+  padding:7px 13px;font-size:12px;color:var(--text);box-shadow:0 6px 16px rgba(0,0,0,0.4);
+}
+</style>
+
+<div class="app-shell">
+  <div class="topbar">
+    <div class="wordmark">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21c0-5 3-8 8-9-1 5-3 8-8 9Z"/><path d="M12 21c0-6-3.5-10-9-11 1.5 6 4 9.5 9 11Z"/><path d="M12 21V9"/></svg>
+      <span>garden</span>
+    </div>
+    <div class="preset-group" id="presetGroup" role="group" aria-label="Stage preset"></div>
+    <div class="topbar-spacer"></div>
+    <div class="topbar-right">
+      <button class="toggle-pill" id="hideDeadToggle" title="Hide dead sessions"><span class="dot"></span><span>Hide dead</span></button>
+      <button class="ghost icon-btn" id="fileToggleBtn" title="Toggle file panel" aria-pressed="true">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M14 4v16"/></svg>
+      </button>
+      <button class="btn-new" id="newSessionBtn">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+        <span>New session</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="body-row">
+    <div class="sidebar" id="sidebar"></div>
+    <div class="v-splitter" id="sidebarSplitter" data-target="sidebar" title="Drag to resize"></div>
+    <div class="stage-wrap">
+      <div class="stage" id="stage"></div>
+    </div>
+    <div class="v-splitter" id="filepanelSplitter" data-target="filepanel" title="Drag to resize"></div>
+    <div class="filepanel" id="filepanel">
+      <div class="fp-header" id="fpHeader"></div>
+      <div id="fpBody" style="flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalOverlay" hidden>
+  <div class="modal-box">
+    <div class="modal-search">
+      <input type="text" id="modalInput" placeholder="Filter repos and worktrees…" autocomplete="off">
+    </div>
+    <div class="modal-list" id="modalList"></div>
+  </div>
+</div>
+
+<div class="toast-stack" id="toastStack"></div>
+
+<script>
+(function(){
+"use strict";
+
+/* ============================== DATA ============================== */
+
+var REPOS = [
+  {key:"garden", name:"garden", root:"~/Desktop/Extend/garden"},
+  {key:"extend-api", name:"extend-api", root:"~/Desktop/Extend/extend-api"},
+  {key:"dbt_snowflake", name:"dbt_snowflake", root:"~/Desktop/Extend/dbt_snowflake"},
+  {key:"warranty-service", name:"warranty-service", root:"~/Desktop/Extend/warranty-service"},
+  {key:"contracts-service", name:"contracts-service", root:"~/Desktop/Extend/contracts-service"}
+];
+
+/* Status exists only while a session is live; a dead session has no status. */
+var STATE_COLOR = {
+  "working":"var(--st-working)",
+  "needs-approval":"var(--st-needs-approval)",
+  "waiting":"var(--st-waiting)",
+  "unknown":"var(--st-unknown)"
+};
+var STATE_LABEL = {
+  "working":"working",
+  "needs-approval":"needs approval",
+  "waiting":"waiting",
+  "unknown":"unknown"
+};
+
+/* ---- terminal transcripts for the live sessions ---- */
+var TX = {};
+
+TX["7c2a9e41-3f6b-4c8d-9a12-5e8f2b7d4c01"] = {
+  lines:[
+    {t:"user", text:"Add a POST /hooks endpoint that accepts CC hook payloads and maps them to a status delta on the session's event stream."},
+    {t:"assistant", text:"I'll add the route under packages/server/src/api, then wire PreToolUse/PostToolUse/PermissionRequest/Stop into the registry's status reducer. Let me check how hook payloads are currently handled."},
+    {t:"tool", text:"Read(packages/server/src/hooks.ts)"},
+    {t:"result", text:"38 lines — no /hooks route registered yet, only a stub type for HookEvent"},
+    {t:"assistant", text:"There's no route at all yet — just the type. Adding the Fastify route and the event-name → status mapping table now."},
+    {t:"tool", text:"Write(packages/server/src/api/hooks.ts)", active:true}
+  ]
+};
+
+TX["7c2a9e41-3f6b-4c8d-9a12-5e8f2b7d4c02"] = {
+  lines:[
+    {t:"user", text:"Resume isn't reusing the pane — it's spawning a whole new tmux session even when the old one just has a dead pane sitting there."},
+    {t:"assistant", text:"Looking at the resume handler in tmux.ts. My guess is the pane_dead check is inverted, or the store lookup falls through before it gets there."},
+    {t:"tool", text:"Bash(tmux -L garden list-panes -a -F \"#{session_name} #{pane_dead}\")"},
+    {t:"result", text:"garden-3 1\nextend-api-2 0\nwarranty-service-2 1"},
+    {t:"assistant", text:"Confirmed — garden-3 has a dead pane sitting there right now. Before I flip the guard condition I want to actually run respawn-pane against it and watch the JSONL keep the same session id."}
+  ],
+  permission:{
+    question:"Bash — <b>tmux -L garden respawn-pane -k -t garden-3 claude --resume 7c2a9e41…4c03 --settings ~/.garden/claude-settings.json</b>",
+    scope:"tmux respawn-pane"
+  }
+};
+
+TX["b18f5d02-9a4e-4f71-8c3b-1d6e9a2f5c11"] = {
+  lines:[
+    {t:"user", text:"Webhook retries are firing every 30s flat instead of backing off — check the retry queue config."},
+    {t:"tool", text:"Grep(backoffMultiplier)"},
+    {t:"result", text:"src/services/retryQueue.ts:42: const backoffMultiplier = config.get('REFUND_WEBHOOK_BACKOFF') ?? 1;"},
+    {t:"tool", text:"Read(src/config/loader.ts)"},
+    {t:"result", text:"62 lines — env overrides are merged after defaults.json, so config.get() returns the default before env is applied"},
+    {t:"assistant", text:"Found it: the config loader resolves defaults.json before merging environment overrides, so REFUND_WEBHOOK_BACKOFF was always read as unset and backoffMultiplier fell back to 1. I reordered the merge so env wins, added a regression test, and reran the retry queue suite — 14 passed. Ready for you to look at the diff."}
+  ]
+};
+
+TX["b18f5d02-9a4e-4f71-8c3b-1d6e9a2f5c12"] = {
+  lines:[
+    {t:"user", text:"Payout batch job is writing duplicate rows on retry — look at the batch upsert logic."},
+    {t:"tool", text:"Read(src/services/payoutBatcher.ts)"},
+    {t:"result", text:"91 lines — insert path uses INSERT ... ON CONFLICT DO NOTHING keyed on batch_id, not (batch_id, payout_id)"},
+    {t:"assistant", text:"The conflict target is only batch_id, so a retried batch with new rows silently skips the whole insert instead of upserting per row. Checking the migration that created this constraint before I touch it."}
+  ]
+};
+
+TX["4e6a1c8d-7b2f-4a95-9e3d-2c8f5a1b4d21"] = {
+  lines:[
+    {t:"user", text:"Add an incremental model for refund_events, sourced from stg_refunds, unique key event_id."},
+    {t:"assistant", text:"I'll scaffold models/marts/finance/refund_events.sql as incremental with a merge strategy on event_id, and add the schema.yml entry with not_null + unique tests."},
+    {t:"tool", text:"Read(models/staging/stg_refunds.sql)"},
+    {t:"result", text:"27 lines — event_id, refund_id, amount_cents, status, occurred_at, _loaded_at"},
+    {t:"tool", text:"Write(models/marts/finance/refund_events.sql)", active:true}
+  ]
+};
+
+TX["9d3b7e5a-2c1f-4e68-a9d4-6f1c8b3e5a31"] = {
+  lines:[
+    {t:"user", text:"Wire the new v2 claims handler in behind a feature flag and update the router — don't remove v1 yet."},
+    {t:"tool", text:"Read(src/claims/v2/claimsHandler.ts)"},
+    {t:"result", text:"118 lines — exports handleClaimV2(ctx), no flag check"},
+    {t:"tool", text:"Edit(src/router.ts)"},
+    {t:"result", text:"added: if (flags.claimsV2Enabled(ctx.merchantId)) return handleClaimV2(ctx);"},
+    {t:"assistant", text:"Router now checks claimsV2Enabled per merchant before falling through to the v1 handler. Before I run the claims integration suite against this, since it hits the sandbox adjudication queue:"}
+  ],
+  permission:{
+    question:"Bash — <b>npm run test:integration -- claims.router</b>",
+    scope:"npm test"
+  }
+};
+
+TX["c5a8f2d1-4e9b-4c73-b1a6-3d7e2f9c5a41"] = {
+  lines:[
+    {t:"user", text:"Add a calculateTierPrice function that applies volume discounts by contract tier."},
+    {t:"tool", text:"Read(src/pricing/tiers.ts)"},
+    {t:"result", text:"54 lines — TIER_DISCOUNTS map exists (bronze/silver/gold) but nothing consumes it yet"},
+    {t:"assistant", text:"TIER_DISCOUNTS is already defined, just unused. Adding calculateTierPrice(basePrice, tier, volume) that applies the discount and rounds to cents."},
+    {t:"tool", text:"Edit(src/pricing/tiers.ts)", active:true}
+  ]
+};
+
+/* ---- file trees per repo ---- */
+function dir(name, children, opts){ opts=opts||{}; return {name:name,type:"dir",children:children,gitignored:!!opts.gi}; }
+function file(name, opts){ opts=opts||{}; return {name:name,type:"file",status:opts.status||null,gitignored:!!opts.gi,large:!!opts.large}; }
+
+var TREES = {
+  "garden": dir("garden",[
+    dir("packages",[
+      dir("server",[
+        dir("src",[
+          file("registry.ts",{status:"M"}),
+          file("hooks.ts"),
+          file("tmux.ts",{status:"A"}),
+          dir("api",[ file("sessions.ts"), file("hooks.ts",{status:"A"}) ])
+        ]),
+        file("package.json")
+      ]),
+      dir("web",[
+        dir("src",[
+          file("App.tsx",{status:"M"}),
+          dir("components",[ file("Sidebar.tsx"), file("Stage.tsx"), file("Pane.tsx") ]),
+          dir("stage",[ file("presets.ts") ])
+        ]),
+        file("package.json")
+      ]),
+      dir("shared",[ dir("src",[ file("types.ts") ]) ])
+    ]),
+    dir("docs",[ dir("specs",[ file("2026-09-03-garden-v1-design.md",{large:true}) ]) ]),
+    file("README.md"),
+    file("package.json"),
+    file(".gitignore"),
+    dir("node_modules",[ file("(hidden — 1,240 packages)") ],{gi:true})
+  ]).children,
+
+  "extend-api": dir("extend-api",[
+    dir("src",[
+      dir("routes",[ file("refunds.ts",{status:"M"}), file("webhooks.ts",{status:"A"}) ]),
+      dir("services",[ file("refundService.ts"), file("retryQueue.ts",{status:"M"}), file("payoutBatcher.ts") ]),
+      dir("config",[ file("loader.ts",{status:"M"}), file("defaults.json") ]),
+      dir("db",[ dir("migrations",[ file("0042_add_idempotency_key.sql",{status:"A"}) ]) ])
+    ]),
+    dir("test",[ file("refunds.test.ts",{status:"U"}), file("retryQueue.test.ts") ]),
+    file("package.json"),
+    dir("node_modules",[ file("(hidden)") ],{gi:true})
+  ]).children,
+
+  "dbt_snowflake": dir("dbt_snowflake",[
+    dir("models",[
+      dir("marts",[ dir("finance",[ file("refund_events.sql",{status:"A"}), file("claims_fact.sql",{status:"M"}) ]) ]),
+      dir("staging",[ file("stg_refunds.sql"), file("stg_claims.sql") ])
+    ]),
+    dir("seeds",[ file("dim_dates.csv") ]),
+    file("dbt_project.yml"),
+    dir("target",[ file("(hidden — compiled artifacts)") ],{gi:true})
+  ]).children,
+
+  "warranty-service": dir("warranty-service",[
+    dir("src",[
+      dir("claims",[ file("adjudication.ts",{status:"M"}), dir("v2",[ file("claimsHandler.ts",{status:"A"}) ]) ]),
+      dir("lib",[ file("stateMachine.ts") ]),
+      file("router.ts",{status:"M"})
+    ]),
+    file("package.json"),
+    dir("node_modules",[ file("(hidden)") ],{gi:true})
+  ]).children,
+
+  "contracts-service": dir("contracts-service",[
+    dir("src",[
+      dir("pricing",[ file("tiers.ts",{status:"M"}) ]),
+      dir("contracts",[ file("renewal.ts") ])
+    ]),
+    file("README.md"),
+    file("package.json")
+  ]).children
+};
+
+/* ---- file contents ---- */
+var FILE_CONTENT = {};
+function reg(repo, path, lang, lines){ FILE_CONTENT[repo+"::"+path] = {lang:lang, lines:lines}; }
+
+reg("garden","packages/server/src/api/hooks.ts","ts",[
+ "import { FastifyInstance } from 'fastify';",
+ "import { applyHookEvent } from '../registry.js';",
+ "",
+ "const STATUS_BY_EVENT: Record<string, string> = {",
+ "  SessionStart: 'working',",
+ "  UserPromptSubmit: 'working',",
+ "  PreToolUse: 'working',",
+ "  PostToolUse: 'working',",
+ "  PermissionRequest: 'needs-approval',",
+ "  Stop: 'waiting',",
+ "  Notification: 'waiting',",
+ "};",
+ "",
+ "export default async function hooksRoute(app: FastifyInstance) {",
+ "  app.post('/hooks', async (req, reply) => {",
+ "    const body = req.body as { session_id: string; hook_event_name: string };",
+ "    const status = STATUS_BY_EVENT[body.hook_event_name];",
+ "    if (status) applyHookEvent(body.session_id, status);",
+ "    reply.code(202).send();",
+ "  });",
+ "}"
+]);
+
+reg("garden","packages/server/src/tmux.ts","ts",[
+ "import { execFile } from 'node:child_process';",
+ "",
+ "export function resumeSession(name: string, sessionId: string) {",
+ "  return execFile('tmux', [",
+ "    '-L', 'garden', 'respawn-pane', '-k', '-t', name,",
+ "    'claude', '--resume', sessionId, '--settings', SETTINGS_PATH,",
+ "  ]);",
+ "}",
+ "",
+ "export function killSession(name: string) {",
+ "  return execFile('tmux', ['-L', 'garden', 'kill-session', '-t', name]);",
+ "}"
+]);
+
+reg("garden","README.md","md",[
+ "# garden",
+ "",
+ "A local web console for running many Claude Code sessions across repos",
+ "and worktrees. tmux owns the processes; garden is a viewport.",
+ "",
+ "## Install",
+ "",
+ "pnpm install && pnpm build, then link the bin globally.",
+ "",
+ "## Usage",
+ "",
+ "garden        start the server, open the app window",
+ "garden new    create a session in a repo or worktree",
+ "garden ls     list sessions with status"
+]);
+
+reg("extend-api","src/services/retryQueue.ts","ts",[
+ "import { config } from '../config/loader.js';",
+ "",
+ "export class RetryQueue {",
+ "  private backoffMultiplier = config.get('REFUND_WEBHOOK_BACKOFF') ?? 1;",
+ "",
+ "  scheduleRetry(webhookId: string, attempt: number) {",
+ "    const delayMs = 1000 * Math.pow(this.backoffMultiplier, attempt);",
+ "    return this.enqueue(webhookId, delayMs);",
+ "  }",
+ "",
+ "  private enqueue(webhookId: string, delayMs: number) {",
+ "    return this.queue.add({ webhookId }, { delay: delayMs });",
+ "  }",
+ "}"
+]);
+
+reg("extend-api","src/config/loader.ts","ts",[
+ "import defaults from './defaults.json' assert { type: 'json' };",
+ "",
+ "function mergeConfig() {",
+ "  const fromEnv = readEnvOverrides();",
+ "  // env now wins over defaults.json for any key it sets",
+ "  return { ...defaults, ...fromEnv };",
+ "}",
+ "",
+ "export const config = { get: (key: string) => mergeConfig()[key] };"
+]);
+
+reg("extend-api","db/migrations/0042_add_idempotency_key.sql","sql",[
+ "-- adds a unique idempotency key so retried webhook deliveries",
+ "-- upsert instead of inserting a duplicate row",
+ "alter table refund_webhook_events",
+ "  add column idempotency_key text not null default gen_random_uuid();",
+ "",
+ "create unique index concurrently refund_webhook_events_idem_key",
+ "  on refund_webhook_events (idempotency_key);"
+]);
+
+reg("dbt_snowflake","models/marts/finance/refund_events.sql","sql",[
+ "{{",
+ "  config(",
+ "    materialized='incremental',",
+ "    unique_key='event_id',",
+ "    incremental_strategy='merge'",
+ "  )",
+ "}}",
+ "",
+ "select",
+ "  event_id,",
+ "  refund_id,",
+ "  amount_cents,",
+ "  status,",
+ "  occurred_at,",
+ "  _loaded_at",
+ "from {{ ref('stg_refunds') }}",
+ "{% if is_incremental() %}",
+ "where _loaded_at > (select max(_loaded_at) from {{ this }})",
+ "{% endif %}"
+]);
+
+reg("dbt_snowflake","models/marts/finance/claims_fact.sql","sql",[
+ "select",
+ "  claim_id,",
+ "  contract_id,",
+ "  adjudicated_at,",
+ "  outcome,",
+ "  payout_cents",
+ "from {{ ref('stg_claims') }}",
+ "where adjudicated_at is not null"
+]);
+
+reg("warranty-service","src/claims/v2/claimsHandler.ts","ts",[
+ "import { StateMachine } from '../../lib/stateMachine.js';",
+ "",
+ "export async function handleClaimV2(ctx: ClaimContext) {",
+ "  const machine = new StateMachine(ctx.claim.state);",
+ "  const next = await machine.transition('submit', ctx.payload);",
+ "  await persistClaimState(ctx.claim.id, next);",
+ "  return { status: next, claimId: ctx.claim.id };",
+ "}"
+]);
+
+reg("warranty-service","src/router.ts","ts",[
+ "import { handleClaim } from './claims/adjudication.js';",
+ "import { handleClaimV2 } from './claims/v2/claimsHandler.js';",
+ "import { flags } from './lib/flags.js';",
+ "",
+ "export function routeClaim(ctx: ClaimContext) {",
+ "  if (flags.claimsV2Enabled(ctx.merchantId)) return handleClaimV2(ctx);",
+ "  return handleClaim(ctx);",
+ "}"
+]);
+
+reg("contracts-service","src/pricing/tiers.ts","ts",[
+ "export const TIER_DISCOUNTS = {",
+ "  bronze: 0.0,",
+ "  silver: 0.05,",
+ "  gold: 0.12,",
+ "} as const;",
+ "",
+ "export function calculateTierPrice(basePrice: number, tier: keyof typeof TIER_DISCOUNTS, volume: number) {",
+ "  const discount = TIER_DISCOUNTS[tier];",
+ "  const volumeAdj = volume > 500 ? 0.03 : 0;",
+ "  const price = basePrice * (1 - discount - volumeAdj);",
+ "  return Math.round(price * 100) / 100;",
+ "}"
+]);
+
+reg("contracts-service","README.md","md",[
+ "# contracts-service",
+ "",
+ "Owns contract lifecycle: creation, pricing tiers, renewal.",
+ "",
+ "## Local setup",
+ "",
+ "1. Copy .env.example to .env",
+ "2. Point SNOWFLAKE_ACCOUNT at the sandbox",
+ "3. pnpm install && pnpm dev"
+]);
+
+function fallbackContent(path){
+  var ext = path.split(".").pop();
+  if (ext === "json") return {lang:"json", lines:["{", "  \"name\": \"" + path.split("/").pop().replace(".json","") + "\",", "  \"private\": true", "}"]};
+  if (ext === "csv") return {lang:"text", lines:["date_day,fiscal_quarter,is_holiday", "2027-01-01,Q1,true", "2027-01-02,Q1,false"]};
+  if (ext === "yml" || ext === "yaml") return {lang:"yaml", lines:["name: " + path.split("/").pop(), "version: 2"]};
+  if (ext === "sql") return {lang:"sql", lines:["select * from {{ ref('stg_placeholder') }}", "limit 100"]};
+  return {lang:"text", lines:["export {};", "// " + path]};
+}
+
+/* ---- sessions ---- */
+function s(o){ return o; }
+
+var SESSIONS = [
+ s({id:"7c2a9e41-3f6b-4c8d-9a12-5e8f2b7d4c01", repo:"garden", tmux:"garden", cwd:"~/Desktop/Extend/garden", branch:"main",
+    title:"Wire hook POST endpoint", recap:"Adding POST /hooks and mapping PermissionRequest/Stop events to session status deltas.",
+    lastActivity:"just now", liveness:"live", status:"working"}),
+ s({id:"7c2a9e41-3f6b-4c8d-9a12-5e8f2b7d4c02", repo:"garden", tmux:"garden-2", cwd:"~/Desktop/Extend/garden/.worktrees/feat-XAD-3012-resume-flow", branch:"feat-XAD-3012-resume-flow",
+    title:"Debug tmux respawn-pane resume path", recap:"Resume was spawning a fresh tmux session instead of respawning the dead pane in place.",
+    lastActivity:"1m ago", liveness:"live", status:"needs-approval"}),
+ s({id:"7c2a9e41-3f6b-4c8d-9a12-5e8f2b7d4c03", repo:"garden", tmux:"garden-3", cwd:"~/Desktop/Extend/garden", branch:"main",
+    title:"Write session registry unit tests", recap:"Covered JSONL-to-record parsing and hook-to-status reduction; all green.",
+    lastActivity:"26m ago", liveness:"dead", exitCode:0}),
+
+ s({id:"b18f5d02-9a4e-4f71-8c3b-1d6e9a2f5c11", repo:"extend-api", tmux:"extend-api", cwd:"~/Desktop/Extend/extend-api/.worktrees/feat-XAD-2841-refund-webhooks", branch:"feat-XAD-2841-refund-webhooks",
+    title:"Debug refund webhook retries", recap:"Fixed backoff config load order — retries now back off exponentially instead of firing every 30s.",
+    lastActivity:"4m ago", liveness:"live", status:"waiting"}),
+ s({id:"b18f5d02-9a4e-4f71-8c3b-1d6e9a2f5c12", repo:"extend-api", tmux:"extend-api-2", cwd:"~/Desktop/Extend/extend-api/.worktrees/feat-XAD-2955-payout-batching", branch:"feat-XAD-2955-payout-batching",
+    title:"Investigate payout batching duplicate rows", recap:"Batch upsert on retry is inserting duplicate payout rows instead of updating.",
+    lastActivity:"52m ago", liveness:"live", status:"unknown"}),
+ s({id:"b18f5d02-9a4e-4f71-8c3b-1d6e9a2f5c13", repo:"extend-api", tmux:"extend-api-3", cwd:"~/Desktop/Extend/extend-api/.worktrees/fix-XAD-2777-idempotency-key", branch:"fix-XAD-2777-idempotency-key",
+    title:"Fix missing idempotency key on retry", recap:"Added a unique constraint and a migration; one test still failing on concurrent inserts.",
+    lastActivity:"3h ago", liveness:"dead", exitCode:1}),
+ s({id:"b18f5d02-9a4e-4f71-8c3b-1d6e9a2f5c14", repo:"extend-api", tmux:null, cwd:"~/Desktop/Extend/extend-api/.worktrees/chore-XAD-2410-upgrade-fastify", branch:"chore-XAD-2410-upgrade-fastify",
+    title:"Upgrade Fastify to v5", recap:"Migrated plugin registration API; blocked on a breaking change in schema validation.",
+    lastActivity:"19d ago", liveness:"dead"}),
+ s({id:"b18f5d02-9a4e-4f71-8c3b-1d6e9a2f5c15", repo:"extend-api", tmux:null, cwd:"~/Desktop/Extend/extend-api", branch:"main",
+    title:"Ad-hoc query against staging DB", recap:"Checking refund counts for last week's incident review.",
+    lastActivity:"6m ago", liveness:"dead"}),
+
+ s({id:"4e6a1c8d-7b2f-4a95-9e3d-2c8f5a1b4d21", repo:"dbt_snowflake", tmux:"dbt_snowflake", cwd:"~/Desktop/Extend/dbt_snowflake/.worktrees/feat-incremental-refund-events", branch:"feat-incremental-refund-events",
+    title:"Add incremental model for refund_events", recap:"Scaffolding an incremental mart on stg_refunds keyed on event_id.",
+    lastActivity:"2m ago", liveness:"live", status:"working"}),
+ s({id:"4e6a1c8d-7b2f-4a95-9e3d-2c8f5a1b4d22", repo:"dbt_snowflake", tmux:null, cwd:"~/Desktop/Extend/dbt_snowflake", branch:"main",
+    title:"Backfill historical claims_fact", recap:"Backfilled 2023-2024 partitions; row counts reconciled against source.",
+    lastActivity:"9h ago", liveness:"dead"}),
+ s({id:"4e6a1c8d-7b2f-4a95-9e3d-2c8f5a1b4d23", repo:"dbt_snowflake", tmux:null, cwd:"~/Desktop/Extend/dbt_snowflake/.worktrees/fix-dim-dates-seed", branch:"fix-dim-dates-seed",
+    title:"Fix stale seed data in dim_dates", recap:"Regenerated the seed through 2027 and re-ran dbt seed --full-refresh.",
+    lastActivity:"22d ago", liveness:"dead"}),
+
+ s({id:"9d3b7e5a-2c1f-4e68-a9d4-6f1c8b3e5a31", repo:"warranty-service", tmux:"warranty-service", cwd:"~/Desktop/Extend/warranty-service/.worktrees/feat-XAD-3102-claims-v2", branch:"feat-XAD-3102-claims-v2",
+    title:"Wire claims v2 handler into router", recap:"Gating the new adjudication path behind a feature flag before removing v1.",
+    lastActivity:"just now", liveness:"live", status:"needs-approval"}),
+ s({id:"9d3b7e5a-2c1f-4e68-a9d4-6f1c8b3e5a32", repo:"warranty-service", tmux:"warranty-service-2", cwd:"~/Desktop/Extend/warranty-service/.worktrees/spike-XAD-2999-async-adjudication", branch:"spike-XAD-2999-async-adjudication",
+    title:"Spike async adjudication queue", recap:"Prototyped an SQS-backed adjudication path; killed with Ctrl-C after confirming latency is worse.",
+    lastActivity:"1d ago", liveness:"dead", exitCode:130}),
+ s({id:"9d3b7e5a-2c1f-4e68-a9d4-6f1c8b3e5a33", repo:"warranty-service", tmux:null, cwd:"~/Desktop/Extend/warranty-service/.worktrees/chore-bump-node22", branch:"chore-bump-node22",
+    title:"Bump runtime to Node 22", recap:"Updated .nvmrc and the CI matrix; one native module needed a rebuild.",
+    lastActivity:"31d ago", liveness:"dead"}),
+
+ s({id:"c5a8f2d1-4e9b-4c73-b1a6-3d7e2f9c5a41", repo:"contracts-service", tmux:"contracts-service", cwd:"~/Desktop/Extend/contracts-service/.worktrees/feat-XAD-3200-pricing-tiers", branch:"feat-XAD-3200-pricing-tiers",
+    title:"Add tiered pricing calculation", recap:"Adding calculateTierPrice with volume discounts by contract tier.",
+    lastActivity:"just now", liveness:"live", status:"working"}),
+ s({id:"c5a8f2d1-4e9b-4c73-b1a6-3d7e2f9c5a42", repo:"contracts-service", tmux:null, cwd:"~/Desktop/Extend/contracts-service", branch:"main",
+    title:"Fix contract renewal date off-by-one", recap:"Renewal date was computed from UTC midnight instead of account timezone.",
+    lastActivity:"17d ago", liveness:"dead"}),
+ s({id:"c5a8f2d1-4e9b-4c73-b1a6-3d7e2f9c5a43", repo:"contracts-service", tmux:null, cwd:"~/Desktop/Extend/contracts-service/.worktrees/docs-update-readme", branch:"docs-update-readme",
+    title:"Update README with local setup steps", recap:"Documented the Snowflake sandbox credentials flow for new engineers.",
+    lastActivity:"5d ago", liveness:"dead"})
+];
+
+var OLD_DEAD = {
+ "b18f5d02-9a4e-4f71-8c3b-1d6e9a2f5c14":true,
+ "4e6a1c8d-7b2f-4a95-9e3d-2c8f5a1b4d23":true,
+ "9d3b7e5a-2c1f-4e68-a9d4-6f1c8b3e5a33":true,
+ "c5a8f2d1-4e9b-4c73-b1a6-3d7e2f9c5a42":true
+};
+
+/* ---- picker entries for "new session" modal ---- */
+var PICKER = [];
+REPOS.forEach(function(r){
+  PICKER.push({repo:r.key, kind:"repo", path:r.root, branch:"main"});
+});
+var EXTRA_WORKTREES = {
+  "garden": ["feat-garden-attention-rail","spike-notifications"],
+  "extend-api": ["feat-XAD-2841-refund-webhooks","feat-XAD-2955-payout-batching","chore-XAD-2410-upgrade-fastify","feat-XAD-3050-tax-recalc"],
+  "dbt_snowflake": ["feat-incremental-refund-events","fix-dim-dates-seed"],
+  "warranty-service": ["feat-XAD-3102-claims-v2","spike-XAD-2999-async-adjudication"],
+  "contracts-service": ["feat-XAD-3200-pricing-tiers","docs-update-readme"]
+};
+Object.keys(EXTRA_WORKTREES).forEach(function(repoKey){
+  var root = REPOS.filter(function(r){return r.key===repoKey;})[0].root;
+  EXTRA_WORKTREES[repoKey].forEach(function(branch){
+    PICKER.push({repo:repoKey, kind:"worktree", path:root+"/.worktrees/"+branch, branch:branch});
+  });
+});
+
+/* ============================== STATE ============================== */
+
+var PRESETS = [
+  {key:"single", slots:1, label:"Single pane"},
+  {key:"two-side", slots:2, label:"Two side by side"},
+  {key:"two-stack", slots:2, label:"Two stacked"},
+  {key:"three", slots:3, label:"Three — large left, two stacked right"},
+  {key:"2x2", slots:4, label:"Four, 2x2"}
+];
+
+/* ---- stage grid layout: pane placement + splitter placement + default/resizable track sizes ----
+   Grid tracks (col/row line numbers) are fixed per preset; only the size of the two "pane"
+   tracks on each axis is draggable, via the splitter that sits in the middle 4px track. */
+var MIN_COL_PX = 160, MIN_ROW_PX = 110;
+
+var PANE_GRID = {
+  "single": [ {col:"1 / 2", row:"1 / 2"} ],
+  "two-side": [ {col:"1 / 2", row:"1 / 2"}, {col:"3 / 4", row:"1 / 2"} ],
+  "two-stack": [ {col:"1 / 2", row:"1 / 2"}, {col:"1 / 2", row:"3 / 4"} ],
+  "three": [ {col:"1 / 2", row:"1 / 4"}, {col:"3 / 4", row:"1 / 2"}, {col:"3 / 4", row:"3 / 4"} ],
+  "2x2": [ {col:"1 / 2", row:"1 / 2"}, {col:"3 / 4", row:"1 / 2"}, {col:"1 / 2", row:"3 / 4"}, {col:"3 / 4", row:"3 / 4"} ]
+};
+
+var SPLITTER_GRID = {
+  "single": [],
+  "two-side": [ {axis:"col", col:"2 / 3", row:"1 / 2"} ],
+  "two-stack": [ {axis:"row", col:"1 / 2", row:"2 / 3"} ],
+  "three": [
+    {axis:"col", col:"2 / 3", row:"1 / 4"},
+    {axis:"row", col:"3 / 4", row:"2 / 3"}
+  ],
+  "2x2": [
+    {axis:"col", col:"2 / 3", row:"1 / 4"},
+    {axis:"row", col:"1 / 4", row:"2 / 3"}
+  ]
+};
+
+// which slots sit "before" vs "after" a given axis's splitter, so a drag knows which two pane
+// elements to measure and resize (each preset has at most one splitter per axis).
+var SPLITTER_AFFECTS = {
+  "two-side": {col:{before:[0], after:[1]}},
+  "two-stack": {row:{before:[0], after:[1]}},
+  "three": {col:{before:[0], after:[1,2]}, row:{before:[1], after:[2]}},
+  "2x2": {col:{before:[0,2], after:[1,3]}, row:{before:[0,1], after:[2,3]}}
+};
+
+var TRACK_DEFAULTS = {
+  "two-side": {cols:[50,50], rows:[100]},
+  "two-stack": {cols:[100], rows:[50,50]},
+  "three": {cols:[55,45], rows:[50,50]},
+  "2x2": {cols:[50,50], rows:[50,50]}
+};
+function defaultTrackSizes(presetKey){
+  var d = TRACK_DEFAULTS[presetKey];
+  return d ? {cols:d.cols.slice(), rows:d.rows.slice()} : {cols:[100], rows:[100]};
+}
+
+var st = {
+  preset: "three",
+  slots: [
+    "7c2a9e41-3f6b-4c8d-9a12-5e8f2b7d4c01",
+    "7c2a9e41-3f6b-4c8d-9a12-5e8f2b7d4c02",
+    "7c2a9e41-3f6b-4c8d-9a12-5e8f2b7d4c03",
+    null
+  ],
+  focusedSlot: 0,
+  maximizedSlot: null,
+  trackSizes: defaultTrackSizes("three"),
+  collapsedGroups: {},
+  hideDead: false,
+  showOlder: {},
+  filePanelOpen: true,
+  filePanelWidth: 320,
+  sidebarWidth: 280,
+  killConfirmId: null,
+  copiedId: null,
+  copiedWorktreeSlot: null,
+  modalOpen: false,
+  modalQuery: "",
+  treeExpanded: {},
+  showGitignored: false,
+  activeFile: {repo:"garden", path:"packages/server/src/tmux.ts"},
+  fileOpenAnyway: {},
+  fpTab: "files"
+};
+
+// seed expanded dirs so the initial focused repo's tree isn't fully collapsed
+st.treeExpanded["garden::packages"] = true;
+st.treeExpanded["garden::packages/server"] = true;
+st.treeExpanded["garden::packages/server/src"] = true;
+
+var newSessionCounter = 1;
+
+/* ============================== HELPERS ============================== */
+
+function byId(id){ return SESSIONS.filter(function(x){return x.id===id;})[0]; }
+function escapeHtml(str){
+  return String(str).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+function attachCmd(sess){ return "tmux -L garden attach -t " + sess.tmux; }
+function isOnStage(id){ return st.slots.indexOf(id) !== -1; }
+function currentPresetDef(){ return PRESETS.filter(function(p){return p.key===st.preset;})[0]; }
+function reduceMotion(){ return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches; }
+function basename(path){ return path.split("/").filter(Boolean).pop(); }
+
+// "-" when the session is running at its repo root, else the worktree path relative to that root.
+function worktreeLabel(sess){
+  var repo = REPOS.filter(function(r){ return r.key === sess.repo; })[0];
+  if (!repo || sess.cwd === repo.root) return "-";
+  if (sess.cwd.indexOf(repo.root + "/") === 0) return sess.cwd.slice(repo.root.length + 1);
+  return sess.cwd;
+}
+
+function colTrack(fr){ return "minmax("+MIN_COL_PX+"px,"+fr+"fr)"; }
+function rowTrack(fr){ return "minmax("+MIN_ROW_PX+"px,"+fr+"fr)"; }
+
+// Sets the stage's grid-template-columns/rows from st.trackSizes. Called on every render, and
+// directly (bypassing render()) while a splitter drag is in progress for a flicker-free resize.
+function applyTrackStyle(){
+  var stageEl = document.getElementById("stage");
+  if (!stageEl) return;
+  var sizes = st.trackSizes;
+  switch (st.preset){
+    case "two-side":
+      stageEl.style.gridTemplateColumns = colTrack(sizes.cols[0]) + " 4px " + colTrack(sizes.cols[1]);
+      stageEl.style.gridTemplateRows = "1fr";
+      break;
+    case "two-stack":
+      stageEl.style.gridTemplateColumns = "1fr";
+      stageEl.style.gridTemplateRows = rowTrack(sizes.rows[0]) + " 4px " + rowTrack(sizes.rows[1]);
+      break;
+    case "three":
+    case "2x2":
+      stageEl.style.gridTemplateColumns = colTrack(sizes.cols[0]) + " 4px " + colTrack(sizes.cols[1]);
+      stageEl.style.gridTemplateRows = rowTrack(sizes.rows[0]) + " 4px " + rowTrack(sizes.rows[1]);
+      break;
+    default:
+      stageEl.style.gridTemplateColumns = "1fr";
+      stageEl.style.gridTemplateRows = "1fr";
+  }
+}
+
+function applyPanelWidths(){
+  document.getElementById("sidebar").style.flexBasis = st.sidebarWidth + "px";
+  document.getElementById("sidebar").style.width = st.sidebarWidth + "px";
+  document.getElementById("filepanel").style.flexBasis = st.filePanelWidth + "px";
+  document.getElementById("filepanel").style.width = st.filePanelWidth + "px";
+}
+
+function toast(msg){
+  var stack = document.getElementById("toastStack");
+  var el = document.createElement("div");
+  el.className = "toast" + (reduceMotion() ? "" : "");
+  el.textContent = msg;
+  stack.appendChild(el);
+  setTimeout(function(){ el.remove(); }, 2200);
+}
+
+function statusPillHtml(sess, extraClass){
+  if (sess.liveness !== "live") return "";
+  var color = STATE_COLOR[sess.status];
+  return '<span class="status-pill '+(extraClass||'')+'" style="color:'+color+';border-color:'+color+'66;">'+
+    '<span class="dot" style="background:'+color+';"></span>'+escapeHtml(STATE_LABEL[sess.status])+'</span>';
+}
+
+/* ============================== SIDEBAR ============================== */
+
+function sessionsForRepo(repoKey){
+  return SESSIONS.filter(function(x){ return x.repo === repoKey; });
+}
+
+function renderSidebar(){
+  var el = document.getElementById("sidebar");
+  var html = "";
+  REPOS.forEach(function(repo){
+    var all = sessionsForRepo(repo.key);
+    if (all.length === 0) return;
+
+    var liveCount = all.filter(function(x){return x.liveness==="live";}).length;
+    var attention = all.some(function(x){return x.liveness==="live" && (x.status==="needs-approval"||x.status==="waiting");});
+    var collapsed = !!st.collapsedGroups[repo.key];
+
+    var visible = all.filter(function(x){
+      if (x.liveness === "dead"){
+        if (st.hideDead) return false;
+        if (OLD_DEAD[x.id] && !st.showOlder[repo.key]) return false;
+      }
+      return true;
+    });
+    var hiddenOldCount = all.filter(function(x){
+      return x.liveness==="dead" && OLD_DEAD[x.id] && !st.hideDead;
+    }).length;
+
+    html += '<div class="repo-group" data-repo="'+repo.key+'">';
+    html += '<div class="repo-header'+(collapsed?" collapsed":"")+'" data-action="toggle-group" data-repo="'+repo.key+'" tabindex="0">';
+    html += '<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 9l6 6 6-6"/></svg>';
+    html += '<span class="repo-name">'+escapeHtml(repo.name)+'</span>';
+    if (attention) html += '<span class="attn-badge" title="Needs attention"></span>';
+    html += '<span class="repo-count mono">'+liveCount+' live</span>';
+    html += '</div>';
+
+    html += '<div class="repo-rows'+(collapsed?" collapsed":"")+'">';
+    if (visible.length === 0){
+      html += '<div class="empty-groups-note">Nothing to show.</div>';
+    }
+    visible.forEach(function(sess){
+      html += renderSessionRow(sess);
+    });
+    if (!st.showOlder[repo.key] && hiddenOldCount > 0 && !st.hideDead){
+      html += '<div class="show-older-row" data-action="show-older" data-repo="'+repo.key+'">Show '+hiddenOldCount+' older dead session'+(hiddenOldCount===1?"":"s")+'…</div>';
+    }
+    html += '</div>'; // repo-rows
+    html += '</div>'; // repo-group
+  });
+  el.innerHTML = html;
+}
+
+function renderSessionRow(sess){
+  var onStage = isOnStage(sess.id);
+  var html = '<div class="session-row'+(onStage?" on-stage":"")+(sess.liveness==="dead"?" dead":"")+'" data-action="select-session" data-id="'+sess.id+'" tabindex="0">';
+  if (onStage) html += '<span class="on-stage-mark" title="On stage"></span>';
+  html += '<div class="row-top">';
+  html += '<span class="row-title">'+escapeHtml(sess.title)+'</span>';
+  html += statusPillHtml(sess);
+  html += '</div>';
+  html += '<div class="row-meta">';
+  html += '<span class="row-branch mono">'+escapeHtml(sess.branch)+'</span>';
+  html += '<span class="row-dot-sep faint">·</span>';
+  html += '<span class="row-time">'+escapeHtml(sess.lastActivity)+'</span>';
+  html += '</div>';
+
+  if (st.killConfirmId === sess.id){
+    html += '<div class="row-confirm">'
+      + '<span class="muted">Kill session?</span>'
+      + '<button class="danger" data-action="kill-confirm" data-id="'+sess.id+'">Confirm</button>'
+      + '<button class="ghost" data-action="kill-cancel" data-id="'+sess.id+'">Cancel</button>'
+      + '</div>';
+  } else {
+    var actions = "";
+    if (sess.liveness === "dead"){
+      actions += '<button data-action="resume" data-id="'+sess.id+'">Resume</button>';
+    }
+    if (sess.liveness === "live"){
+      actions += '<button class="danger" data-action="kill" data-id="'+sess.id+'">Kill</button>';
+    }
+    if (sess.tmux){
+      var copied = st.copiedId === sess.id;
+      actions += '<button data-action="copy-attach" data-id="'+sess.id+'">'+(copied?"Copied":"Copy attach")+'</button>';
+    }
+    if (actions) html += '<div class="row-actions">'+actions+'</div>';
+  }
+
+  html += '</div>';
+  return html;
+}
+
+/* ---- hover card ---- */
+var hoverCardEl = null;
+function showHoverCard(sess, anchorRect){
+  hideHoverCard();
+  var el = document.createElement("div");
+  el.className = "hover-card anim-fade";
+  el.id = "hoverCard";
+  el.innerHTML =
+    '<div class="hc-title">'+escapeHtml(sess.title)+'</div>'+
+    '<div class="hc-recap">'+escapeHtml(sess.recap || "No recap yet.")+'</div>'+
+    '<div class="hc-row"><span class="hc-k">session</span><span class="hc-v">'+escapeHtml(sess.id)+'</span></div>'+
+    '<div class="hc-row"><span class="hc-k">cwd</span><span class="hc-v">'+escapeHtml(sess.cwd)+'</span></div>'+
+    '<div class="hc-row"><span class="hc-k">activity</span><span class="hc-v">'+escapeHtml(sess.lastActivity)+'</span></div>';
+  document.body.appendChild(el);
+  var top = anchorRect.top;
+  var maxTop = window.innerHeight - el.offsetHeight - 12;
+  if (top > maxTop) top = Math.max(8, maxTop);
+  el.style.left = (anchorRect.right + 8) + "px";
+  el.style.top = top + "px";
+  if (anchorRect.right + 8 + 280 > window.innerWidth){
+    el.style.left = (anchorRect.left - 288) + "px";
+  }
+  hoverCardEl = el;
+}
+function hideHoverCard(){
+  if (hoverCardEl){ hoverCardEl.remove(); hoverCardEl = null; }
+  var existing = document.getElementById("hoverCard");
+  if (existing) existing.remove();
+}
+
+/* ============================== STAGE ============================== */
+
+function renderPresetSwitcher(){
+  var el = document.getElementById("presetGroup");
+  var icons = {
+    "single": '<rect x="2" y="2" width="20" height="16" rx="1"/>',
+    "two-side": '<rect x="2" y="2" width="9" height="16" rx="1"/><rect x="13" y="2" width="9" height="16" rx="1"/>',
+    "two-stack": '<rect x="2" y="2" width="20" height="7" rx="1"/><rect x="2" y="11" width="20" height="7" rx="1"/>',
+    "three": '<rect x="2" y="2" width="12" height="16" rx="1"/><rect x="16" y="2" width="6" height="7" rx="1"/><rect x="16" y="11" width="6" height="7" rx="1"/>',
+    "2x2": '<rect x="2" y="2" width="9" height="7" rx="1"/><rect x="13" y="2" width="9" height="7" rx="1"/><rect x="2" y="11" width="9" height="7" rx="1"/><rect x="13" y="11" width="9" height="7" rx="1"/>'
+  };
+  var html = "";
+  PRESETS.forEach(function(p){
+    var active = p.key === st.preset;
+    html += '<button class="preset-btn'+(active?" active-btn":"")+'" data-action="set-preset" data-preset="'+p.key+'" title="'+escapeHtml(p.label)+'" aria-pressed="'+active+'">'
+      + '<svg viewBox="0 0 24 20">'+icons[p.key]+'</svg></button>';
+  });
+  el.innerHTML = html;
+}
+
+function paneTerminalHtml(sess){
+  var tx = TX[sess.id];
+  var html = "";
+  if (tx){
+    tx.lines.forEach(function(ln){
+      if (ln.t === "user"){
+        html += '<div class="tx-line tx-user"><span class="gt">&gt;</span>'+escapeHtml(ln.text)+'</div>';
+      } else if (ln.t === "assistant"){
+        html += '<div class="tx-line tx-assistant">'+escapeHtml(ln.text)+'</div>';
+      } else if (ln.t === "tool"){
+        html += '<div class="tx-line tx-tool'+(ln.active?" active":"")+'"><span class="glyph">'+(ln.active?'<span class="spin-token">⠋</span>':'⏺')+'</span><span>'+escapeHtml(ln.text)+'</span>'+(ln.active?'<span class="hint">esc to interrupt</span>':'')+'</div>';
+      } else if (ln.t === "result"){
+        html += '<div class="tx-line tx-result">⎿ '+escapeHtml(ln.text)+'</div>';
+      }
+    });
+  }
+
+  if (sess.status === "needs-approval" && tx && tx.permission){
+    html += '<div class="pane-spacer"></div>';
+    html += '<div class="permission-box">'
+      + '<div class="permission-q">'+tx.permission.question+'</div>'
+      + '<div class="permission-opt sel">1. Yes</div>'
+      + '<div class="permission-opt">2. Yes, don\'t ask again for '+escapeHtml(tx.permission.scope)+'</div>'
+      + '<div class="permission-opt">3. No, tell Claude what to do differently</div>'
+      + '</div>';
+    return html;
+  }
+
+  html += '<div class="pane-spacer"></div>';
+  if (sess.status === "working"){
+    html += '<div class="prompt-box disabled"><span class="chevron">❯</span><span class="ph">Working…</span></div>';
+  } else if (sess.status === "waiting"){
+    html += '<div class="prompt-box"><span class="chevron">❯</span><span class="ph">Try "make it also…"</span></div>';
+  } else if (sess.status === "unknown"){
+    html += '<div class="tx-line tx-system">No hook events received since garden started — status will update on the next tool call or response.</div>';
+    html += '<div class="prompt-box"><span class="chevron">❯</span><span class="ph">Try "make it also…"</span></div>';
+  }
+  return html;
+}
+
+function deadPaneHtml(sess){
+  /* One placeholder for every dead session; the exit code is known only while tmux still holds the pane. */
+  var icon = '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M8 12h8"/></svg>';
+  var line1 = (typeof sess.exitCode === "number") ? "Not running — exited with code " + sess.exitCode : "Not running";
+  var line2 = sess.recap || "No recap available.";
+  return '<div class="dead-pane-body">'
+    + '<div class="dp-icon">'+icon+'</div>'
+    + '<div class="dp-line1">'+escapeHtml(line1)+'</div>'
+    + '<div class="dp-line2">'+escapeHtml(line2)+'</div>'
+    + '<button class="primary" data-action="resume" data-id="'+sess.id+'">Resume</button>'
+    + '</div>';
+}
+
+function renderStage(){
+  var stageEl = document.getElementById("stage");
+  var def = currentPresetDef();
+  var maximized = st.maximizedSlot !== null;
+  stageEl.className = "stage preset-" + st.preset + (maximized ? " maximized" : "");
+  applyTrackStyle();
+
+  var grid = PANE_GRID[st.preset] || PANE_GRID.single;
+  var html = "";
+  for (var i = 0; i < def.slots; i++){
+    var id = st.slots[i];
+    var sess = id ? byId(id) : null;
+    var focused = st.focusedSlot === i;
+    var isMax = st.maximizedSlot === i;
+    var hiddenAttr = (maximized && !isMax) ? "hidden" : "";
+    var g = grid[i] || {col:"1 / 2", row:"1 / 2"};
+    var gridStyle = isMax ? "grid-column:1 / -1;grid-row:1 / -1;" : "grid-column:"+g.col+";grid-row:"+g.row+";";
+
+    if (!sess){
+      html += '<div class="pane empty slot-'+i+'"'+(hiddenAttr?" hidden":"")+' data-slot="'+i+'" style="'+gridStyle+'">Empty slot — click a session to fill it</div>';
+      continue;
+    }
+
+    var worktree = worktreeLabel(sess);
+    var copiedWt = st.copiedWorktreeSlot === i;
+
+    html += '<div class="pane slot-'+i+(focused?" focused":"")+(isMax?" maximized-pane":"")+'"'+(hiddenAttr?" hidden":"")+' data-slot="'+i+'" data-action="focus-pane" style="'+gridStyle+'">';
+    html += '<div class="pane-header">';
+    html += '<div class="pane-title-wrap">';
+    html += '<div class="pane-title">'+escapeHtml(sess.title)+'</div>';
+    html += '<div class="pane-meta-row"><span class="pane-meta-k">branch:</span><span class="pane-meta-v">'+escapeHtml(sess.branch)+'</span></div>';
+    html += '<div class="pane-meta-row"><span class="pane-meta-k">worktree:</span><span class="pane-meta-v'+(worktree!=="-"?" copyable":"")+'"'
+      + (worktree!=="-" ? ' data-action="copy-worktree" data-slot="'+i+'" title="Click to copy"' : '')
+      + '>'+(copiedWt?"Copied":escapeHtml(worktree))+'</span></div>';
+    html += '</div>';
+    html += statusPillHtml(sess);
+    html += '<div class="pane-header-actions">';
+    html += '<button class="icon-btn" data-action="maximize-pane" data-slot="'+i+'" title="Maximise">'
+      + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg></button>';
+    html += '<button class="icon-btn" data-action="close-pane" data-slot="'+i+'" title="Return to sidebar">'
+      + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button>';
+    html += '</div></div>';
+
+    html += '<div class="pane-body">';
+    if (sess.liveness === "live"){
+      html += paneTerminalHtml(sess);
+    } else {
+      html += deadPaneHtml(sess);
+    }
+    html += '</div></div>';
+  }
+
+  if (!maximized){
+    (SPLITTER_GRID[st.preset] || []).forEach(function(sp){
+      html += '<div class="splitter axis-'+sp.axis+'" data-axis="'+sp.axis+'" style="grid-column:'+sp.col+';grid-row:'+sp.row+';"></div>';
+    });
+  }
+
+  stageEl.innerHTML = html;
+}
+
+/* ============================== FILE PANEL ============================== */
+
+function focusedSession(){
+  var id = st.slots[st.focusedSlot];
+  return id ? byId(id) : null;
+}
+
+function treeKey(repo, path){ return repo + "::" + path; }
+
+function renderTreeNodes(repo, nodes, basePath, depth){
+  var html = "";
+  nodes.forEach(function(node){
+    if (node.gitignored && !st.showGitignored) return;
+    var path = basePath ? basePath + "/" + node.name : node.name;
+    if (node.type === "dir"){
+      var key = treeKey(repo, path);
+      var expanded = !!st.treeExpanded[key];
+      html += '<div class="tree-node-row'+(node.gitignored?" gitignored":"")+'" data-action="toggle-dir" data-repo="'+repo+'" data-path="'+escapeHtml(path)+'" style="padding-left:'+(8+depth*14)+'px;">';
+      html += '<svg class="tchev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="transform:rotate('+(expanded?90:0)+'deg)"><path d="M9 6l6 6-6 6"/></svg>';
+      html += '<svg class="ticon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>';
+      html += '<span class="tname">'+escapeHtml(node.name)+'</span></div>';
+      if (expanded && node.children){
+        html += renderTreeNodes(repo, node.children, path, depth+1);
+      }
+    } else {
+      var isSel = st.activeFile && st.activeFile.repo === repo && st.activeFile.path === path;
+      html += '<div class="tree-node-row'+(isSel?" selected":"")+(node.gitignored?" gitignored":"")+'" data-action="open-file" data-repo="'+repo+'" data-path="'+escapeHtml(path)+'" style="padding-left:'+(8+depth*14)+'px;">';
+      html += '<svg class="tchev leaf" viewBox="0 0 24 24"></svg>';
+      html += '<svg class="ticon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h8l4 4v14H6V3Z"/><path d="M14 3v4h4"/></svg>';
+      html += '<span class="tname">'+escapeHtml(node.name)+'</span>';
+      if (node.status) html += '<span class="gstat g'+node.status+'">'+node.status+'</span>';
+      html += '</div>';
+    }
+  });
+  return html;
+}
+
+function renderFilePanel(){
+  var headerEl = document.getElementById("fpHeader");
+  var bodyEl = document.getElementById("fpBody");
+  var sess = focusedSession();
+
+  if (!sess){
+    headerEl.innerHTML = '<div class="fp-session muted">No session focused</div>';
+    bodyEl.innerHTML = '<div class="fp-none">Focus a pane on stage to browse its files.</div>';
+    return;
+  }
+
+  headerEl.innerHTML = '<div class="fp-session">'+escapeHtml(sess.title)+'</div><div class="fp-cwd">'+escapeHtml(sess.cwd)+'</div>';
+
+  var tree = TREES[sess.repo] || [];
+  var editorLabel = st.activeFile ? basename(st.activeFile.path) : "Editor";
+
+  var tabsHtml = '<div class="fp-tabs">'
+    + '<button class="fp-tab'+(st.fpTab==="files"?" active":"")+'" data-action="fp-tab" data-tab="files">Files</button>'
+    + '<button class="fp-tab'+(st.fpTab==="editor"?" active":"")+'" data-action="fp-tab" data-tab="editor" title="'+escapeHtml(editorLabel)+'">'+escapeHtml(editorLabel)+'</button>'
+    + '</div>';
+
+  var treeHtml = '<div class="fp-tab-content"'+(st.fpTab!=="files"?" hidden":"")+'>'
+    + '<div class="fp-tree-toolbar">'
+    + '<span class="upper faint" style="font-size:10px;">Files</span>'
+    + '<label class="toggle-pill" style="padding:3px 7px;" data-action="toggle-gitignored"><span class="dot" style="background:'+(st.showGitignored?"var(--accent)":"var(--border-strong)")+';"></span><span style="font-size:10.5px;">Show gitignored</span></label>'
+    + '</div>'
+    + '<div class="fp-tree">'+renderTreeNodes(sess.repo, tree, "", 0)+'</div>'
+    + '</div>';
+
+  var viewerHtml = '<div class="fp-tab-content"'+(st.fpTab!=="editor"?" hidden":"")+'><div class="fp-viewer">';
+  if (!st.activeFile){
+    viewerHtml += '<div class="fp-viewer-header">No file open</div><div class="fp-viewer-body"><div class="fp-viewer-empty">Select a file to view its contents.</div></div>';
+  } else {
+    var repo = st.activeFile.repo, path = st.activeFile.path;
+    var key = repo + "::" + path;
+    var content = FILE_CONTENT[key] || fallbackContent(path);
+    var node = findTreeNode(TREES[repo], path);
+    var isLarge = node && node.large;
+    viewerHtml += '<div class="fp-viewer-header">'+escapeHtml(path)+'</div>';
+    if (isLarge && !st.fileOpenAnyway[key]){
+      viewerHtml += '<div class="fp-viewer-body"><div class="size-cap">This file is large (642 lines).<br><button data-action="open-anyway" data-key="'+escapeHtml(key)+'">Open anyway</button></div></div>';
+    } else {
+      var codeHtml = "";
+      content.lines.forEach(function(line, idx){
+        codeHtml += '<div class="code-line"><span class="ln">'+(idx+1)+'</span><span class="lc">'+highlightLine(line)+'</span></div>';
+      });
+      viewerHtml += '<div class="fp-viewer-body">'+codeHtml+'</div>';
+    }
+  }
+  viewerHtml += '</div></div>';
+
+  bodyEl.innerHTML = tabsHtml + treeHtml + viewerHtml;
+}
+
+function findTreeNode(nodes, path){
+  return findByFullPath(nodes || [], "", path);
+}
+function findByFullPath(nodes, base, target){
+  for (var i=0;i<nodes.length;i++){
+    var n = nodes[i];
+    var p = base ? base + "/" + n.name : n.name;
+    if (p === target) return n;
+    if (n.type === "dir" && n.children){
+      var found = findByFullPath(n.children, p, target);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+var HL_RE = /(\/\/.*$|--.*$)|("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`)|\b(const|let|var|function|return|if|else|import|from|export|default|async|await|interface|type|class|extends|new|throw|try|catch|select|insert|into|values|where|join|left|inner|on|as|with|case|when|then|end|null|true|false|public|private|readonly|alter|table|add|column|create|unique|index|concurrently|not)\b|\b([A-Z][A-Za-z0-9_]*)\b|\b([a-zA-Z_$][\w$]*)(?=\()|\b(\d+(?:\.\d+)?)\b/g;
+
+function highlightLine(line){
+  var out = "";
+  var last = 0;
+  var m;
+  HL_RE.lastIndex = 0;
+  while ((m = HL_RE.exec(line))){
+    out += escapeHtml(line.slice(last, m.index));
+    if (m[1] !== undefined) out += '<span class="tok-c">'+escapeHtml(m[1])+'</span>';
+    else if (m[2] !== undefined) out += '<span class="tok-s">'+escapeHtml(m[2])+'</span>';
+    else if (m[3] !== undefined) out += '<span class="tok-k">'+escapeHtml(m[3])+'</span>';
+    else if (m[4] !== undefined) out += '<span class="tok-t">'+escapeHtml(m[4])+'</span>';
+    else if (m[5] !== undefined) out += '<span class="tok-f">'+escapeHtml(m[5])+'</span>';
+    else if (m[6] !== undefined) out += '<span class="tok-n">'+escapeHtml(m[6])+'</span>';
+    last = HL_RE.lastIndex;
+    if (m.index === HL_RE.lastIndex) HL_RE.lastIndex++;
+  }
+  out += escapeHtml(line.slice(last));
+  return out.length ? out : "&nbsp;";
+}
+
+/* ============================== MODAL ============================== */
+
+function renderModal(){
+  var overlay = document.getElementById("modalOverlay");
+  overlay.hidden = !st.modalOpen;
+  if (!st.modalOpen) return;
+
+  var q = st.modalQuery.trim().toLowerCase();
+  var listEl = document.getElementById("modalList");
+  var byRepo = {};
+  REPOS.forEach(function(r){ byRepo[r.key] = []; });
+  PICKER.forEach(function(item){
+    var hay = (item.repo + " " + item.branch + " " + item.path).toLowerCase();
+    if (q && hay.indexOf(q) === -1) return;
+    byRepo[item.repo].push(item);
+  });
+
+  var html = "";
+  var any = false;
+  REPOS.forEach(function(r){
+    var items = byRepo[r.key];
+    if (!items.length) return;
+    any = true;
+    html += '<div class="modal-group-label upper">'+escapeHtml(r.name)+'</div>';
+    items.forEach(function(item){
+      var icon = item.kind === "repo"
+        ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>'
+        : '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="8" r="2.5"/><path d="M6 8.5V15.5M8.3 6.8 15.7 8.2"/></svg>';
+      html += '<div class="modal-item" data-action="pick-new" data-repo="'+item.repo+'" data-path="'+escapeHtml(item.path)+'" data-branch="'+escapeHtml(item.branch)+'">'
+        + '<span class="mi-icon">'+icon+'</span>'
+        + '<span class="mi-name">'+escapeHtml(item.kind === "repo" ? r.name : item.branch)+'</span>'
+        + '<span class="mi-path">'+escapeHtml(item.path)+'</span>'
+        + '</div>';
+    });
+  });
+  if (!any) html = '<div class="modal-empty">No repos or worktrees match "'+escapeHtml(st.modalQuery)+'".</div>';
+  listEl.innerHTML = html;
+}
+
+/* ============================== TOP-LEVEL RENDER ============================== */
+
+function render(){
+  renderPresetSwitcher();
+  renderSidebar();
+  renderStage();
+  renderFilePanel();
+  renderModal();
+  applyPanelWidths();
+
+  document.getElementById("hideDeadToggle").classList.toggle("on", st.hideDead);
+  document.getElementById("filepanel").hidden = !st.filePanelOpen;
+  document.getElementById("fileToggleBtn").classList.toggle("active-btn", st.filePanelOpen);
+  document.getElementById("fileToggleBtn").setAttribute("aria-pressed", String(st.filePanelOpen));
+}
+
+/* ============================== ACTIONS ============================== */
+
+function placeOnStage(id){
+  if (st.slots.indexOf(id) !== -1){
+    st.focusedSlot = st.slots.indexOf(id);
+    return;
+  }
+  var def = currentPresetDef();
+  for (var i = 0; i < def.slots; i++){
+    if (!st.slots[i]){
+      st.slots[i] = id;
+      st.focusedSlot = i;
+      return;
+    }
+  }
+  st.slots[st.focusedSlot] = id;
+}
+
+function setPreset(key){
+  st.preset = key;
+  st.trackSizes = defaultTrackSizes(key);
+  var def = currentPresetDef();
+  for (var i = 0; i < st.slots.length; i++){
+    if (i >= def.slots) st.slots[i] = null;
+  }
+  if (st.focusedSlot >= def.slots) st.focusedSlot = 0;
+  st.maximizedSlot = null;
+}
+
+function newFakeId(){
+  newSessionCounter++;
+  var h = (Date.now().toString(16) + newSessionCounter.toString(16)).padStart(12,"0").slice(-12);
+  return "a1b2c3d4-e5f6-47" + newSessionCounter + "-8a" + newSessionCounter + "-" + h;
+}
+function deriveTmuxName(folder){
+  var base = folder;
+  var n = 1;
+  var candidate = base;
+  var taken = SESSIONS.map(function(x){return x.tmux;});
+  while (taken.indexOf(candidate) !== -1){
+    n++;
+    candidate = base + "-" + n;
+  }
+  return candidate;
+}
+
+/* ============================== EVENTS ============================== */
+
+document.addEventListener("click", function(e){
+  var t = e.target.closest("[data-action]");
+
+  // clicking outside a session row / hover target hides hover card lazily via mouseleave; nothing here.
+
+  if (!t){
+    if (e.target.id === "modalOverlay"){ closeModal(); render(); }
+    return;
+  }
+  var action = t.getAttribute("data-action");
+
+  if (action === "toggle-group"){
+    var repo = t.getAttribute("data-repo");
+    st.collapsedGroups[repo] = !st.collapsedGroups[repo];
+    render();
+  } else if (action === "show-older"){
+    st.showOlder[t.getAttribute("data-repo")] = true;
+    render();
+  } else if (action === "select-session"){
+    var id = t.getAttribute("data-id");
+    placeOnStage(id);
+    render();
+  } else if (action === "kill"){
+    e.stopPropagation();
+    st.killConfirmId = t.getAttribute("data-id");
+    render();
+  } else if (action === "kill-cancel"){
+    e.stopPropagation();
+    st.killConfirmId = null;
+    render();
+  } else if (action === "kill-confirm"){
+    e.stopPropagation();
+    var kid = t.getAttribute("data-id");
+    var sess = byId(kid);
+    sess.liveness = "dead";
+    sess.status = undefined;
+    sess.tmux = null;
+    sess.lastActivity = "just now";
+    st.killConfirmId = null;
+    // clear from stage slots but keep pane showing dead state
+    toast("Killed " + sess.title);
+    render();
+  } else if (action === "resume"){
+    e.stopPropagation();
+    var rid = t.getAttribute("data-id");
+    var rsess = byId(rid);
+    rsess.liveness = "live";
+    rsess.status = "working";
+    rsess.exitCode = undefined;
+    rsess.lastActivity = "just now";
+    if (!rsess.tmux){
+      rsess.tmux = deriveTmuxName(rsess.cwd.split("/").filter(Boolean).pop());
+    }
+    if (!TX[rsess.id]){
+      TX[rsess.id] = {lines:[
+        {t:"system", text:"Resumed from last transcript."},
+        {t:"tool", text:"Bash(git status)", active:true}
+      ]};
+    }
+    toast("Resumed " + rsess.title);
+    render();
+  } else if (action === "copy-attach"){
+    e.stopPropagation();
+    var cid = t.getAttribute("data-id");
+    var csess = byId(cid);
+    try { navigator.clipboard.writeText(attachCmd(csess)).catch(function(){}); } catch(err){}
+    st.copiedId = cid;
+    render();
+    setTimeout(function(){
+      if (st.copiedId === cid){ st.copiedId = null; render(); }
+    }, 1400);
+  } else if (action === "set-preset"){
+    setPreset(t.getAttribute("data-preset"));
+    render();
+  } else if (action === "focus-pane"){
+    var slot = parseInt(t.getAttribute("data-slot"), 10);
+    if (!isNaN(slot)){ st.focusedSlot = slot; render(); }
+  } else if (action === "maximize-pane"){
+    e.stopPropagation();
+    var mslot = parseInt(t.getAttribute("data-slot"), 10);
+    st.maximizedSlot = (st.maximizedSlot === mslot) ? null : mslot;
+    st.focusedSlot = mslot;
+    render();
+  } else if (action === "close-pane"){
+    e.stopPropagation();
+    var cslot = parseInt(t.getAttribute("data-slot"), 10);
+    st.slots[cslot] = null;
+    if (st.maximizedSlot === cslot) st.maximizedSlot = null;
+    render();
+  } else if (action === "toggle-dir"){
+    var drepo = t.getAttribute("data-repo"), dpath = t.getAttribute("data-path");
+    var dkey = treeKey(drepo, dpath);
+    st.treeExpanded[dkey] = !st.treeExpanded[dkey];
+    render();
+  } else if (action === "open-file"){
+    var frepo = t.getAttribute("data-repo"), fpath = t.getAttribute("data-path");
+    st.activeFile = {repo:frepo, path:fpath};
+    st.fpTab = "editor";
+    render();
+  } else if (action === "fp-tab"){
+    st.fpTab = t.getAttribute("data-tab");
+    render();
+  } else if (action === "copy-worktree"){
+    e.stopPropagation();
+    var wslot = parseInt(t.getAttribute("data-slot"), 10);
+    var wsess = byId(st.slots[wslot]);
+    if (!wsess) return;
+    var wt = worktreeLabel(wsess);
+    if (wt === "-") return;
+    try { navigator.clipboard.writeText(wt).catch(function(){}); } catch(err){}
+    st.copiedWorktreeSlot = wslot;
+    render();
+    setTimeout(function(){
+      if (st.copiedWorktreeSlot === wslot){ st.copiedWorktreeSlot = null; render(); }
+    }, 1400);
+  } else if (action === "toggle-gitignored"){
+    st.showGitignored = !st.showGitignored;
+    render();
+  } else if (action === "open-anyway"){
+    st.fileOpenAnyway[t.getAttribute("data-key")] = true;
+    render();
+  } else if (action === "pick-new"){
+    var prepo = t.getAttribute("data-repo"), ppath = t.getAttribute("data-path"), pbranch = t.getAttribute("data-branch");
+    var nid = newFakeId();
+    var folder = ppath.split("/").filter(Boolean).pop();
+    var newSess = {
+      id:nid, repo:prepo, tmux:deriveTmuxName(folder), cwd:ppath, branch:pbranch,
+      title:"New session", recap:"", lastActivity:"just now", liveness:"live", status:"working"
+    };
+    SESSIONS.unshift(newSess);
+    TX[nid] = {lines:[
+      {t:"system", text:"Session started in " + ppath},
+      {t:"tool", text:"Bash(git status)", active:true}
+    ]};
+    placeOnStage(nid);
+    closeModal();
+    toast("Started session in " + folder);
+    render();
+  }
+});
+
+document.getElementById("hideDeadToggle").addEventListener("click", function(){
+  st.hideDead = !st.hideDead;
+  render();
+});
+document.getElementById("fileToggleBtn").addEventListener("click", function(){
+  st.filePanelOpen = !st.filePanelOpen;
+  render();
+});
+document.getElementById("newSessionBtn").addEventListener("click", openModal);
+
+function openModal(){
+  st.modalOpen = true;
+  st.modalQuery = "";
+  render();
+  var input = document.getElementById("modalInput");
+  input.value = "";
+  setTimeout(function(){ input.focus(); }, 0);
+}
+function closeModal(){
+  st.modalOpen = false;
+}
+
+document.getElementById("modalInput").addEventListener("input", function(e){
+  st.modalQuery = e.target.value;
+  renderModal();
+});
+document.addEventListener("keydown", function(e){
+  if (e.key === "Escape" && st.modalOpen){
+    closeModal();
+    render();
+  }
+});
+
+/* hover card via delegation (mouseover/mouseout bubble, unlike mouseenter/leave) */
+document.getElementById("sidebar").addEventListener("mouseover", function(e){
+  var row = e.target.closest(".session-row");
+  if (!row) return;
+  if (hoverCardEl && hoverCardEl.dataset.forId === row.getAttribute("data-id")) return;
+  var sess = byId(row.getAttribute("data-id"));
+  if (!sess) return;
+  var rect = row.getBoundingClientRect();
+  showHoverCard(sess, rect);
+  hoverCardEl.dataset.forId = sess.id;
+});
+document.getElementById("sidebar").addEventListener("mouseout", function(e){
+  var row = e.target.closest(".session-row");
+  if (!row) return;
+  var to = e.relatedTarget;
+  if (to && row.contains(to)) return;
+  hideHoverCard();
+});
+document.getElementById("sidebar").addEventListener("scroll", hideHoverCard);
+
+/* ============================== SPLITTERS ============================== */
+
+// Stage splitters resize the two adjacent panes' grid tracks. To keep the drag smooth (no
+// full re-render per pointermove, which would tear down pointer capture on the handle), the
+// live resize writes directly to #stage's inline style; only pointerup commits into st so a
+// later render() (from an unrelated action) reflects the final size.
+document.getElementById("stage").addEventListener("pointerdown", function(e){
+  var handle = e.target.closest(".splitter");
+  if (!handle) return;
+  e.preventDefault();
+  var axis = handle.getAttribute("data-axis");
+  var affects = (SPLITTER_AFFECTS[st.preset] || {})[axis];
+  if (!affects) return;
+  var stageEl = document.getElementById("stage");
+  var beforeEl = stageEl.querySelector('[data-slot="'+affects.before[0]+'"]');
+  var afterEl = stageEl.querySelector('[data-slot="'+affects.after[0]+'"]');
+  if (!beforeEl || !afterEl) return;
+
+  var isCol = axis === "col";
+  var minPx = isCol ? MIN_COL_PX : MIN_ROW_PX;
+  var startBefore = isCol ? beforeEl.getBoundingClientRect().width : beforeEl.getBoundingClientRect().height;
+  var startAfter = isCol ? afterEl.getBoundingClientRect().width : afterEl.getBoundingClientRect().height;
+  var startPos = isCol ? e.clientX : e.clientY;
+  var sum = startBefore + startAfter;
+  if (sum <= 0) return;
+
+  try { handle.setPointerCapture(e.pointerId); } catch(err){}
+  handle.classList.add("dragging");
+
+  function onMove(ev){
+    var pos = isCol ? ev.clientX : ev.clientY;
+    var newBefore = startBefore + (pos - startPos);
+    newBefore = Math.max(minPx, Math.min(sum - minPx, newBefore));
+    var frBefore = (newBefore / sum) * 100;
+    var frAfter = 100 - frBefore;
+    if (isCol) st.trackSizes.cols = [frBefore, frAfter];
+    else st.trackSizes.rows = [frBefore, frAfter];
+    applyTrackStyle();
+  }
+  function onUp(ev){
+    handle.classList.remove("dragging");
+    try { handle.releasePointerCapture(ev.pointerId); } catch(err){}
+    handle.removeEventListener("pointermove", onMove);
+    handle.removeEventListener("pointerup", onUp);
+  }
+  handle.addEventListener("pointermove", onMove);
+  handle.addEventListener("pointerup", onUp);
+});
+
+// Sidebar/file-panel width splitters: same direct-style-during-drag approach, committing the
+// final width into st only (sidebarWidth / filePanelWidth) so it survives the next render().
+var PANEL_LIMITS = {
+  sidebar: {min:200, sign:1},
+  filepanel: {min:240, sign:-1}
+};
+[document.getElementById("sidebarSplitter"), document.getElementById("filepanelSplitter")].forEach(function(handle){
+  handle.addEventListener("pointerdown", function(e){
+    e.preventDefault();
+    var targetId = handle.getAttribute("data-target");
+    var limits = PANEL_LIMITS[targetId];
+    var el = document.getElementById(targetId);
+    var startWidth = el.getBoundingClientRect().width;
+    var startX = e.clientX;
+    var maxWidth = window.innerWidth * 0.5;
+
+    try { handle.setPointerCapture(e.pointerId); } catch(err){}
+    handle.classList.add("dragging");
+
+    function onMove(ev){
+      var delta = (ev.clientX - startX) * limits.sign;
+      var newWidth = Math.max(limits.min, Math.min(maxWidth, startWidth + delta));
+      el.style.width = newWidth + "px";
+      el.style.flexBasis = newWidth + "px";
+      if (targetId === "sidebar") st.sidebarWidth = newWidth;
+      else st.filePanelWidth = newWidth;
+    }
+    function onUp(ev){
+      handle.classList.remove("dragging");
+      try { handle.releasePointerCapture(ev.pointerId); } catch(err){}
+      handle.removeEventListener("pointermove", onMove);
+      handle.removeEventListener("pointerup", onUp);
+    }
+    handle.addEventListener("pointermove", onMove);
+    handle.addEventListener("pointerup", onUp);
+  });
+});
+
+/* spinner ticker for active tool-call tokens */
+var SPIN_FRAMES = ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"];
+var spinIdx = 0;
+if (!reduceMotion()){
+  setInterval(function(){
+    spinIdx = (spinIdx + 1) % SPIN_FRAMES.length;
+    var nodes = document.querySelectorAll(".spin-token");
+    for (var i=0;i<nodes.length;i++){ nodes[i].textContent = SPIN_FRAMES[spinIdx]; }
+  }, 130);
+}
+
+/* ============================== INIT ============================== */
+render();
+
+})();
+</script>

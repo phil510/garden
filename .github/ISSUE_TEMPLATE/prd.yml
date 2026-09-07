@@ -1,0 +1,39 @@
+name: PRD
+description: Product requirements — the user-facing need and acceptance criteria. Says WHAT to build.
+title: '[prd] '
+labels: ['type:prd']
+body:
+  - type: input
+    id: parent-initiative
+    attributes:
+      label: Parent initiative
+      description: Issue number of the initiative this sits under.
+      placeholder: '#N'
+    validations:
+      required: true
+  - type: input
+    id: doc-path
+    attributes:
+      label: Doc path
+      description: Where the PRD markdown lives.
+      placeholder: docs/prds/YYYY-MM-DD-<slug>.md
+    validations:
+      required: false
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: The user need. PRDs say what to build, not how.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance criteria
+      description: Checkbox list of conditions for done.
+      value: |
+        - [ ]
+        - [ ]
+        - [ ]
+    validations:
+      required: true

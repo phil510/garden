@@ -1,0 +1,33 @@
+{
+  "name": "@garden/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "garden": "./dist/garden.js"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "dev": "GARDEN_SERVER_PROCESS=1 tsx bin/garden.ts",
+    "build": "tsx ./build.ts"
+  },
+  "dependencies": {
+    "@garden/shared": "workspace:*",
+    "@fastify/static": "catalog:",
+    "chokidar": "catalog:",
+    "fastify": "catalog:",
+    "node-pty": "catalog:",
+    "ws": "catalog:"
+  },
+  "devDependencies": {
+    "@garden/web": "workspace:*",
+    "@types/node": "catalog:",
+    "@types/ws": "catalog:",
+    "esbuild": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
