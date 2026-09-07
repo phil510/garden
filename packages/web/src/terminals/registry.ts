@@ -105,11 +105,17 @@ function createPane(sessionId: string, container: HTMLElement, epoch: number): P
 
   // Shift+Enter inserts a newline into the pane instead of submitting. xterm has no key binding
   // for this itself, so it is intercepted before xterm's own handling — which every other key,
-  // including plain and ctrl/alt/meta Enter, still reaches unchanged.
+  // including plain and ctrl/alt/meta Enter, still reaches unchanged. The keyup/keypress that
+  // follow the same keydown are suppressed too (never written again) rather than left to
+  // xterm's default handling, since a canceled keydown doesn't stop every browser from still
+  // firing keypress.
   terminal.attachCustomKeyEventHandler((event) => {
-    if (resolvePaneKeydown(event) !== 'literal-newline') return true;
-    event.preventDefault();
-    socket.write('\n');
+    const disposition = resolvePaneKeydown(event);
+    if (disposition === 'default') return true;
+    if (disposition === 'literal-newline') {
+      event.preventDefault();
+      socket.write('\n');
+    }
     return false;
   });
 

@@ -23,23 +23,26 @@ describe('resolvePaneKeydown', () => {
   });
 
   it('leaves Ctrl+Enter to xterm', () => {
-    expect(resolvePaneKeydown(anEvent({ shiftKey: true, ctrlKey: true }))).toBe('default');
+    expect(resolvePaneKeydown(anEvent({ ctrlKey: true }))).toBe('default');
   });
 
   it('leaves Alt+Enter to xterm', () => {
-    expect(resolvePaneKeydown(anEvent({ shiftKey: true, altKey: true }))).toBe('default');
+    expect(resolvePaneKeydown(anEvent({ altKey: true }))).toBe('default');
   });
 
   it('leaves Meta+Enter to xterm', () => {
-    expect(resolvePaneKeydown(anEvent({ shiftKey: true, metaKey: true }))).toBe('default');
+    expect(resolvePaneKeydown(anEvent({ metaKey: true }))).toBe('default');
   });
 
   it('leaves Shift held on a non-Enter key to xterm', () => {
     expect(resolvePaneKeydown(anEvent({ key: 'a', shiftKey: true }))).toBe('default');
   });
 
-  it('does not reclassify the same Shift+Enter press on keyup or keypress', () => {
-    expect(resolvePaneKeydown(anEvent({ type: 'keyup', shiftKey: true }))).toBe('default');
-    expect(resolvePaneKeydown(anEvent({ type: 'keypress', shiftKey: true }))).toBe('default');
+  it('suppresses, but does not re-send, the keyup for the same Shift+Enter press', () => {
+    expect(resolvePaneKeydown(anEvent({ type: 'keyup', shiftKey: true }))).toBe('suppress');
+  });
+
+  it('suppresses, but does not re-send, the keypress for the same Shift+Enter press', () => {
+    expect(resolvePaneKeydown(anEvent({ type: 'keypress', shiftKey: true }))).toBe('suppress');
   });
 });
