@@ -27,6 +27,9 @@ pnpm-debug.log*
 .autonomous/
 .handoffs/
 
+# Pipeline state for /plant runs
+.plant/
+
 # Local-only implementation plans (never committed)
 docs/plans/
 

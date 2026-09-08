@@ -1,0 +1,323 @@
+# Spawn details
+
+Each worker role is a named agent definition at
+`.claude/agents/plant-{planner,developer,reviewer}.md`. Its body opens by
+reading `.claude/skills/plant/references/worker-protocol.md` (the shared
+worker rules), then its own role content. The orchestrator does **not**
+copy either into `.plant/<branch>/` and does **not** rewrite them per
+pipeline. They are stable, with `${VAR}` placeholders.
+
+Every worker is spawned via the `Agent` tool as a teammate of the
+pipeline team, and **reads its own agent definition and
+`worker-protocol.md` in its own context.** The orchestrator hands it a
+thin opener with the paths; that content never enters orchestrator
+context.
+
+**You never Read worker agent definitions or `worker-protocol.md`
+yourself.** Peeking at one to "check what it says" is 4–8K tokens of
+leak for information the worker already has. The opener carries
+everything the orchestrator needs to know about the spawn; the rest is
+the worker's concern.
+
+## Spawn shape (all workers)
+
+The team forms implicitly on the first named spawn — there is no
+`TeamCreate` step (on resume within the same session, reuse the
+already-active team). Then per worker:
+
+```
+Agent(
+  name:          <role><n>,             # unique per spawn, e.g. developer2
+  subagent_type: plant-<role>,          # one per role, e.g. plant-developer
+  model:         <omit, or opus>,       # omit to use the agent's sonnet default
+  prompt:        <thin opener>,
+)
+```
+
+Each role spawns with its own `subagent_type: plant-<role>` —
+`plant-planner`, `plant-developer`, `plant-reviewer` — and that agent's
+definition is the worker's complete instruction set. The role lives in
+the agent type, not in the opener; the opener's "You are the <role>
+for..." line is a restatement for the worker's benefit, not the routing
+mechanism.
+
+- **Model.** Every role's agent definition declares `model: sonnet` in
+  frontmatter as its default, so the orchestrator doesn't pass `model:`
+  on a normal spawn. Opus is opt-in: pass `model: opus` on the spawn
+  only when the user calls out a PR that warrants it — the Agent tool's
+  `model` param takes precedence over the agent's frontmatter. `plant`
+  targets small/medium PRs, where sonnet's current capability and
+  context window are the right default; opus is reserved for the larger
+  changes where it shines, which the user flags.
+- **`name`** is the role string plus a per-role counter (`planner1`,
+  `developer2`, `reviewer1`). It's how the orchestrator addresses the
+  worker with `SendMessage`. **Never reuse a name** — each re-spawn of a
+  role takes the next counter value; the orchestrator tracks the
+  current live name + next counter per role in workflow state (see §
+  Naming). (This is the orchestrator naming _its_ teammates — distinct
+  from the in-process `name` param a teammate cannot pass to _its own_
+  fan-out children. Workers fan out to anonymous `Explore` / persona
+  subagents, which need no `name`.)
+
+## Naming
+
+Idle teammates can't be reliably killed — a `shutdown_request` handshake
+doesn't reliably complete, so a "shut down" worker lingers idle-alive
+until the session ends with `/exit`. So the orchestrator **treats idle
+as dead** and gives every re-spawn of a role a unique numbered name:
+
+- **Counter per role, incremented on EACH spawn — decoupled from the
+  round tag.** Do _not_ equate `developerN` with `review-round-N`: the
+  round tag (`fix-round mode, round 2`) lives in the opener and is
+  separate from the routing name. `planner1` (normally spawned once;
+  increments only if fresh-spawned on escalation). `developer1` = the
+  stage-2 initial dev, `developer2` = the first fix round (whatever
+  review it addresses), `developer3` = the second fix round, etc.
+  `reviewer1`, `reviewer2`, … one per spawn, always taking the next
+  integer.
+- **Never reuse a name.** A fresh spawn always takes the next counter
+  value. This removes the routing ambiguity that same-name re-spawns
+  would create — a live worker and one or more idle zombies sharing a
+  name.
+- **Treat idle as dead.** Once a worker reports and idles, the
+  orchestrator never messages it again. It MAY send `shutdown_request` as
+  best-effort cleanup but does not depend on it — the idle teammate
+  harmlessly lingers (holds no pen, writes nothing) until `/exit`.
+- **The orchestrator tracks the current live worker name + the next
+  counter per role** in `workflow.md` / pipeline state, so `SendMessage`
+  targets the right teammate and a resume re-enters with the right
+  counter. On a resume _within the same session_, continue the counters;
+  after `/exit` the old team is gone, so a fresh session may restart at 1.
+- **Residue:** idle `developerN` teammates accumulate, bounded by round
+  count, harmless, cleared on `/exit`.
+
+### Thin opener
+
+~5 lines, carrying only what the agent definition can't be written to
+know:
+
+- the stage / round / mode tag (`stage 2 initial`, `fix-round 2`);
+- the worker's env — branch, **absolute** paths (`${PLANTDIR}`,
+  `${WORKFLOW}`), PR URL, and any input findings file
+  (`${REVIEW_FILE}`);
+- the values to substitute wherever the worker's instructions reference
+  `${VAR}` — no separate "read your brief" line, since `subagent_type`
+  already selected the role's instruction set.
+
+Paths are passed as literal absolute strings in the opener — there is no
+`envsubst`, no shell `export`, no `${VAR}` expansion at spawn. The
+worker does the substitution mentally as it reads its instructions.
+This is why the opener must spell the paths out in full rather than
+relying on the worker's environment.
+
+For dual-mode roles (developer, reviewer), the opener names the mode:
+_"You are in `fix-round` mode — follow that section."_ Instructions carry
+no conditional logic; mode-sections are the only branching primitive.
+
+Example (developer fix-round on an internal review file):
+
+```
+You are the developer for feat/foo, in fix-round mode, round 2.
+${PLANTDIR}    = /path/to/worktrees/feat/foo/.plant/feat/foo
+${WORKFLOW}    = .../workflow.md
+${REVIEW_FILE} = .../review-round-2.md
+${PR_URL}      = https://github.com/org/repo/pull/123
+
+You are in fix-round mode — follow that section. Apply every fix finding
+in ${REVIEW_FILE}. Substitute the values above wherever your
+instructions reference ${VAR}.
+```
+
+## Worker lifecycle
+
+Stages 1–3 run strictly sequentially. For each:
+
+1. Spawn via `Agent` under the next-numbered name (§ Naming).
+2. Worker does its stage, finishes its disk writes (atomic rename), then
+   sends its typed `SendMessage` (§ Messages, below).
+3. Orchestrator routes off the message.
+4. Worker self-idles; orchestrator spawns the next worker under the next
+   counter value, treating the prior as dead (§ Naming).
+
+**Single-writer-per-moment comes from self-idle + sequential dispatch,
+not from a kill.** Each worker idles itself after reporting, and the
+orchestrator spawns the next only after the prior has reported — so only
+one ever holds a write pen. Idle workers _do_ coexist (they linger
+until `/exit`), but an idle worker holds no pen and writes nothing, so
+they don't race. A `shutdown_request` is not what prevents the race —
+its handshake doesn't reliably complete, so it's best-effort cleanup at
+most.
+
+**Fresh-spawn-per-round is the default**, not an optimization — a fresh
+teammate reading the diff + `plan.md` cold has clean context, which is
+the point. There is no resume primitive and none is wanted; idempotent
+briefs (§ Why this shape) make a fresh spawn behaviorally equivalent to
+a resume would have been.
+
+**Retry / replace.** To retry a failed spawn, just re-dispatch `Agent`
+under the next counter value — there is no UUID to relock, no dead
+session to evict. For the normal next-round case that's all there is:
+spawn the next-numbered worker, leave the prior idle. To replace a
+_misbehaving_ (non-idle) worker there is no clean in-place swap — the
+`shutdown_request` handshake won't fire on a runaway. The honest options
+are a corrective `SendMessage` (if it's cooperative or already idle) or,
+if it's genuinely dangerous, `/exit` the session; you cannot guarantee
+killing a runaway mid-session.
+
+## Messages and disk
+
+Filesystem artifacts (`workflow.md`, `plan.md`, `review-round-<k>.md`,
+`events/<iso>-escalation.md`) are the durable record: workers write
+them, the orchestrator reads them (and writes annotations + brief
+edits), every write is an atomic rename.
+
+**Single-writer-per-moment.** The orchestrator is the sole dispatcher,
+and only one worker holds a write pen at any time — enforced by each
+worker self-idling after it reports, plus strictly sequential dispatch.
+The orchestrator gives each fresh worker a unique numbered name and
+treats the prior as dead; it does not rely on `shutdown_request` to
+serialize (that handshake is unreliable).
+
+Every worker reports with a typed `SendMessage`. There is no exit code
+and no stdout file — the message body **is** the signal. This is the
+context-economy core of the pipeline: the orchestrator routes off the
+message and reads disk only on-demand, instead of reading `workflow.md`
+and `events/` on every hop to reconstruct what a subprocess did.
+
+**The protocol:**
+
+1. **Write-then-signal.** The worker finishes its disk writes (atomic
+   rename), _then_ sends its message. Disk is consistent before the
+   orchestrator can act on the signal.
+2. **The message carries the routing summary** — enough for the
+   orchestrator to pick the next dispatch without reading disk:
+   - Planner: `stage 1 done — plan.md written, N tasks, coverage table complete`
+   - Developer (initial): `stage 2 done — draft PR <url>, commits <shas>`
+   - Reviewer: `round K clean — PR remains draft` _or_ `round K dirty — M fix findings in review-round-K.md`
+   - Any worker: `ESCALATING — see events/<iso>-escalation.md, decision needed on <X>`
+3. **The orchestrator routes off the message.** It reads disk only when
+   (a) it needs detail it chose not to inline, or (b) a high-stakes hop
+   warrants verification — the finish gate, pipeline completion, or a
+   contradictory signal.
+4. **Detail goes to the consumer, not through the orchestrator.**
+   Per-finding dispositions live in the review file; the _next worker_
+   (a fresh developer fix-round) reads that file. The orchestrator only
+   needs the counts to choose the next dispatch.
+5. **Disk remains the resume source.** Messages are ephemeral. A fresh
+   orchestrator after session death, or a fresh worker, rebuilds entirely
+   from disk. The message is a fast-path summary _of_ disk state, never a
+   substitute for it.
+
+**Why this doesn't violate "verify before trust."** Trusting a worker's
+report of _its own just-completed actions_ is a low-risk class — the
+worker knows what it did, and consequences surface downstream anyway.
+That is distinct from trusting an agent's claims about code behavior or
+types, which the workers still verify. The high-stakes hops (paging the
+user, completing the pipeline) still read disk to confirm.
+
+### Crash fallback — bare termination → disk-read
+
+If a worker dies after a disk write but before its message, the
+orchestrator sees only the machine `teammate-terminated` notification
+with no preceding result message. It then falls back to the old
+discipline: read `workflow.md` + `events/` to classify what the worker
+completed. The message fast-path is the steady-state optimization;
+disk-read is the always-correct fallback that fires on a bare
+termination signal.
+
+### Fresh-spawn with the decision
+
+When a worker escalates, it writes the escalation event, sends its
+`ESCALATING` message, and self-idles. If the orchestrator can't
+auto-resolve within `autonomy.md`'s bounds, it pages the user, then
+**fresh-spawns** the role via `Agent` under the next-numbered name, with
+the decision baked into the opener and a pointer to the escalation event
+file (a `shutdown_request` to the idle escalator is optional best-effort
+cleanup, not relied on; treat idle as dead). There is no resume
+primitive and none is needed — see `escalate-resume.md`.
+
+Standard decision block, pasted into the fresh-spawn opener:
+
+```markdown
+# Resolution for escalation <iso>
+
+**Decision:** <option from worker's Suggested options, or free-text>
+**Rationale:** <optional user clarification>
+
+Apply the user's decision and complete your stage per your agent instructions.
+Reconstruct state from ${WORKFLOW} + the escalation event file.
+```
+
+### User dialogue
+
+Only the orchestrator talks to the user. Workers never do.
+
+- **Triage gate.** Read §1–3 off the issue, or ask about exactly the
+  part that had to be invented — see `brief.md` § Stage 0.
+- **Escalation pages.** Render the escalation event's one-liner +
+  options + artifact pointer; wait for user input; translate the
+  response into a fresh-spawn decision block (see `escalate-resume.md`).
+- **Mid-pipeline questions.** Run `scripts/pipeline-status.sh` and render
+  a digest from its JSON. Never pull raw worker output into your context.
+- **Finish gate.** `Merge policy: ask` → report CI-green status and
+  hand the user the merge. `auto` → proceed to squash-merge without a
+  page — this is the one irreversible act in the pipeline, so it's the
+  one field the user set explicitly for it.
+- **Completion summary.** Duration, round count, escalation count,
+  `decisions.md` entries, PR URL — all returned by
+  `scripts/pipeline-finish.sh`.
+
+## Permission mode
+
+**The pipeline session must run in `bypassPermissions`, and every worker
+inherits it.** `Agent`-spawned teammates run under the parent session's
+permission mode, and a per-spawn `mode` does not reliably tighten or
+loosen it (probed 2026-06-15: a teammate spawned with `mode: default`
+still ran Write + Bash ungated under a permissive session). The lever is
+the **session**, set once at launch — not the spawn.
+
+Why bypass and not something tighter: `plant` runs hands-off for hours
+with nobody attached. Anything that prompts — a Bash permission wall, an
+edit confirmation, an MCP approval — stalls a worker the moment it hits
+the gate, with no escalation event, no message, no signal that anything
+is wrong. `acceptEdits` is insufficient: it still gates Bash, and
+workers run git / gh / pnpm constantly. Per-call escalation would be
+death by a thousand pages.
+
+That is safe because the real boundaries live where a worker cannot
+cross them: the brief's **Autonomy bounds** and **Stop conditions** (see
+`brief.md`), draft-PR isolation, and worktree confinement. For an
+unattended pipeline, a UI gate that fails open silently is worse than no
+gate at all.
+
+No API lets a session read its own permission mode, and nothing in the
+environment reveals it reliably — injected instruction blocks that
+correlate with a mode describe tool preferences, not the mode, and can
+be reworded or dropped without anyone treating it as a contract change,
+so a check built on one reads as authoritative while resting on a
+coincidence. So **assume the session was launched with the autonomy the
+pipeline needs** and spawn without asking. Whoever runs `/plant` is
+deliberately starting an unattended multi-hour pipeline; they know the
+precondition and will say so when it doesn't hold.
+
+## Why this shape
+
+- **Context economy.** Each agent definition plus the shared
+  `worker-protocol.md` runs to a few hundred lines. Inlining them per
+  pipeline would cost tens of thousands of orchestrator tokens that buy
+  nothing they don't already say. The worker-reads-its-own-instructions
+  pattern keeps that content out of orchestrator context entirely.
+- **Drift control.** One canonical agent definition per role, plus one
+  shared protocol file. A worker fix in `plant-developer.md`, or a
+  cross-role fix in `worker-protocol.md`, reaches every future spawn
+  without a per-pipeline copy-edit.
+- **Idempotent-instructions parity.** Because the agent definition is
+  stable and a worker reconstructs all state from `workflow.md` + stage
+  artifacts, a fresh spawn mid-pipeline (after a death, or to apply an
+  escalation decision) behaves the same as the original worker would
+  have. This is what lets the skill have _no_ resume primitive and
+  still recover cleanly — see `escalate-resume.md`.
+
+The orchestrator never writes `planner.md`, `developer-initial.md`, or
+`reviewer-internal.md` into `.plant/<branch>/`. The only files in that
+directory are the brief + stage artifacts.
