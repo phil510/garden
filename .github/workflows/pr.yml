@@ -41,16 +41,6 @@ jobs:
       - name: Install tmux
         run: sudo apt-get update && sudo apt-get install -y tmux
 
-      # DEBUG: temporary instrumentation for the fake-claude /end timeout investigation
-      # (garden #38) — prints the CI tmux version unconditionally so it's in every job log.
-      # Revert once the timeout is understood.
-      - name: DEBUG - tmux version
-        run: tmux -V
-
       - run: pnpm install --frozen-lockfile
 
-      # DEBUG: temporary — the default vitest reporter suppresses console output for tests
-      # that pass, so a DEBUG block would be invisible on any run where the test it's in
-      # doesn't fail (garden #38 CI investigation). --reporter=verbose flushes every test's
-      # console output regardless of outcome. Revert with the rest of this instrumentation.
-      - run: pnpm test:integration --reporter=verbose
+      - run: pnpm test:integration

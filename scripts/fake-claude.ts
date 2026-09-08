@@ -141,9 +141,6 @@ async function main(): Promise<void> {
       ending = true;
       await postHook({ ...base, hook_event_name: 'SessionEnd' });
     }
-    // DEBUG: temporary — round three of the garden #38 CI investigation. Shows whether the
-    // clean end path is ever reached before the process exits. Revert once resolved.
-    console.error('[fake-claude] DEBUG: exiting cleanly');
     process.exit(0);
   };
 
@@ -189,18 +186,8 @@ async function main(): Promise<void> {
   // EOF on stdin and a tmux kill-session both have to report the session ended; only a
   // signal garden cannot intercept (SIGKILL) leaves the status stale.
   repl.on('close', () => enqueue(end));
-  process.on('SIGINT', () => {
-    // DEBUG: temporary — round three of the garden #38 CI investigation. Names the signal so
-    // the CI log shows whether the fake is torn down by a signal rather than exiting cleanly.
-    // Revert once resolved.
-    console.error('[fake-claude] DEBUG: SIGINT received');
-    enqueue(end);
-  });
-  process.on('SIGTERM', () => {
-    // DEBUG: temporary — round three of the garden #38 CI investigation. Revert once resolved.
-    console.error('[fake-claude] DEBUG: SIGTERM received');
-    enqueue(end);
-  });
+  process.on('SIGINT', () => enqueue(end));
+  process.on('SIGTERM', () => enqueue(end));
 
   console.log(READY_MARKER);
 }
