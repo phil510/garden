@@ -3,7 +3,7 @@
 // is pinned against: the point of the test is that the two agree, and every disagreement
 // between them shows up as a null fact rather than an error.
 import { describe, expect, it } from 'vitest';
-import { openingTranscript } from '../../../scripts/fake-transcript.js';
+import { keywordTranscriptLine, openingTranscript } from '../../../scripts/fake-transcript.js';
 import { parseTranscript } from './domain/transcript.js';
 
 describe('the fake claude transcript', () => {
@@ -37,6 +37,18 @@ describe('the fake claude transcript', () => {
 
     expect(record.gitBranch).toBeNull();
     expect(record.cwd).toBe(facts.cwd);
+    expect(record.sessionId).toBe(facts.sessionId);
+  });
+
+  it('moves recap and lastActivity when a keyword line is appended, without losing sessionId', () => {
+    const later = new Date('2026-09-07T13:00:00.000Z');
+    const text =
+      openingTranscript(facts, at) + keywordTranscriptLine(facts, 'Approved via /approve.', later);
+    const { record, skipped } = parseTranscript(text);
+
+    expect(skipped).toBe(0);
+    expect(record.recap).toBe('Approved via /approve.');
+    expect(record.lastActivity).toBe(later.getTime());
     expect(record.sessionId).toBe(facts.sessionId);
   });
 });

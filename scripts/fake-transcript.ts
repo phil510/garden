@@ -42,3 +42,18 @@ export function openingTranscript(facts: FakeTranscriptFacts, at: Date): string 
     },
   );
 }
+
+/** A single assistant line appended after the opening transcript already landed — e.g. when a
+ *  keyword changes the session's status — so recap and lastActivity move without a full rewrite. */
+export function keywordTranscriptLine(
+  facts: Pick<FakeTranscriptFacts, 'sessionId' | 'cwd' | 'gitBranch'>,
+  recap: string,
+  at: Date,
+): string {
+  return jsonl({
+    ...facts,
+    timestamp: at.toISOString(),
+    type: 'assistant',
+    message: { role: 'assistant', content: [{ type: 'text', text: recap }] },
+  });
+}

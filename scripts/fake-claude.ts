@@ -5,13 +5,14 @@
 // screenshot or an integration test can put a session in a chosen state on demand.
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { slugify } from '../packages/server/src/domain/slug.js';
 import type { HookPayload } from '../packages/shared/src/index.js';
-import { openingTranscript } from './fake-transcript.js';
+import { keywordOutcome } from './fake-keywords.js';
+import { keywordTranscriptLine, openingTranscript } from './fake-transcript.js';
 
 /** Printed once stdin is attached, so a driver's `tmux send-keys` cannot land before the
  *  read loop exists and be silently dropped. */
@@ -89,7 +90,7 @@ function banner(sessionId: string, cwd: string, transcriptPath: string): string 
     `  transcript  ${transcriptPath}`,
     `  garden      ${GARDEN_URL}`,
     '',
-    '  type /end to end the session',
+    '  type /approve, /wait or /end to drive the session',
     '',
   ].join('\n');
 }
@@ -97,6 +98,7 @@ function banner(sessionId: string, cwd: string, transcriptPath: string): string 
 async function main(): Promise<void> {
   const sessionId = parseSessionId(process.argv.slice(2));
   const cwd = process.cwd();
+  const gitBranch = gitBranchOf(cwd);
   const transcriptPath = transcriptPathFor(cwd, sessionId);
   const base = { session_id: sessionId, cwd, transcript_path: transcriptPath };
 
@@ -107,10 +109,7 @@ async function main(): Promise<void> {
   await mkdir(dirname(transcriptPath), { recursive: true });
   await writeFile(
     transcriptPath,
-    openingTranscript(
-      { ...SELF_DESCRIPTION, sessionId, cwd, gitBranch: gitBranchOf(cwd) },
-      new Date(),
-    ),
+    openingTranscript({ ...SELF_DESCRIPTION, sessionId, cwd, gitBranch }, new Date()),
     'utf8',
   );
 
@@ -127,17 +126,47 @@ async function main(): Promise<void> {
     process.exit(0);
   };
 
+  // Keywords piped in back-to-back (a driver's fast send-keys, or a script feeding stdin) can
+  // all arrive before any of their async work finishes. Serialized through this queue, each
+  // keyword's transcript append and hook POST complete before the next one starts — otherwise
+  // `end`'s `process.exit` could fire while an earlier `/approve` or `/wait` is still in flight
+  // and silently drop it.
+  let queue: Promise<void> = Promise.resolve();
+  const enqueue = (task: () => Promise<void>): void => {
+    queue = queue.then(task, (error: unknown) => {
+      console.error(`[fake-claude] ${error instanceof Error ? error.message : String(error)}`);
+    });
+  };
+
   const repl = createInterface({ input: process.stdin, terminal: false });
   repl.on('line', (line) => {
     const keyword = line.trim();
-    if (keyword === '/end') void end();
-    else if (keyword !== '') console.log(`[fake-claude] unrecognized keyword: ${keyword}`);
+    if (keyword === '') return;
+    const outcome = keywordOutcome(keyword);
+    if (outcome === null) {
+      console.log(`[fake-claude] unrecognized keyword: ${keyword}`);
+      return;
+    }
+    if (outcome.hookEventName === 'SessionEnd') {
+      enqueue(end);
+      return;
+    }
+    // Appended before the hook POST so a watcher reacting to the status change already sees
+    // the recap and lastActivity the keyword produced, not the stale opening transcript.
+    enqueue(async () => {
+      await appendFile(
+        transcriptPath,
+        keywordTranscriptLine({ sessionId, cwd, gitBranch }, outcome.recap, new Date()),
+        'utf8',
+      );
+      await postHook({ ...base, hook_event_name: outcome.hookEventName });
+    });
   });
   // EOF on stdin and a tmux kill-session both have to report the session ended; only a
   // signal garden cannot intercept (SIGKILL) leaves the status stale.
-  repl.on('close', () => void end());
-  process.on('SIGINT', () => void end());
-  process.on('SIGTERM', () => void end());
+  repl.on('close', () => enqueue(end));
+  process.on('SIGINT', () => enqueue(end));
+  process.on('SIGTERM', () => enqueue(end));
 
   console.log(READY_MARKER);
 }
