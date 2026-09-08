@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "dev": "GARDEN_SERVER_PROCESS=1 tsx bin/garden.ts",
+    "dev:sandbox": "GARDEN_PORT=4311 GARDEN_TMUX_SOCKET=garden-sandbox GARDEN_APP_DIR=$HOME/.garden-sandbox GARDEN_TRANSCRIPTS_DIR=$HOME/.garden-sandbox/transcripts GARDEN_SERVER_PROCESS=1 tsx bin/garden.ts",
     "build": "tsx ./build.ts"
   },
   "dependencies": {

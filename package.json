@@ -20,8 +20,7 @@
     "typescript-eslint": "catalog:"
   },
   "scripts": {
-    "dev:server": "pnpm --filter @garden/server dev",
-    "dev:web": "pnpm --filter @garden/web dev",
+    "dev:sandbox:server": "pnpm --filter @garden/server dev:sandbox",
     "screenshot": "tsx scripts/screenshot.ts",
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint .",

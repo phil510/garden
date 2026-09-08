@@ -12,7 +12,7 @@ the same way a human reviewer would, and iterate before handing off a visual cha
 ## Prerequisite
 
 A garden server must already be running against real tmux. Either the `garden` CLI or
-`pnpm dev:server` satisfies this — they boot the same server the same way. This tool never boots
+`pnpm dev:sandbox:server` satisfies this — they boot the same server the same way. This tool never boots
 one itself; reusing what is already running is the point, so if `pnpm screenshot` reports the
 server unreachable, ask the user to start garden rather than starting it yourself.
 
