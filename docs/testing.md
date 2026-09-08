@@ -118,6 +118,13 @@ a live model's actual output. The process boundary, the pane, the hook POSTs and
 file it writes are all still real; only the model's judgment is replaced, by a keyword mapping
 deterministic enough to assert on.
 
+A second sandbox needs its own port, tmux socket and app dir, and the scripts take those as
+`GARDEN_SANDBOX_PORT`, `GARDEN_SANDBOX_SOCKET`, `GARDEN_SANDBOX_APP_DIR` and
+`GARDEN_SANDBOX_VITE_PORT`. They are deliberately not the `GARDEN_*` names the server itself
+reads: garden injects `GARDEN_PORT` into every pane it spawns, so a script honouring that name
+would silently point a sandbox started from inside a garden session at the real instance's
+port. Sharing any one of the three between two sandboxes puts them back in each other's state.
+
 - **`execFile` is never mocked, anywhere.** Faking a port substitutes one implementation of a
   declared interface; mocking `execFile` pretends the process boundary behaved. The test then
   passes because the mock returned what you told it to, while the argument array — the thing
