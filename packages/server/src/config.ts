@@ -12,6 +12,9 @@ export interface Config {
   readonly host: string;
   readonly roots: readonly string[];
   readonly appDir: string;
+  readonly tmuxSocket: string;
+  readonly transcriptsDir: string;
+  readonly claudeCommand: readonly string[];
 }
 
 export const DEFAULT_CONFIG_FILE: ConfigFile = { port: 4310, roots: ['~/Desktop/Extend'] };
@@ -37,6 +40,17 @@ function envPort(env: Record<string, string | undefined>): number | undefined {
     throw new Error(`GARDEN_PORT must be an integer between 1 and 65535, got "${raw}"`);
   }
   return port;
+}
+
+/** An empty value is treated as unset, matching `envPort`'s "no opinion" convention. */
+function envString(env: Record<string, string | undefined>, key: string): string | undefined {
+  const raw = env[key];
+  return raw === undefined || raw === '' ? undefined : raw;
+}
+
+function envClaudeCommand(env: Record<string, string | undefined>): readonly string[] | undefined {
+  const raw = envString(env, 'GARDEN_CLAUDE_COMMAND');
+  return raw === undefined ? undefined : raw.split(/\s+/).filter(Boolean);
 }
 
 function expandHome(path: string, home: string): string {
@@ -70,8 +84,11 @@ export function parseConfigFile(text: string, source: string): ConfigFile {
   };
 }
 
-export function appDirPath(home: string = homedir()): string {
-  return join(home, '.garden');
+export function appDirPath(
+  home: string = homedir(),
+  env: Record<string, string | undefined> = process.env,
+): string {
+  return envString(env, 'GARDEN_APP_DIR') ?? join(home, '.garden');
 }
 
 /** Resolves the effective config. `GARDEN_PORT` outranks the file; roots come back absolute. */
@@ -84,7 +101,10 @@ export function loadConfig(
     port: envPort(env) ?? file.port,
     host: HOST,
     roots: file.roots.map((root) => expandHome(root, home)),
-    appDir: appDirPath(home),
+    appDir: appDirPath(home, env),
+    tmuxSocket: envString(env, 'GARDEN_TMUX_SOCKET') ?? TMUX_SOCKET,
+    transcriptsDir: envString(env, 'GARDEN_TRANSCRIPTS_DIR') ?? join(home, '.claude', 'projects'),
+    claudeCommand: envClaudeCommand(env) ?? ['claude'],
   };
 }
 
