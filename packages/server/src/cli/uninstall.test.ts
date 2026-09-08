@@ -26,8 +26,8 @@ function baseDeps(overrides: Partial<UninstallDeps> = {}): {
       calls.push('stop');
       return Promise.resolve(0);
     },
-    killTmuxServer: (confPath) => {
-      calls.push(`killTmuxServer:${confPath}`);
+    killTmuxServer: (confPath, socket) => {
+      calls.push(`killTmuxServer:${confPath}:${socket}`);
       return Promise.resolve();
     },
     removeAppDir: (path) => {
@@ -71,7 +71,7 @@ describe('runUninstall', () => {
     expect(calls).toEqual([
       'confirm',
       'stop',
-      'killTmuxServer:/home/garden-user/.garden/tmux.conf',
+      'killTmuxServer:/home/garden-user/.garden/tmux.conf:garden',
       'removeAppDir:/home/garden-user/.garden',
     ]);
     expect(stdout.at(-1)).toBe('garden uninstalled\n');

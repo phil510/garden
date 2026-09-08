@@ -23,7 +23,7 @@ import type {
 import { createProjection, type Projection } from './app/projection.js';
 import { watchRepoRoots } from './app/repoRoots.js';
 import { writeClaudeSettings, writeTmuxConf } from './appdir.js';
-import { ensureConfigFile, loadConfig, TMUX_SOCKET, type Config } from './config.js';
+import { ensureConfigFile, loadConfig, type Config } from './config.js';
 import type { TmuxSessionFact } from './domain/types.js';
 import { createServer } from './http/server.js';
 
@@ -122,12 +122,12 @@ export async function main(): Promise<void> {
 
   const logger = createLogger();
   const store = storePort(home, logger);
-  const tmux = tmuxPort({ socket: TMUX_SOCKET, confPath });
+  const tmux = tmuxPort({ socket: config.tmuxSocket, confPath });
   const transcripts = transcriptPort(config, home, logger);
   const git = gitPort();
   const projection = createProjection(store);
   const attach: AttachRegistry = createAttachRegistry({
-    pty: ptyPort({ socket: TMUX_SOCKET, confPath }),
+    pty: ptyPort({ socket: config.tmuxSocket, confPath }),
     projection,
   });
 
