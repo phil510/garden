@@ -27,8 +27,10 @@ import { withTmuxServer } from './support/tmux-server.js';
 const execFileAsync = promisify(execFile);
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
-const TSX = join(repoRoot, 'node_modules', '.bin', 'tsx');
 const FAKE_CLAUDE = join(repoRoot, 'scripts', 'fake-claude.ts');
+// A bare `tsx` specifier resolves against the pane's own cwd, which is an arbitrary project
+// directory rather than this repo, so --import needs tsx's loader by absolute path instead.
+const TSX_LOADER = join(repoRoot, 'node_modules', 'tsx', 'dist', 'loader.mjs');
 
 /** Printed by the fake once its read loop is attached; see scripts/fake-claude.ts. */
 const READY_MARKER = '[fake-claude] READY';
@@ -40,9 +42,20 @@ const SETTINGS_PATH = '/nonexistent/claude-settings.json';
  * GARDEN_PORT reaches the pane through tmux's own -e; GARDEN_TRANSCRIPTS_DIR has no such
  * channel, so `env` carries it rather than this process mutating its own environment — the
  * tmux server captured that at start and shares it with every pane on the socket.
+ *
+ * The pane's process must be node itself rather than the tsx wrapper script: that wrapper
+ * forks node as a child, so when the fake exits tmux only sees its pty close and never
+ * reaps a wait status.
  */
 function fakeClaudeCommand(transcriptsDir: string): readonly string[] {
-  return ['env', `GARDEN_TRANSCRIPTS_DIR=${transcriptsDir}`, TSX, FAKE_CLAUDE];
+  return [
+    'env',
+    `GARDEN_TRANSCRIPTS_DIR=${transcriptsDir}`,
+    process.execPath,
+    '--import',
+    TSX_LOADER,
+    FAKE_CLAUDE,
+  ];
 }
 
 function fakeStore(): StorePort {
