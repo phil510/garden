@@ -1,12 +1,13 @@
-// Prepares the sandbox's on-disk fixtures before `dev:sandbox` starts the server: a real git
-// repo for fake sessions to run against, and a config.json whose `roots` names the fixture
-// repo's PARENT directory — `listRepos` walks a root's subdirectories looking for repos, so
-// the root itself must not be the repo, or the new-session picker never finds it. Idempotent
-// and safe to run on every `dev:sandbox` start.
+// Prepares the sandbox before `dev:sandbox` starts the server: a fresh tmux server on the
+// sandbox socket, a real git repo for fake sessions to run against, and a config.json whose
+// `roots` names the fixture repo's PARENT directory — `listRepos` walks a root's subdirectories
+// looking for repos, so the root itself must not be the repo, or the new-session picker never
+// finds it. Idempotent and safe to run on every `dev:sandbox` start.
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { loadConfig, TMUX_SOCKET } from '../packages/server/src/config.js';
 
 const appDir = process.env.GARDEN_APP_DIR ?? join(homedir(), '.garden-sandbox');
 const fixtureRepo = join(appDir, 'fixture-repo');
@@ -18,6 +19,18 @@ const gitEnv = {
   GIT_COMMITTER_NAME: 'garden-sandbox',
   GIT_COMMITTER_EMAIL: 'sandbox@localhost',
 };
+
+// A tmux server outlives this process and keeps whatever environment it captured at its own
+// first launch. Without this, a server left running from an earlier sandbox start would hand
+// new panes a stale GARDEN_TRANSCRIPTS_DIR even after the sandbox app dir changes underneath it.
+const sandboxSocket = loadConfig(process.env).tmuxSocket;
+try {
+  assertNotProductionSocket(sandboxSocket);
+} catch (error) {
+  console.error((error as Error).message);
+  process.exit(1);
+}
+killTmuxServer(sandboxSocket);
 
 mkdirSync(fixtureRepo, { recursive: true });
 if (!existsSync(join(fixtureRepo, '.git'))) {
@@ -44,5 +57,26 @@ function rootsInclude(path: string, root: string): boolean {
     return Array.isArray(roots) && roots.includes(root);
   } catch {
     return false;
+  }
+}
+
+/** Refuses to kill the socket garden's real tmux server runs on, so a bug in sandbox socket
+ *  resolution fails loudly here instead of disturbing the developer's own sessions. */
+function assertNotProductionSocket(socket: string): void {
+  if (socket === TMUX_SOCKET) {
+    throw new Error(
+      `sandbox tmux socket resolved to "${socket}", which is garden's production socket — refusing to kill it`,
+    );
+  }
+}
+
+/** kill-server exits non-zero when no server is running on this socket, which is the normal
+ *  case the first time a sandbox starts. */
+function killTmuxServer(socket: string): void {
+  try {
+    execFileSync('tmux', ['-L', socket, 'kill-server']);
+  } catch (error) {
+    const stderr = (error as { stderr?: Buffer | string }).stderr?.toString() ?? '';
+    if (!/no server running|error connecting to/i.test(stderr)) throw error;
   }
 }
