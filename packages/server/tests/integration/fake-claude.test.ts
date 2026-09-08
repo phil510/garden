@@ -108,9 +108,17 @@ async function runTmuxDiagnostic(label: string, argv: readonly string[]): Promis
  * on Linux CI but not macOS (garden #38, prime suspect: `#{pane_dead_status}` or
  * `remain-on-exit` behaving differently on the CI tmux build). Revert once the timeout is
  * understood.
+ *
+ * Round three: `#{pane_dead_signal}` and `#{pane_dead_time}` test the hypothesis that the
+ * fake's process is torn down by a signal rather than reaching its own `process.exit(0)` —
+ * tmux only records `pane_dead_status` for a normal exit. If `pane_dead_signal` is not a
+ * valid format on this tmux build the command errors; that error is itself printed rather
+ * than dropped. A `capture-pane` dump is also included so the fake's own stderr markers
+ * (written into the pane's pty, not this process's stderr) reach the CI log.
  */
 async function logEndTimeoutDiagnostics(
   target: TmuxTarget,
+  tmuxName: string,
   lastObserved: SessionState | undefined,
 ): Promise<void> {
   await runTmuxDiagnostic('tmux -V', ['-V']);
@@ -127,7 +135,16 @@ async function logEndTimeoutDiagnostics(
     'list-panes',
     '-a',
     '-F',
-    '#{pane_id} dead=#{pane_dead} dead_status=[#{pane_dead_status}] pid=#{pane_pid}',
+    '#{pane_id} dead=#{pane_dead} dead_status=[#{pane_dead_status}] ' +
+      'dead_signal=[#{pane_dead_signal}] dead_time=[#{pane_dead_time}] pid=#{pane_pid}',
+  ]);
+  await runTmuxDiagnostic('capture-pane -p', [
+    '-L',
+    target.socket,
+    'capture-pane',
+    '-p',
+    '-t',
+    tmuxName,
   ]);
   console.error(`DEBUG: last observed SessionState: ${JSON.stringify(lastObserved)}`);
 }
@@ -189,6 +206,9 @@ interface FakeSession {
   readonly cwd: string;
   readonly transcriptsDir: string;
   readonly id: string;
+  /** DEBUG: temporary — round three of the garden #38 CI investigation, needed so the /end
+   *  timeout diagnostics can target the pane by name. Revert once resolved. */
+  readonly tmuxName: string;
   readonly read: () => Promise<SessionState | undefined>;
   readonly send: (keyword: string) => Promise<void>;
   /** Anything the transcript watcher logged; a healthy run leaves it empty. */
@@ -262,6 +282,7 @@ async function withFakeClaudeSession(
       cwd,
       transcriptsDir,
       id,
+      tmuxName,
       read: snapshotThenRead(projection, target, id),
       send: async (keyword) => {
         await tmux(target, ['send-keys', '-t', tmuxName, keyword, 'Enter']);
@@ -314,7 +335,7 @@ function messageContent(line: Record<string, unknown>): unknown {
 describe('a real fake-claude process spawned into a tmux pane', () => {
   it('drives its session through working, needs-approval, waiting and ended', async () => {
     await withTmuxServer(async (target) => {
-      await withFakeClaudeSession(target, async ({ read, send }) => {
+      await withFakeClaudeSession(target, async ({ read, send, tmuxName }) => {
         // SessionStart is awaited before READY prints, so this has already landed.
         expect((await read())?.status).toBe('working');
 
@@ -346,7 +367,7 @@ describe('a real fake-claude process spawned into a tmux pane', () => {
           },
           (candidate) => candidate?.exitCode === 0,
         ).catch(async (error: unknown) => {
-          await logEndTimeoutDiagnostics(target, lastObserved);
+          await logEndTimeoutDiagnostics(target, tmuxName, lastObserved);
           throw error;
         });
         expect(ended?.liveness).toBe('dead');
