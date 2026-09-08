@@ -73,6 +73,7 @@ describe('createSession', () => {
         projection,
         serverPort: 4310,
         settingsPath: '/home/.garden/claude-settings.json',
+        claudeCommand: ['claude'],
       },
       { cwd: '/Users/dev/garden' },
     );
@@ -111,6 +112,7 @@ describe('createSession', () => {
         projection,
         serverPort: 4310,
         settingsPath: '/home/.garden/claude-settings.json',
+        claudeCommand: ['claude'],
       },
       { cwd: '/Users/dev/garden' },
     );
@@ -131,6 +133,7 @@ describe('createSession', () => {
           projection,
           serverPort: 4310,
           settingsPath: '/home/.garden/claude-settings.json',
+          claudeCommand: ['claude'],
         },
         { cwd: '/Users/dev/garden' },
       ),
@@ -157,7 +160,7 @@ describe('resumeSession', () => {
     const { store, written } = fakeStore();
 
     const result = await resumeSession(
-      { tmux, store, projection, serverPort: 4310, settingsPath },
+      { tmux, store, projection, serverPort: 4310, settingsPath, claudeCommand: ['claude'] },
       { id: 'sid-1' },
     );
 
@@ -184,7 +187,7 @@ describe('resumeSession', () => {
     const { store, written } = fakeStore();
 
     const result = await resumeSession(
-      { tmux, store, projection, serverPort: 4310, settingsPath },
+      { tmux, store, projection, serverPort: 4310, settingsPath, claudeCommand: ['claude'] },
       { id: 'sid-1' },
     );
 
@@ -212,7 +215,10 @@ describe('resumeSession', () => {
     const { store } = fakeStore();
 
     await expect(
-      resumeSession({ tmux, store, projection, serverPort: 4310, settingsPath }, { id: 'sid-1' }),
+      resumeSession(
+        { tmux, store, projection, serverPort: 4310, settingsPath, claudeCommand: ['claude'] },
+        { id: 'sid-1' },
+      ),
     ).rejects.toThrow('tmux is not installed');
     expect(dispatched).toEqual([]);
   });
@@ -226,7 +232,10 @@ describe('resumeSession', () => {
     const { store } = fakeStore();
 
     await expect(
-      resumeSession({ tmux, store, projection, serverPort: 4310, settingsPath }, { id: 'sid-1' }),
+      resumeSession(
+        { tmux, store, projection, serverPort: 4310, settingsPath, claudeCommand: ['claude'] },
+        { id: 'sid-1' },
+      ),
     ).rejects.toThrow('tmux is not installed');
     expect(dispatched).toEqual([]);
   });
@@ -237,7 +246,10 @@ describe('resumeSession', () => {
     const { store } = fakeStore();
 
     await expect(
-      resumeSession({ tmux, store, projection, serverPort: 4310, settingsPath }, { id: 'nope' }),
+      resumeSession(
+        { tmux, store, projection, serverPort: 4310, settingsPath, claudeCommand: ['claude'] },
+        { id: 'nope' },
+      ),
     ).rejects.toThrow('no such session: nope');
   });
 });
@@ -261,7 +273,7 @@ describe('killSession', () => {
     });
 
     await killSession(
-      { tmux, store, projection, serverPort: 4310, settingsPath: '/x' },
+      { tmux, store, projection, serverPort: 4310, settingsPath: '/x', claudeCommand: ['claude'] },
       { id: 'sid-1' },
     );
 
@@ -276,7 +288,14 @@ describe('killSession', () => {
 
     await expect(
       killSession(
-        { tmux, store, projection, serverPort: 4310, settingsPath: '/x' },
+        {
+          tmux,
+          store,
+          projection,
+          serverPort: 4310,
+          settingsPath: '/x',
+          claudeCommand: ['claude'],
+        },
         { id: 'sid-1' },
       ),
     ).resolves.toBeUndefined();
@@ -289,7 +308,14 @@ describe('killSession', () => {
 
     await expect(
       killSession(
-        { tmux, store, projection, serverPort: 4310, settingsPath: '/x' },
+        {
+          tmux,
+          store,
+          projection,
+          serverPort: 4310,
+          settingsPath: '/x',
+          claudeCommand: ['claude'],
+        },
         { id: 'nope' },
       ),
     ).rejects.toThrow('no such session: nope');

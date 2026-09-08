@@ -155,6 +155,7 @@ export async function main(): Promise<void> {
     roots: config.roots,
     serverPort: config.port,
     settingsPath,
+    claudeCommand: config.claudeCommand,
   });
   app.addHook('onClose', () => {
     clearInterval(poll);

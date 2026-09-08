@@ -72,6 +72,7 @@ describe('resuming a session against real tmux', () => {
           projection,
           serverPort: 4310,
           settingsPath: '/nonexistent/claude-settings.json',
+          claudeCommand: ['claude'],
         },
         { id },
       );
@@ -105,6 +106,7 @@ describe('resuming a session against real tmux', () => {
           projection,
           serverPort: 4310,
           settingsPath: '/nonexistent/claude-settings.json',
+          claudeCommand: ['claude'],
         },
         { id },
       );
