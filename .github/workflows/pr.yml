@@ -41,6 +41,12 @@ jobs:
       - name: Install tmux
         run: sudo apt-get update && sudo apt-get install -y tmux
 
+      # DEBUG: temporary instrumentation for the fake-claude /end timeout investigation
+      # (garden #38) — prints the CI tmux version unconditionally so it's in every job log.
+      # Revert once the timeout is understood.
+      - name: DEBUG - tmux version
+        run: tmux -V
+
       - run: pnpm install --frozen-lockfile
 
       - run: pnpm test:integration

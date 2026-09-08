@@ -80,6 +80,50 @@ async function tmux(target: TmuxTarget, args: readonly string[]): Promise<string
 }
 
 /**
+ * DEBUG: temporary instrumentation for investigating the fake-claude /end timeout that fails
+ * on Linux CI but not macOS (garden #38, prime suspect: `#{pane_dead_status}` or
+ * `remain-on-exit` behaving differently on the CI tmux build). Revert once the timeout is
+ * understood. Prints to stderr rather than swallowing so a failing tmux command (e.g.
+ * "no server running") is itself diagnostic.
+ */
+async function logEndTimeoutDiagnostics(
+  target: TmuxTarget,
+  lastObserved: SessionState | undefined,
+): Promise<void> {
+  const runAgainstSocket = async (label: string, args: readonly string[]): Promise<void> => {
+    try {
+      const stdout = await tmux(target, args);
+      console.error(`DEBUG: ${label}:\n${stdout}`);
+    } catch (error) {
+      const stderr =
+        error && typeof error === 'object' && 'stderr' in error
+          ? String((error as { stderr?: unknown }).stderr)
+          : String(error);
+      console.error(`DEBUG: ${label} failed: ${stderr}`);
+    }
+  };
+
+  try {
+    const { stdout } = await execFileAsync('tmux', ['-V']);
+    console.error(`DEBUG: tmux -V: ${stdout.trim()}`);
+  } catch (error) {
+    console.error(`DEBUG: tmux -V failed: ${String(error)}`);
+  }
+  await runAgainstSocket('show-options -g remain-on-exit', [
+    'show-options',
+    '-g',
+    'remain-on-exit',
+  ]);
+  await runAgainstSocket('list-panes -a', [
+    'list-panes',
+    '-a',
+    '-F',
+    '#{pane_id} dead=#{pane_dead} dead_status=[#{pane_dead_status}] pid=#{pane_pid}',
+  ]);
+  console.error(`DEBUG: last observed SessionState: ${JSON.stringify(lastObserved)}`);
+}
+
+/**
  * The server has no tmux poll of its own here, so liveness would stay stale and mask every
  * status to null. Re-deriving it inside the probe is what main.ts's interval does, minus the
  * timer; tmux lists panes rather than sessions, so the names are collapsed on the way in.
@@ -248,11 +292,20 @@ describe('a real fake-claude process spawned into a tmux pane', () => {
         // The SessionEnd hook lands while the pane is still up, so liveness reads dead before
         // there is any exit code. Waiting on the code instead pins both halves: the hook and
         // the process actually going away.
+        // DEBUG: temporary — wrap this wait so a timeout dumps tmux diagnostics before
+        // re-throwing (garden #38 CI investigation). Revert this try/catch once resolved.
+        let lastObserved: SessionState | undefined;
         const ended = await until(
           '/end to end the session and leave a dead pane carrying its exit code',
-          read,
+          async () => {
+            lastObserved = await read();
+            return lastObserved;
+          },
           (candidate) => candidate?.exitCode === 0,
-        );
+        ).catch(async (error: unknown) => {
+          await logEndTimeoutDiagnostics(target, lastObserved);
+          throw error;
+        });
         expect(ended?.liveness).toBe('dead');
         // A dead session reports no status at all — SessionEnd is not itself a Status, and
         // domain/reduce.ts masks whatever the last one was once liveness is dead.
