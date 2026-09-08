@@ -114,6 +114,20 @@ else page the user.
 For `Size: small`, `review_cap` fires on the first dirty internal review
 round rather than at round 3 — the cap is 1, not 3.
 
+## Churn in internal rounds
+
+A round file's `## Summary` diagnoses churn when the findings sit in
+text the previous round's fixes wrote. Another per-finding patch round
+reliably yields a narrower instance of the same defect: each fix is
+locally correct against one finding, and nobody holds the whole region.
+Instead of a fix round, give one author the whole affected region — a
+fresh developer whose opener names the region, hands it the prior round
+files as the test suite its rewrite must pass, and tells it to re-verify
+ground truth from source rather than from the previous fixes. If the
+churn smells premise-level — the fixes contradict each other because
+the brief or plan is ambiguous about what the region is for — page the
+user instead.
+
 ## Edge cases
 
 - **User aborts during escalation.** No re-spawn; run the abort flow.

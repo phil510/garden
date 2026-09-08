@@ -126,12 +126,12 @@ Four actors: you plus three workers. The user is an implicit fifth —
 supplies the issue, answers the triage gate and escalation pages, and
 either merges the PR or hands you the go-ahead to.
 
-| Persona                                   | Lifetime        | Key responsibility                                                                                                                                                                                                                                                          |
-| ----------------------------------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Orchestrator** (you)                    | the session     | Derive the brief from the issue, run the triage gate, spawn workers, route signals, page the user, run the finish gate. Never does stage work.                                                                                                                              |
-| **Planner** (stage 1)                     | fresh per spawn | Brief → `plan.md` with a Tasks↔AC coverage table, grounded in 2–3 parallel `Explore` subagents and a named-agent plan reviewer. Skipped entirely on `Size: small`.                                                                                                          |
-| **Developer** (stage 2 + every fix round) | fresh per round | Self-bootstraps the worktree (`pnpm install`). Initial: implements the plan, self-reviews, opens the draft PR. Fix-round: applies the internal reviewer's `fix` findings, one commit per finding, pushes.                                                                   |
-| **Reviewer** (stage 3)                    | fresh per round | Internal review via `pr-review-toolkit:review-pr`'s aspect→agent mapping plus named agents scaled to the diff → `review-round-<k>.md`. Clean → flips stage 3 (PR stays draft). Dirty → annotates, no flip. Cap 3 rounds (1 for `Size: small`), then escalates `review_cap`. |
+| Persona                                   | Lifetime        | Key responsibility                                                                                                                                                                                                                                |
+| ----------------------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Orchestrator** (you)                    | the session     | Derive the brief from the issue, run the triage gate, spawn workers, route signals, page the user, run the finish gate. Never does stage work.                                                                                                    |
+| **Planner** (stage 1)                     | fresh per spawn | Brief → `plan.md` with a Tasks↔AC coverage table, grounded in 2–3 parallel `Explore` subagents and a named-agent plan reviewer. Skipped entirely on `Size: small`.                                                                                |
+| **Developer** (stage 2 + every fix round) | fresh per round | Self-bootstraps the worktree (`pnpm install`). Initial: implements the plan, self-reviews, opens the draft PR. Fix-round: applies the internal reviewer's `fix` findings, one commit per finding, pushes.                                         |
+| **Reviewer** (stage 3)                    | fresh per round | Internal review via `pr-review-toolkit` agents plus named agents scaled to the diff → `review-round-<k>.md`. Clean → flips stage 3 (PR stays draft). Dirty → annotates, no flip. Cap 3 rounds (1 for `Size: small`), then escalates `review_cap`. |
 
 All three workers default to **sonnet** and die with your session.
 `plant-developer` is dual-mode (`${MODE}` = `initial` or `fix-round`);
@@ -276,16 +276,16 @@ small); developer works from brief ACs`, then go to step 6. The box
    dispatching; it says whether a fix round is the right response.
    Usually it is: fresh developer in fix-round mode, then a fresh stage-3
    reviewer (max 3 rounds; the reviewer escalates `review_cap` at the
-   limit). But if the summary diagnoses churn — findings introduced by
-   the previous round's own fixes — another per-finding patch round
-   reliably makes it worse: instead give one author the whole affected
-   region, with the prior round files as the test suite its rewrite must
-   pass, or page the user if the churn smells premise-level. For
-   `Size: small` the internal review cap is one round: a dirty round 1
-   arrives as a `review_cap` escalation carrying the round file, and you
-   page the user with the findings summary. Their resolution is typically
-   "run one fix round and one re-review" or "accept as is", applied
-   through the normal fresh-spawn-with-decision path.
+   limit). If the summary diagnoses churn — findings introduced by the
+   previous round's own fixes — another per-finding patch round reliably
+   makes it worse; use the alternative in `references/escalate-resume.md`
+   § Churn in internal rounds instead. Either way, carry the diagnosis
+   into the next worker's opener — information left in the round file
+   steers nobody. On `Size: small` the cap is one round, so a dirty round
+   arrives as a `review_cap` escalation carrying the round file: page the
+   user with the findings summary. Typical resolutions are one fix round
+   plus a re-review, or accept as is, applied through the normal
+   fresh-spawn-with-decision path.
 9. **Reviewer clean** → it has already flipped stage 3. The PR is still a
    draft. Go to step 10.
 10. **Stage 4 — the finish gate.**

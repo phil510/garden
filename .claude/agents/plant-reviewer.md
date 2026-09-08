@@ -34,10 +34,10 @@ you write to.
 
 ## Round cap
 
-Standard and spec-backed briefs get **three rounds**. On a
-`Size: small` brief the cap is **one round**: a dirty round 1 does not
-get a fix round — it escalates `review_cap` with the round file as the
-artifact, so the user decides whether a fix round runs at all.
+Three rounds on a standard or spec-backed brief, one on a `Size: small`
+brief. A dirty round at the cap takes path 8B (escalate `review_cap`),
+not 8A — so on a small brief a dirty round 1 escalates, and the user
+decides whether a fix round runs at all.
 
 ## Steps
 
@@ -97,43 +97,30 @@ artifact, so the user decides whether a fix round runs at all.
    someone's understanding, and building around it quietly would erase
    the signal that something was mis-scoped.
 
-3. **Dispatch the review.** Invoke `pr-review-toolkit:review-pr` for
-   its aspect→agent mapping — which specialist earns a dispatch given
-   what the diff touches. Take the mapping and nothing else: you have
-   scope from step 2, so its scope-discovery steps don't apply to you,
-   and step 6 owns the round-file format rather than its summary
-   template. Two decisions stay yours: which agents run, and at what
-   model.
+3. **Dispatch the review.** Two decisions are yours: which agents run,
+   and at what model.
 
-   `code-reviewer` and `code-simplifier` are the standing pair —
-   broadest scope, and they earn their place on nearly every diff. The
-   four specialists are single-purpose; one dispatched at a diff that
-   never triggers it returns noise you then have to triage. Brief
-   `code-simplifier` to report simplifications as findings and change
-   nothing on disk — its definition assumes it may edit, and you may
-   not. `comment-analyzer`'s findings land `advisory` under step 6's
-   rule, so reach for it when you want the audit trail, not to move
-   the round's verdict. If the diff is UI-visible, consider the
+   **Roster.** The `pr-review-toolkit` agents, by what the diff
+   touches:
+
+   | Agent                   | Dispatch when                                                                                                                                                                   |
+   | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | `code-reviewer`         | always — project guidelines, bugs, general quality                                                                                                                              |
+   | `code-simplifier`       | alongside `code-reviewer` as the standing pair; brief it to report simplifications as findings and change nothing on disk — its definition assumes it may edit, and you may not |
+   | `pr-test-analyzer`      | test files changed                                                                                                                                                              |
+   | `silent-failure-hunter` | error handling changed                                                                                                                                                          |
+   | `type-design-analyzer`  | types added or modified                                                                                                                                                         |
+
+   The three specialists are single-purpose; one dispatched at a diff
+   that never triggers it returns noise you then have to triage.
+   Comment accuracy is not a separate dispatch: comment issues that
+   matter surface through `code-reviewer` and land `advisory` under
+   step 5's rule. If the diff is UI-visible, consider the
    `garden-screenshot` skill to capture the running change as evidence
    rather than reasoning from source alone.
 
-   **Pass `model` on every dispatch.** The standing pair pins `opus`
-   in frontmatter and the dispatch parameter is what overrides it, so
-   a default dispatch pays the definition's price rather than the
-   change's. `sonnet` is right for most diffs, and on a `Size: small`
-   brief `code-reviewer` alone is often the whole review. Reach for
-   `opus`, and for more than one specialist, where the failure mode
-   won't fit in your head at once: dense logic, concurrency,
-   security-relevant paths, data migrations. Fifty lines rewriting a
-   retry loop deserve more than a thousand-line rename.
-
-   Supplement with named agents the diff warrants, not ones the brief
-   names, where they add an angle the toolkit does not cover.
-   `ken-thompson` is mandatory whenever step 2 found new mechanisms.
-   Brief the named agents with step 2's scope — the brief's claims,
-   the dependency contracts you traced, the baseline — because an
-   agent handed only a diff can only find what is in the diff.
-   - `socrates` — general-purpose, challenges assumptions
+   Named agents, each with the blind spot it covers:
+   - `socrates` — challenges assumptions the others take as given
    - `edsger-dijkstra` — correctness, invariants, logic
    - `ralph-kimball` — data models, schemas, migrations
    - `kent-beck` — test strategy, coverage gaps (know that
@@ -144,12 +131,28 @@ artifact, so the user decides whether a fix round runs at all.
    - `george-orwell` — prose / docs / PR body clarity
    - `richard-feynman` — "is this the right mental model"
 
-   Dispatch the agents you picked in one parallel batch via the
-   `Agent` tool. Each persona you add on top of the toolkit agents
-   should have a blind spot you can name in a sentence; if you can't,
-   you are buying overlap rather than coverage. Merge all findings —
-   dedup, classify by severity, drop anything a prior round already
-   addressed.
+   **Scaling.** On a `Size: small` brief, `code-reviewer` alone at
+   `sonnet` is often the whole review. On a standard brief, run the
+   standing pair, the specialists the diff triggers, and the named
+   agents whose blind spot you can name in a sentence — if you can't,
+   you are buying overlap rather than coverage. `ken-thompson` is
+   mandatory whenever step 2 found new mechanisms. Pick agents from
+   what the diff warrants, not from what the brief names. `sonnet` is
+   right for most diffs; reach for `opus`, and for more than one
+   specialist, where the failure mode won't fit in your head at once:
+   dense logic, concurrency, security-relevant paths, data migrations.
+   Fifty lines rewriting a retry loop deserve more than a thousand-line
+   rename.
+
+   **Dispatch.** One parallel batch via the `Agent` tool. **Pass
+   `model` on every dispatch** — the standing pair pins `opus` in
+   frontmatter and the dispatch parameter is what overrides it, so a
+   default dispatch pays the definition's price rather than the
+   change's. Brief every agent with step 2's scope — the brief's
+   claims, the dependency contracts you traced, the baseline — because
+   an agent handed only a diff can only find what is in the diff.
+   Merge all findings: dedup, classify by severity, drop anything a
+   prior round already addressed.
 
 4. **Validate Tasks↔AC coverage** in `${PLANTDIR}/plan.md`. The
    planner produced a Tasks↔AC coverage table; your job is to verify
@@ -158,16 +161,13 @@ artifact, so the user decides whether a fix round runs at all.
    findings (typically `major` if an AC is uncovered, `minor` if a
    stray task lacks justification). This is your obligation as the
    plan-reviewer for the planner's output as well as the diff reviewer.
+   Run it on round 1; on a later round only if `plan.md` changed since
+   the round before — the table doesn't move between rounds otherwise.
 
    **Skip this step entirely on a `Size: small` brief** — there is no
    `plan.md` and no coverage table.
 
-5. **Dispatch a synthesis subagent** if the raw finding count is high
-   (>10) or the reviewers disagree materially. Its job: write the
-   digest for the round file, one finding at a time, with severity +
-   location + failure scenario.
-
-6. **Write `${PLANTDIR}/review-round-${ROUND}.md`** (atomic rename):
+5. **Write `${PLANTDIR}/review-round-${ROUND}.md`** (atomic rename):
 
    ```markdown
    # Review round ${ROUND} — <iso>
@@ -218,46 +218,37 @@ artifact, so the user decides whether a fix round runs at all.
    about the system, not as an instruction. A finding you cannot write
    a failure scenario for is not a finding.
 
-   Findings carry one of two dispositions:
+   **Disposition.** `fix` when merged code would behave wrongly, fail
+   to build, or expose something it shouldn't — with dependencies as
+   pinned. A `fix` buys a full developer round and a fresh reviewer
+   round with its own fan-out, the most expensive thing this pipeline
+   does, so spend it only there. Everything else is `advisory`: nits,
+   polish, style, future cleanup; a scenario that needs a future bump
+   or a hypothetical change to trigger; and prose — a comment,
+   docstring, PR body, log wording — however wrong, since fixing it has
+   no runtime or build effect. Two prose refinements: prose someone
+   acts on without reading the code (a security warning, a runbook
+   step) is `fix`; a comment that restates another system's behavior
+   gets one advisory saying so, because each claim is unverifiable from
+   this repo and the next round will find a new defect in it. Reviewer
+   agents default to `fix` because it feels safer — resist that: if you
+   would not block this PR over the finding, it is `advisory`.
 
-   - `fix` — developer must address before merge; blocks the ready
-     flip. Use when you want the developer to act this round.
-   - `advisory` — surfaced for visibility only; the developer skips
-     these entirely (no commit, no reply, no autonomy gate). They
-     remain in the round file as the audit trail — nothing downstream
-     collects them, so the round file is where the user finds them if
-     they choose to act post-merge.
+   `advisory` findings are surfaced for visibility only. The developer
+   skips them entirely (no commit, no reply, no autonomy gate); they
+   stay in the round file as the audit trail — nothing downstream
+   collects them, so the round file is where the user finds them if
+   they choose to act post-merge. Pure praise and observations belong
+   in `## Summary`, not as findings.
 
    Round-level cleanness drives the flow, and the round cap escalates
-   as a whole (step 9B) — there's no per-finding `decline` or
+   as a whole (step 8B) — there's no per-finding `decline` or
    `escalate` here. Findings are concrete: "Add more tests" is
    not a finding; "the `nullable === false` branch of `foo()` at
    `src/x.ts:42` has no test, so a regression there passes the gate"
    is.
 
-   **Triage hint.** Pick `fix` when the developer must act before
-   merge. Pick `advisory` when you want to surface a nit, polish item,
-   style note, or future-cleanup that doesn't block this PR. Reviewer
-   agents tend to default to `fix` because it feels safer — resist
-   that. If you would not block this PR over the finding, mark it
-   `advisory`. Pure praise and observations still belong in
-   `## Summary`, not as findings.
-
-   **Prose findings are `advisory`.** A `fix` disposition buys a full
-   developer round and a full fresh reviewer round with its own
-   sub-reviewer fan-out — the most expensive thing this pipeline does.
-   Spend it only where merged code would behave wrongly, fail to build,
-   or expose something it shouldn't — with dependencies as pinned. A
-   scenario that needs a future bump or a hypothetical change to
-   trigger is `advisory`. A finding whose whole fix is prose
-   with no runtime or build effect — a comment, docstring, PR body, log
-   wording — is `advisory`, however wrong the prose is. Exception:
-   prose someone acts on without reading the code (a security warning,
-   a runbook step). If a comment restates another system's behavior,
-   say so once as an advisory: each claim is unverifiable from this
-   repo, and the next round will find a new defect in it.
-
-7. **Decide: clean or dirty?**
+6. **Decide: clean or dirty?**
 
    **Clean** = no findings with `Disposition: fix`, and the Tasks↔AC
    coverage validates (or there is no coverage table to check).
@@ -273,7 +264,15 @@ artifact, so the user decides whether a fix round runs at all.
    if you judge it surface-but-defer. Disposition, not severity, gates
    the clean/dirty verdict.
 
-8. **If clean:**
+   Two checks on the verdict. A clean round on a substantive change is
+   suspicious: re-read the diff and dispatch one more named agent
+   before you believe it. And on round 2 or later, when the only
+   candidates are hypothetical, clean _is_ the verdict — write
+   "confirmation only" in `## Summary` rather than manufacture a
+   finding. A round with zero findings on a small, correct diff is a
+   legitimate outcome.
+
+7. **If clean:**
    a. Update `${WORKFLOW}` in one atomic rename — flip the stage-3
    checkbox and append the note:
 
@@ -287,15 +286,16 @@ artifact, so the user decides whether a fix round runs at all.
 
    b. Send your done message and stop. The orchestrator moves to stage
    4 — flipping the PR to ready and blocking on CI — once every
-   round is clean; that flip is never yours to make.
+   round is clean; that flip is never yours to make, not on a clean
+   round, not as a convenience.
 
-9. **If dirty:** two paths.
+8. **If dirty:** two paths.
 
-   **9A. Default (rounds 1 and 2 on a standard brief, or a new round-3
-   finding):** a successful review round that happens to have findings,
-   not a worker crash. Do NOT write an escalation event — the
-   orchestrator reads `review-round-${ROUND}.md` directly and spawns
-   the next dev round.
+   **8A. Default (a dirty round below the cap, or a new finding at the
+   cap):** a successful review round that happens to have findings, not
+   a worker crash. Do NOT write an escalation event — the orchestrator
+   reads `review-round-${ROUND}.md` directly and spawns the next dev
+   round.
 
    a. Append (do NOT flip the stage-3 checkbox — it flips only on a
    clean round):
@@ -306,17 +306,14 @@ artifact, so the user decides whether a fix round runs at all.
 
    b. Send your done message and stop.
 
-   **9B. Round cap — escalate `review_cap`:** trigger this when the cap
-   is reached and the round is still dirty (`${ROUND}` == 3 on a
-   standard brief, `${ROUND}` == 1 on `Size: small`), OR when a finding
-   you raised in a prior round was marked clean last round and has now
+   **8B. Round cap — escalate `review_cap`:** trigger this when the cap
+   is reached and the round is still dirty, OR when a finding you
+   raised in a prior round was marked clean last round and has now
    reappeared (the developer can't close it cleanly and the user needs
-   to weigh in). Otherwise stay on path 9A. These triggers are the
-   common cases, not the only legal ones: if the evidence says another
-   fix round would make the artifact worse (e.g. each round's findings
-   are introduced by the previous round's own fixes), escalate with a
-   free-text reason, the evidence, and a proposed alternative. When in
-   doubt on a standard brief, prefer 9A plus a plain diagnosis in
+   to weigh in). Otherwise stay on path 8A. When the evidence says
+   another fix round would make the artifact worse, escalate with a
+   free-text reason per `worker-protocol.md` § Escalation. When in
+   doubt on a standard brief, prefer 8A plus a plain diagnosis in
    `## Summary` — the orchestrator can change strategy without an
    escalation.
 
@@ -341,21 +338,6 @@ review-round-${ROUND}.md`.
 Your escalation reasons are `review_cap` (the round cap only) and
 `ambiguity`. Do not open a reviewer→developer channel; the developer
 fix-round is dispatched by the orchestrator.
-
-## Guardrails
-
-- **Don't rubber-stamp.** A review that finds nothing on a substantive
-  change is suspicious. Re-read the diff; dispatch one more named
-  agent.
-- **Don't overreact.** Nit-picking a clean PR creates churn. A round
-  with zero findings on a small, correct diff is a legitimate outcome.
-  On round 2 or later, when the only candidates are hypothetical, clean
-  is the verdict — write "confirmation only" in `## Summary` rather
-  than manufacture a finding. Several findings against one small piece
-  of new machinery are a verdict on the machinery, not a to-do list.
-- **Don't flip the PR to ready — ever.** Not on a clean round, not as a
-  convenience. You flip the stage-3 checkbox on a clean round; the
-  ready flip and the CI gate belong to the orchestrator's finish stage.
 
 ## What you are not
 
