@@ -2,9 +2,9 @@
 // repo for fake sessions to run against, and a config.json whose `roots` names the fixture
 // repo's PARENT directory — `listRepos` walks a root's subdirectories looking for repos, so
 // the root itself must not be the repo, or the new-session picker never finds it. Idempotent
-// and safe to run on every `dev:sandbox` start — it only creates what's missing.
+// and safe to run on every `dev:sandbox` start.
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -29,8 +29,20 @@ if (!existsSync(join(fixtureRepo, '.git'))) {
   });
 }
 
-if (!existsSync(configPath)) {
-  const port = Number(process.env.GARDEN_PORT ?? 4310);
-  const config = { port, roots: [appDir] };
-  writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
+// Rewritten whenever `roots` has drifted, not just when the file is absent: a sandbox booted
+// before this script existed has a config the server wrote with the default roots, which leaves
+// the fixture repo out of the picker and the sandbox transcripts out of scope — both silently.
+const port = Number(process.env.GARDEN_PORT ?? 4310);
+if (!existsSync(configPath) || !rootsInclude(configPath, appDir)) {
+  writeFileSync(configPath, `${JSON.stringify({ port, roots: [appDir] }, null, 2)}\n`, 'utf8');
+}
+
+function rootsInclude(path: string, root: string): boolean {
+  try {
+    const parsed: unknown = JSON.parse(readFileSync(path, 'utf8'));
+    const roots = (parsed as { roots?: unknown }).roots;
+    return Array.isArray(roots) && roots.includes(root);
+  } catch {
+    return false;
+  }
 }

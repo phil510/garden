@@ -21,7 +21,9 @@ describe('keywordOutcome', () => {
     expect(hookOutcome(aHookEvent({ hook_event_name: outcome.hookEventName })).ended).toBe(true);
   });
 
-  it('produces no payload for an unrecognized keyword', () => {
-    expect(keywordOutcome('/nonsense')).toBeNull();
+  // 'toString' is the case worth pinning: a bare property lookup answers it with an inherited
+  // function, which would reach the REPL as an outcome with an undefined hook event.
+  it.each(['/nonsense', 'toString', 'constructor'])('produces no payload for %s', (line) => {
+    expect(keywordOutcome(line)).toBeNull();
   });
 });

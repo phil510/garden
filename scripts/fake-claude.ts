@@ -6,7 +6,6 @@
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { appendFile, mkdir, writeFile } from 'node:fs/promises';
-import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { slugify } from '../packages/server/src/domain/slug.js';
@@ -14,11 +13,24 @@ import type { HookPayload } from '../packages/shared/src/index.js';
 import { keywordOutcome } from './fake-keywords.js';
 import { keywordTranscriptLine, openingTranscript } from './fake-transcript.js';
 
-/** Printed once stdin is attached, so a driver's `tmux send-keys` cannot land before the
- *  read loop exists and be silently dropped. */
+/** Printed once startup has finished and stdin is attached, so a driver has a single point to
+ *  wait on before `tmux send-keys` rather than racing the SessionStart POST. */
 const READY_MARKER = '[fake-claude] READY';
 
-const GARDEN_URL = `http://127.0.0.1:${process.env.GARDEN_PORT ?? 4310}`;
+/** The two knobs that say which instance the fake belongs to are required, not defaulted: an
+ *  unset one resolves to the user's real garden on 4310 and the real `~/.claude/projects`, so
+ *  a stale pane would post phantom sessions into the live instance and litter its transcripts.
+ *  Failing loudly is the isolation guarantee. */
+function requiredEnv(name: string): string {
+  const value = process.env[name];
+  if (value === undefined || value.trim() === '') {
+    console.error(`[fake-claude] ${name} must be set — refusing to fall back to a real garden`);
+    process.exit(1);
+  }
+  return value;
+}
+
+const GARDEN_URL = `http://127.0.0.1:${requiredEnv('GARDEN_PORT')}`;
 
 /** Every flag garden passes is accepted and ignored except the session id, so
  *  `createSession`/`resumeSession` need no branch for "is this the fake". */
@@ -39,11 +51,11 @@ const SELF_DESCRIPTION = {
 };
 
 function transcriptPathFor(cwd: string, sessionId: string): string {
-  const root = process.env.GARDEN_TRANSCRIPTS_DIR ?? join(homedir(), '.claude', 'projects');
-  return join(root, slugify(cwd), `${sessionId}.jsonl`);
+  return join(requiredEnv('GARDEN_TRANSCRIPTS_DIR'), slugify(cwd), `${sessionId}.jsonl`);
 }
 
-/** Reported rather than invented, so the sandbox UI shows the fixture repo's real state. */
+/** Reported rather than invented, so the sandbox UI shows the fixture repo's real state.
+ *  A detached HEAD reports the literal `HEAD`; only a repo with no commits yields null. */
 function gitBranchOf(cwd: string): string | null {
   try {
     const branch = execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
@@ -57,12 +69,18 @@ function gitBranchOf(cwd: string): string | null {
   }
 }
 
+const HOOK_TIMEOUT_MS = 5_000;
+
 async function postHook(payload: HookPayload): Promise<void> {
   try {
     const response = await fetch(`${GARDEN_URL}/hooks`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(payload),
+      // Bounded so a garden that accepts the connection and never answers cannot wedge the
+      // keyword queue — with `end` queued behind it, that would make the pane unkillable
+      // by anything short of SIGKILL.
+      signal: AbortSignal.timeout(HOOK_TIMEOUT_MS),
     });
     if (!response.ok) {
       console.error(`[fake-claude] ${payload.hook_event_name} rejected: HTTP ${response.status}`);
@@ -131,9 +149,12 @@ async function main(): Promise<void> {
   // keyword's transcript append and hook POST complete before the next one starts — otherwise
   // `end`'s `process.exit` could fire while an earlier `/approve` or `/wait` is still in flight
   // and silently drop it.
+  // `.catch` after `.then`, not a rejection handler passed to it: the two-argument form would
+  // handle only the PREVIOUS task's failure, leaving this task's rejection to skip whatever is
+  // enqueued next and take down the process when nothing follows.
   let queue: Promise<void> = Promise.resolve();
   const enqueue = (task: () => Promise<void>): void => {
-    queue = queue.then(task, (error: unknown) => {
+    queue = queue.then(task).catch((error: unknown) => {
       console.error(`[fake-claude] ${error instanceof Error ? error.message : String(error)}`);
     });
   };
