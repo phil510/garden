@@ -207,6 +207,38 @@ describe('resumeSession', () => {
     expect(written().tmuxNames).toEqual({ 'sid-1': 'garden' });
   });
 
+  it('puts every token of a multi-token claudeCommand ahead of --resume', async () => {
+    const respawned: unknown[] = [];
+    const tmux = fakeTmux({
+      listPanes: () => Promise.resolve([{ session: 'garden', dead: true, exitCode: 1 }]),
+      respawnPane: (request) => {
+        respawned.push(request);
+        return Promise.resolve();
+      },
+    });
+    const { projection } = fakeProjection([deadSession]);
+    const { store } = fakeStore();
+
+    await resumeSession(
+      {
+        tmux,
+        store,
+        projection,
+        serverPort: 4310,
+        settingsPath,
+        claudeCommand: ['tsx', 'scripts/fake-claude.ts'],
+      },
+      { id: 'sid-1' },
+    );
+
+    expect(respawned).toEqual([
+      {
+        name: 'garden',
+        command: ['tsx', 'scripts/fake-claude.ts', '--resume', 'sid-1', '--settings', settingsPath],
+      },
+    ]);
+  });
+
   it('creates a fresh tmux session when tmux no longer holds the recorded name', async () => {
     const created: unknown[] = [];
     const tmux = fakeTmux({
