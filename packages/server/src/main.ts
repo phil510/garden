@@ -39,11 +39,11 @@ function tmuxPort(target: TmuxTarget): TmuxPort {
   };
 }
 
-function storePort(home: string, logger: Logger): StorePort {
+function storePort(appDir: string, logger: Logger): StorePort {
   return {
-    read: () => readOverlayState(home, logger),
+    read: () => readOverlayState(appDir, logger),
     write: (state) => {
-      writeOverlayState(home, state);
+      writeOverlayState(appDir, state);
     },
   };
 }
@@ -117,11 +117,11 @@ async function replay(
 export async function main(): Promise<void> {
   const home = homedir();
   const config = loadConfig(process.env, ensureConfigFile(home), home);
-  const confPath = writeTmuxConf(home);
-  const settingsPath = writeClaudeSettings(home);
+  const confPath = writeTmuxConf(config.appDir);
+  const settingsPath = writeClaudeSettings(config.appDir);
 
   const logger = createLogger();
-  const store = storePort(home, logger);
+  const store = storePort(config.appDir, logger);
   const tmux = tmuxPort({ socket: config.tmuxSocket, confPath });
   const transcripts = transcriptPort(config, logger);
   const git = gitPort();

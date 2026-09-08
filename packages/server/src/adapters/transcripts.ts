@@ -84,14 +84,14 @@ export interface TranscriptWatcher {
 }
 
 /**
- * A path is watched when it is the projects directory itself, an in-scope slug directory,
+ * A path is watched when it is the transcripts directory itself, an in-scope slug directory,
  * or a `.jsonl` file directly inside one. Everything else — a slug directory out of scope,
  * or a session's own subdirectory holding `subagents/` two levels deeper — is ignored, which
  * also stops chokidar recursing into it: a subagent file carries its parent session's id, so
  * reading one would corrupt the parent's record.
  */
-function isWatchedPath(projectsDir: string, roots: readonly string[], path: string): boolean {
-  const rel = relative(projectsDir, path);
+function isWatchedPath(transcriptsDir: string, roots: readonly string[], path: string): boolean {
+  const rel = relative(transcriptsDir, path);
   if (rel === '') return true;
   const segments = rel.split(sep);
   if (segments.length === 1) return inScopeDirs([segments[0]!], roots).length > 0;

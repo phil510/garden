@@ -4,7 +4,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { promisify } from 'node:util';
-import { appDirPath, DEFAULT_CONFIG_FILE, loadConfig } from '../config.js';
+import { DEFAULT_CONFIG_FILE, loadConfig } from '../config.js';
 import type { Io } from './commands.js';
 import { defaultStopDeps, runStop } from './stop.js';
 
@@ -16,6 +16,8 @@ export interface UninstallDeps {
   readonly killTmuxServer: (confPath: string, socket: string) => Promise<void>;
   readonly removeAppDir: (path: string) => void;
   readonly home: string;
+  readonly appDir: string;
+  readonly tmuxSocket: string;
 }
 
 async function promptConfirm(): Promise<boolean> {
@@ -43,6 +45,11 @@ async function killTmuxServer(confPath: string, socket: string): Promise<void> {
   }
 }
 
+const defaultHome = homedir();
+// The file is not read here: uninstall only needs the app dir and socket, both of
+// which come from the environment or their defaults, never from config.json.
+const defaultConfig = loadConfig(process.env, DEFAULT_CONFIG_FILE, defaultHome);
+
 export const defaultUninstallDeps: UninstallDeps = {
   confirm: promptConfirm,
   stop: (io, home) => runStop(io, { ...defaultStopDeps, home }),
@@ -50,7 +57,9 @@ export const defaultUninstallDeps: UninstallDeps = {
   removeAppDir: (path) => {
     rmSync(path, { recursive: true, force: true });
   },
-  home: homedir(),
+  home: defaultHome,
+  appDir: defaultConfig.appDir,
+  tmuxSocket: defaultConfig.tmuxSocket,
 };
 
 /** `garden uninstall` — stop the server, kill the garden tmux server, delete `~/.garden`. */
@@ -67,9 +76,8 @@ export async function runUninstall(
   const stopResult = await deps.stop(io, deps.home);
   if (stopResult !== 0) return stopResult;
 
-  const config = loadConfig(process.env, DEFAULT_CONFIG_FILE, deps.home);
-  await deps.killTmuxServer(join(appDirPath(deps.home), 'tmux.conf'), config.tmuxSocket);
-  deps.removeAppDir(appDirPath(deps.home));
+  await deps.killTmuxServer(join(deps.appDir, 'tmux.conf'), deps.tmuxSocket);
+  deps.removeAppDir(deps.appDir);
 
   io.stdout.write('garden uninstalled\n');
   return 0;

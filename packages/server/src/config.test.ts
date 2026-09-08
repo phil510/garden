@@ -85,6 +85,16 @@ describe('loadConfig precedence and root expansion', () => {
   it('defaults claudeCommand to ["claude"] when GARDEN_CLAUDE_COMMAND is unset', () => {
     expect(loadConfig({}, DEFAULT_CONFIG_FILE, '/h').claudeCommand).toEqual(['claude']);
   });
+
+  it('falls back when GARDEN_CLAUDE_COMMAND names no command', () => {
+    // An empty argv would put the session flag in argv[0] at spawn time, which
+    // fails far from here; a value that splits to nothing is treated as unset.
+    for (const raw of ['', '   ', '\t\n']) {
+      expect(
+        loadConfig({ GARDEN_CLAUDE_COMMAND: raw }, DEFAULT_CONFIG_FILE, '/h').claudeCommand,
+      ).toEqual(['claude']);
+    }
+  });
 });
 
 describe('appDirPath', () => {

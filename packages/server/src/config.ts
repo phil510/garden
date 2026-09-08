@@ -23,8 +23,7 @@ export const DEFAULT_CONFIG_FILE: ConfigFile = { port: 4310, roots: ['~/Desktop/
 const HOST = '127.0.0.1';
 
 /** Every garden tmux session lives on this socket, so `tmux -L garden` reaches them
- *  and nothing garden does can disturb a user's own tmux server. Shared between main.ts
- *  and cli/uninstall.ts, the one cli/ command that talks to tmux directly. */
+ *  and nothing garden does can disturb a user's own tmux server. */
 export const TMUX_SOCKET = 'garden';
 
 function isPort(value: unknown): value is number {
@@ -50,7 +49,11 @@ function envString(env: Record<string, string | undefined>, key: string): string
 
 function envClaudeCommand(env: Record<string, string | undefined>): readonly string[] | undefined {
   const raw = envString(env, 'GARDEN_CLAUDE_COMMAND');
-  return raw === undefined ? undefined : raw.split(/\s+/).filter(Boolean);
+  if (raw === undefined) return undefined;
+  const parts = raw.split(/\s+/).filter(Boolean);
+  // A value of only whitespace names no command, so it falls back rather than
+  // spawning an argv whose first element is the session flag.
+  return parts.length === 0 ? undefined : parts;
 }
 
 function expandHome(path: string, home: string): string {
@@ -84,10 +87,7 @@ export function parseConfigFile(text: string, source: string): ConfigFile {
   };
 }
 
-export function appDirPath(
-  home: string = homedir(),
-  env: Record<string, string | undefined> = process.env,
-): string {
+export function appDirPath(home: string, env: Record<string, string | undefined>): string {
   return envString(env, 'GARDEN_APP_DIR') ?? join(home, '.garden');
 }
 
@@ -110,7 +110,7 @@ export function loadConfig(
 
 /** Creates the app directory and writes `config.json` on first run, then reads it back. */
 export function ensureConfigFile(home: string): ConfigFile {
-  const dir = appDirPath(home);
+  const dir = appDirPath(home, process.env);
   mkdirSync(dir, { recursive: true });
   const path = join(dir, 'config.json');
   try {

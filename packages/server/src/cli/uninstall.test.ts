@@ -34,6 +34,8 @@ function baseDeps(overrides: Partial<UninstallDeps> = {}): {
       calls.push(`removeAppDir:${path}`);
     },
     home: '/home/garden-user',
+    appDir: '/home/garden-user/.garden',
+    tmuxSocket: 'garden',
     ...overrides,
   };
   return { deps, calls };

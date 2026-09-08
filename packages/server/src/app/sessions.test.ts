@@ -100,6 +100,39 @@ describe('createSession', () => {
     expect(written().tmuxNames).toEqual({ [result.id]: 'garden' });
   });
 
+  it('puts every token of a multi-token claudeCommand ahead of the session flags', async () => {
+    const calls: TmuxNewSessionRequest[] = [];
+    const tmux = fakeTmux({
+      newSession: (request) => {
+        calls.push(request);
+        return Promise.resolve();
+      },
+    });
+    const { projection } = fakeProjection();
+    const { store } = fakeStore();
+
+    const result = await createSession(
+      {
+        tmux,
+        store,
+        projection,
+        serverPort: 4310,
+        settingsPath: '/home/.garden/claude-settings.json',
+        claudeCommand: ['tsx', 'scripts/fake-claude.ts'],
+      },
+      { cwd: '/Users/dev/garden' },
+    );
+
+    expect(calls[0]?.command).toEqual([
+      'tsx',
+      'scripts/fake-claude.ts',
+      '--session-id',
+      result.id,
+      '--settings',
+      '/home/.garden/claude-settings.json',
+    ]);
+  });
+
   it('derives a name unique against every tmux name the projection already knows', async () => {
     const tmux = fakeTmux({ newSession: () => Promise.resolve() });
     const { projection } = fakeProjection([aSession({ tmuxName: 'garden' })]);
