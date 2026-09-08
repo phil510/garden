@@ -80,47 +80,87 @@ async function tmux(target: TmuxTarget, args: readonly string[]): Promise<string
 }
 
 /**
+ * DEBUG: temporary — round two of the garden #38 CI instrumentation. Round one (d012ea6)
+ * swallowed stderr on the success path and only surfaced it via a thrown error's `.stderr`,
+ * so a command that exited 0 with empty stdout (which is what CI showed) logged nothing
+ * useful. This runs the raw tmux invocation directly and always prints stdout, stderr and
+ * the exit code, on both the success and failure path — "no server running" is itself the
+ * finding, so it must reach the log rather than being caught and discarded.
+ */
+async function runTmuxDiagnostic(label: string, argv: readonly string[]): Promise<void> {
+  try {
+    const { stdout, stderr } = await execFileAsync('tmux', argv);
+    console.error(
+      `DEBUG: ${label} exit=0 stdout=${JSON.stringify(stdout)} stderr=${JSON.stringify(stderr)}`,
+    );
+  } catch (error) {
+    const err = error as NodeJS.ErrnoException & { stdout?: string; stderr?: string };
+    console.error(
+      `DEBUG: ${label} exit=${JSON.stringify(err.code ?? null)} ` +
+        `stdout=${JSON.stringify(String(err.stdout ?? ''))} ` +
+        `stderr=${JSON.stringify(String(err.stderr ?? ''))}`,
+    );
+  }
+}
+
+/**
  * DEBUG: temporary instrumentation for investigating the fake-claude /end timeout that fails
  * on Linux CI but not macOS (garden #38, prime suspect: `#{pane_dead_status}` or
  * `remain-on-exit` behaving differently on the CI tmux build). Revert once the timeout is
- * understood. Prints to stderr rather than swallowing so a failing tmux command (e.g.
- * "no server running") is itself diagnostic.
+ * understood.
  */
 async function logEndTimeoutDiagnostics(
   target: TmuxTarget,
   lastObserved: SessionState | undefined,
 ): Promise<void> {
-  const runAgainstSocket = async (label: string, args: readonly string[]): Promise<void> => {
-    try {
-      const stdout = await tmux(target, args);
-      console.error(`DEBUG: ${label}:\n${stdout}`);
-    } catch (error) {
-      const stderr =
-        error && typeof error === 'object' && 'stderr' in error
-          ? String((error as { stderr?: unknown }).stderr)
-          : String(error);
-      console.error(`DEBUG: ${label} failed: ${stderr}`);
-    }
-  };
-
-  try {
-    const { stdout } = await execFileAsync('tmux', ['-V']);
-    console.error(`DEBUG: tmux -V: ${stdout.trim()}`);
-  } catch (error) {
-    console.error(`DEBUG: tmux -V failed: ${String(error)}`);
-  }
-  await runAgainstSocket('show-options -g remain-on-exit', [
+  await runTmuxDiagnostic('tmux -V', ['-V']);
+  await runTmuxDiagnostic('show-options -g remain-on-exit', [
+    '-L',
+    target.socket,
     'show-options',
     '-g',
     'remain-on-exit',
   ]);
-  await runAgainstSocket('list-panes -a', [
+  await runTmuxDiagnostic('list-panes -a', [
+    '-L',
+    target.socket,
     'list-panes',
     '-a',
     '-F',
     '#{pane_id} dead=#{pane_dead} dead_status=[#{pane_dead_status}] pid=#{pane_pid}',
   ]);
   console.error(`DEBUG: last observed SessionState: ${JSON.stringify(lastObserved)}`);
+}
+
+/**
+ * DEBUG: temporary — round two of the garden #38 CI investigation. Dumps remain-on-exit at
+ * every scope tmux understands, immediately after the fake's tmux session (and its window)
+ * exist but before any keyword is sent — i.e. while the pane is still alive. Distinguishes
+ * "the conf's `set-option -g` never reached the window-scoped option on tmux 3.4" (plain
+ * `-g` and `-w -t <window>` would both come back empty, but `-g -w` would show it) from
+ * "tmux 3.4 does not honor remain-on-exit at all" (all three come back empty). Revert with
+ * the rest of this instrumentation once the investigation concludes.
+ */
+async function logRemainOnExitScopes(target: TmuxTarget, tmuxName: string): Promise<void> {
+  await runTmuxDiagnostic('[pre-keyword] show-options -g remain-on-exit (session scope)', [
+    '-L',
+    target.socket,
+    'show-options',
+    '-g',
+    'remain-on-exit',
+  ]);
+  await runTmuxDiagnostic(
+    '[pre-keyword] show-options -w -t <window> remain-on-exit (window scope)',
+    ['-L', target.socket, 'show-options', '-w', '-t', tmuxName, 'remain-on-exit'],
+  );
+  await runTmuxDiagnostic('[pre-keyword] show-options -g -w remain-on-exit (global window scope)', [
+    '-L',
+    target.socket,
+    'show-options',
+    '-g',
+    '-w',
+    'remain-on-exit',
+  ]);
 }
 
 /**
@@ -207,6 +247,9 @@ async function withFakeClaudeSession(
       },
       { cwd },
     );
+
+    // DEBUG: temporary — see logRemainOnExitScopes' comment (garden #38 CI investigation).
+    await logRemainOnExitScopes(target, tmuxName);
 
     await until(
       'the fake to print its READY marker',
@@ -353,6 +396,75 @@ describe('a real fake-claude process spawned into a tmux pane', () => {
         expect(afterKeyword?.lastActivity).toBeGreaterThanOrEqual(withFacts!.lastActivity);
         expect(session.watcherComplaints).toEqual([]);
       });
+    });
+  });
+});
+
+/**
+ * DEBUG: temporary — throwaway probe for garden #38. Answers the product question directly,
+ * independent of garden's own tmux parsing (no listPanes, no projection): does this tmux
+ * build report a dead pane's exit code at all? If this fails on Linux CI while passing
+ * locally, garden's dead-session display is broken on tmux 3.4 regardless of anything
+ * fake-claude or garden's own code does. Delete this describe block once the investigation
+ * concludes.
+ */
+describe('DEBUG probe: does this tmux report a dead pane exit code (garden #38)', () => {
+  it('reports pane_dead_status for a session whose command exits non-zero', async () => {
+    await withTmuxServer(async (target) => {
+      // First command to touch this socket, so -f is what starts the server with
+      // remain-on-exit already on — same requirement withTmuxServer documents.
+      await execFileAsync('tmux', [
+        '-L',
+        target.socket,
+        '-f',
+        target.confPath,
+        'new-session',
+        '-d',
+        '-s',
+        'probe',
+        '--',
+        'sh',
+        '-c',
+        'exit 3',
+      ]);
+
+      const observe = async (): Promise<string> => {
+        try {
+          const { stdout, stderr } = await execFileAsync('tmux', [
+            '-L',
+            target.socket,
+            'list-panes',
+            '-a',
+            '-F',
+            '#{pane_dead} dead_status=[#{pane_dead_status}]',
+          ]);
+          console.error(
+            `DEBUG: probe list-panes exit=0 stdout=${JSON.stringify(stdout)} stderr=${JSON.stringify(stderr)}`,
+          );
+          return stdout;
+        } catch (error) {
+          const err = error as NodeJS.ErrnoException & { stdout?: string; stderr?: string };
+          console.error(
+            `DEBUG: probe list-panes exit=${JSON.stringify(err.code ?? null)} ` +
+              `stdout=${JSON.stringify(String(err.stdout ?? ''))} ` +
+              `stderr=${JSON.stringify(String(err.stderr ?? ''))}`,
+          );
+          return '';
+        }
+      };
+
+      const observed = await until(
+        'the probe pane to report itself dead with an exit code',
+        observe,
+        (stdout) => /dead_status=\[\d+\]/.test(stdout),
+        5_000,
+      ).catch((error: unknown) => {
+        console.error(`DEBUG: probe timed out: ${String(error)}`);
+        return '';
+      });
+
+      const match = observed.match(/dead_status=\[(\d+)\]/);
+      expect(match?.[1]).toBe('3');
     });
   });
 });

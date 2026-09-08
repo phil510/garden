@@ -49,4 +49,8 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - run: pnpm test:integration
+      # DEBUG: temporary — the default vitest reporter suppresses console output for tests
+      # that pass, so a DEBUG block would be invisible on any run where the test it's in
+      # doesn't fail (garden #38 CI investigation). --reporter=verbose flushes every test's
+      # console output regardless of outcome. Revert with the rest of this instrumentation.
+      - run: pnpm test:integration --reporter=verbose
