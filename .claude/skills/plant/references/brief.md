@@ -22,46 +22,57 @@ annotations scaffold. Hand-write the file only if the script can't run.
 ## Brief
 
 ### Spec (optional)
+
 <path to a design spec file>
 
 ### Size
-standard | small       (default: standard)
+
+standard | small (default: standard)
 
 ### 1. Objective
+
 <1–3 sentences describing what "done" looks like>
 
 ### 2. Scope
+
 **In:** <files/modules/behaviors>
 **Out:** <explicit exclusions>
 
 ### 3. Acceptance criteria
+
 - <concrete, testable statement>
 - <…>
 
 ### 4. Verify command
+
 <exact shell command, e.g., `pnpm validate`>
 
 ### 5. Autonomy bounds
+
 **Auto:** <behaviors the worker can do without asking>
 **Ask first:** <behaviors requiring user approval via escalation>
 **Never:** <behaviors the worker must escalate instead of attempting>
 
 ### 6. Stop conditions
+
 - PR merged (default — always present)
 - <optional extras: absolute ISO timestamp, approval-by-user>
 
 ### 7. Merge policy
-auto | ask       (default: ask)
+
+auto | ask (default: ask)
 
 ---
 
 ## Stages
+
 - [ ] 1. Plan
 - [ ] 2. Develop + draft PR
 - [ ] 3. Internal review
 - [ ] 4. Finish (CI + merge)
 
 ## Annotations
+
 (append-only, written by workers and orchestrator. Annotations are
 appended flat and chronological at the end of this section — never
 inserted under a stage's checkbox line. See
@@ -87,13 +98,13 @@ plan, so they must be concrete. `standard` is the default.
 interactive negotiation — the brief is derived from the issue plus the
 repo, and only §1–3 come from the issue at all:
 
-| Field | Source |
-|---|---|
-| 1. Objective, 2. Scope, 3. Acceptance criteria | the issue body |
-| 4. Verify command | the repo — `pnpm validate` is the gate (typecheck, lint, format check, unit tests); `pnpm test` is the unit tier only |
-| 5. Autonomy bounds | defaults from `autonomy.md` |
-| 6. Stop conditions | `PR merged` |
-| 7. Merge policy | `auto \| ask`, default `ask` |
+| Field                                          | Source                                                                                                                |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| 1. Objective, 2. Scope, 3. Acceptance criteria | the issue body                                                                                                        |
+| 4. Verify command                              | the repo — `pnpm validate` is the gate (typecheck, lint, format check, unit tests); `pnpm test` is the unit tier only |
+| 5. Autonomy bounds                             | defaults from `autonomy.md`                                                                                           |
+| 6. Stop conditions                             | `PR merged`                                                                                                           |
+| 7. Merge policy                                | `auto \| ask`, default `ask`                                                                                          |
 
 **The triage gate.** GitHub issues vary as much in quality as any other
 ticket source, so the gate isn't "is this issue good" — it's whether
@@ -169,7 +180,7 @@ override the brief, not as another reviewer finding:
    audit annotation citing "user concern" instead of an escalation
    ISO. Invalidate affected artifacts the same way.
 3. If fix-round: synthesize a minimal findings-shaped input (`## User
-   concern` section with `Disposition: fix`, `Severity`, `Location`,
+concern` section with `Disposition: fix`, `Severity`, `Location`,
    `Issue`, `Failure scenario`) and dispatch the developer per the
    fresh-spawn path.
 4. Same single-writer-per-moment rule applies — act only between

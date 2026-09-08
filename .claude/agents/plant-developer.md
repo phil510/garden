@@ -62,7 +62,7 @@ trusting inheritance from the repo's `CLAUDE.md`:
 - `pnpm validate` (typecheck, lint, format check, unit tests) is the
   gate — that's your verify command unless brief field 4 says
   otherwise. `pnpm test` alone is the unit tier only; `pnpm
-  test:integration` drives real tmux and isn't part of a normal verify
+test:integration` drives real tmux and isn't part of a normal verify
   loop.
 - Read `docs/architecture.md` before touching server or web code — the
   layering it describes is enforced by scoped `no-restricted-imports`,
@@ -123,18 +123,21 @@ the verify command pass.
 4. **Work through the tasks in order.** For each:
    a. Implement (TDD where applicable).
    b. Run the verify command. If it fails, see § Verify failures and
-      ambiguity below.
+   ambiguity below.
    c. Commit with a descriptive message (§ Garden conventions).
-      Annotate:
-      ```
-      > NOTE <iso> — developer: task <N> done — <commit-sha>
-      ```
+   Annotate:
+
+   ```
+   > NOTE <iso> — developer: task <N> done — <commit-sha>
+   ```
+
    d. Tick the task checkbox in `plan.md` (atomic rename). No plan
-      file means no checkbox to tick.
+   file means no checkbox to tick.
 
    **Commit granularity.** With a plan, one commit per plan task. On a
    `Size: small` brief, one commit per AC — or one commit total when
    the ACs describe a single change.
+
 5. **Run the full verify command** after the last task. Verify must
    pass on fresh evidence in this session — no "should pass" claims.
 6. **Dispatch a subagent for a self-review pass on the diff.** Pick a
@@ -208,13 +211,13 @@ round.
 5. **Address each `fix` finding in order.** One commit per finding:
    a. Implement the fix (TDD where tests apply).
    b. Re-run the verify command after each meaningful change — see
-      § Verify failures and ambiguity below if it won't pass.
+   § Verify failures and ambiguity below if it won't pass.
    c. Commit with a message that references the finding (§ Garden
-      conventions).
+   conventions).
    d. Annotate:
-      ```
-      > NOTE <iso> — developer: finding <n> fixed — <commit-sha>
-      ```
+   ```
+   > NOTE <iso> — developer: finding <n> fixed — <commit-sha>
+   ```
 6. **Push** all commits to `${BRANCH}`. The PR updates automatically.
 7. **Append the developer-round section** to `${REVIEW_FILE}` so it
    stays the complete, linear audit trail for the round. The heading
@@ -262,19 +265,19 @@ slice of it.
 
 - **Initial mode done:** `stage 2 done — draft PR <url>, commits <shas>`
 - **Fix-round done:** `fix-round K done — N findings fixed, commits
-  <shas>, pushed`
+<shas>, pushed`
 - **Escalating (either mode):** `ESCALATING — see events/<iso>-escalation.md, decision needed on <X>`
 
 Your escalations set `**Stage:** dev` and `**Artifact:**` to the path
 of `plan.md`, `review-round-<k>.md`, or `events/<iso>-<kind>.md`.
 Typical reasons:
 
-| Reason | Trigger |
-|---|---|
-| `autonomy_exceeded` | A finding (or plan task) falls outside `Auto:` bounds |
-| `error` | Worktree bootstrap failed — `pnpm install` won't succeed |
-| `stall` | Verify still failing after 3 different approaches, or no forward progress after several attempts at the same task |
-| `ambiguity` | A task or finding asks for something the brief doesn't cover, and the repo's docs are silent too |
+| Reason              | Trigger                                                                                                           |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `autonomy_exceeded` | A finding (or plan task) falls outside `Auto:` bounds                                                             |
+| `error`             | Worktree bootstrap failed — `pnpm install` won't succeed                                                          |
+| `stall`             | Verify still failing after 3 different approaches, or no forward progress after several attempts at the same task |
+| `ambiguity`         | A task or finding asks for something the brief doesn't cover, and the repo's docs are silent too                  |
 
 ## Guardrails
 

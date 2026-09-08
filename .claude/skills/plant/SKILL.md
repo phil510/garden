@@ -31,7 +31,7 @@ reason worth understanding, because the failure modes are silent.
   runs in a teammate. Your context is the routing table for a pipeline
   that may run for hours; spending it on a diff is how a long pipeline
   degrades into a confused one. If you're about to edit code, spawn a
-  worker instead. The same line bars *commissioning*: don't dispatch work
+  worker instead. The same line bars _commissioning_: don't dispatch work
   no finding, plan task, or user decision asked for — it skips the review
   loop and the audit trail. Ticking stage 1 for a `Size: small` pipeline
   is bookkeeping, not stage work — no plan is produced, so nothing is
@@ -82,14 +82,14 @@ cleanup.
 This file is the dispatch document. Mechanics live in `references/`,
 loaded only when needed.
 
-| When you need… | Read |
-|---|---|
-| Brief schema, stage 0 derivation, the triage gate, mid-pipeline edits, user concerns | `references/brief.md` |
-| The autonomy ladder — what's decide-and-log versus a hard stop, and why; default brief bounds | `references/autonomy.md` |
-| Naming/counters, worker lifecycle, opener vocabulary, permission mode, why-this-shape | `references/spawn-details.md` |
-| Escalation protocol, escalation event shape, edge cases | `references/escalate-resume.md` |
-| Placeholder vocabulary, annotation grammar | `references/placeholders-and-annotations.md` |
-| Shared worker rules: spawn contract, idempotency, input resolution, write discipline, signalling, escalation | `references/worker-protocol.md` |
+| When you need…                                                                                               | Read                                         |
+| ------------------------------------------------------------------------------------------------------------ | -------------------------------------------- |
+| Brief schema, stage 0 derivation, the triage gate, mid-pipeline edits, user concerns                         | `references/brief.md`                        |
+| The autonomy ladder — what's decide-and-log versus a hard stop, and why; default brief bounds                | `references/autonomy.md`                     |
+| Naming/counters, worker lifecycle, opener vocabulary, permission mode, why-this-shape                        | `references/spawn-details.md`                |
+| Escalation protocol, escalation event shape, edge cases                                                      | `references/escalate-resume.md`              |
+| Placeholder vocabulary, annotation grammar                                                                   | `references/placeholders-and-annotations.md` |
+| Shared worker rules: spawn contract, idempotency, input resolution, write discipline, signalling, escalation | `references/worker-protocol.md`              |
 
 Worker instructions live in `.claude/agents/plant-{planner,developer,
 reviewer}.md`. Each agent opens by reading `references/worker-protocol.md`,
@@ -126,12 +126,12 @@ Four actors: you plus three workers. The user is an implicit fifth —
 supplies the issue, answers the triage gate and escalation pages, and
 either merges the PR or hands you the go-ahead to.
 
-| Persona | Lifetime | Key responsibility |
-|---|---|---|
-| **Orchestrator** (you) | the session | Derive the brief from the issue, run the triage gate, spawn workers, route signals, page the user, run the finish gate. Never does stage work. |
-| **Planner** (stage 1) | fresh per spawn | Brief → `plan.md` with a Tasks↔AC coverage table, grounded in 2–3 parallel `Explore` subagents and a named-agent plan reviewer. Skipped entirely on `Size: small`. |
-| **Developer** (stage 2 + every fix round) | fresh per round | Self-bootstraps the worktree (`pnpm install`). Initial: implements the plan, self-reviews, opens the draft PR. Fix-round: applies the internal reviewer's `fix` findings, one commit per finding, pushes. |
-| **Reviewer** (stage 3) | fresh per round | Internal review via `pr-review-toolkit:review-pr`'s aspect→agent mapping plus named agents scaled to the diff → `review-round-<k>.md`. Clean → flips stage 3 (PR stays draft). Dirty → annotates, no flip. Cap 3 rounds (1 for `Size: small`), then escalates `review_cap`. |
+| Persona                                   | Lifetime        | Key responsibility                                                                                                                                                                                                                                                          |
+| ----------------------------------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Orchestrator** (you)                    | the session     | Derive the brief from the issue, run the triage gate, spawn workers, route signals, page the user, run the finish gate. Never does stage work.                                                                                                                              |
+| **Planner** (stage 1)                     | fresh per spawn | Brief → `plan.md` with a Tasks↔AC coverage table, grounded in 2–3 parallel `Explore` subagents and a named-agent plan reviewer. Skipped entirely on `Size: small`.                                                                                                          |
+| **Developer** (stage 2 + every fix round) | fresh per round | Self-bootstraps the worktree (`pnpm install`). Initial: implements the plan, self-reviews, opens the draft PR. Fix-round: applies the internal reviewer's `fix` findings, one commit per finding, pushes.                                                                   |
+| **Reviewer** (stage 3)                    | fresh per round | Internal review via `pr-review-toolkit:review-pr`'s aspect→agent mapping plus named agents scaled to the diff → `review-round-<k>.md`. Clean → flips stage 3 (PR stays draft). Dirty → annotates, no flip. Cap 3 rounds (1 for `Size: small`), then escalates `review_cap`. |
 
 All three workers default to **sonnet** and die with your session.
 `plant-developer` is dual-mode (`${MODE}` = `initial` or `fix-round`);
@@ -141,7 +141,7 @@ All three workers default to **sonnet** and die with your session.
 send an `ESCALATING` message, self-idle. Auto-resolve within the brief's
 Autonomy bounds if you can; page the user only when you can't. Either way,
 append the event's `## Resolution` block and the `> RESOLVED` annotation
-*before* fresh-spawning under the next-numbered name with the decision in
+_before_ fresh-spawning under the next-numbered name with the decision in
 the opener. `references/escalate-resume.md` has the full protocol;
 `references/autonomy.md` has the ladder that decides which branch you're
 on.
@@ -170,12 +170,12 @@ Substitute the values above wherever your instructions reference ${VAR}.
 
 Which vars each role needs:
 
-| Role | Vars in the opener |
-|---|---|
-| planner | `BRANCH`, `PLANTDIR`, `WORKFLOW` |
-| developer (initial) | + `MODE`, `PR_URL` once known |
-| developer (fix-round) | + `MODE`, `ROUND`, `PR_URL`, `REVIEW_FILE` |
-| reviewer | `PLANTDIR`, `WORKFLOW`, `PR_URL`, `ROUND` (no `MODE`) |
+| Role                  | Vars in the opener                                    |
+| --------------------- | ----------------------------------------------------- |
+| planner               | `BRANCH`, `PLANTDIR`, `WORKFLOW`                      |
+| developer (initial)   | + `MODE`, `PR_URL` once known                         |
+| developer (fix-round) | + `MODE`, `ROUND`, `PR_URL`, `REVIEW_FILE`            |
+| reviewer              | `PLANTDIR`, `WORKFLOW`, `PR_URL`, `ROUND` (no `MODE`) |
 
 Values are literal strings — absolute paths for the path-valued vars
 (`PLANTDIR`, `WORKFLOW`, `REVIEW_FILE`), plain values for the rest
@@ -232,17 +232,17 @@ scripts/pipeline-finish.sh --worktree <abs> [--branch <name>] --status completed
   `lock_released`. Pass `completed` once the PR merges, `aborted` for a
   user abort or a closed PR.
 
-The scripts own scaffolding only. The brief's *content* is your judgment —
+The scripts own scaffolding only. The brief's _content_ is your judgment —
 you still author that from the issue.
 
 ## Orchestrator workflow
 
 1. **Stage 0 — derive the brief.** `gh issue view <N> --json
-   title,body,labels,url`. Derive the 7 fields per `references/brief.md`'s
+title,body,labels,url`. Derive the 7 fields per `references/brief.md`'s
    table — §1–3 from the issue body, §4 from the repo (`pnpm validate` is
    the gate unless the issue says otherwise), §5 from
    `references/autonomy.md`'s defaults, §6 always `PR merged`, §7 `auto |
-   ask` defaulting to `ask`. Apply the triage gate: if you read §1–3 off
+ask` defaulting to `ask`. Apply the triage gate: if you read §1–3 off
    the issue, proceed straight to step 2. If you had to invent or guess
    any part of them, ask the user about exactly that part, once, then
    proceed — don't re-litigate §4–7, which never come from the user.
@@ -260,7 +260,7 @@ you still author that from the issue.
    planner entirely: flip `- [ ] 1. Plan` → `- [x] 1. Plan` in
    `workflow.md` yourself (atomic rename, same write as the annotation)
    and append `> NOTE <iso> — orchestrator: stage 1 skipped (Size:
-   small); developer works from brief ACs`, then go to step 6. The box
+small); developer works from brief ACs`, then go to step 6. The box
    must be ticked because `pipeline-status.sh` derives `current_stage`
    from the first unchecked checkbox — an unticked stage 1 would make a
    resume re-enter at the planner.
@@ -291,31 +291,31 @@ you still author that from the issue.
 10. **Stage 4 — the finish gate.**
     a. `gh pr ready <url>` — flip the draft to ready.
     b. Block on CI: `gh pr checks <url> --watch`, with an explicit
-       `timeout` on the Bash call. Garden's CI runs typecheck, lint,
-       format, and unit tests plus a build and a separate integration job
-       that drives real tmux. `--watch` blocks on its own and is the
-       preferred form; if you ever need a different wait, a bare
-       foreground `sleep` is hard-blocked by the harness, so use
-       `until <terminal-check>; do sleep N; done` instead.
+    `timeout` on the Bash call. Garden's CI runs typecheck, lint,
+    format, and unit tests plus a build and a separate integration job
+    that drives real tmux. `--watch` blocks on its own and is the
+    preferred form; if you ever need a different wait, a bare
+    foreground `sleep` is hard-blocked by the harness, so use
+    `until <terminal-check>; do sleep N; done` instead.
     c. **CI red** → treat the failure as a finding: write it into a
-       review-round file in the findings shape the developer's fix-round
-       mode already expects (`Disposition: fix`, `Severity`, `Location`,
-       `Issue`, `Failure scenario`) describing what CI reported, dispatch
-       a developer fix-round against it, then re-check from (b).
+    review-round file in the findings shape the developer's fix-round
+    mode already expects (`Disposition: fix`, `Severity`, `Location`,
+    `Issue`, `Failure scenario`) describing what CI reported, dispatch
+    a developer fix-round against it, then re-check from (b).
     d. **CI green** → act on brief field 7. `ask` → report CI-green
-       status to the user and hand them the merge; the pipeline pauses
-       here until they tell you it merged or closed. `auto` → squash-merge
-       the PR, delete the branch, `git worktree remove` the worktree, then
-       run `pipeline-finish.sh --status completed`. Default is `ask` — this
-       is the one irreversible act in the pipeline, which is why field 7
-       is the explicit switch for it.
+    status to the user and hand them the merge; the pipeline pauses
+    here until they tell you it merged or closed. `auto` → squash-merge
+    the PR, delete the branch, `git worktree remove` the worktree, then
+    run `pipeline-finish.sh --status completed`. Default is `ask` — this
+    is the one irreversible act in the pipeline, which is why field 7
+    is the explicit switch for it.
 11. **Stage 1–3 escalation** → `references/escalate-resume.md`.
     Auto-resolve within the brief's Autonomy bounds if you can, otherwise
     page the user; append the event's `## Resolution` block and the
     `> RESOLVED` annotation, then fresh-spawn under the next name with the
     decision in the opener.
 12. **Completion or abort** → run `pipeline-finish.sh --worktree <abs>
-    --status completed|aborted` and summarize to the user from its JSON:
+--status completed|aborted` and summarize to the user from its JSON:
     duration, review rounds, escalation counts, the `decisions.md`
     entries (what got auto-resolved and why — this is what makes an
     unattended run reviewable after the fact), and the PR URL.

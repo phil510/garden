@@ -6,16 +6,16 @@ Canonical placeholder names. The orchestrator substitutes; workers
 consume already-substituted values. Briefs use exactly these names —
 no aliases, no drift.
 
-| Placeholder | Set by | Required for | Meaning |
-|---|---|---|---|
-| `${WORKTREE}` | orchestrator | orchestrator | absolute path to git worktree. Most workers don't read this — they read `${PLANTDIR}`. |
-| `${BRANCH}` | orchestrator | all roles (every opener's first line names it) | git branch name |
-| `${PLANTDIR}` | orchestrator | all roles | absolute path to `${WORKTREE}/.plant/${BRANCH}/` |
-| `${WORKFLOW}` | orchestrator | planner, developer, reviewer | absolute path to `workflow.md` |
-| `${MODE}` | orchestrator | developer | selects `initial` or `fix-round` |
-| `${ROUND}` | orchestrator | developer fix-round, reviewer internal | review/fix round number (1, 2, 3) |
-| `${PR_URL}` | orchestrator | developer (after stage 2 completes), reviewer | PR URL once known |
-| `${REVIEW_FILE}` | orchestrator | developer fix-round-from-internal | absolute path to current `review-round-N.md` |
+| Placeholder      | Set by       | Required for                                   | Meaning                                                                                |
+| ---------------- | ------------ | ---------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `${WORKTREE}`    | orchestrator | orchestrator                                   | absolute path to git worktree. Most workers don't read this — they read `${PLANTDIR}`. |
+| `${BRANCH}`      | orchestrator | all roles (every opener's first line names it) | git branch name                                                                        |
+| `${PLANTDIR}`    | orchestrator | all roles                                      | absolute path to `${WORKTREE}/.plant/${BRANCH}/`                                       |
+| `${WORKFLOW}`    | orchestrator | planner, developer, reviewer                   | absolute path to `workflow.md`                                                         |
+| `${MODE}`        | orchestrator | developer                                      | selects `initial` or `fix-round`                                                       |
+| `${ROUND}`       | orchestrator | developer fix-round, reviewer internal         | review/fix round number (1, 2, 3)                                                      |
+| `${PR_URL}`      | orchestrator | developer (after stage 2 completes), reviewer  | PR URL once known                                                                      |
+| `${REVIEW_FILE}` | orchestrator | developer fix-round-from-internal              | absolute path to current `review-round-N.md`                                           |
 
 "Required for" lists the roles whose brief actually consumes the value.
 An opener may carry a spare, which costs one line and nothing else, so
@@ -76,11 +76,11 @@ one, stop and surface it for review. Squeezing new shapes into a
 fixed grammar is a signal the design needs to change, not the
 grammar.
 
-| Annotate | Don't annotate |
-|---|---|
+| Annotate                                          | Don't annotate                                                                                |
+| ------------------------------------------------- | --------------------------------------------------------------------------------------------- |
 | Stage `- [ ]` → `- [x]` flip (worker, on success) | Worker spawn (orchestrator) — teammates are addressed by role name; there's nothing to record |
-| Brief edit by orchestrator (`> RESOLVED`) | Sub-task progress — TaskUpdate metadata covers it |
-| Worker milestone (e.g., "draft PR opened") | Anything a downstream worker can derive from `workflow.md` or `events/` |
+| Brief edit by orchestrator (`> RESOLVED`)         | Sub-task progress — TaskUpdate metadata covers it                                             |
+| Worker milestone (e.g., "draft PR opened")        | Anything a downstream worker can derive from `workflow.md` or `events/`                       |
 
 **Worker self-annotations are the durable record.** The orchestrator
 does not echo or duplicate them. If a worker annotates "stage 2

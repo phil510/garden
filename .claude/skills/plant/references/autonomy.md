@@ -18,7 +18,7 @@ away?**
   the commit that made it, with nothing downstream depending on which way it
   went. Pick a reasonable interpretation, write down why, keep moving.
 
-Stage is a decent proxy, because of *when* each worker's output gets
+Stage is a decent proxy, because of _when_ each worker's output gets
 consumed: a planner's ambiguity is load-bearing almost by construction (the
 plan is what every later stage reads), while a reviewer's is usually
 contained inside one finding, one round, one commit. But the proxy isn't the
@@ -33,7 +33,7 @@ Contained by default:
 - A planner or reviewer ambiguity the repo's own docs settle — the answer
   already exists, it just needed looking up.
 - A planner ambiguity where the issue's objective still holds and only the
-  *how* is in question — the destination is fixed, the route is unclear.
+  _how_ is in question — the destination is fixed, the route is unclear.
 - A developer verify failure, for up to three attempts with a genuinely
   different approach each time. One failed attempt is normal; three
   identical retries are stalling, not deciding (see below).
@@ -57,7 +57,7 @@ move:
   that's a gap in the understanding the work was scoped from, not a problem
   the reviewer closes by picking an outcome. Quietly building around it (or
   quietly satisfying it at high cost) erases the only signal that something
-  was mis-scoped — surfacing it *is* the correct resolution here, not a
+  was mis-scoped — surfacing it _is_ the correct resolution here, not a
   fallback for when a cleaner one can't be found.
 - **Developer: `autonomy_exceeded` or `stall`.** An autonomy bound is a line
   the user drew on purpose, not the worker's to cross regardless of how
@@ -107,7 +107,7 @@ question a worker runs into mid-stage.
   test have real answers waiting there.
 - Frozen specs are historical context, not authority — they capture a
   decision at the moment it was made and drift as the code moves past them.
-  Good for *why* something was built a certain way, not for whether it still
+  Good for _why_ something was built a certain way, not for whether it still
   works that way.
 
 If the docs are silent on something they plainly ought to cover, that

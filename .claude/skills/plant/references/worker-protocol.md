@@ -102,10 +102,10 @@ and lives in your agent definition.
 
 ## Signalling the orchestrator
 
-Finish your disk writes first, *then* send exactly one typed
+Finish your disk writes first, _then_ send exactly one typed
 `SendMessage`. Write-then-signal: disk is consistent before the
 orchestrator can act on the signal. The message is a routing summary
-*of* what you wrote, never a substitute for it — the orchestrator reads
+_of_ what you wrote, never a substitute for it — the orchestrator reads
 disk on demand, and a fresh worker rebuilds entirely from disk.
 
 After sending, **stop and go idle.** You will not be messaged again; a
@@ -126,9 +126,9 @@ move.
    `.claude/skills/plant/references/escalate-resume.md` §
    Escalation event shape.
 3. Append `> ESCALATED <iso> — <actor>: <reason>; see
-   events/<iso>-escalation.md` to the end of `## Annotations`.
+events/<iso>-escalation.md` to the end of `## Annotations`.
 4. Send `ESCALATING — see events/<iso>-escalation.md, decision needed
-   on <X>`, then stop and go idle.
+on <X>`, then stop and go idle.
 
 The coded reasons are `autonomy_exceeded | error | stall | ambiguity |
 review_cap`. They name the common cases, not the legal ones. When none

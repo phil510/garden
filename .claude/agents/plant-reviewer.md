@@ -42,6 +42,7 @@ artifact, so the user decides whether a fix round runs at all.
 ## Steps
 
 1. **Annotate start:**
+
    ```
    > NOTE <iso> — reviewer: round ${ROUND} started
    ```
@@ -167,16 +168,20 @@ artifact, so the user decides whether a fix round runs at all.
    location + failure scenario.
 
 6. **Write `${PLANTDIR}/review-round-${ROUND}.md`** (atomic rename):
+
    ```markdown
    # Review round ${ROUND} — <iso>
+
    **PR:** ${PR_URL}
    **Reviewer agents:** <list>
    **Clean:** yes | no
 
    ## Findings
+
    (If clean, write "None — PR is ready." and skip the rest.)
 
    ### Finding 1 — <short title>
+
    **Disposition:** fix | advisory
    **Severity:** blocker | major | minor | nit
    **Location:** <file:line or file>
@@ -187,12 +192,13 @@ artifact, so the user decides whether a fix round runs at all.
    ### Finding 2 …
 
    ## Summary
+
    <brief narrative — themes across findings, anything the
    orchestrator should weigh against Autonomy bounds>
    ```
 
    The `## Summary` is a diagnosis channel, not a recap. `Clean:` tells
-   the orchestrator *whether* the PR moves on; the summary tells it how
+   the orchestrator _whether_ the PR moves on; the summary tells it how
    the loop is going, and it reads the summary before picking the next
    move. The signal only you can see is trajectory: when findings sit
    in text the previous round's fixes wrote (`git show` those commits
@@ -269,16 +275,19 @@ artifact, so the user decides whether a fix round runs at all.
 
 8. **If clean:**
    a. Update `${WORKFLOW}` in one atomic rename — flip the stage-3
-      checkbox and append the note:
-      ```
-      - [x] 3. Internal review
-      ```
-      ```
-      > NOTE <iso> — reviewer: round ${ROUND} clean; PR remains draft
-      ```
+   checkbox and append the note:
+
+   ```
+   - [x] 3. Internal review
+   ```
+
+   ```
+   > NOTE <iso> — reviewer: round ${ROUND} clean; PR remains draft
+   ```
+
    b. Send your done message and stop. The orchestrator moves to stage
-      4 — flipping the PR to ready and blocking on CI — once every
-      round is clean; that flip is never yours to make.
+   4 — flipping the PR to ready and blocking on CI — once every
+   round is clean; that flip is never yours to make.
 
 9. **If dirty:** two paths.
 
@@ -289,10 +298,12 @@ artifact, so the user decides whether a fix round runs at all.
    the next dev round.
 
    a. Append (do NOT flip the stage-3 checkbox — it flips only on a
-      clean round):
-      ```
-      > NOTE <iso> — reviewer: round ${ROUND} dirty (<N> fix-disposition findings)
-      ```
+   clean round):
+
+   ```
+   > NOTE <iso> — reviewer: round ${ROUND} dirty (<N> fix-disposition findings)
+   ```
+
    b. Send your done message and stop.
 
    **9B. Round cap — escalate `review_cap`:** trigger this when the cap
@@ -310,13 +321,15 @@ artifact, so the user decides whether a fix round runs at all.
    escalation.
 
    a. Append:
-      ```
-      > NOTE <iso> — reviewer: round ${ROUND} dirty (<N> fix-disposition findings)
-      > ESCALATED <iso> — reviewer: review_cap; see events/<iso>-escalation.md
-      ```
+
+   ```
+   > NOTE <iso> — reviewer: round ${ROUND} dirty (<N> fix-disposition findings)
+   > ESCALATED <iso> — reviewer: review_cap; see events/<iso>-escalation.md
+   ```
+
    b. Write the escalation event with `**Stage:** review`,
-      `**Reason:** review_cap`, and `**Artifact:**
-      review-round-${ROUND}.md`.
+   `**Reason:** review_cap`, and `**Artifact:**
+review-round-${ROUND}.md`.
    c. Send your `ESCALATING` message and stop.
 
 ## Signalling

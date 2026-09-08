@@ -17,7 +17,7 @@ primitive.
    `> ESCALATED <iso> — <actor>: <reason>; see events/<iso>-escalation.md`
    to the end of `workflow.md`'s `## Annotations` section.
 3. Worker sends an `ESCALATING — see events/<iso>-escalation.md, decision
-   needed on <X>` `SendMessage`, then self-idles.
+needed on <X>` `SendMessage`, then self-idles.
 4. Orchestrator reads the escalation event (and, if needed, the
    referenced `Artifact`). The escalating worker is left idle — treat it
    as dead; a `shutdown_request` to it is optional best-effort cleanup.
@@ -45,15 +45,16 @@ primitive.
    reports an escalation event without it as still open, so skipping it on
    the user-decision path leaves the worker nothing to read and the
    pipeline permanently escalated. On the auto-resolve path, the
-   `decisions.md` line *is* the record of what was decided — the event's
+   `decisions.md` line _is_ the record of what was decided — the event's
    `## Resolution` block still gets written so the escalation closes on
    disk the same way.
+
 6. The fresh worker reconstructs state from `workflow.md` + stage
    artifacts, applies the decision, completes the stage, and sends its
    result message.
 7. Orchestrator routes off that message and advances to the next stage.
 
-A fresh-spawn-with-decision is the *same* code path as post-crash
+A fresh-spawn-with-decision is the _same_ code path as post-crash
 recovery: in both cases a new teammate rebuilds from disk. The only
 difference is the decision block in the opener.
 
@@ -64,15 +65,18 @@ resume metadata (no session UUID exists to record).
 
 ```markdown
 # Event: escalation — <iso>
+
 **Reason:** autonomy_exceeded | error | stall | ambiguity | review_cap | <short free text>
 **Stage:** plan | dev | review
 **Artifact:** <path to stage artifact with full detail>
 **One-liner:** <≤120 char summary>
 
 ## Details
+
 <prose: what happened, what was tried, what the docs said (or that they were silent)>
 
 ## Suggested options
+
 - <option a>
 - <option b>
 - <option c>
@@ -80,6 +84,7 @@ resume metadata (no session UUID exists to record).
 ---
 
 ## Resolution
+
 (Appended by the orchestrator once resolved — by auto-resolve or by the user)
 **Resolved at:** <iso>
 **Decision:** <option letter / free-text>
@@ -100,11 +105,11 @@ else page the user.
 
 ## Who escalates
 
-| Persona | Escalation path | Typical reasons |
-|---|---|---|
-| Planner | Event + `ESCALATING` message → auto-resolve or fresh-spawn with decision | `ambiguity`, `error` |
+| Persona   | Escalation path                                                          | Typical reasons                                    |
+| --------- | ------------------------------------------------------------------------ | -------------------------------------------------- |
+| Planner   | Event + `ESCALATING` message → auto-resolve or fresh-spawn with decision | `ambiguity`, `error`                               |
 | Developer | Event + `ESCALATING` message → auto-resolve or fresh-spawn with decision | `autonomy_exceeded`, `error`, `stall`, `ambiguity` |
-| Reviewer | Event + `ESCALATING` message → auto-resolve or fresh-spawn with decision | `ambiguity`, `review_cap` |
+| Reviewer  | Event + `ESCALATING` message → auto-resolve or fresh-spawn with decision | `ambiguity`, `review_cap`                          |
 
 For `Size: small`, `review_cap` fires on the first dirty internal review
 round rather than at round 3 — the cap is 1, not 3.

@@ -52,7 +52,7 @@ support, or an AC you can't cover), work through it in this order:
    the question, decide, continue, and log the decision plus the doc that
    settled it to `${PLANTDIR}/decisions.md`.
 2. If the docs are silent but the issue's underlying objective still holds
-   and only the *how* changed, decide and log that too.
+   and only the _how_ changed, decide and log that too.
 3. Otherwise, escalate. Also escalate — regardless of what the docs say —
    when the work is too large to decompose or needs slicing, or when
    anything downstream would have to assume a guessed answer.
@@ -74,10 +74,13 @@ stages.
    your own context.
 
 3. **Annotate start:**
+
    ```
    > NOTE <iso> — planner: started
    ```
+
    On a fresh spawn picking up a decided escalation, append instead:
+
    ```
    > NOTE <iso> — planner: re-spawned; applying decision from events/<iso>-escalation.md
    ```
@@ -117,37 +120,44 @@ stages.
    either way.
 
 7. **Write `${PLANTDIR}/plan.md`** (atomic rename):
+
    ```markdown
    # Plan: <title from brief>
 
    ## Context
+
    Branch: ${BRANCH}
    Verify: <verify command from brief>
    PR target: (draft, created by developer in stage 2)
 
    ## Acceptance criteria (derived from spec)
+
    <only present when the brief has a Spec: field and no §3>
+
    - <AC1, one per behavior in the spec's Testing section>
    - <…>
 
    ## Tasks
+
    - [ ] 1. <atomic, completable task with file hints>
    - [ ] 2. <…>
    - [ ] …
    - [ ] N. Final verification — run verify, confirm no regressions
 
    ## Tasks ↔ Acceptance criteria coverage
-   | AC | Covering tasks | Notes |
-   |---|---|---|
-   | AC1: <verbatim from brief> | 1, 3 | |
-   | AC2: <verbatim from brief> | 2 | |
-   | AC3: <verbatim from brief> | — | UNCOVERED — see Notes |
+
+   | AC                         | Covering tasks | Notes                 |
+   | -------------------------- | -------------- | --------------------- |
+   | AC1: <verbatim from brief> | 1, 3           |                       |
+   | AC2: <verbatim from brief> | 2              |                       |
+   | AC3: <verbatim from brief> | —              | UNCOVERED — see Notes |
 
    ## Notes
+
    <anything the developer needs: existing patterns to follow,
-    edge cases the Explore agents surfaced, test approach. Flag
-    any AC marked UNCOVERED above and explain — either the AC is
-    out of scope per the brief, or you need to escalate>
+   edge cases the Explore agents surfaced, test approach. Flag
+   any AC marked UNCOVERED above and explain — either the AC is
+   out of scope per the brief, or you need to escalate>
    ```
 
    Sizing: 3–10 tasks for small-to-medium PRs. Each task completable in
@@ -183,9 +193,11 @@ stages.
    2's verify gate.
 
 10. **Final annotation + flip the checkbox**, in one atomic write:
+
     ```
     - [x] 1. Plan
     ```
+
     ```
     > NOTE <iso> — planner: plan.md written (<N> tasks, <M> ACs covered, reviewed by <agent>)
     ```
@@ -207,6 +219,6 @@ than a single small-to-medium PR.
 
 - Not a developer. You don't write code. You design the steps.
 - Not a reviewer of implementation. You review your own plan via a
-  named agent; the *work* reviewer runs in stage 3.
+  named agent; the _work_ reviewer runs in stage 3.
 - Not in dialogue with the user. Your output is `plan.md`, `decisions.md`
   entries, and annotations. The orchestrator renders status to the user.

@@ -54,8 +54,8 @@ mechanism.
   worker with `SendMessage`. **Never reuse a name** — each re-spawn of a
   role takes the next counter value; the orchestrator tracks the
   current live name + next counter per role in workflow state (see §
-  Naming). (This is the orchestrator naming *its* teammates — distinct
-  from the in-process `name` param a teammate cannot pass to *its own*
+  Naming). (This is the orchestrator naming _its_ teammates — distinct
+  from the in-process `name` param a teammate cannot pass to _its own_
   fan-out children. Workers fan out to anonymous `Explore` / persona
   subagents, which need no `name`.)
 
@@ -67,7 +67,7 @@ until the session ends with `/exit`. So the orchestrator **treats idle
 as dead** and gives every re-spawn of a role a unique numbered name:
 
 - **Counter per role, incremented on EACH spawn — decoupled from the
-  round tag.** Do *not* equate `developerN` with `review-round-N`: the
+  round tag.** Do _not_ equate `developerN` with `review-round-N`: the
   round tag (`fix-round mode, round 2`) lives in the opener and is
   separate from the routing name. `planner1` (normally spawned once;
   increments only if fresh-spawned on escalation). `developer1` = the
@@ -86,7 +86,7 @@ as dead** and gives every re-spawn of a role a unique numbered name:
 - **The orchestrator tracks the current live worker name + the next
   counter per role** in `workflow.md` / pipeline state, so `SendMessage`
   targets the right teammate and a resume re-enters with the right
-  counter. On a resume *within the same session*, continue the counters;
+  counter. On a resume _within the same session_, continue the counters;
   after `/exit` the old team is gone, so a fresh session may restart at 1.
 - **Residue:** idle `developerN` teammates accumulate, bounded by round
   count, harmless, cleared on `/exit`.
@@ -111,7 +111,7 @@ This is why the opener must spell the paths out in full rather than
 relying on the worker's environment.
 
 For dual-mode roles (developer, reviewer), the opener names the mode:
-*"You are in `fix-round` mode — follow that section."* Instructions carry
+_"You are in `fix-round` mode — follow that section."_ Instructions carry
 no conditional logic; mode-sections are the only branching primitive.
 
 Example (developer fix-round on an internal review file):
@@ -142,7 +142,7 @@ Stages 1–3 run strictly sequentially. For each:
 **Single-writer-per-moment comes from self-idle + sequential dispatch,
 not from a kill.** Each worker idles itself after reporting, and the
 orchestrator spawns the next only after the prior has reported — so only
-one ever holds a write pen. Idle workers *do* coexist (they linger
+one ever holds a write pen. Idle workers _do_ coexist (they linger
 until `/exit`), but an idle worker holds no pen and writes nothing, so
 they don't race. A `shutdown_request` is not what prevents the race —
 its handshake doesn't reliably complete, so it's best-effort cleanup at
@@ -158,7 +158,7 @@ a resume would have been.
 under the next counter value — there is no UUID to relock, no dead
 session to evict. For the normal next-round case that's all there is:
 spawn the next-numbered worker, leave the prior idle. To replace a
-*misbehaving* (non-idle) worker there is no clean in-place swap — the
+_misbehaving_ (non-idle) worker there is no clean in-place swap — the
 `shutdown_request` handshake won't fire on a runaway. The honest options
 are a corrective `SendMessage` (if it's cooperative or already idle) or,
 if it's genuinely dangerous, `/exit` the session; you cannot guarantee
@@ -182,34 +182,35 @@ Every worker reports with a typed `SendMessage`. There is no exit code
 and no stdout file — the message body **is** the signal. This is the
 context-economy core of the pipeline: the orchestrator routes off the
 message and reads disk only on-demand, instead of reading `workflow.md`
-+ `events/` on every hop to reconstruct what a subprocess did.
+
+- `events/` on every hop to reconstruct what a subprocess did.
 
 **The protocol:**
 
 1. **Write-then-signal.** The worker finishes its disk writes (atomic
-   rename), *then* sends its message. Disk is consistent before the
+   rename), _then_ sends its message. Disk is consistent before the
    orchestrator can act on the signal.
 2. **The message carries the routing summary** — enough for the
    orchestrator to pick the next dispatch without reading disk:
    - Planner: `stage 1 done — plan.md written, N tasks, coverage table complete`
    - Developer (initial): `stage 2 done — draft PR <url>, commits <shas>`
-   - Reviewer: `round K clean — PR remains draft` *or* `round K dirty — M fix findings in review-round-K.md`
+   - Reviewer: `round K clean — PR remains draft` _or_ `round K dirty — M fix findings in review-round-K.md`
    - Any worker: `ESCALATING — see events/<iso>-escalation.md, decision needed on <X>`
 3. **The orchestrator routes off the message.** It reads disk only when
    (a) it needs detail it chose not to inline, or (b) a high-stakes hop
    warrants verification — the finish gate, pipeline completion, or a
    contradictory signal.
 4. **Detail goes to the consumer, not through the orchestrator.**
-   Per-finding dispositions live in the review file; the *next worker*
+   Per-finding dispositions live in the review file; the _next worker_
    (a fresh developer fix-round) reads that file. The orchestrator only
    needs the counts to choose the next dispatch.
 5. **Disk remains the resume source.** Messages are ephemeral. A fresh
    orchestrator after session death, or a fresh worker, rebuilds entirely
-   from disk. The message is a fast-path summary *of* disk state, never a
+   from disk. The message is a fast-path summary _of_ disk state, never a
    substitute for it.
 
 **Why this doesn't violate "verify before trust."** Trusting a worker's
-report of *its own just-completed actions* is a low-risk class — the
+report of _its own just-completed actions_ is a low-risk class — the
 worker knows what it did, and consequences surface downstream anyway.
 That is distinct from trusting an agent's claims about code behavior or
 types, which the workers still verify. The high-stakes hops (paging the
@@ -240,6 +241,7 @@ Standard decision block, pasted into the fresh-spawn opener:
 
 ```markdown
 # Resolution for escalation <iso>
+
 **Decision:** <option from worker's Suggested options, or free-text>
 **Rationale:** <optional user clarification>
 
@@ -314,7 +316,7 @@ precondition and will say so when it doesn't hold.
   stable and a worker reconstructs all state from `workflow.md` + stage
   artifacts, a fresh spawn mid-pipeline (after a death, or to apply an
   escalation decision) behaves the same as the original worker would
-  have. This is what lets the skill have *no* resume primitive and
+  have. This is what lets the skill have _no_ resume primitive and
   still recover cleanly — see `escalate-resume.md`.
 
 The orchestrator never writes `planner.md`, `developer-initial.md`, or
