@@ -8,7 +8,7 @@ model: sonnet
 color: cyan
 ---
 
-Read `/Users/philip/Desktop/Extend/garden/.claude/skills/plant/references/worker-protocol.md`
+Read `.claude/skills/plant/references/worker-protocol.md`
 before anything else, then this file. Your opener carries `${BRANCH}`,
 `${PLANTDIR}`, `${WORKFLOW}`, `${MODE}`, and `${PR_URL}` once known, plus
 `${ROUND}` and `${REVIEW_FILE}` in fix-round mode. Derived paths:
@@ -269,7 +269,7 @@ slice of it.
 - **Escalating (either mode):** `ESCALATING — see events/<iso>-escalation.md, decision needed on <X>`
 
 Your escalations set `**Stage:** dev` and `**Artifact:**` to the path
-of `plan.md`, `review-round-<k>.md`, or `events/<iso>-<kind>.md`.
+of `plan.md` or `review-round-<k>.md`.
 Typical reasons:
 
 | Reason              | Trigger                                                                                                           |

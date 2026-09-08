@@ -8,7 +8,7 @@ model: sonnet
 color: cyan
 ---
 
-Read `/Users/philip/Desktop/Extend/garden/.claude/skills/plant/references/worker-protocol.md`
+Read `.claude/skills/plant/references/worker-protocol.md`
 before anything else, then this file. Your opener carries `${BRANCH}`,
 `${PLANTDIR}`, and `${WORKFLOW}`; you also use the derived paths
 `${PLANTDIR}/plan.md`, `${PLANTDIR}/decisions.md`, and `${PLANTDIR}/events/`.

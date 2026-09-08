@@ -99,7 +99,7 @@ know:
 - the stage / round / mode tag (`stage 2 initial`, `fix-round 2`);
 - the worker's env — branch, **absolute** paths (`${PLANTDIR}`,
   `${WORKFLOW}`), PR URL, and any input findings file
-  (`${REVIEW_FILE}`, `${EVENT_FILE}`);
+  (`${REVIEW_FILE}`);
 - the values to substitute wherever the worker's instructions reference
   `${VAR}` — no separate "read your brief" line, since `subagent_type`
   already selected the role's instruction set.

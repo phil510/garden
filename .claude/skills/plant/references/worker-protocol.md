@@ -152,4 +152,5 @@ decision in its opener. You stay idle; treat yourself as dead.
   own PR voice only where their role says so.
 - **Never open a peer-worker channel.** The orchestrator dispatches
   every hop.
-- **Plant never merges.** The user clicks merge, or auto-merge fires.
+- **Workers never merge.** The orchestrator does, at the finish gate, per
+  the brief's merge policy.
