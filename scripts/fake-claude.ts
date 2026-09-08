@@ -3,12 +3,15 @@
 // transcript jsonl — and renders a deliberately bare TUI instead of imitating Claude's.
 // Statuses are driven by typed keywords rather than by waiting on a real model, so a
 // screenshot or an integration test can put a session in a chosen state on demand.
+import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { slugify } from '../packages/server/src/domain/slug.js';
 import type { HookPayload } from '../packages/shared/src/index.js';
+import { openingTranscript } from './fake-transcript.js';
 
 /** Printed once stdin is attached, so a driver's `tmux send-keys` cannot land before the
  *  read loop exists and be silently dropped. */
@@ -26,9 +29,31 @@ function parseSessionId(argv: string[]): string {
   return randomUUID();
 }
 
+/** The prose the fake puts in its transcript, written to read as the fake rather than as a
+ *  plausible Claude session, so a screenshot is never mistaken for a real one. */
+const SELF_DESCRIPTION = {
+  title: 'fake claude sandbox session',
+  prompt: 'Drive this sandbox session through its statuses.',
+  recap: 'Standing by for a keyword. Nothing in this transcript came from a model.',
+};
+
 function transcriptPathFor(cwd: string, sessionId: string): string {
   const root = process.env.GARDEN_TRANSCRIPTS_DIR ?? join(homedir(), '.claude', 'projects');
   return join(root, slugify(cwd), `${sessionId}.jsonl`);
+}
+
+/** Reported rather than invented, so the sandbox UI shows the fixture repo's real state. */
+function gitBranchOf(cwd: string): string | null {
+  try {
+    const branch = execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
+      cwd,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+    return branch === '' ? null : branch;
+  } catch {
+    return null;
+  }
 }
 
 async function postHook(payload: HookPayload): Promise<void> {
@@ -76,6 +101,18 @@ async function main(): Promise<void> {
   const base = { session_id: sessionId, cwd, transcript_path: transcriptPath };
 
   console.log(banner(sessionId, cwd, transcriptPath));
+
+  // The transcript lands before the hook that announces the session, so garden's watcher has
+  // facts to read the first time it looks rather than a session with every field null.
+  await mkdir(dirname(transcriptPath), { recursive: true });
+  await writeFile(
+    transcriptPath,
+    openingTranscript(
+      { ...SELF_DESCRIPTION, sessionId, cwd, gitBranch: gitBranchOf(cwd) },
+      new Date(),
+    ),
+    'utf8',
+  );
 
   // SessionStart is awaited before the read loop opens so a keyword arriving immediately
   // after READY cannot have its status overwritten by a SessionStart still in flight.
