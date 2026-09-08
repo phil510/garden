@@ -108,7 +108,15 @@ one place that needs a default.
 ## Real versus faked
 
 Fake as little as possible, and never fake the thing this project is most exposed to getting
-wrong.
+wrong. A real Claude session is not an exception: driving a session through its status
+transitions is not itself something to fake, and it does not need a real Claude either.
+`scripts/fake-claude.ts` is the default for exercising that path, in both the integration tier
+and manual sandbox use (`pnpm dev:sandbox:server` with `GARDEN_CLAUDE_COMMAND` pointed at it) —
+a real spawned process behind a real tmux pane, moved between `working`, `needs-approval`,
+`waiting` and `ended` by typed keywords (`/approve`, `/wait`, `/end`) rather than by waiting on
+a live model's actual output. The process boundary, the pane, the hook POSTs and the transcript
+file it writes are all still real; only the model's judgment is replaced, by a keyword mapping
+deterministic enough to assert on.
 
 - **`execFile` is never mocked, anywhere.** Faking a port substitutes one implementation of a
   declared interface; mocking `execFile` pretends the process boundary behaved. The test then
@@ -179,6 +187,17 @@ or mutates it is both wrong and destructive. Create the temp repo, use it, remov
 `finally`, exactly as above. Any adapter that reaches a real OS resource needs its own fixture
 following this shape: name the resource explicitly, never inherit it from the environment, tear
 it down whether the test passed or not.
+
+**The fake-Claude composition.** `tests/integration/fake-claude.test.ts` stacks a fourth real
+thing on top of the socket fixture above: a long-lived spawned `tsx` process
+(`scripts/fake-claude.ts`) running inside a pane on that socket, a live HTTP server, and a real
+`watchTranscripts` watch over a temp directory, all at once. Nothing else in the suite composes
+a real pane, a real long-lived process and a live server together — every other adapter test
+drives one real resource at a time, which is why this one took iteration to get stable. The fake
+prints a `READY` marker the instant its read loop actually attaches to stdin; the test polls for
+that line with `until` before sending its first keyword, because `tmux send-keys` against a pane
+whose process hasn't reached its read loop yet succeeds and delivers the keystroke nowhere, with
+no error to catch it.
 
 ## Flake policy
 
