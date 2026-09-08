@@ -48,11 +48,11 @@ function storePort(home: string, logger: Logger): StorePort {
   };
 }
 
-function transcriptPort(config: Config, home: string, logger: Logger): TranscriptPort {
+function transcriptPort(config: Config, logger: Logger): TranscriptPort {
   return {
-    listFiles: () => listTranscriptFiles(home, config.roots),
+    listFiles: () => listTranscriptFiles(config.transcriptsDir, config.roots),
     readRecord: (path) => readTranscriptRecord(path),
-    watch: (onEvent) => watchTranscripts(home, config.roots, onEvent, logger),
+    watch: (onEvent) => watchTranscripts(config.transcriptsDir, config.roots, onEvent, logger),
   };
 }
 
@@ -123,7 +123,7 @@ export async function main(): Promise<void> {
   const logger = createLogger();
   const store = storePort(home, logger);
   const tmux = tmuxPort({ socket: config.tmuxSocket, confPath });
-  const transcripts = transcriptPort(config, home, logger);
+  const transcripts = transcriptPort(config, logger);
   const git = gitPort();
   const projection = createProjection(store);
   const attach: AttachRegistry = createAttachRegistry({

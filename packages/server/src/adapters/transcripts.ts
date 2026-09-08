@@ -18,22 +18,21 @@ export interface TranscriptLogger {
  *  a multi-megabyte transcript is never read whole. */
 export const WINDOW_BYTES = 64 * 1024;
 
-/** Every in-scope `*.jsonl` path under `~/.claude/projects/<slug>/`, one level deep. */
+/** Every in-scope `*.jsonl` path under `<transcriptsDir>/<slug>/`, one level deep. */
 export async function listTranscriptFiles(
-  home: string,
+  transcriptsDir: string,
   roots: readonly string[],
 ): Promise<string[]> {
-  const projectsDir = join(home, '.claude', 'projects');
   let dirNames: string[];
   try {
-    dirNames = await readdir(projectsDir);
+    dirNames = await readdir(transcriptsDir);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
     throw error;
   }
   const files: string[] = [];
   for (const dir of inScopeDirs(dirNames, roots)) {
-    const dirPath = join(projectsDir, dir);
+    const dirPath = join(transcriptsDir, dir);
     for (const entry of await readdir(dirPath)) {
       if (entry.endsWith('.jsonl')) files.push(join(dirPath, entry));
     }
@@ -107,16 +106,15 @@ function isWatchedPath(projectsDir: string, roots: readonly string[], path: stri
  * once per file — the first time it is seen, not on every subsequent re-read.
  */
 export function watchTranscripts(
-  home: string,
+  transcriptsDir: string,
   roots: readonly string[],
   onEvent: (event: Extract<GardenEvent, { type: 'transcript-changed' }>) => void,
   logger: TranscriptLogger,
   debounceMs = DEBOUNCE_MS,
 ): TranscriptWatcher {
-  const projectsDir = join(home, '.claude', 'projects');
   // fs.watch needs the directory to already exist; Claude Code creates it on first
   // use, but a garden started before that has nothing to attach a watch to otherwise.
-  mkdirSync(projectsDir, { recursive: true });
+  mkdirSync(transcriptsDir, { recursive: true });
   const timers = new Map<string, NodeJS.Timeout>();
   const warnedFiles = new Set<string>();
 
@@ -146,8 +144,8 @@ export function watchTranscripts(
     );
   }
 
-  const watcher = watch(projectsDir, {
-    ignored: (path) => !isWatchedPath(projectsDir, roots, path),
+  const watcher = watch(transcriptsDir, {
+    ignored: (path) => !isWatchedPath(transcriptsDir, roots, path),
   });
   watcher.on('add', scheduleReread);
   watcher.on('change', scheduleReread);
