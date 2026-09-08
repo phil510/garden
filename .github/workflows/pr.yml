@@ -38,8 +38,21 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
 
-      - name: Install tmux
-        run: sudo apt-get update && sudo apt-get install -y tmux
+      # apt on ubuntu-latest ships tmux 3.4, which can lose a pane's exit status
+      # (tmux/tmux#4559, fixed in 3.6).
+      - name: Build tmux from source
+        env:
+          TMUX_VERSION: 3.6a
+          TMUX_SHA256: b6d8d9c76585db8ef5fa00d4931902fa4b8cbe8166f528f44fc403961a3f3759
+        run: |
+          sudo apt-get update && sudo apt-get install -y libevent-dev libncurses-dev
+          cd "$RUNNER_TEMP"
+          curl -fsSL "https://github.com/tmux/tmux/releases/download/${TMUX_VERSION}/tmux-${TMUX_VERSION}.tar.gz" -o tmux.tar.gz
+          echo "${TMUX_SHA256}  tmux.tar.gz" | sha256sum -c -
+          tar xzf tmux.tar.gz
+          cd "tmux-${TMUX_VERSION}"
+          ./configure && make -j"$(nproc)" && sudo make install
+          tmux -V
 
       - run: pnpm install --frozen-lockfile
 
