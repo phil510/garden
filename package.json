@@ -21,6 +21,7 @@
   },
   "scripts": {
     "dev:sandbox:server": "pnpm --filter @garden/server dev:sandbox",
+    "dev:sandbox:web": "pnpm --filter @garden/web dev:sandbox",
     "screenshot": "tsx scripts/screenshot.ts",
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint .",

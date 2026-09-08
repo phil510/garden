@@ -7,7 +7,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "build": "vite build",
-    "dev": "vite"
+    "dev": "vite",
+    "dev:sandbox": "GARDEN_PORT=4311 vite --port 5174"
   },
   "dependencies": {
     "@dnd-kit/core": "catalog:",
