@@ -182,8 +182,7 @@ Every worker reports with a typed `SendMessage`. There is no exit code
 and no stdout file — the message body **is** the signal. This is the
 context-economy core of the pipeline: the orchestrator routes off the
 message and reads disk only on-demand, instead of reading `workflow.md`
-
-- `events/` on every hop to reconstruct what a subprocess did.
+and `events/` on every hop to reconstruct what a subprocess did.
 
 **The protocol:**
 
