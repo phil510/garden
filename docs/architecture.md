@@ -8,7 +8,7 @@ and boundaries, not features — for what garden does, see `docs/specs/2026-09-0
 garden has four sources of truth about the outside world:
 
 - **tmux** — which sessions exist, which panes are alive, exit codes.
-- **transcripts** — `~/.claude/projects/*/*.jsonl`, appended live by Claude Code.
+- **transcripts** — `<transcriptsDir>/*/*.jsonl` (default `~/.claude/projects`), appended live by Claude Code.
 - **hooks** — Claude Code POSTs its hook events to the server.
 - **clients** — the browser and the CLI issue commands.
 
@@ -76,7 +76,7 @@ packages/server/src/
     git.ts         git-common-dir, branch, status --porcelain, worktree prefix
     transcripts.ts chokidar watch + read
     pty.ts         node-pty attach
-    store.ts       ~/.garden/state.json, atomic writes (overlay only)
+    store.ts       <appDir>/state.json, atomic writes (overlay only)
     logger.ts
   app/
     ports.ts       interfaces app requires: TmuxPort, StorePort, TranscriptPort, PtyPort, GitPort
@@ -89,8 +89,9 @@ packages/server/src/
     routes/        fastify route handlers
     ws/            events socket, attach socket
     server.ts      fastify factory
-  config.ts
-  appdir.ts        writes tmux.conf and the Claude hook-settings overlay under ~/.garden
+  config.ts        resolves appDir, transcriptsDir, tmuxSocket, claudeCommand from GARDEN_*
+                   env vars, else their ~/.garden / ~/.claude / claude defaults
+  appdir.ts        writes tmux.conf and the Claude hook-settings overlay under appDir
   main.ts          composition root
   cli/             the garden bin
 ```
@@ -133,7 +134,7 @@ mapping. It does not optimistically mutate state and hope tmux agrees.
 
 ### 4.2 Boot, and what is persisted
 
-`~/.garden/state.json` holds **overlay facts only** — things garden itself decided and cannot
+`<appDir>/state.json` holds **overlay facts only** — things garden itself decided and cannot
 recompute: the session id to tmux name map, group order and pins, collapsed groups, stage
 preset and slot assignments, focused slot, and the hide-dead toggle. It does **not** hold a
 `SessionState` snapshot. Every session fact is derived on every boot — liveness, exit code and
@@ -146,7 +147,7 @@ So the startup sequence is a replay, not a restore:
 2. Dispatch `{ type: 'store-loaded' }` — the projection now knows the id-to-name map and the
    UI preferences, and nothing else.
 3. Dispatch a full `tmux-snapshot`.
-4. Scan `~/.claude/projects/**` and dispatch a `transcript-changed` per file.
+4. Scan `<transcriptsDir>/**` and dispatch a `transcript-changed` per file.
 5. Start the watcher and the tmux poll; serve HTTP.
 
 Nothing is reconciled by hand, because steps 3 and 4 are the same events the adapters emit
