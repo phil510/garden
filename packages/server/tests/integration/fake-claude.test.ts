@@ -1,12 +1,12 @@
 import { execFile } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import type { SessionState } from '@garden/shared';
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { DEFAULT_OVERLAY_STATE } from '../../src/adapters/store.js';
 import {
   killSession,
@@ -15,9 +15,11 @@ import {
   respawnPane,
   type TmuxTarget,
 } from '../../src/adapters/tmux.js';
+import { watchTranscripts } from '../../src/adapters/transcripts.js';
 import type { OverlayState, StorePort, TmuxPort } from '../../src/app/ports.js';
 import { createProjection, type Projection } from '../../src/app/projection.js';
 import { createSession } from '../../src/app/sessions.js';
+import { slugify } from '../../src/domain/slug.js';
 import { createServer as createGardenServer } from '../../src/http/server.js';
 import { until } from './support/poll.js';
 import { withTmuxServer } from './support/tmux-server.js';
@@ -99,65 +101,133 @@ function snapshotThenRead(
   };
 }
 
-describe('a real fake-claude process spawned into a tmux pane', () => {
-  const dirs: string[] = [];
+interface FakeSession {
+  readonly cwd: string;
+  readonly transcriptsDir: string;
+  readonly id: string;
+  readonly read: () => Promise<SessionState | undefined>;
+  readonly send: (keyword: string) => Promise<void>;
+  /** Anything the transcript watcher logged; a healthy run leaves it empty. */
+  readonly watcherComplaints: readonly string[];
+}
 
-  afterEach(() => {
-    for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+/**
+ * Composes what production composes — a live HTTP server, a transcript watch over the
+ * directory the fake writes to, and a real fake-claude process in a tmux pane on `target`'s
+ * socket — and hands `fn` a session that has already printed READY. Waiting on that marker
+ * covers tsx's cold start without a fixed sleep and means a keyword cannot be typed into a
+ * pane whose stdin is not attached yet.
+ */
+async function withFakeClaudeSession(
+  target: TmuxTarget,
+  fn: (session: FakeSession) => Promise<void>,
+): Promise<void> {
+  // The fake reports its cwd as the kernel resolved it, and the slug it derives has to be the
+  // one the watcher's root scoping matches — on macOS the temp dir arrives as a symlink.
+  const cwd = realpathSync(mkdtempSync(join(tmpdir(), 'garden-fake-cwd-')));
+  const transcriptsDir = realpathSync(mkdtempSync(join(tmpdir(), 'garden-fake-transcripts-')));
+  const roots = [cwd];
+  const watcherComplaints: string[] = [];
+
+  const projection = createProjection(fakeStore());
+  const store = fakeStore();
+  const claudeCommand = fakeClaudeCommand(transcriptsDir);
+  const app = createGardenServer({
+    projection,
+    tmux: tmuxPort(target),
+    store,
+    git: { repoRoot: unused, branch: unused, status: unused, workTreePrefix: unused },
+    attach: { attach: unused },
+    roots,
+    serverPort: 0,
+    settingsPath: SETTINGS_PATH,
+    claudeCommand,
+  });
+  const watcher = watchTranscripts(transcriptsDir, roots, (event) => projection.dispatch(event), {
+    warn: (message) => watcherComplaints.push(message),
+    error: (message) => watcherComplaints.push(message),
   });
 
-  it('drives its session through working, needs-approval, waiting and ended', async () => {
-    await withTmuxServer(async (target) => {
-      const cwd = mkdtempSync(join(tmpdir(), 'garden-fake-cwd-'));
-      const transcriptsDir = mkdtempSync(join(tmpdir(), 'garden-fake-transcripts-'));
-      dirs.push(cwd, transcriptsDir);
+  try {
+    await app.listen({ port: 0, host: '127.0.0.1' });
+    const { port } = app.server.address() as AddressInfo;
 
-      const projection = createProjection(fakeStore());
-      const store = fakeStore();
-      const app = createGardenServer({
-        projection,
+    const { id, tmuxName } = await createSession(
+      {
         tmux: tmuxPort(target),
         store,
-        git: {
-          repoRoot: unused,
-          branch: unused,
-          status: unused,
-          workTreePrefix: unused,
-        },
-        attach: { attach: unused },
-        roots: [],
-        serverPort: 0,
+        projection,
+        serverPort: port,
         settingsPath: SETTINGS_PATH,
-        claudeCommand: fakeClaudeCommand(transcriptsDir),
-      });
+        claudeCommand,
+      },
+      { cwd },
+    );
 
-      try {
-        await app.listen({ port: 0, host: '127.0.0.1' });
-        const { port } = app.server.address() as AddressInfo;
+    await until(
+      'the fake to print its READY marker',
+      () => tmux(target, ['capture-pane', '-p', '-t', tmuxName]),
+      (pane) => pane.includes(READY_MARKER),
+      30_000,
+    );
 
-        const { id, tmuxName } = await createSession(
-          {
-            tmux: tmuxPort(target),
-            store,
-            projection,
-            serverPort: port,
-            settingsPath: SETTINGS_PATH,
-            claudeCommand: fakeClaudeCommand(transcriptsDir),
-          },
-          { cwd },
-        );
+    await fn({
+      cwd,
+      transcriptsDir,
+      id,
+      read: snapshotThenRead(projection, target, id),
+      send: async (keyword) => {
+        await tmux(target, ['send-keys', '-t', tmuxName, keyword, 'Enter']);
+      },
+      watcherComplaints,
+    });
+  } finally {
+    await watcher.close();
+    await app.close();
+    rmSync(cwd, { recursive: true, force: true });
+    rmSync(transcriptsDir, { recursive: true, force: true });
+  }
+}
 
-        const read = snapshotThenRead(projection, target, id);
+/**
+ * The facts the fake actually wrote, read back off its own file rather than restated here:
+ * the assertions then pin that the projection surfaces what is on disk, and rewording the
+ * fake's prose is not a test failure.
+ */
+function transcriptOnDisk(session: FakeSession): {
+  title: string;
+  prompt: string;
+  recap: string;
+} {
+  const path = join(session.transcriptsDir, slugify(session.cwd), `${session.id}.jsonl`);
+  const lines = readFileSync(path, 'utf8')
+    .split('\n')
+    .filter((line) => line !== '')
+    .map((line) => JSON.parse(line) as Record<string, unknown>);
 
-        // The banner and READY are the fake's own output, so waiting on them covers tsx's
-        // cold start without a fixed sleep, and READY is printed only once stdin is attached.
-        await until(
-          'the fake to print its READY marker',
-          () => tmux(target, ['capture-pane', '-p', '-t', tmuxName]),
-          (pane) => pane.includes(READY_MARKER),
-          30_000,
-        );
+  const title = lines.findLast((line) => typeof line['aiTitle'] === 'string')?.['aiTitle'];
+  const prompt = lines.find(
+    (line) => line['type'] === 'user' && typeof messageContent(line) === 'string',
+  );
+  const recap = lines.findLast((line) => line['type'] === 'assistant');
+  if (typeof title !== 'string' || prompt === undefined || recap === undefined) {
+    throw new Error(`the fake's transcript at ${path} is missing a title, prompt or recap`);
+  }
+  return {
+    title,
+    prompt: messageContent(prompt) as string,
+    recap: (messageContent(recap) as { text: string }[])[0]!.text,
+  };
+}
 
+function messageContent(line: Record<string, unknown>): unknown {
+  return (line['message'] as { content?: unknown } | undefined)?.content;
+}
+
+describe('a real fake-claude process spawned into a tmux pane', () => {
+  it('drives its session through working, needs-approval, waiting and ended', async () => {
+    await withTmuxServer(async (target) => {
+      await withFakeClaudeSession(target, async ({ read, send }) => {
         // SessionStart is awaited before READY prints, so this has already landed.
         expect((await read())?.status).toBe('working');
 
@@ -165,7 +235,7 @@ describe('a real fake-claude process spawned into a tmux pane', () => {
           ['/approve', 'needs-approval'],
           ['/wait', 'waiting'],
         ] as const) {
-          await tmux(target, ['send-keys', '-t', tmuxName, keyword, 'Enter']);
+          await send(keyword);
           const session = await until(
             `${keyword} to move the session to ${status}`,
             read,
@@ -174,7 +244,7 @@ describe('a real fake-claude process spawned into a tmux pane', () => {
           expect(session?.liveness).toBe('live');
         }
 
-        await tmux(target, ['send-keys', '-t', tmuxName, '/end', 'Enter']);
+        await send('/end');
         // The SessionEnd hook lands while the pane is still up, so liveness reads dead before
         // there is any exit code. Waiting on the code instead pins both halves: the hook and
         // the process actually going away.
@@ -187,9 +257,49 @@ describe('a real fake-claude process spawned into a tmux pane', () => {
         // A dead session reports no status at all — SessionEnd is not itself a Status, and
         // domain/reduce.ts masks whatever the last one was once liveness is dead.
         expect(ended?.status).toBeNull();
-      } finally {
-        await app.close();
-      }
+      });
+    });
+  });
+
+  it('has the transcript it writes reach the projection as the session facts', async () => {
+    await withTmuxServer(async (target) => {
+      await withFakeClaudeSession(target, async (session) => {
+        const { read, send, cwd } = session;
+        const written = transcriptOnDisk(session);
+
+        // Production debounces a re-read by 200ms and chokidar's own notice is not
+        // instantaneous either, so the facts arrive after READY rather than with it.
+        const withFacts = await until(
+          "the watcher to project the fake's transcript",
+          read,
+          (candidate) => candidate?.title !== null,
+        );
+        expect(withFacts?.title).toBe(written.title);
+        expect(withFacts?.recap).toBe(written.recap);
+        // Read off the transcript's own `cwd` field, not from where garden spawned the pane:
+        // this is the round trip through slugify, the watch's root scoping and the parser.
+        expect(withFacts?.cwd).toBe(cwd);
+        // A bare mkdtemp directory is no repo, so the fake has no branch to report and says so
+        // rather than omitting the field.
+        expect(withFacts?.branch).toBeNull();
+        expect(withFacts?.lastActivity).toBeGreaterThan(0);
+        // The title comes from the fake's `ai-title` line; the prompt is only the parser's
+        // fallback when there is none, and a fake whose two strings matched could not tell
+        // the two paths apart.
+        expect(written.title).not.toBe(written.prompt);
+
+        // A keyword appends a fresh assistant line, so the recap moves without a rewrite —
+        // proving the watch stays live past the first read rather than being a boot-time scan.
+        await send('/approve');
+        const afterKeyword = await until(
+          'the appended line to replace the recap',
+          read,
+          (candidate) => candidate?.recap !== written.recap,
+        );
+        expect(afterKeyword?.recap).toBe(transcriptOnDisk(session).recap);
+        expect(afterKeyword?.lastActivity).toBeGreaterThanOrEqual(withFacts!.lastActivity);
+        expect(session.watcherComplaints).toEqual([]);
+      });
     });
   });
 });
