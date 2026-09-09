@@ -9,9 +9,9 @@ pre-commit:
       run: pnpm prettier --write {staged_files}
       stage_fixed: true
     2_typecheck:
-      run: pnpm -r typecheck
+      run: pnpm typecheck
     3_lint:
       glob: '*.{ts,tsx,js,mjs,cjs}'
       run: pnpm eslint {staged_files}
     4_test:
-      run: pnpm -r test
+      run: pnpm test
