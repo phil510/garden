@@ -32,7 +32,6 @@ interface LocalStore {
   /** Drag-resized sidebar widths, clamped to a usable range. Reset to their defaults on reload
    *  like every other field here — not round-tripped through server state. */
   sidebarWidth: number;
-  setSidebarWidth: (width: number) => void;
   /** Applies an incremental delta (e.g. a pointermove's movementX) against the *current* store
    *  value rather than a value the caller read earlier — a drag fires many of these per render,
    *  so resolving against a React-render snapshot of sidebarWidth would drop deltas whenever a
@@ -42,7 +41,6 @@ interface LocalStore {
    *  it below `STAGE_MIN_WIDTH`. */
   resizeSidebarBy: (deltaPx: number, viewportWidth: number, otherPanelReserved: number) => void;
   filePanelWidth: number;
-  setFilePanelWidth: (width: number) => void;
   resizeFilePanelBy: (deltaPx: number, viewportWidth: number, otherPanelReserved: number) => void;
   /** A `path:line` clicked in a pane's terminal output, resolved against the session's cwd by
    *  whichever endpoint later opens it. Null once nothing is pending. */
@@ -70,8 +68,6 @@ export const useLocalStore = create<LocalStore>((set) => ({
       return { expandedPaths: { ...state.expandedPaths, [sessionId]: next } };
     }),
   sidebarWidth: 280,
-  setSidebarWidth: (width) =>
-    set({ sidebarWidth: clamp(width, SIDEBAR_WIDTH_MIN, SIDEBAR_WIDTH_MAX) }),
   resizeSidebarBy: (deltaPx, viewportWidth, otherPanelReserved) =>
     set((state) => {
       const roomForStage = viewportWidth - otherPanelReserved - STAGE_MIN_WIDTH;
@@ -79,8 +75,6 @@ export const useLocalStore = create<LocalStore>((set) => ({
       return { sidebarWidth: clamp(state.sidebarWidth + deltaPx, SIDEBAR_WIDTH_MIN, effectiveMax) };
     }),
   filePanelWidth: 320,
-  setFilePanelWidth: (width) =>
-    set({ filePanelWidth: clamp(width, FILE_PANEL_WIDTH_MIN, FILE_PANEL_WIDTH_MAX) }),
   resizeFilePanelBy: (deltaPx, viewportWidth, otherPanelReserved) =>
     set((state) => {
       const roomForStage = viewportWidth - otherPanelReserved - STAGE_MIN_WIDTH;
