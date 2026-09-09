@@ -1,7 +1,7 @@
 import type { CreateSessionResponse, OkResponse, SessionsResponse } from '@garden/shared';
 import { describe, expect, it } from 'vitest';
 import type { CliClient, Io } from './commands.js';
-import { isCliCommand, runCli } from './run.js';
+import { decideEntrypointAction, isCliCommand, runCli } from './run.js';
 
 function collectingIo(): { io: Io; stdout: string[]; stderr: string[] } {
   const stdout: string[] = [];
@@ -49,6 +49,36 @@ describe('isCliCommand', () => {
     expect(isCliCommand('uninstall')).toBe(true);
     expect(isCliCommand('bogus')).toBe(false);
     expect(isCliCommand(undefined)).toBe(false);
+  });
+});
+
+describe('decideEntrypointAction', () => {
+  it('dispatches a known subcommand even with the server-process marker set', () => {
+    // The inherited-marker regression case: a subcommand typed inside a garden-managed
+    // pane must dispatch, not recurse into the server.
+    expect(decideEntrypointAction('ls', true)).toEqual({ kind: 'cli', command: 'ls' });
+  });
+
+  it('dispatches a known subcommand with the marker unset', () => {
+    expect(decideEntrypointAction('ls', false)).toEqual({ kind: 'cli', command: 'ls' });
+  });
+
+  it('runs the server when no command is given and the marker is set', () => {
+    // The detached re-invocation that `garden` performs to start the server.
+    expect(decideEntrypointAction(undefined, true)).toEqual({ kind: 'server' });
+  });
+
+  it('starts the CLI-driven startup flow when no command is given and the marker is unset', () => {
+    // Bare `garden` typed at a shell.
+    expect(decideEntrypointAction(undefined, false)).toEqual({ kind: 'start' });
+  });
+
+  it('reports an unknown command with the marker set', () => {
+    expect(decideEntrypointAction('bogus', true)).toEqual({ kind: 'unknown', command: 'bogus' });
+  });
+
+  it('reports an unknown command with the marker unset', () => {
+    expect(decideEntrypointAction('bogus', false)).toEqual({ kind: 'unknown', command: 'bogus' });
   });
 });
 
