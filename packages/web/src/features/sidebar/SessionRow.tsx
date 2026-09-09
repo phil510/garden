@@ -12,11 +12,12 @@ const COPIED_RESET_MS = 1400;
 interface SessionRowProps {
   session: SessionState;
   onStage: boolean;
+  focused: boolean;
   now: number;
   onSelect: (id: string) => void;
 }
 
-export function SessionRow({ session, onStage, now, onSelect }: SessionRowProps) {
+export function SessionRow({ session, onStage, focused, now, onSelect }: SessionRowProps) {
   // A callback ref feeding state, not a plain ref, so the hover card's anchor is safe to
   // read during render — a raw ref's `.current` is not.
   const [rowEl, setRowEl] = useState<HTMLDivElement | null>(null);
@@ -71,7 +72,7 @@ export function SessionRow({ session, onStage, now, onSelect }: SessionRowProps)
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      {onStage && <span className="on-stage-mark" title="On stage" />}
+      {focused && <span className="focused-mark" title="Focused" />}
       <div className="row-top">
         <span className="row-title">{title}</span>
         {session.liveness === 'live' && session.status !== null && (

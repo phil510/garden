@@ -12,6 +12,7 @@ interface RepoGroupProps {
   hideDead: boolean;
   now: number;
   onStageIds: ReadonlySet<string>;
+  focusedSessionId: string | null;
   onToggleCollapse: (repoRoot: string) => void;
   onSelectSession: (id: string) => void;
 }
@@ -22,6 +23,7 @@ export function RepoGroup({
   hideDead,
   now,
   onStageIds,
+  focusedSessionId,
   onToggleCollapse,
   onSelectSession,
 }: RepoGroupProps) {
@@ -74,6 +76,7 @@ export function RepoGroup({
             key={session.id}
             session={session}
             onStage={onStageIds.has(session.id)}
+            focused={focusedSessionId === session.id}
             now={now}
             onSelect={onSelectSession}
           />
