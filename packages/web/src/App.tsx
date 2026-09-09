@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { connectEventSocket } from './api/eventSocket';
+import { ResizeHandle } from './components/ResizeHandle';
 import { FilePanel } from './features/filetree/FilePanel';
 import { Sidebar } from './features/sidebar/Sidebar';
 import { PresetSwitcher } from './features/stage/PresetSwitcher';
@@ -10,6 +11,10 @@ import { useUiStore } from './state/uiStore';
 
 export function App() {
   const [filePanelOpen, setFilePanelOpen] = useState(true);
+  const sidebarWidth = useLocalStore((state) => state.sidebarWidth);
+  const setSidebarWidth = useLocalStore((state) => state.setSidebarWidth);
+  const filePanelWidth = useLocalStore((state) => state.filePanelWidth);
+  const setFilePanelWidth = useLocalStore((state) => state.setFilePanelWidth);
 
   useEffect(() => {
     const sessionStore = useSessionStore.getState();
@@ -55,13 +60,18 @@ export function App() {
         </button>
       </div>
       <div className="body-row">
-        <div className="sidebar">
+        <div className="sidebar" style={{ width: `${sidebarWidth}px` }}>
           <Sidebar />
         </div>
+        <ResizeHandle onResize={(delta) => setSidebarWidth(sidebarWidth + delta)} />
         <div className="stage-wrap">
           <Stage />
         </div>
-        <div className="filepanel" hidden={!filePanelOpen}>
+        <ResizeHandle
+          onResize={(delta) => setFilePanelWidth(filePanelWidth - delta)}
+          hidden={!filePanelOpen}
+        />
+        <div className="filepanel" hidden={!filePanelOpen} style={{ width: `${filePanelWidth}px` }}>
           <FilePanel />
         </div>
       </div>
