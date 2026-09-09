@@ -1,4 +1,4 @@
-import { isCliCommand, runCli, usageLines } from '../src/cli/run.js';
+import { decideEntrypointAction, runCli, usageLines } from '../src/cli/run.js';
 import { runStart, SERVER_PROCESS_ENV } from '../src/cli/start.js';
 import { main } from '../src/main.js';
 
@@ -15,15 +15,21 @@ async function runServer(): Promise<void> {
 }
 
 const [command, ...rest] = process.argv.slice(2);
+const action = decideEntrypointAction(command, process.env[SERVER_PROCESS_ENV] === '1');
 
-if (process.env[SERVER_PROCESS_ENV] === '1') {
-  // `garden` re-invokes this same entry point detached, marked, to run the server in the background.
-  await runServer();
-} else if (isCliCommand(command)) {
-  process.exit(await runCli(command, rest, io));
-} else if (command === undefined) {
-  process.exit(await runStart(io));
-} else {
-  process.stderr.write(`garden: unknown command "${command}"\n${usageLines()}`);
-  process.exit(1);
+switch (action.kind) {
+  case 'server':
+    // `garden` re-invokes this same entry point detached, marked, to run the server in the background.
+    await runServer();
+    break;
+  case 'cli':
+    process.exit(await runCli(action.command, rest, io));
+    break;
+  case 'start':
+    process.exit(await runStart(io));
+    break;
+  case 'unknown':
+    process.stderr.write(`garden: unknown command "${action.command}"\n${usageLines()}`);
+    process.exit(1);
+    break;
 }
