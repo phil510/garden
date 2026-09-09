@@ -38,8 +38,12 @@ dependencies visible at the top rather than ambient.
 
 lefthook's pre-commit hook runs the unit tier only. That is not a speed shortcut — a commit
 hook that spawns tmux servers makes committing depend on the developer's environment. CI runs
-both tiers and installs tmux for the second. A green pre-commit tells you the logic holds, not
-that the tmux calls are right.
+both tiers and builds tmux 3.6a from source for the second, since apt on `ubuntu-latest` ships
+3.4. A green pre-commit tells you the logic holds, not that the tmux calls are right.
+
+The integration tier needs tmux 3.6 or newer. Below that, a race in tmux's utempter handling
+can drop a pane's exit status: if tmux sees the pty EOF before the child's SIGCHLD, the child
+stays a zombie and `exitCode` never arrives (fixed in [tmux/tmux#4559](https://github.com/tmux/tmux/issues/4559)).
 
 ## What each layer's tests look like
 

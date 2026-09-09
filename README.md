@@ -17,7 +17,7 @@ packages/
 
 - Node 22
 - pnpm
-- tmux — required, not optional. garden has no Windows support, because tmux doesn't run there.
+- tmux 3.6 or newer — required, not optional. garden has no Windows support, because tmux doesn't run there. Ubuntu 24.04's apt package is tmux 3.4, which can lose a pane's exit status ([tmux/tmux#4559](https://github.com/tmux/tmux/issues/4559)); install a newer tmux from another source on that distro.
 
 ## Setup
 
