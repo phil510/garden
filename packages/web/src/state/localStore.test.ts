@@ -117,38 +117,58 @@ describe('localStore', () => {
     expect(useLocalStore.getState().filePanelWidth).toBe(500);
   });
 
+  // Every resizeSidebarBy/resizeFilePanelBy call below passes a generous viewportWidth (1024)
+  // and otherPanelReserved (0) so the per-field min/max is the only bound in play, unless a
+  // test is specifically exercising the viewport-aware stage floor.
   it('accumulates consecutive sidebar resize deltas against the latest store value', () => {
     // Each call reads the store's current value rather than one a caller captured earlier —
     // the behavior a drag depends on, since a fast pointermove stream can fire several of
     // these before a caller holding a stale width would have re-rendered.
-    useLocalStore.getState().resizeSidebarBy(20);
-    useLocalStore.getState().resizeSidebarBy(20);
+    useLocalStore.getState().resizeSidebarBy(20, 1024, 0);
+    useLocalStore.getState().resizeSidebarBy(20, 1024, 0);
     expect(useLocalStore.getState().sidebarWidth).toBe(320);
   });
 
   it('clamps an accumulated sidebar resize at its minimum', () => {
-    useLocalStore.getState().resizeSidebarBy(-1000);
+    useLocalStore.getState().resizeSidebarBy(-1000, 1024, 0);
     expect(useLocalStore.getState().sidebarWidth).toBe(180);
   });
 
   it('clamps an accumulated sidebar resize at its maximum', () => {
-    useLocalStore.getState().resizeSidebarBy(1000);
+    useLocalStore.getState().resizeSidebarBy(1000, 1024, 0);
     expect(useLocalStore.getState().sidebarWidth).toBe(560);
   });
 
   it('accumulates consecutive file panel resize deltas against the latest store value', () => {
-    useLocalStore.getState().resizeFilePanelBy(-20);
-    useLocalStore.getState().resizeFilePanelBy(-20);
+    useLocalStore.getState().resizeFilePanelBy(-20, 1024, 0);
+    useLocalStore.getState().resizeFilePanelBy(-20, 1024, 0);
     expect(useLocalStore.getState().filePanelWidth).toBe(280);
   });
 
   it('clamps an accumulated file panel resize at its minimum', () => {
-    useLocalStore.getState().resizeFilePanelBy(-1000);
+    useLocalStore.getState().resizeFilePanelBy(-1000, 1024, 0);
     expect(useLocalStore.getState().filePanelWidth).toBe(220);
   });
 
   it('clamps an accumulated file panel resize at its maximum', () => {
-    useLocalStore.getState().resizeFilePanelBy(1000);
+    useLocalStore.getState().resizeFilePanelBy(1000, 1024, 0);
     expect(useLocalStore.getState().filePanelWidth).toBe(640);
+  });
+
+  it('caps the sidebar resize below its own maximum when the file panel and stage floor would not otherwise fit', () => {
+    // Viewport 1000px, file panel reserving 500px, stage floor 200px -> room for the
+    // sidebar tops out at 300px even though its own max is 560.
+    useLocalStore.getState().resizeSidebarBy(1000, 1000, 500);
+    expect(useLocalStore.getState().sidebarWidth).toBe(300);
+  });
+
+  it('ignores the file panel reservation while it is closed, so the sidebar can still reach its own maximum', () => {
+    useLocalStore.getState().resizeSidebarBy(1000, 1000, 0);
+    expect(useLocalStore.getState().sidebarWidth).toBe(560);
+  });
+
+  it('caps the file panel resize below its own maximum when the sidebar and stage floor would not otherwise fit', () => {
+    useLocalStore.getState().resizeFilePanelBy(1000, 1000, 500);
+    expect(useLocalStore.getState().filePanelWidth).toBe(300);
   });
 });

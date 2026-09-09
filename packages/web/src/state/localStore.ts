@@ -11,6 +11,14 @@ const SIDEBAR_WIDTH_MAX = 560;
 const FILE_PANEL_WIDTH_MIN = 220;
 const FILE_PANEL_WIDTH_MAX = 640;
 
+/** Floor left for `.stage-wrap` (and whatever dockview panes it holds) once both sidebars have
+ *  taken their share of the viewport. Each sidebar's own min/max only bounds that one field, so
+ *  without this a drag that's individually valid on both sides can still squeeze the stage down
+ *  to a sliver — see `resizeSidebarBy`/`resizeFilePanelBy`. Mirrored as a plain literal in
+ *  `.stage-wrap`'s CSS `min-width` (tokens.css) as a backstop for a window resize that isn't a
+ *  drag at all; keep the two in sync. */
+const STAGE_MIN_WIDTH = 200;
+
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
 interface LocalStore {
@@ -28,11 +36,14 @@ interface LocalStore {
   /** Applies an incremental delta (e.g. a pointermove's movementX) against the *current* store
    *  value rather than a value the caller read earlier — a drag fires many of these per render,
    *  so resolving against a React-render snapshot of sidebarWidth would drop deltas whenever a
-   *  render hasn't committed between two pointermove events. */
-  resizeSidebarBy: (deltaPx: number) => void;
+   *  render hasn't committed between two pointermove events. `viewportWidth` and
+   *  `otherPanelReserved` (the file panel's width, or 0 when it's closed) let the caller fold in
+   *  the room `.stage-wrap` needs so the two sidebars' independent clamps can't jointly squeeze
+   *  it below `STAGE_MIN_WIDTH`. */
+  resizeSidebarBy: (deltaPx: number, viewportWidth: number, otherPanelReserved: number) => void;
   filePanelWidth: number;
   setFilePanelWidth: (width: number) => void;
-  resizeFilePanelBy: (deltaPx: number) => void;
+  resizeFilePanelBy: (deltaPx: number, viewportWidth: number, otherPanelReserved: number) => void;
   /** A `path:line` clicked in a pane's terminal output, resolved against the session's cwd by
    *  whichever endpoint later opens it. Null once nothing is pending. */
   openFileRequest: OpenFileRequest | null;
@@ -61,21 +72,26 @@ export const useLocalStore = create<LocalStore>((set) => ({
   sidebarWidth: 280,
   setSidebarWidth: (width) =>
     set({ sidebarWidth: clamp(width, SIDEBAR_WIDTH_MIN, SIDEBAR_WIDTH_MAX) }),
-  resizeSidebarBy: (deltaPx) =>
-    set((state) => ({
-      sidebarWidth: clamp(state.sidebarWidth + deltaPx, SIDEBAR_WIDTH_MIN, SIDEBAR_WIDTH_MAX),
-    })),
+  resizeSidebarBy: (deltaPx, viewportWidth, otherPanelReserved) =>
+    set((state) => {
+      const roomForStage = viewportWidth - otherPanelReserved - STAGE_MIN_WIDTH;
+      const effectiveMax = Math.min(SIDEBAR_WIDTH_MAX, Math.max(SIDEBAR_WIDTH_MIN, roomForStage));
+      return { sidebarWidth: clamp(state.sidebarWidth + deltaPx, SIDEBAR_WIDTH_MIN, effectiveMax) };
+    }),
   filePanelWidth: 320,
   setFilePanelWidth: (width) =>
     set({ filePanelWidth: clamp(width, FILE_PANEL_WIDTH_MIN, FILE_PANEL_WIDTH_MAX) }),
-  resizeFilePanelBy: (deltaPx) =>
-    set((state) => ({
-      filePanelWidth: clamp(
-        state.filePanelWidth + deltaPx,
-        FILE_PANEL_WIDTH_MIN,
+  resizeFilePanelBy: (deltaPx, viewportWidth, otherPanelReserved) =>
+    set((state) => {
+      const roomForStage = viewportWidth - otherPanelReserved - STAGE_MIN_WIDTH;
+      const effectiveMax = Math.min(
         FILE_PANEL_WIDTH_MAX,
-      ),
-    })),
+        Math.max(FILE_PANEL_WIDTH_MIN, roomForStage),
+      );
+      return {
+        filePanelWidth: clamp(state.filePanelWidth + deltaPx, FILE_PANEL_WIDTH_MIN, effectiveMax),
+      };
+    }),
   openFileRequest: null,
   requestOpenFile: (sessionId, path, line) => set({ openFileRequest: { sessionId, path, line } }),
   connectionEpoch: 0,

@@ -63,11 +63,18 @@ export function App() {
         <div className="sidebar" style={{ width: `${sidebarWidth}px` }}>
           <Sidebar />
         </div>
-        <ResizeHandle onResize={resizeSidebarBy} />
+        <ResizeHandle
+          onResize={(delta) =>
+            resizeSidebarBy(delta, window.innerWidth, filePanelOpen ? filePanelWidth : 0)
+          }
+        />
         <div className="stage-wrap">
           <Stage />
         </div>
-        <ResizeHandle onResize={(delta) => resizeFilePanelBy(-delta)} hidden={!filePanelOpen} />
+        <ResizeHandle
+          onResize={(delta) => resizeFilePanelBy(-delta, window.innerWidth, sidebarWidth)}
+          hidden={!filePanelOpen}
+        />
         <div className="filepanel" hidden={!filePanelOpen} style={{ width: `${filePanelWidth}px` }}>
           <FilePanel />
         </div>
