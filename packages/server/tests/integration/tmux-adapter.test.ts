@@ -8,6 +8,7 @@ import {
   listPanes,
   newSession,
   respawnPane,
+  socketHasLivePanes,
 } from '../../src/adapters/tmux.js';
 import { until } from './support/poll.js';
 import { withTmuxServer } from './support/tmux-server.js';
@@ -103,6 +104,43 @@ describe('the tmux adapter', () => {
       );
       // exitCode must clear too: a stale pane_dead_status would keep reporting 4.
       expect(panes).toEqual([{ session: 'beta', dead: false, exitCode: undefined }]);
+    });
+  });
+
+  describe('socketHasLivePanes', () => {
+    it('reports false on a freshly-allocated socket nothing has touched yet', async () => {
+      await withTmuxServer(async (target) => {
+        expect(await socketHasLivePanes(target.socket)).toBe(false);
+      });
+    });
+
+    it('reports true once a session has put a live pane on the socket', async () => {
+      await withTmuxServer(async (target) => {
+        await newSession(target, { name: 'alpha', cwd: tmpdir(), port: 4310, command: sleeper });
+        await until(
+          'the new session to be listed',
+          () => listPanes(target),
+          (list) => list.length === 1,
+        );
+        expect(await socketHasLivePanes(target.socket)).toBe(true);
+      });
+    });
+
+    it('reports false when the only pane present is dead', async () => {
+      await withTmuxServer(async (target) => {
+        await newSession(target, {
+          name: 'ephemeral',
+          cwd: tmpdir(),
+          port: 4310,
+          command: ['sh', '-c', 'exit 0'],
+        });
+        await until(
+          'the pane to be reported dead',
+          () => listPanes(target),
+          (list) => list[0]?.dead === true,
+        );
+        expect(await socketHasLivePanes(target.socket)).toBe(false);
+      });
     });
   });
 });
