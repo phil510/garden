@@ -26,13 +26,16 @@ infrastructure rather than different `describe` blocks.
 
 ## Where tests live and how they run
 
-Unit tests are colocated `*.test.ts` files beside their source. Integration tests live in
-`packages/server/tests/integration/` under their own vitest config with `fileParallelism:
-false` and raised timeouts — real tmux servers stepping on each other and slow CI runners are
-what that config prevents.
+Unit tests are colocated `*.test.ts` files beside their source — `src/**/*.test.ts` inside each
+package, plus a root `vitest.config.ts` collecting `scripts/**/*.test.ts` for the dev-tooling
+scripts, so a test for a script can sit next to the script it covers instead of borrowing a
+package's tier. Integration tests live in `packages/server/tests/integration/` under their own
+vitest config with `fileParallelism: false` and raised timeouts — real tmux servers stepping on
+each other and slow CI runners are what that config prevents.
 
-`vitest.config.ts` collects only `src/**/*.test.ts`, so an integration test under `tests/` can
-never be collected by `pnpm test`. Both configs run the `node` environment with `globals: false`, so every test file
+Each package's `vitest.config.ts` collects only its own `src/**/*.test.ts`, and the root config
+only `scripts/**/*.test.ts`, so an integration test under `tests/` can never be collected by
+`pnpm test`. Every config runs the `node` environment with `globals: false`, so every test file
 imports `describe`, `it`, `expect`, `vi` explicitly. Small cost, and it keeps a test file's
 dependencies visible at the top rather than ambient.
 

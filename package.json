@@ -17,17 +17,20 @@
     "prettier": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",
-    "typescript-eslint": "catalog:"
+    "typescript-eslint": "catalog:",
+    "vitest": "catalog:"
   },
   "scripts": {
     "dev:sandbox:server": "pnpm --filter @garden/server dev:sandbox",
     "dev:sandbox:web": "pnpm --filter @garden/web dev:sandbox",
     "screenshot": "tsx scripts/screenshot.ts",
-    "typecheck": "pnpm -r typecheck",
+    "typecheck": "pnpm -r typecheck && pnpm typecheck:scripts",
+    "typecheck:scripts": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "pnpm -r test",
+    "test": "pnpm -r test && pnpm test:scripts",
+    "test:scripts": "vitest run",
     "test:integration": "pnpm --filter @garden/server test:integration",
     "build": "pnpm -r build",
     "validate": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test"

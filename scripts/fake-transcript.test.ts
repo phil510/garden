@@ -1,10 +1,8 @@
-// The module under test is scripts/fake-transcript.ts, which no vitest project covers — the
-// unit tier is `packages/server/src/**/*.test.ts`. It sits here instead, next to the parser it
-// is pinned against: the point of the test is that the two agree, and every disagreement
-// between them shows up as a null fact rather than an error.
+// Pinned against garden's real parser: the point is that the two agree, and every
+// disagreement between them shows up as a null fact rather than an error.
 import { describe, expect, it } from 'vitest';
-import { keywordTranscriptLine, openingTranscript } from '../../../scripts/fake-transcript.js';
-import { parseTranscript } from './domain/transcript.js';
+import { parseTranscript } from '../packages/server/src/domain/transcript.js';
+import { keywordTranscriptLine, openingTranscript } from './fake-transcript.js';
 
 describe('the fake claude transcript', () => {
   const facts = {

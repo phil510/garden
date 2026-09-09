@@ -1,9 +1,7 @@
-// The module under test is scripts/fake-keywords.ts, which no vitest project covers — see
-// fake-transcript.test.ts for why the test sits here instead.
-import { aHookEvent } from '@garden/shared/fixtures';
 import { describe, expect, it } from 'vitest';
-import { keywordOutcome } from '../../../scripts/fake-keywords.js';
-import { hookOutcome } from './domain/status.js';
+import { hookOutcome } from '../packages/server/src/domain/status.js';
+import { aHookEvent } from '../packages/shared/src/fixtures.js';
+import { keywordOutcome } from './fake-keywords.js';
 
 describe('keywordOutcome', () => {
   it.each([
