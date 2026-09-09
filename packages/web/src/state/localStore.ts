@@ -14,9 +14,7 @@ const FILE_PANEL_WIDTH_MAX = 640;
 /** Floor left for `.stage-wrap` (and whatever dockview panes it holds) once both sidebars have
  *  taken their share of the viewport. Each sidebar's own min/max only bounds that one field, so
  *  without this a drag that's individually valid on both sides can still squeeze the stage down
- *  to a sliver — see `resizeSidebarBy`/`resizeFilePanelBy`. Mirrored as a plain literal in
- *  `.stage-wrap`'s CSS `min-width` (tokens.css) as a backstop for a window resize that isn't a
- *  drag at all; keep the two in sync. */
+ *  to a sliver — see `resizeSidebarBy`/`resizeFilePanelBy`. */
 const STAGE_MIN_WIDTH = 200;
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);

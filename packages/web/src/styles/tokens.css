@@ -123,9 +123,7 @@ button.danger:hover {
 
 .stage-wrap {
   flex: 1;
-  /* Backstop for a browser window resize, which isn't a drag and so isn't covered by
-   * localStore.ts's STAGE_MIN_WIDTH clamp (keep this literal in sync with that constant). */
-  min-width: 200px;
+  min-width: 0;
   overflow: hidden;
   padding: 8px;
   background: var(--ground);
