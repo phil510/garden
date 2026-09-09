@@ -19,6 +19,8 @@ Node 22 (`.nvmrc`) and pnpm 10 via corepack. `.npmrc` pins the public registry o
 
 Tests come in two tiers, and the split matters: `pnpm test` is the unit tier only. The integration tier is `pnpm test:integration`, it drives real tmux, and it needs tmux installed locally — which is why pre-commit skips it and CI runs it as its own job. A clean commit is a good signal, not a guarantee. `docs/testing.md` is canonical for how to write either tier.
 
+A concurrent sandbox needs its own port, tmux socket and app dir — see `docs/testing.md` for the `GARDEN_SANDBOX_*` variable names.
+
 ## Conventions
 
 - Doc filenames: `YYYY-MM-DD-<kebab-slug>.md`. The date is the day the doc lands, not a target date.
