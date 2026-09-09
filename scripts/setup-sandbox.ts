@@ -8,6 +8,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { loadConfig, TMUX_SOCKET } from '../packages/server/src/config.js';
+import { socketHasLivePanes } from '../packages/server/src/adapters/tmux.js';
 
 const appDir = process.env.GARDEN_APP_DIR ?? join(homedir(), '.garden-sandbox');
 const fixtureRepo = join(appDir, 'fixture-repo');
@@ -26,6 +27,16 @@ const gitEnv = {
 const sandboxSocket = loadConfig(process.env).tmuxSocket;
 try {
   assertNotProductionSocket(sandboxSocket);
+  // A probe failure (tmux missing, an unrecognized stderr shape) also lands here and exits
+  // 1 with the raw tmux error rather than the refusal message below — that's the correct
+  // fail-closed choice, not an accidental swallow.
+  if (await socketHasLivePanes(sandboxSocket)) {
+    throw new Error(
+      `tmux socket "${sandboxSocket}" is already held by a live server — refusing to kill ` +
+        'it. Give this sandbox its own namespace with GARDEN_SANDBOX_PORT, ' +
+        'GARDEN_SANDBOX_VITE_PORT, GARDEN_SANDBOX_SOCKET and GARDEN_SANDBOX_APP_DIR.',
+    );
+  }
 } catch (error) {
   console.error((error as Error).message);
   process.exit(1);
