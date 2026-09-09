@@ -20,7 +20,14 @@ describe('the generated tmux.conf', () => {
       // A detached session keeps the server alive past this call; tmux's default
       // exit-empty would otherwise kill a server started with no session attached.
       // A line the conf cannot parse makes this exit non-zero, naming the line.
-      await execFileAsync('tmux', ['-L', socket, '-f', writeTmuxConf(home), 'new-session', '-d']);
+      await execFileAsync('tmux', [
+        '-L',
+        socket,
+        '-f',
+        writeTmuxConf(join(home, '.garden')),
+        'new-session',
+        '-d',
+      ]);
       expect((await tmux('show-options', '-g', 'mouse')).stdout.trim()).toBe('mouse on');
       expect((await tmux('show-options', '-g', 'status')).stdout.trim()).toBe('status off');
       expect((await tmux('show-options', '-g', '-w', 'remain-on-exit')).stdout.trim()).toBe(
@@ -35,8 +42,8 @@ describe('the generated tmux.conf', () => {
   it('rewrites the file rather than appending to it on a second boot', () => {
     const home = mkdtempSync(join(tmpdir(), 'garden-home-'));
     try {
-      const first = readFileSync(writeTmuxConf(home), 'utf8');
-      expect(readFileSync(writeTmuxConf(home), 'utf8')).toBe(first);
+      const first = readFileSync(writeTmuxConf(join(home, '.garden')), 'utf8');
+      expect(readFileSync(writeTmuxConf(join(home, '.garden')), 'utf8')).toBe(first);
     } finally {
       rmSync(home, { recursive: true, force: true });
     }

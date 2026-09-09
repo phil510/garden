@@ -23,7 +23,7 @@ import type {
 import { createProjection, type Projection } from './app/projection.js';
 import { watchRepoRoots } from './app/repoRoots.js';
 import { writeClaudeSettings, writeTmuxConf } from './appdir.js';
-import { ensureConfigFile, loadConfig, TMUX_SOCKET, type Config } from './config.js';
+import { ensureConfigFile, loadConfig, type Config } from './config.js';
 import type { TmuxSessionFact } from './domain/types.js';
 import { createServer } from './http/server.js';
 
@@ -39,20 +39,20 @@ function tmuxPort(target: TmuxTarget): TmuxPort {
   };
 }
 
-function storePort(home: string, logger: Logger): StorePort {
+function storePort(appDir: string, logger: Logger): StorePort {
   return {
-    read: () => readOverlayState(home, logger),
+    read: () => readOverlayState(appDir, logger),
     write: (state) => {
-      writeOverlayState(home, state);
+      writeOverlayState(appDir, state);
     },
   };
 }
 
-function transcriptPort(config: Config, home: string, logger: Logger): TranscriptPort {
+function transcriptPort(config: Config, logger: Logger): TranscriptPort {
   return {
-    listFiles: () => listTranscriptFiles(home, config.roots),
+    listFiles: () => listTranscriptFiles(config.transcriptsDir, config.roots),
     readRecord: (path) => readTranscriptRecord(path),
-    watch: (onEvent) => watchTranscripts(home, config.roots, onEvent, logger),
+    watch: (onEvent) => watchTranscripts(config.transcriptsDir, config.roots, onEvent, logger),
   };
 }
 
@@ -117,17 +117,17 @@ async function replay(
 export async function main(): Promise<void> {
   const home = homedir();
   const config = loadConfig(process.env, ensureConfigFile(home), home);
-  const confPath = writeTmuxConf(home);
-  const settingsPath = writeClaudeSettings(home);
+  const confPath = writeTmuxConf(config.appDir);
+  const settingsPath = writeClaudeSettings(config.appDir);
 
   const logger = createLogger();
-  const store = storePort(home, logger);
-  const tmux = tmuxPort({ socket: TMUX_SOCKET, confPath });
-  const transcripts = transcriptPort(config, home, logger);
+  const store = storePort(config.appDir, logger);
+  const tmux = tmuxPort({ socket: config.tmuxSocket, confPath });
+  const transcripts = transcriptPort(config, logger);
   const git = gitPort();
   const projection = createProjection(store);
   const attach: AttachRegistry = createAttachRegistry({
-    pty: ptyPort({ socket: TMUX_SOCKET, confPath }),
+    pty: ptyPort({ socket: config.tmuxSocket, confPath }),
     projection,
   });
 
@@ -155,6 +155,7 @@ export async function main(): Promise<void> {
     roots: config.roots,
     serverPort: config.port,
     settingsPath,
+    claudeCommand: config.claudeCommand,
   });
   app.addHook('onClose', () => {
     clearInterval(poll);

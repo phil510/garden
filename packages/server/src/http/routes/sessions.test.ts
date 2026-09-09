@@ -67,6 +67,7 @@ describe('GET /sessions', () => {
       projection: fakeProjection([session]),
       serverPort: 4310,
       settingsPath,
+      claudeCommand: ['claude'],
     });
 
     const response = await app.inject({ method: 'GET', url: '/sessions' });
@@ -90,6 +91,7 @@ describe('POST /sessions', () => {
       projection: fakeProjection(),
       serverPort: 4310,
       settingsPath,
+      claudeCommand: ['claude'],
     });
 
     const response = await app.inject({ method: 'POST', url: '/sessions', payload: {} });
@@ -105,6 +107,7 @@ describe('POST /sessions', () => {
       projection: fakeProjection(),
       serverPort: 4310,
       settingsPath,
+      claudeCommand: ['claude'],
     });
 
     const response = await app.inject({
@@ -126,6 +129,7 @@ describe('POST /sessions', () => {
       projection: fakeProjection(),
       serverPort: 4310,
       settingsPath,
+      claudeCommand: ['claude'],
     });
 
     const response = await app.inject({
@@ -147,6 +151,7 @@ describe('POST /sessions/:id/resume', () => {
       projection: fakeProjection([]),
       serverPort: 4310,
       settingsPath,
+      claudeCommand: ['claude'],
     });
 
     const response = await app.inject({ method: 'POST', url: '/sessions/nope/resume' });
@@ -166,6 +171,7 @@ describe('POST /sessions/:id/resume', () => {
       projection: fakeProjection([deadSession]),
       serverPort: 4310,
       settingsPath,
+      claudeCommand: ['claude'],
     });
 
     const response = await app.inject({ method: 'POST', url: '/sessions/sid-1/resume' });
@@ -183,6 +189,7 @@ describe('POST /sessions/:id/kill', () => {
       projection: fakeProjection([]),
       serverPort: 4310,
       settingsPath,
+      claudeCommand: ['claude'],
     });
 
     const response = await app.inject({ method: 'POST', url: '/sessions/nope/kill' });
@@ -205,6 +212,7 @@ describe('POST /sessions/:id/kill', () => {
       projection: fakeProjection([session]),
       serverPort: 4310,
       settingsPath,
+      claudeCommand: ['claude'],
     });
 
     const response = await app.inject({ method: 'POST', url: '/sessions/sid-1/kill' });

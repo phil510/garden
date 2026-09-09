@@ -26,20 +26,27 @@ infrastructure rather than different `describe` blocks.
 
 ## Where tests live and how they run
 
-Unit tests are colocated `*.test.ts` files beside their source. Integration tests live in
-`packages/server/tests/integration/` under their own vitest config with `fileParallelism:
-false` and raised timeouts — real tmux servers stepping on each other and slow CI runners are
-what that config prevents.
+Unit tests are colocated `*.test.ts` files beside their source — `src/**/*.test.ts` inside each
+package, plus a root `vitest.config.ts` collecting `scripts/**/*.test.ts` for the dev-tooling
+scripts, so a test for a script can sit next to the script it covers instead of borrowing a
+package's tier. Integration tests live in `packages/server/tests/integration/` under their own
+vitest config with `fileParallelism: false` and raised timeouts — real tmux servers stepping on
+each other and slow CI runners are what that config prevents.
 
-`vitest.config.ts` collects only `src/**/*.test.ts`, so an integration test under `tests/` can
-never be collected by `pnpm test`. Both configs run the `node` environment with `globals: false`, so every test file
+Each package's `vitest.config.ts` collects only its own `src/**/*.test.ts`, and the root config
+only `scripts/**/*.test.ts`, so an integration test under `tests/` can never be collected by
+`pnpm test`. Every config runs the `node` environment with `globals: false`, so every test file
 imports `describe`, `it`, `expect`, `vi` explicitly. Small cost, and it keeps a test file's
 dependencies visible at the top rather than ambient.
 
 lefthook's pre-commit hook runs the unit tier only. That is not a speed shortcut — a commit
 hook that spawns tmux servers makes committing depend on the developer's environment. CI runs
-both tiers and installs tmux for the second. A green pre-commit tells you the logic holds, not
-that the tmux calls are right.
+both tiers and builds tmux 3.6a from source for the second, since apt on `ubuntu-latest` ships
+3.4. A green pre-commit tells you the logic holds, not that the tmux calls are right.
+
+The integration tier needs tmux 3.6 or newer. Below that, a race in tmux's utempter handling
+can drop a pane's exit status: if tmux sees the pty EOF before the child's SIGCHLD, the child
+stays a zombie and `exitCode` never arrives (fixed in [tmux/tmux#4559](https://github.com/tmux/tmux/issues/4559)).
 
 ## What each layer's tests look like
 
@@ -108,7 +115,22 @@ one place that needs a default.
 ## Real versus faked
 
 Fake as little as possible, and never fake the thing this project is most exposed to getting
-wrong.
+wrong. A real Claude session is not an exception: driving a session through its status
+transitions is not itself something to fake, and it does not need a real Claude either.
+`scripts/fake-claude.ts` is the default for exercising that path, in both the integration tier
+and manual sandbox use (`pnpm dev:sandbox:server` with `GARDEN_CLAUDE_COMMAND` pointed at it) —
+a real spawned process behind a real tmux pane, moved between `working`, `needs-approval`,
+`waiting` and `ended` by typed keywords (`/approve`, `/wait`, `/end`) rather than by waiting on
+a live model's actual output. The process boundary, the pane, the hook POSTs and the transcript
+file it writes are all still real; only the model's judgment is replaced, by a keyword mapping
+deterministic enough to assert on.
+
+A second sandbox needs its own port, tmux socket and app dir, and the scripts take those as
+`GARDEN_SANDBOX_PORT`, `GARDEN_SANDBOX_SOCKET`, `GARDEN_SANDBOX_APP_DIR` and
+`GARDEN_SANDBOX_VITE_PORT`. They are deliberately not the `GARDEN_*` names the server itself
+reads: garden injects `GARDEN_PORT` into every pane it spawns, so a script honouring that name
+would silently point a sandbox started from inside a garden session at the real instance's
+port. Sharing any one of the three between two sandboxes puts them back in each other's state.
 
 - **`execFile` is never mocked, anywhere.** Faking a port substitutes one implementation of a
   declared interface; mocking `execFile` pretends the process boundary behaved. The test then
@@ -179,6 +201,17 @@ or mutates it is both wrong and destructive. Create the temp repo, use it, remov
 `finally`, exactly as above. Any adapter that reaches a real OS resource needs its own fixture
 following this shape: name the resource explicitly, never inherit it from the environment, tear
 it down whether the test passed or not.
+
+**The fake-Claude composition.** `tests/integration/fake-claude.test.ts` stacks a fourth real
+thing on top of the socket fixture above: a long-lived spawned `tsx` process
+(`scripts/fake-claude.ts`) running inside a pane on that socket, a live HTTP server, and a real
+`watchTranscripts` watch over a temp directory, all at once. Nothing else in the suite composes
+a real pane, a real long-lived process and a live server together — every other adapter test
+drives one real resource at a time, which is why this one took iteration to get stable. The fake
+prints a `READY` marker the instant its read loop actually attaches to stdin; the test polls for
+that line with `until` before sending its first keyword, because `tmux send-keys` against a pane
+whose process hasn't reached its read loop yet succeeds and delivers the keystroke nowhere, with
+no error to catch it.
 
 ## Flake policy
 

@@ -37,6 +37,10 @@ function withTempHome(fn: (home: string) => Promise<void>): Promise<void> {
   return fn(home).finally(() => rmSync(home, { recursive: true, force: true }));
 }
 
+function transcriptsDirFor(home: string): string {
+  return join(home, '.claude', 'projects');
+}
+
 function writeProjectFile(home: string, root: string, sessionId: string, text: string): string {
   const dir = join(home, '.claude', 'projects', slugify(root));
   mkdirSync(dir, { recursive: true });
@@ -48,7 +52,9 @@ function writeProjectFile(home: string, root: string, sessionId: string, text: s
 describe('listTranscriptFiles', () => {
   it('returns an empty list when the projects directory does not exist', async () => {
     await withTempHome(async (home) => {
-      expect(await listTranscriptFiles(home, ['/Users/phil/Desktop/Extend'])).toEqual([]);
+      expect(
+        await listTranscriptFiles(transcriptsDirFor(home), ['/Users/phil/Desktop/Extend']),
+      ).toEqual([]);
     });
   });
 
@@ -58,7 +64,9 @@ describe('listTranscriptFiles', () => {
       writeProjectFile(home, root, 'session-a', '{}\n');
       writeProjectFile(home, '/Users/phil/Downloads/scratch', 'session-b', '{}\n');
 
-      const files = await listTranscriptFiles(home, ['/Users/phil/Desktop/Extend']);
+      const files = await listTranscriptFiles(transcriptsDirFor(home), [
+        '/Users/phil/Desktop/Extend',
+      ]);
       expect(files).toEqual([join(home, '.claude', 'projects', slugify(root), 'session-a.jsonl')]);
     });
   });
@@ -72,7 +80,9 @@ describe('listTranscriptFiles', () => {
       mkdirSync(join(dir, 'subagents'), { recursive: true });
       writeFileSync(join(dir, 'subagents', 'child.jsonl'), '{}\n', 'utf8');
 
-      const files = await listTranscriptFiles(home, ['/Users/phil/Desktop/Extend']);
+      const files = await listTranscriptFiles(transcriptsDirFor(home), [
+        '/Users/phil/Desktop/Extend',
+      ]);
       expect(files).toEqual([join(dir, 'session-a.jsonl')]);
     });
   });
@@ -150,7 +160,7 @@ describe('watchTranscripts', () => {
       const root = '/Users/phil/Desktop/Extend/garden';
       const events: TranscriptChangedEvent[] = [];
       const watcher = watchTranscripts(
-        home,
+        transcriptsDirFor(home),
         [root],
         (event) => events.push(event),
         silentLogger(),
@@ -175,7 +185,7 @@ describe('watchTranscripts', () => {
       const root = '/Users/phil/Desktop/Extend/garden';
       const events: TranscriptChangedEvent[] = [];
       const watcher = watchTranscripts(
-        home,
+        transcriptsDirFor(home),
         [root],
         (event) => events.push(event),
         silentLogger(),
@@ -207,7 +217,7 @@ describe('watchTranscripts', () => {
       const root = '/Users/phil/Desktop/Extend/garden';
       const events: TranscriptChangedEvent[] = [];
       const watcher = watchTranscripts(
-        home,
+        transcriptsDirFor(home),
         [root],
         (event) => events.push(event),
         silentLogger(),
@@ -240,7 +250,7 @@ describe('watchTranscripts', () => {
       const root = '/Users/phil/Desktop/Extend/garden';
       const events: TranscriptChangedEvent[] = [];
       const watcher = watchTranscripts(
-        home,
+        transcriptsDirFor(home),
         [root],
         (event) => events.push(event),
         silentLogger(),
@@ -279,7 +289,13 @@ describe('watchTranscripts', () => {
       const events: TranscriptChangedEvent[] = [];
       const warnings: string[] = [];
       const logger: TranscriptLogger = { warn: (m) => warnings.push(m), error: () => {} };
-      const watcher = watchTranscripts(home, [root], (event) => events.push(event), logger, 20);
+      const watcher = watchTranscripts(
+        transcriptsDirFor(home),
+        [root],
+        (event) => events.push(event),
+        logger,
+        20,
+      );
       try {
         const path = writeProjectFile(
           home,

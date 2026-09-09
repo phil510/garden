@@ -10,7 +10,9 @@ import { fileURLToPath } from 'node:url';
 
 const execFileAsync = promisify(execFile);
 
-const SERVER_URL = 'http://127.0.0.1:4310';
+// GARDEN_PORT targets the garden server (defaults to its own default port); CDP_PORT is
+// Chrome's fixed remote-debugging port and is unrelated to which garden instance is targeted.
+const SERVER_URL = `http://127.0.0.1:${process.env.GARDEN_PORT ?? 4310}`;
 const CDP_PORT = 9222;
 const CDP_URL = `http://127.0.0.1:${CDP_PORT}`;
 
@@ -57,10 +59,13 @@ async function waitUntil(check: () => Promise<boolean>, label: string, timeoutMs
 }
 
 /** Each checkout gets its own port, so a dev server found already listening is always
- *  serving the code under this worktree rather than another one's. */
+ *  serving the code under this worktree rather than another one's. GARDEN_PORT is folded
+ *  into the hash too: vite.config.ts's proxy target is fixed at vite spawn time, so two
+ *  runs in the same checkout with different GARDEN_PORT values must not reuse one vite. */
 function vitePort(repoRoot: string): number {
+  const key = `${repoRoot}:${process.env.GARDEN_PORT ?? 4310}`;
   let hash = 0;
-  for (const char of repoRoot) hash = (hash * 31 + char.charCodeAt(0)) % 1000;
+  for (const char of key) hash = (hash * 31 + char.charCodeAt(0)) % 1000;
   return 5200 + hash;
 }
 
@@ -201,12 +206,12 @@ async function main(): Promise<void> {
   if (!(await probe(`${SERVER_URL}/health`))) {
     console.error(
       `garden is not answering on ${SERVER_URL}. Start garden first, then re-run ` +
-        '`pnpm screenshot`. Note this assumes the default port: a custom GARDEN_PORT or ' +
-        'config `port` is not read here, and looks identical to a stopped server.',
+        '`pnpm screenshot`. Note a config-file `port` override (distinct from GARDEN_PORT) ' +
+        'is not read here, and looks identical to a stopped server.',
     );
     process.exit(1);
   }
-  console.log('[screenshot] garden server ok on 4310');
+  console.log(`[screenshot] garden server ok on ${SERVER_URL}`);
 
   const port = vitePort(repoRoot);
   const viteUrl = `http://127.0.0.1:${String(port)}`;

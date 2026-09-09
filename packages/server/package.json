@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "dev": "GARDEN_SERVER_PROCESS=1 tsx bin/garden.ts",
+    "dev:sandbox": "export GARDEN_PORT=${GARDEN_SANDBOX_PORT:-4311}; export GARDEN_TMUX_SOCKET=${GARDEN_SANDBOX_SOCKET:-garden-sandbox}; export GARDEN_APP_DIR=${GARDEN_SANDBOX_APP_DIR:-$HOME/.garden-sandbox}; export GARDEN_TRANSCRIPTS_DIR=$GARDEN_APP_DIR/transcripts; export GARDEN_CLAUDE_COMMAND=\"node --import $(pwd)/node_modules/tsx/dist/loader.mjs $(pwd)/../../scripts/fake-claude.ts\"; export GARDEN_SERVER_PROCESS=1; tsx ../../scripts/setup-sandbox.ts && tsx bin/garden.ts",
     "build": "tsx ./build.ts"
   },
   "dependencies": {

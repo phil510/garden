@@ -4,7 +4,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { promisify } from 'node:util';
-import { appDirPath, TMUX_SOCKET } from '../config.js';
+import { DEFAULT_CONFIG_FILE, loadConfig } from '../config.js';
 import type { Io } from './commands.js';
 import { defaultStopDeps, runStop } from './stop.js';
 
@@ -13,9 +13,11 @@ const execFileAsync = promisify(execFile);
 export interface UninstallDeps {
   readonly confirm: () => Promise<boolean>;
   readonly stop: (io: Io, home: string) => Promise<0 | 1>;
-  readonly killTmuxServer: (confPath: string) => Promise<void>;
+  readonly killTmuxServer: (confPath: string, socket: string) => Promise<void>;
   readonly removeAppDir: (path: string) => void;
   readonly home: string;
+  readonly appDir: string;
+  readonly tmuxSocket: string;
 }
 
 async function promptConfirm(): Promise<boolean> {
@@ -32,9 +34,9 @@ async function promptConfirm(): Promise<boolean> {
 
 /** The documented exception in docs/architecture.md §4.4: uninstall must work with the
  *  garden server dead, so it shells out to tmux directly instead of going through it. */
-async function killTmuxServer(confPath: string): Promise<void> {
+async function killTmuxServer(confPath: string, socket: string): Promise<void> {
   try {
-    await execFileAsync('tmux', ['-L', TMUX_SOCKET, '-f', confPath, 'kill-server']);
+    await execFileAsync('tmux', ['-L', socket, '-f', confPath, 'kill-server']);
   } catch (error) {
     const stderr = (error as { stderr?: string }).stderr ?? '';
     // No server on this socket means nothing to kill, which is success, not a failure.
@@ -43,6 +45,11 @@ async function killTmuxServer(confPath: string): Promise<void> {
   }
 }
 
+const defaultHome = homedir();
+// The file is not read here: uninstall only needs the app dir and socket, both of
+// which come from the environment or their defaults, never from config.json.
+const defaultConfig = loadConfig(process.env, DEFAULT_CONFIG_FILE, defaultHome);
+
 export const defaultUninstallDeps: UninstallDeps = {
   confirm: promptConfirm,
   stop: (io, home) => runStop(io, { ...defaultStopDeps, home }),
@@ -50,7 +57,9 @@ export const defaultUninstallDeps: UninstallDeps = {
   removeAppDir: (path) => {
     rmSync(path, { recursive: true, force: true });
   },
-  home: homedir(),
+  home: defaultHome,
+  appDir: defaultConfig.appDir,
+  tmuxSocket: defaultConfig.tmuxSocket,
 };
 
 /** `garden uninstall` — stop the server, kill the garden tmux server, delete `~/.garden`. */
@@ -67,8 +76,8 @@ export async function runUninstall(
   const stopResult = await deps.stop(io, deps.home);
   if (stopResult !== 0) return stopResult;
 
-  await deps.killTmuxServer(join(appDirPath(deps.home), 'tmux.conf'));
-  deps.removeAppDir(appDirPath(deps.home));
+  await deps.killTmuxServer(join(deps.appDir, 'tmux.conf'), deps.tmuxSocket);
+  deps.removeAppDir(deps.appDir);
 
   io.stdout.write('garden uninstalled\n');
   return 0;

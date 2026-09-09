@@ -62,6 +62,7 @@ function serverWithProjection() {
     roots: [],
     serverPort: 4310,
     settingsPath: '/home/.garden/claude-settings.json',
+    claudeCommand: ['claude'],
     ...unusedPorts(),
   });
 }
@@ -85,6 +86,7 @@ describe('WS /events against the real server', () => {
       roots: [],
       serverPort: 4310,
       settingsPath: '/home/.garden/claude-settings.json',
+      claudeCommand: ['claude'],
       ...unusedPorts(),
     });
     await app.listen({ port: 0, host: '127.0.0.1' });

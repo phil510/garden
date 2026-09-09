@@ -1,5 +1,12 @@
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_CONFIG_FILE, loadConfig, parseConfigFile } from './config.js';
+import {
+  appDirPath,
+  DEFAULT_CONFIG_FILE,
+  loadConfig,
+  parseConfigFile,
+  TMUX_SOCKET,
+} from './config.js';
 
 describe('loadConfig', () => {
   it('reads the port from GARDEN_PORT', () => {
@@ -31,6 +38,72 @@ describe('loadConfig precedence and root expansion', () => {
   it('expands a leading ~ in a root against the given home and leaves absolute roots alone', () => {
     const config = loadConfig({}, { port: 4310, roots: ['~/Desktop/Extend', '/srv/code'] }, '/h');
     expect(config.roots).toEqual(['/h/Desktop/Extend', '/srv/code']);
+  });
+
+  it('reads the tmux socket from GARDEN_TMUX_SOCKET', () => {
+    expect(
+      loadConfig({ GARDEN_TMUX_SOCKET: 'garden-sandbox' }, DEFAULT_CONFIG_FILE, '/h').tmuxSocket,
+    ).toBe('garden-sandbox');
+  });
+
+  it('falls back to the default tmux socket when GARDEN_TMUX_SOCKET is unset', () => {
+    expect(loadConfig({}, DEFAULT_CONFIG_FILE, '/h').tmuxSocket).toBe(TMUX_SOCKET);
+  });
+
+  it('reads the app dir from GARDEN_APP_DIR', () => {
+    expect(
+      loadConfig({ GARDEN_APP_DIR: '/tmp/sandbox-app' }, DEFAULT_CONFIG_FILE, '/h').appDir,
+    ).toBe('/tmp/sandbox-app');
+  });
+
+  it('falls back to the default app dir when GARDEN_APP_DIR is unset', () => {
+    expect(loadConfig({}, DEFAULT_CONFIG_FILE, '/h').appDir).toBe(appDirPath('/h', {}));
+  });
+
+  it('reads the transcripts dir from GARDEN_TRANSCRIPTS_DIR', () => {
+    expect(
+      loadConfig({ GARDEN_TRANSCRIPTS_DIR: '/tmp/sandbox-transcripts' }, DEFAULT_CONFIG_FILE, '/h')
+        .transcriptsDir,
+    ).toBe('/tmp/sandbox-transcripts');
+  });
+
+  it('falls back to a transcripts dir under the given home when GARDEN_TRANSCRIPTS_DIR is unset', () => {
+    const config = loadConfig({}, DEFAULT_CONFIG_FILE, '/h');
+    expect(config.transcriptsDir).toBe(join('/h', '.claude', 'projects'));
+  });
+
+  it('splits GARDEN_CLAUDE_COMMAND on whitespace', () => {
+    expect(
+      loadConfig(
+        { GARDEN_CLAUDE_COMMAND: 'tsx  scripts/fake-claude.ts' },
+        DEFAULT_CONFIG_FILE,
+        '/h',
+      ).claudeCommand,
+    ).toEqual(['tsx', 'scripts/fake-claude.ts']);
+  });
+
+  it('defaults claudeCommand to ["claude"] when GARDEN_CLAUDE_COMMAND is unset', () => {
+    expect(loadConfig({}, DEFAULT_CONFIG_FILE, '/h').claudeCommand).toEqual(['claude']);
+  });
+
+  it('falls back when GARDEN_CLAUDE_COMMAND names no command', () => {
+    // An empty argv would put the session flag in argv[0] at spawn time, which
+    // fails far from here; a value that splits to nothing is treated as unset.
+    for (const raw of ['', '   ', '\t\n']) {
+      expect(
+        loadConfig({ GARDEN_CLAUDE_COMMAND: raw }, DEFAULT_CONFIG_FILE, '/h').claudeCommand,
+      ).toEqual(['claude']);
+    }
+  });
+});
+
+describe('appDirPath', () => {
+  it('prefers GARDEN_APP_DIR over the home-derived default', () => {
+    expect(appDirPath('/h', { GARDEN_APP_DIR: '/tmp/sandbox-app' })).toBe('/tmp/sandbox-app');
+  });
+
+  it('treats an empty GARDEN_APP_DIR as unset', () => {
+    expect(appDirPath('/h', { GARDEN_APP_DIR: '' })).toBe(appDirPath('/h', {}));
   });
 });
 

@@ -11,15 +11,22 @@ the same way a human reviewer would, and iterate before handing off a visual cha
 
 ## Prerequisite
 
-A garden server must already be running against real tmux. Either the `garden` CLI or
-`pnpm dev:server` satisfies this — they boot the same server the same way. This tool never boots
-one itself; reusing what is already running is the point, so if `pnpm screenshot` reports the
-server unreachable, ask the user to start garden rather than starting it yourself.
+A garden server must already be running against real tmux. Prefer the sandbox: `pnpm
+dev:sandbox:server` boots an isolated instance (its own port, tmux socket, app dir and a fake
+Claude in place of the real one) that runs alongside the user's real `garden` without either
+seeing the other's sessions, so a visual check never risks their live work. Point this tool at
+it with `GARDEN_PORT=<sandbox port> pnpm screenshot` — the sandbox script logs the port it
+bound on startup. The installed `garden` CLI also satisfies this prerequisite (same server, same
+boot path) for when the real instance is specifically what's under test. This tool never boots a
+server itself; reusing what is already running is the point, so if `pnpm screenshot` reports the
+server unreachable, ask the user to start garden (or the sandbox) rather than starting it
+yourself.
 
-The tool assumes garden's default port, 4310. That port is configurable (`GARDEN_PORT`, or
-`"port"` in `~/.garden/config.json`) and neither this tool nor the vite dev server it spawns
-reads that config, so on a custom port the tool reports the server as unreachable when it is
-in fact running fine. Check the user's config before believing the message.
+`GARDEN_PORT` is read by this tool, the vite dev server it spawns, and its Chrome/vite process
+cache, so pointing it at a different port is always a distinct, non-colliding run. A `"port"`
+override in `~/.garden/config.json` is a separate mechanism this tool does not read — on a
+config-only custom port it reports the server as unreachable when it is in fact running fine.
+Check the user's config before believing that message.
 
 ## Taking a screenshot
 
@@ -43,18 +50,21 @@ evidence in the PR — not just a description of the CSS you changed.
 
 ## Blank terminals mean the panes are attached elsewhere
 
-A session accepts one attach at a time, so if the user has garden open on the same session, this
-client's attach is refused and those panes screenshot as empty black rectangles. Everything
+A session accepts one attach at a time, so if another client has the same session open, this
+tool's attach is refused and those panes screenshot as empty black rectangles. Everything
 outside the terminals — sidebar, file panel, pane headers, borders, empty slots, layout — is
 still accurate, so that is only a problem when the change you are checking is about terminal
-content itself. When it is, ask the user to close their garden window for a moment; the server
-and the tmux sessions keep running, and the attach frees up.
+content itself. Against the sandbox this rarely comes up, since nothing else is normally attached
+to it; against a real instance, ask the user to close their garden window for a moment — the
+server and the tmux sessions keep running, and the attach frees up.
 
-## Warning: the page you are driving is live, not a sandbox
+## Warning: driving a real instance is live, not contained
 
-The Chrome window this tool controls talks to the same garden server the user's own browser
-does, so nothing you do in it is contained. This tool only captures screenshots. If you ever
-extend it to script interactions, the blast radius rises sharply in three tiers:
+This only applies when `GARDEN_PORT` points at the user's real instance rather than the
+sandbox. The Chrome window this tool controls talks to the same garden server the user's own
+browser does, so nothing you do in it is contained. This tool only captures screenshots. If you
+ever extend it to script interactions against a real instance, the blast radius rises sharply in
+three tiers:
 
 - **Typing into an attached pane is the dangerous one.** Keystrokes go straight through to the
   real pty, which is the user's actual running Claude Code session or shell. There is no
@@ -64,3 +74,8 @@ extend it to script interactions, the blast radius rises sharply in three tiers:
   so they change what the user sees in their own window.
 - **Scrolling and expanding file-tree nodes are client-local** and harmless — they never leave
   this browser.
+
+None of this applies against the sandbox. Its panes run the fake Claude, not a real Claude Code
+session or shell, so there is no real pty to type into; and its chrome-persistence writes land in
+the sandbox's own state (`~/.garden-sandbox/config.json` by default), not the user's real config,
+so there is no real user state to disturb.

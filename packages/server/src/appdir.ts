@@ -1,6 +1,5 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { appDirPath } from './config.js';
 
 /**
  * Passed as `-f` on every tmux command. remain-on-exit must be in force when the
@@ -18,10 +17,9 @@ export const TMUX_CONF = [
 ].join('\n');
 
 /** Writes the conf, replacing any previous copy, and returns its path. */
-export function writeTmuxConf(home: string): string {
-  const dir = appDirPath(home);
-  mkdirSync(dir, { recursive: true });
-  const path = join(dir, 'tmux.conf');
+export function writeTmuxConf(appDir: string): string {
+  mkdirSync(appDir, { recursive: true });
+  const path = join(appDir, 'tmux.conf');
   writeFileSync(path, TMUX_CONF, 'utf8');
   return path;
 }
@@ -67,10 +65,9 @@ export function claudeSettings(): ClaudeSettings {
 }
 
 /** Writes the hook overlay, replacing any previous copy, and returns its path. */
-export function writeClaudeSettings(home: string): string {
-  const dir = appDirPath(home);
-  mkdirSync(dir, { recursive: true });
-  const path = join(dir, 'claude-settings.json');
+export function writeClaudeSettings(appDir: string): string {
+  mkdirSync(appDir, { recursive: true });
+  const path = join(appDir, 'claude-settings.json');
   writeFileSync(path, `${JSON.stringify(claudeSettings(), null, 2)}\n`, 'utf8');
   return path;
 }

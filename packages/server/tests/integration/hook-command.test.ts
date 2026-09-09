@@ -117,6 +117,7 @@ describe('a real Claude Code hook command against the real /hooks route', () => 
       roots: [],
       serverPort: 4310,
       settingsPath: '/home/.garden/claude-settings.json',
+      claudeCommand: ['claude'],
     });
     try {
       await app.listen({ port: 0, host: '127.0.0.1' });

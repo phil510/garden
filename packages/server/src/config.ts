@@ -12,6 +12,9 @@ export interface Config {
   readonly host: string;
   readonly roots: readonly string[];
   readonly appDir: string;
+  readonly tmuxSocket: string;
+  readonly transcriptsDir: string;
+  readonly claudeCommand: readonly string[];
 }
 
 export const DEFAULT_CONFIG_FILE: ConfigFile = { port: 4310, roots: ['~/Desktop/Extend'] };
@@ -20,8 +23,7 @@ export const DEFAULT_CONFIG_FILE: ConfigFile = { port: 4310, roots: ['~/Desktop/
 const HOST = '127.0.0.1';
 
 /** Every garden tmux session lives on this socket, so `tmux -L garden` reaches them
- *  and nothing garden does can disturb a user's own tmux server. Shared between main.ts
- *  and cli/uninstall.ts, the one cli/ command that talks to tmux directly. */
+ *  and nothing garden does can disturb a user's own tmux server. */
 export const TMUX_SOCKET = 'garden';
 
 function isPort(value: unknown): value is number {
@@ -37,6 +39,21 @@ function envPort(env: Record<string, string | undefined>): number | undefined {
     throw new Error(`GARDEN_PORT must be an integer between 1 and 65535, got "${raw}"`);
   }
   return port;
+}
+
+/** An empty value is treated as unset, matching `envPort`'s "no opinion" convention. */
+function envString(env: Record<string, string | undefined>, key: string): string | undefined {
+  const raw = env[key];
+  return raw === undefined || raw === '' ? undefined : raw;
+}
+
+function envClaudeCommand(env: Record<string, string | undefined>): readonly string[] | undefined {
+  const raw = envString(env, 'GARDEN_CLAUDE_COMMAND');
+  if (raw === undefined) return undefined;
+  const parts = raw.split(/\s+/).filter(Boolean);
+  // A value of only whitespace names no command, so it falls back rather than
+  // spawning an argv whose first element is the session flag.
+  return parts.length === 0 ? undefined : parts;
 }
 
 function expandHome(path: string, home: string): string {
@@ -70,8 +87,8 @@ export function parseConfigFile(text: string, source: string): ConfigFile {
   };
 }
 
-export function appDirPath(home: string = homedir()): string {
-  return join(home, '.garden');
+export function appDirPath(home: string, env: Record<string, string | undefined>): string {
+  return envString(env, 'GARDEN_APP_DIR') ?? join(home, '.garden');
 }
 
 /** Resolves the effective config. `GARDEN_PORT` outranks the file; roots come back absolute. */
@@ -84,13 +101,16 @@ export function loadConfig(
     port: envPort(env) ?? file.port,
     host: HOST,
     roots: file.roots.map((root) => expandHome(root, home)),
-    appDir: appDirPath(home),
+    appDir: appDirPath(home, env),
+    tmuxSocket: envString(env, 'GARDEN_TMUX_SOCKET') ?? TMUX_SOCKET,
+    transcriptsDir: envString(env, 'GARDEN_TRANSCRIPTS_DIR') ?? join(home, '.claude', 'projects'),
+    claudeCommand: envClaudeCommand(env) ?? ['claude'],
   };
 }
 
 /** Creates the app directory and writes `config.json` on first run, then reads it back. */
 export function ensureConfigFile(home: string): ConfigFile {
-  const dir = appDirPath(home);
+  const dir = appDirPath(home, process.env);
   mkdirSync(dir, { recursive: true });
   const path = join(dir, 'config.json');
   try {

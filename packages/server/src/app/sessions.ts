@@ -34,6 +34,7 @@ export interface SessionsDeps {
   readonly projection: Projection;
   readonly serverPort: number;
   readonly settingsPath: string;
+  readonly claudeCommand: readonly string[];
 }
 
 export class SessionNotFoundError extends Error {}
@@ -64,7 +65,7 @@ export async function createSession(
   deps: SessionsDeps,
   request: CreateSessionRequest,
 ): Promise<CreateSessionResult> {
-  const { tmux, store, projection, serverPort, settingsPath } = deps;
+  const { tmux, store, projection, serverPort, settingsPath, claudeCommand } = deps;
   const takenNames = projection
     .sessions()
     .map((session) => session.tmuxName)
@@ -76,7 +77,7 @@ export async function createSession(
     name: tmuxName,
     cwd: request.cwd,
     port: serverPort,
-    command: ['claude', '--session-id', id, '--settings', settingsPath],
+    command: [...claudeCommand, '--session-id', id, '--settings', settingsPath],
   });
 
   writeTmuxName(store, id, tmuxName);
@@ -93,9 +94,9 @@ export async function resumeSession(
   deps: SessionsDeps,
   request: ResumeSessionRequest,
 ): Promise<ResumeSessionResult> {
-  const { tmux, store, projection, serverPort, settingsPath } = deps;
+  const { tmux, store, projection, serverPort, settingsPath, claudeCommand } = deps;
   const session = findSession(projection, request.id);
-  const command = ['claude', '--resume', request.id, '--settings', settingsPath];
+  const command = [...claudeCommand, '--resume', request.id, '--settings', settingsPath];
   const panes = await tmux.listPanes();
   const priorName = session.tmuxName;
 

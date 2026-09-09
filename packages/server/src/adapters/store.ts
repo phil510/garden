@@ -1,7 +1,6 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { STAGE_PRESETS } from '@garden/shared';
-import { appDirPath } from '../config.js';
 import type { OverlayStage, OverlayState } from '../domain/overlay.js';
 
 export const DEFAULT_OVERLAY_STATE: OverlayState = {
@@ -12,8 +11,8 @@ export const DEFAULT_OVERLAY_STATE: OverlayState = {
   stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
 };
 
-function statePath(home: string): string {
-  return join(appDirPath(home), 'state.json');
+function statePath(appDir: string): string {
+  return join(appDir, 'state.json');
 }
 
 /** The slice of `Logger` this adapter needs, declared locally rather than imported —
@@ -59,8 +58,8 @@ function isOverlayState(value: unknown): value is OverlayState {
 /** A missing file means a fresh install. A file that is present but unreadable as an
  *  overlay is a loss worth reporting: `tmuxNames` maps session ids to the tmux names
  *  garden chose, and nothing can recompute it. */
-export function readOverlayState(home: string, logger: StoreLogger): OverlayState {
-  const path = statePath(home);
+export function readOverlayState(appDir: string, logger: StoreLogger): OverlayState {
+  const path = statePath(appDir);
   let text: string;
   try {
     text = readFileSync(path, 'utf8');
@@ -84,10 +83,9 @@ export function readOverlayState(home: string, logger: StoreLogger): OverlayStat
 
 /** Writes to a temp file beside the target and renames over it, so a concurrent
  *  reader sees either the previous state or the new one, never a half-written file. */
-export function writeOverlayState(home: string, state: OverlayState): void {
-  const dir = appDirPath(home);
-  mkdirSync(dir, { recursive: true });
-  const path = statePath(home);
+export function writeOverlayState(appDir: string, state: OverlayState): void {
+  mkdirSync(appDir, { recursive: true });
+  const path = statePath(appDir);
   const tmpPath = `${path}.tmp`;
   writeFileSync(tmpPath, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
   renameSync(tmpPath, path);
