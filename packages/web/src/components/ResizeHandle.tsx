@@ -27,6 +27,11 @@ export function ResizeHandle({ onResize, hidden }: ResizeHandleProps) {
     onResize(event.movementX);
   };
 
+  // Shared cleanup for every way a drag can end. releasePointerCapture is a no-op when the
+  // pointer isn't currently captured, so this stays safe to call from onLostPointerCapture too
+  // — the one event the Pointer Events spec guarantees fires whenever capture ends, including
+  // ways pointerup/pointercancel don't cover (e.g. the handle going display:none mid-drag,
+  // which is exactly what its own `hidden` prop does when the file panel is toggled closed).
   const handlePointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
     event.currentTarget.releasePointerCapture(event.pointerId);
     document.body.style.cursor = '';
@@ -42,6 +47,7 @@ export function ResizeHandle({ onResize, hidden }: ResizeHandleProps) {
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
+      onLostPointerCapture={handlePointerUp}
     />
   );
 }

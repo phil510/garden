@@ -25,8 +25,14 @@ interface LocalStore {
    *  like every other field here — not round-tripped through server state. */
   sidebarWidth: number;
   setSidebarWidth: (width: number) => void;
+  /** Applies an incremental delta (e.g. a pointermove's movementX) against the *current* store
+   *  value rather than a value the caller read earlier — a drag fires many of these per render,
+   *  so resolving against a React-render snapshot of sidebarWidth would drop deltas whenever a
+   *  render hasn't committed between two pointermove events. */
+  resizeSidebarBy: (deltaPx: number) => void;
   filePanelWidth: number;
   setFilePanelWidth: (width: number) => void;
+  resizeFilePanelBy: (deltaPx: number) => void;
   /** A `path:line` clicked in a pane's terminal output, resolved against the session's cwd by
    *  whichever endpoint later opens it. Null once nothing is pending. */
   openFileRequest: OpenFileRequest | null;
@@ -55,9 +61,21 @@ export const useLocalStore = create<LocalStore>((set) => ({
   sidebarWidth: 280,
   setSidebarWidth: (width) =>
     set({ sidebarWidth: clamp(width, SIDEBAR_WIDTH_MIN, SIDEBAR_WIDTH_MAX) }),
+  resizeSidebarBy: (deltaPx) =>
+    set((state) => ({
+      sidebarWidth: clamp(state.sidebarWidth + deltaPx, SIDEBAR_WIDTH_MIN, SIDEBAR_WIDTH_MAX),
+    })),
   filePanelWidth: 320,
   setFilePanelWidth: (width) =>
     set({ filePanelWidth: clamp(width, FILE_PANEL_WIDTH_MIN, FILE_PANEL_WIDTH_MAX) }),
+  resizeFilePanelBy: (deltaPx) =>
+    set((state) => ({
+      filePanelWidth: clamp(
+        state.filePanelWidth + deltaPx,
+        FILE_PANEL_WIDTH_MIN,
+        FILE_PANEL_WIDTH_MAX,
+      ),
+    })),
   openFileRequest: null,
   requestOpenFile: (sessionId, path, line) => set({ openFileRequest: { sessionId, path, line } }),
   connectionEpoch: 0,

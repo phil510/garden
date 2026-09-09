@@ -12,9 +12,9 @@ import { useUiStore } from './state/uiStore';
 export function App() {
   const [filePanelOpen, setFilePanelOpen] = useState(true);
   const sidebarWidth = useLocalStore((state) => state.sidebarWidth);
-  const setSidebarWidth = useLocalStore((state) => state.setSidebarWidth);
+  const resizeSidebarBy = useLocalStore((state) => state.resizeSidebarBy);
   const filePanelWidth = useLocalStore((state) => state.filePanelWidth);
-  const setFilePanelWidth = useLocalStore((state) => state.setFilePanelWidth);
+  const resizeFilePanelBy = useLocalStore((state) => state.resizeFilePanelBy);
 
   useEffect(() => {
     const sessionStore = useSessionStore.getState();
@@ -63,14 +63,11 @@ export function App() {
         <div className="sidebar" style={{ width: `${sidebarWidth}px` }}>
           <Sidebar />
         </div>
-        <ResizeHandle onResize={(delta) => setSidebarWidth(sidebarWidth + delta)} />
+        <ResizeHandle onResize={resizeSidebarBy} />
         <div className="stage-wrap">
           <Stage />
         </div>
-        <ResizeHandle
-          onResize={(delta) => setFilePanelWidth(filePanelWidth - delta)}
-          hidden={!filePanelOpen}
-        />
+        <ResizeHandle onResize={(delta) => resizeFilePanelBy(-delta)} hidden={!filePanelOpen} />
         <div className="filepanel" hidden={!filePanelOpen} style={{ width: `${filePanelWidth}px` }}>
           <FilePanel />
         </div>

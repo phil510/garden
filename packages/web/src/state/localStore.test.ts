@@ -116,4 +116,39 @@ describe('localStore', () => {
     expect(useLocalStore.getState().sidebarWidth).toBe(400);
     expect(useLocalStore.getState().filePanelWidth).toBe(500);
   });
+
+  it('accumulates consecutive sidebar resize deltas against the latest store value', () => {
+    // Each call reads the store's current value rather than one a caller captured earlier —
+    // the behavior a drag depends on, since a fast pointermove stream can fire several of
+    // these before a caller holding a stale width would have re-rendered.
+    useLocalStore.getState().resizeSidebarBy(20);
+    useLocalStore.getState().resizeSidebarBy(20);
+    expect(useLocalStore.getState().sidebarWidth).toBe(320);
+  });
+
+  it('clamps an accumulated sidebar resize at its minimum', () => {
+    useLocalStore.getState().resizeSidebarBy(-1000);
+    expect(useLocalStore.getState().sidebarWidth).toBe(180);
+  });
+
+  it('clamps an accumulated sidebar resize at its maximum', () => {
+    useLocalStore.getState().resizeSidebarBy(1000);
+    expect(useLocalStore.getState().sidebarWidth).toBe(560);
+  });
+
+  it('accumulates consecutive file panel resize deltas against the latest store value', () => {
+    useLocalStore.getState().resizeFilePanelBy(-20);
+    useLocalStore.getState().resizeFilePanelBy(-20);
+    expect(useLocalStore.getState().filePanelWidth).toBe(280);
+  });
+
+  it('clamps an accumulated file panel resize at its minimum', () => {
+    useLocalStore.getState().resizeFilePanelBy(-1000);
+    expect(useLocalStore.getState().filePanelWidth).toBe(220);
+  });
+
+  it('clamps an accumulated file panel resize at its maximum', () => {
+    useLocalStore.getState().resizeFilePanelBy(1000);
+    expect(useLocalStore.getState().filePanelWidth).toBe(640);
+  });
 });
