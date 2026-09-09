@@ -114,8 +114,7 @@ button.danger:hover {
 }
 
 .sidebar {
-  flex: 0 0 280px;
-  width: 280px;
+  flex: 0 0 auto;
   overflow-y: auto;
   overflow-x: hidden;
   background: var(--surface);
@@ -131,8 +130,7 @@ button.danger:hover {
 }
 
 .filepanel {
-  flex: 0 0 320px;
-  width: 320px;
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -140,6 +138,20 @@ button.danger:hover {
   border-left: 1px solid var(--border);
 }
 .filepanel[hidden] {
+  display: none;
+}
+
+/* Matches dockview's own sash (see stage.css): transparent at rest, --accent on hover/active. */
+.resize-handle {
+  flex: 0 0 4px;
+  cursor: ew-resize;
+  background: transparent;
+}
+.resize-handle:hover,
+.resize-handle:active {
+  background: var(--accent);
+}
+.resize-handle[hidden] {
   display: none;
 }
 
