@@ -17,6 +17,7 @@ import { NewSessionModal } from './NewSessionModal';
 import { placeOnStage } from './placeOnStage';
 import { reorderGroups } from './reorderGroups';
 import { RepoGroup } from './RepoGroup';
+import { focusedSessionId } from './stageFocus';
 import './sidebar.css';
 
 export function Sidebar() {
@@ -42,6 +43,7 @@ export function Sidebar() {
 
   const now = Date.now();
   const onStageIds = new Set(uiState.slots.filter((id): id is string => id !== null));
+  const focusedId = focusedSessionId(uiState.slots, uiState.focusedSlot);
   const visibleOrder = groups.map((group) => group.repoRoot);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
@@ -90,6 +92,7 @@ export function Sidebar() {
               hideDead={uiState.hideDead}
               now={now}
               onStageIds={onStageIds}
+              focusedSessionId={focusedId}
               onToggleCollapse={toggleCollapse}
               onSelectSession={selectSession}
             />
