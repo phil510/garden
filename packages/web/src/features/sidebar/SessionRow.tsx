@@ -72,7 +72,7 @@ export function SessionRow({ session, onStage, focused, now, onSelect }: Session
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      {focused && <span className="on-stage-mark" title="Focused" />}
+      {focused && <span className="focused-mark" title="Focused" />}
       <div className="row-top">
         <span className="row-title">{title}</span>
         {session.liveness === 'live' && session.status !== null && (

@@ -140,7 +140,7 @@
   flex: 0 0 auto;
   font-family: var(--font-mono);
 }
-.on-stage-mark {
+.focused-mark {
   position: absolute;
   left: 9px;
   top: 12px;
