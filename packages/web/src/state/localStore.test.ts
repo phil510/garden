@@ -2,7 +2,13 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { useLocalStore } from './localStore';
 
 beforeEach(() => {
-  useLocalStore.setState({ scrollOffsets: {}, expandedPaths: {}, openFileRequest: null });
+  useLocalStore.setState({
+    scrollOffsets: {},
+    expandedPaths: {},
+    openFileRequest: null,
+    sidebarWidth: 280,
+    filePanelWidth: 320,
+  });
 });
 
 describe('localStore', () => {
@@ -67,5 +73,47 @@ describe('localStore', () => {
     useLocalStore.getState().noteConnected();
     useLocalStore.getState().noteConnected();
     expect(useLocalStore.getState().connectionEpoch).toBe(start + 2);
+  });
+
+  it('starts with the sidebars at their default widths', () => {
+    expect(useLocalStore.getState().sidebarWidth).toBe(280);
+    expect(useLocalStore.getState().filePanelWidth).toBe(320);
+  });
+
+  it('sets the sidebar width', () => {
+    useLocalStore.getState().setSidebarWidth(400);
+    expect(useLocalStore.getState().sidebarWidth).toBe(400);
+  });
+
+  it('clamps the sidebar width below its minimum', () => {
+    useLocalStore.getState().setSidebarWidth(50);
+    expect(useLocalStore.getState().sidebarWidth).toBe(180);
+  });
+
+  it('clamps the sidebar width above its maximum', () => {
+    useLocalStore.getState().setSidebarWidth(900);
+    expect(useLocalStore.getState().sidebarWidth).toBe(560);
+  });
+
+  it('sets the file panel width', () => {
+    useLocalStore.getState().setFilePanelWidth(450);
+    expect(useLocalStore.getState().filePanelWidth).toBe(450);
+  });
+
+  it('clamps the file panel width below its minimum', () => {
+    useLocalStore.getState().setFilePanelWidth(50);
+    expect(useLocalStore.getState().filePanelWidth).toBe(220);
+  });
+
+  it('clamps the file panel width above its maximum', () => {
+    useLocalStore.getState().setFilePanelWidth(900);
+    expect(useLocalStore.getState().filePanelWidth).toBe(640);
+  });
+
+  it('setting one sidebar width does not disturb the other', () => {
+    useLocalStore.getState().setSidebarWidth(400);
+    useLocalStore.getState().setFilePanelWidth(500);
+    expect(useLocalStore.getState().sidebarWidth).toBe(400);
+    expect(useLocalStore.getState().filePanelWidth).toBe(500);
   });
 });
