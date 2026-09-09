@@ -87,6 +87,33 @@ export async function listPanes(target: TmuxTarget): Promise<TmuxPane[]> {
     });
 }
 
+/**
+ * Whether a live server already holds `socket` — a probe, never a target: no `-f confPath`,
+ * since a probe must not trigger the "first command loads the conf" behavior `run` relies on,
+ * and the conf file may not exist yet on a sandbox's first-ever run.
+ *
+ * A pane being present is not enough: garden's tmux servers run with `remain-on-exit on`
+ * (`appdir.ts`), so a pane whose command already exited stays listed as dead rather than
+ * disappearing — the same fact `listPanes` above derives `dead` from. Only a pane that is
+ * actually still running counts as the socket being in use.
+ */
+export async function socketHasLivePanes(socket: string): Promise<boolean> {
+  const argv = ['-L', socket, 'list-panes', '-a', '-F', '#{pane_dead}'];
+  let stdout: string;
+  try {
+    stdout = (await execFileAsync('tmux', argv)).stdout;
+  } catch (error) {
+    const stderr = (error as { stderr?: string }).stderr ?? '';
+    // No server on this socket at all: see listPanes's identical check above.
+    if (/no server running|error connecting to/i.test(stderr)) return false;
+    throw new TmuxError(argv, stderr, error);
+  }
+  return stdout
+    .split('\n')
+    .filter((line) => line !== '')
+    .some((line) => line !== '1');
+}
+
 export async function newSession(target: TmuxTarget, request: NewSessionRequest): Promise<void> {
   await run(target, [
     'new-session',
