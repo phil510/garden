@@ -1,0 +1,14 @@
+{
+  "name": "garden",
+  "owner": {
+    "name": "phil510"
+  },
+  "description": "Plugins for garden, a local web console for running many Claude Code sessions across many repos and worktrees.",
+  "plugins": [
+    {
+      "name": "garden",
+      "source": "./plugins/garden",
+      "description": "Drive garden's session lifecycle (create, list, kill, resume) through its CLI."
+    }
+  ]
+}

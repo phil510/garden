@@ -1,0 +1,8 @@
+{
+  "name": "garden",
+  "description": "Drive garden's session lifecycle (create, list, kill, resume) through its CLI.",
+  "version": "0.1.0",
+  "author": {
+    "name": "phil510"
+  }
+}
