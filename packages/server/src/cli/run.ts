@@ -15,6 +15,31 @@ export function usageLines(): string {
   return 'usage: garden [new <dir> | ls | kill <id> | resume <id> | stop [--all] | uninstall]\n';
 }
 
+export type EntrypointAction =
+  | { readonly kind: 'server' }
+  | { readonly kind: 'cli'; readonly command: CliCommand }
+  | { readonly kind: 'start' }
+  | { readonly kind: 'unknown'; readonly command: string };
+
+/**
+ * Checking `isCliCommand` before `isServerProcess` is the fix: a known subcommand always
+ * dispatches, independent of whatever the process's environment claims. The marker only
+ * matters when there's no subcommand at all, to tell apart `garden`'s detached
+ * re-invocation (marker set) from a bare `garden` typed at a shell (marker unset).
+ */
+export function decideEntrypointAction(
+  command: string | undefined,
+  isServerProcess: boolean,
+): EntrypointAction {
+  if (isCliCommand(command)) {
+    return { kind: 'cli', command };
+  }
+  if (command === undefined) {
+    return isServerProcess ? { kind: 'server' } : { kind: 'start' };
+  }
+  return { kind: 'unknown', command };
+}
+
 function usage(io: Io, line: string): 1 {
   io.stderr.write(`garden: usage: ${line}\n`);
   return 1;

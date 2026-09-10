@@ -6,6 +6,19 @@ export interface OpenFileRequest {
   line: number;
 }
 
+const SIDEBAR_WIDTH_MIN = 180;
+const SIDEBAR_WIDTH_MAX = 560;
+const FILE_PANEL_WIDTH_MIN = 220;
+const FILE_PANEL_WIDTH_MAX = 640;
+
+/** Floor left for `.stage-wrap` (and whatever dockview panes it holds) once both sidebars have
+ *  taken their share of the viewport. Each sidebar's own min/max only bounds that one field, so
+ *  without this a drag that's individually valid on both sides can still squeeze the stage down
+ *  to a sliver — see `resizeSidebarBy`/`resizeFilePanelBy`. */
+const STAGE_MIN_WIDTH = 200;
+
+const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+
 interface LocalStore {
   /** Keyed by whatever id the caller scrolls — a pane, a tree, a list. */
   scrollOffsets: Record<string, number>;
@@ -14,6 +27,19 @@ interface LocalStore {
    *  own cwd. */
   expandedPaths: Record<string, readonly string[]>;
   toggleExpandedPath: (sessionId: string, path: string) => void;
+  /** Drag-resized sidebar widths, clamped to a usable range. Reset to their defaults on reload
+   *  like every other field here — not round-tripped through server state. */
+  sidebarWidth: number;
+  /** Applies an incremental delta (e.g. a pointermove's movementX) against the *current* store
+   *  value rather than a value the caller read earlier — a drag fires many of these per render,
+   *  so resolving against a React-render snapshot of sidebarWidth would drop deltas whenever a
+   *  render hasn't committed between two pointermove events. `viewportWidth` and
+   *  `otherPanelReserved` (the file panel's width, or 0 when it's closed) let the caller fold in
+   *  the room `.stage-wrap` needs so the two sidebars' independent clamps can't jointly squeeze
+   *  it below `STAGE_MIN_WIDTH`. */
+  resizeSidebarBy: (deltaPx: number, viewportWidth: number, otherPanelReserved: number) => void;
+  filePanelWidth: number;
+  resizeFilePanelBy: (deltaPx: number, viewportWidth: number, otherPanelReserved: number) => void;
   /** A `path:line` clicked in a pane's terminal output, resolved against the session's cwd by
    *  whichever endpoint later opens it. Null once nothing is pending. */
   openFileRequest: OpenFileRequest | null;
@@ -38,6 +64,25 @@ export const useLocalStore = create<LocalStore>((set) => ({
         ? current.filter((entry) => entry !== path)
         : [...current, path];
       return { expandedPaths: { ...state.expandedPaths, [sessionId]: next } };
+    }),
+  sidebarWidth: 280,
+  resizeSidebarBy: (deltaPx, viewportWidth, otherPanelReserved) =>
+    set((state) => {
+      const roomForStage = viewportWidth - otherPanelReserved - STAGE_MIN_WIDTH;
+      const effectiveMax = Math.min(SIDEBAR_WIDTH_MAX, Math.max(SIDEBAR_WIDTH_MIN, roomForStage));
+      return { sidebarWidth: clamp(state.sidebarWidth + deltaPx, SIDEBAR_WIDTH_MIN, effectiveMax) };
+    }),
+  filePanelWidth: 320,
+  resizeFilePanelBy: (deltaPx, viewportWidth, otherPanelReserved) =>
+    set((state) => {
+      const roomForStage = viewportWidth - otherPanelReserved - STAGE_MIN_WIDTH;
+      const effectiveMax = Math.min(
+        FILE_PANEL_WIDTH_MAX,
+        Math.max(FILE_PANEL_WIDTH_MIN, roomForStage),
+      );
+      return {
+        filePanelWidth: clamp(state.filePanelWidth + deltaPx, FILE_PANEL_WIDTH_MIN, effectiveMax),
+      };
     }),
   openFileRequest: null,
   requestOpenFile: (sessionId, path, line) => set({ openFileRequest: { sessionId, path, line } }),
