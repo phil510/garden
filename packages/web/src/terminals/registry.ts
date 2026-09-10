@@ -7,6 +7,7 @@ import { findPathLineLinks } from './pathLineLinks.js';
 import { resolvePaneKeydown } from './paneKeydown.js';
 import { shouldReusePane } from './paneReuse.js';
 import { terminalTheme } from './theme.js';
+import { unicodeV11Provider } from './unicodeWidth.js';
 
 interface PaneHandle {
   /** The event-socket connection this pane's attach belongs to. The server tracks pane attaches
@@ -44,6 +45,11 @@ function hasSize(element: HTMLElement): boolean {
  *  CC's wheel scrolling to work. */
 function createPane(sessionId: string, container: HTMLElement, epoch: number): PaneHandle {
   const terminal = new Terminal({ fontSize: 13, theme: terminalTheme(readCssVar) });
+  // xterm.js defaults to its bundled UnicodeV6 table, which tmux's own wide-char width table has
+  // moved past — this keeps a partial redraw from stranding characters at a width tmux disagrees
+  // with (issue #58).
+  terminal.unicode.register(unicodeV11Provider);
+  terminal.unicode.activeVersion = unicodeV11Provider.version;
   const fitAddon = new FitAddon();
   terminal.loadAddon(fitAddon);
   terminal.open(container);
