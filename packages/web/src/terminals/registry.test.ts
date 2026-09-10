@@ -8,25 +8,12 @@ import { unicodeV11Provider } from './unicodeWidth.js';
 // is what breaks. Standing each collaborator in for the real thing is what makes the wiring
 // observable — the same reason `dockview-identity.test.ts` needs a DOM.
 
-/** Mirrors the one real-xterm behavior the registry depends on: `activeVersion`'s setter throws
- *  for a version nothing registered first, so a mismatch between the provider's `version` and
- *  the string the registry assigns fails here instead of only surfacing in the browser. */
+/** `createPane`'s one call site always registers and activates the same provider, so there is no
+ *  mismatch for a fake to guard against — just a settable `activeVersion` to read back. */
 class FakeUnicodeHandling {
-  private readonly registered = new Set<string>();
-  private active = '';
+  activeVersion = '';
 
-  register(provider: { version: string }): void {
-    this.registered.add(provider.version);
-  }
-  get activeVersion(): string {
-    return this.active;
-  }
-  set activeVersion(version: string) {
-    if (!this.registered.has(version)) {
-      throw new Error(`unknown Unicode version "${version}"`);
-    }
-    this.active = version;
-  }
+  register(): void {}
 }
 
 class FakeTerminal {
