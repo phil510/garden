@@ -1,5 +1,5 @@
 import type { AddressInfo } from 'node:net';
-import type { Delta, UiState } from '@garden/shared';
+import { EVENTS_CLOSE_CODES, type Delta, type UiState } from '@garden/shared';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { WebSocket } from 'ws';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -106,5 +106,32 @@ describe('registerEventsSocket', () => {
       (size) => size === 0,
       'the ui-state subscription to be dropped after close',
     );
+  });
+
+  it('sends the deliberate-shutdown close code before app.close() resolves', async () => {
+    const { projection } = fakeProjection();
+    app = Fastify();
+    const wss = registerEventsSocket(app, { projection });
+    app.server.on('upgrade', (request, socket, head) => {
+      wss.handleUpgrade(request, socket, head, (ws) => wss.emit('connection', ws, request));
+    });
+    await app.listen({ port: 0, host: '127.0.0.1' });
+    const { port } = app.server.address() as AddressInfo;
+
+    socket = new WebSocket(`ws://127.0.0.1:${String(port)}/events`);
+    const firstMessage = new Promise<void>((resolve) => socket?.once('message', () => resolve()));
+    await new Promise<void>((resolve, reject) => {
+      socket?.once('open', resolve);
+      socket?.once('error', reject);
+    });
+    await firstMessage;
+
+    const closed = new Promise<number>((resolve) => socket?.once('close', (code) => resolve(code)));
+
+    // A close that waits on the client would hang here rather than resolve.
+    await app.close();
+    app = undefined;
+
+    expect(await closed).toBe(EVENTS_CLOSE_CODES.DELIBERATE_SHUTDOWN);
   });
 });

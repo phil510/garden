@@ -1,5 +1,5 @@
 import type { AddressInfo, Socket } from 'node:net';
-import type { Delta, ServerMessage } from '@garden/shared';
+import { EVENTS_CLOSE_CODES, type Delta, type ServerMessage } from '@garden/shared';
 import { WebSocket } from 'ws';
 import { afterEach, describe, expect, it } from 'vitest';
 import { DEFAULT_OVERLAY_STATE } from '../../src/adapters/store.js';
@@ -123,10 +123,13 @@ describe('WS /events against the real server', () => {
 
     socket = new WebSocket(`ws://127.0.0.1:${String(port)}/events`);
     await opened(socket);
+    const closed = new Promise<number>((resolve) => socket?.once('close', (code) => resolve(code)));
 
     // A close that waits on the client would hang here rather than fail.
     await app.close();
     app = undefined;
+
+    expect(await closed).toBe(EVENTS_CLOSE_CODES.DELIBERATE_SHUTDOWN);
   });
 
   it('drops a client that sends a malformed frame and keeps serving', async () => {
