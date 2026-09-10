@@ -34,6 +34,12 @@ const resolvedRoot = (cwd: string, repoRoot: string): GardenEvent => ({
   repoRoot,
 });
 
+const resolvedWorktree = (cwd: string, name: string): GardenEvent => ({
+  type: 'worktree-resolved',
+  cwd,
+  name,
+});
+
 const hook = (name: string, id = 'sid-1'): GardenEvent => ({
   type: 'hook',
   payload: aHookEvent({ session_id: id, hook_event_name: name }),
@@ -187,6 +193,21 @@ describe('reduce', () => {
     expect(before).toEqual(after);
     expect(before.sessions['sid-1']?.repoRoot).toBe('/Users/dev/repo');
     expect(before.sessions['sid-2']?.repoRoot).toBe('/Users/dev/repo');
+  });
+
+  it('reports no worktree for a session whose cwd nothing has resolved', () => {
+    expect(fold([transcript()]).sessions['sid-1']?.worktree).toBeNull();
+  });
+
+  it('takes a session worktree name from the resolution for its cwd', () => {
+    const worktree = '/Users/dev/repo/.worktrees/feat/x';
+    const state = fold([transcript({ cwd: worktree }), resolvedWorktree(worktree, 'x')]);
+    expect(state.sessions['sid-1']?.worktree).toBe('x');
+  });
+
+  it('keeps a session at the main checkout worktree-less, since it is never resolved', () => {
+    const state = fold([transcript({ cwd: '/Users/dev/repo' })]);
+    expect(state.sessions['sid-1']?.worktree).toBeNull();
   });
 
   it('clears the ended flag when a resumed session is registered again', () => {

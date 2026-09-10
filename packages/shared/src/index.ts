@@ -12,6 +12,8 @@ export interface SessionState {
   id: string;
   cwd: string;
   repoRoot: string | null;
+  /** The linked worktree's own name, or null when the session's cwd sits in the main checkout. */
+  worktree: string | null;
   branch: string | null;
   title: string | null;
   recap: string | null;

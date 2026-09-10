@@ -57,6 +57,7 @@ function unusedGitPort(): GitPort {
     branch: () => Promise.reject(new Error('not used by this test')),
     status: () => Promise.reject(new Error('not used by this test')),
     workTreePrefix: () => Promise.reject(new Error('not used by this test')),
+    worktree: () => Promise.reject(new Error('not used by this test')),
   };
 }
 

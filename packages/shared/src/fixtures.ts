@@ -5,6 +5,7 @@ export function aSession(overrides: Partial<SessionState> = {}): SessionState {
     id: 'a1b2c3d4-0000-4000-8000-000000000001',
     cwd: '/Users/dev/repo',
     repoRoot: '/Users/dev/repo',
+    worktree: null,
     branch: 'main',
     title: 'A session',
     recap: null,

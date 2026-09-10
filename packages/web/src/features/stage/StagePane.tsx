@@ -9,7 +9,6 @@ import { useUiStore } from '../../state/uiStore';
 import { attachPane, detachPane } from '../../terminals/registry';
 import { lastPathSegment } from '../sidebar/lastPathSegment';
 import { deadPaneStatusLine } from './deadPaneStatus';
-import { paneWorktreeLabel } from './paneWorktreeLabel';
 import { removeFromStage } from './removeFromStage';
 
 const DEAD_ICON = (
@@ -81,8 +80,6 @@ export function StagePane(props: IDockviewPanelProps) {
 
   if (session === undefined) return null;
 
-  const worktree = paneWorktreeLabel(session);
-
   return (
     <div
       className={focused ? 'pane focused' : 'pane'}
@@ -104,10 +101,10 @@ export function StagePane(props: IDockviewPanelProps) {
               <span className="pane-meta-v">{lastPathSegment(session.repoRoot)}</span>
             </div>
           )}
-          {worktree !== null && (
+          {session.worktree !== null && (
             <div className="pane-meta-row">
               <span className="pane-meta-k">worktree:</span>
-              <span className="pane-meta-v">{worktree}</span>
+              <span className="pane-meta-v">{session.worktree}</span>
             </div>
           )}
         </div>

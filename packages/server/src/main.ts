@@ -1,5 +1,5 @@
 import { homedir } from 'node:os';
-import { branch, repoRoot, status, workTreePrefix } from './adapters/git.js';
+import { branch, repoRoot, status, workTreePrefix, worktree } from './adapters/git.js';
 import { createLogger, type Logger } from './adapters/logger.js';
 import { attachPty } from './adapters/pty.js';
 import type { PtyTarget } from './adapters/pty.js';
@@ -22,6 +22,7 @@ import type {
 } from './app/ports.js';
 import { createProjection, type Projection } from './app/projection.js';
 import { watchRepoRoots } from './app/repoRoots.js';
+import { watchWorktrees } from './app/worktrees.js';
 import { writeClaudeSettings, writeTmuxConf } from './appdir.js';
 import { ensureConfigFile, loadConfig, type Config } from './config.js';
 import type { TmuxSessionFact } from './domain/types.js';
@@ -57,7 +58,7 @@ function transcriptPort(config: Config, logger: Logger): TranscriptPort {
 }
 
 function gitPort(): GitPort {
-  return { repoRoot, branch, status, workTreePrefix };
+  return { repoRoot, branch, status, workTreePrefix, worktree };
 }
 
 function ptyPort(target: PtyTarget): PtyPort {
@@ -133,6 +134,7 @@ export async function main(): Promise<void> {
 
   // Subscribed before the replay so boot's own dispatches are what drive the first resolutions.
   const stopRepoRoots = watchRepoRoots({ git, projection });
+  const stopWorktrees = watchWorktrees({ git, projection });
 
   await replay(projection, store, tmux, transcripts, logger);
 
@@ -160,6 +162,7 @@ export async function main(): Promise<void> {
   app.addHook('onClose', () => {
     clearInterval(poll);
     stopRepoRoots();
+    stopWorktrees();
     return watcher.close();
   });
   for (const signal of ['SIGINT', 'SIGTERM'] as const) {

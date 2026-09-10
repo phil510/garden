@@ -73,6 +73,11 @@ export interface GitStatusEntry {
   readonly status: string;
 }
 
+export interface WorktreeInfo {
+  readonly path: string;
+  readonly name: string;
+}
+
 export interface GitPort {
   repoRoot(cwd: string): Promise<string>;
   /** `cwd` relative to its working tree root, slash-terminated, empty at the root — the basis
@@ -80,4 +85,6 @@ export interface GitPort {
   workTreePrefix(cwd: string): Promise<string>;
   branch(cwd: string): Promise<string>;
   status(cwd: string): Promise<GitStatusEntry[]>;
+  /** The linked worktree `cwd` sits inside, or null when its working tree is the main checkout. */
+  worktree(cwd: string): Promise<WorktreeInfo | null>;
 }

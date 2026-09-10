@@ -3,7 +3,14 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { GitError, branch, repoRoot, status, workTreePrefix } from '../../src/adapters/git.js';
+import {
+  GitError,
+  branch,
+  repoRoot,
+  status,
+  workTreePrefix,
+  worktree,
+} from '../../src/adapters/git.js';
 
 function git(cwd: string, args: readonly string[]): void {
   execFileSync('git', args, { cwd });
@@ -40,6 +47,32 @@ describe('the git adapter', () => {
     // git resolves symlinks in its output (e.g. macOS's /var -> /private/var),
     // so the comparison must resolve the same way.
     expect(rootFromRepo).toBe(realpathSync(repoDir));
+  });
+
+  it('names the linked worktree for its own root and for a subdirectory beneath it', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'garden-git-'));
+    const repoDir = join(dir, 'repo');
+    mkdirSync(repoDir);
+    initRepo(repoDir);
+    const worktreeDir = join(dir, 'x');
+    git(repoDir, ['worktree', 'add', worktreeDir, '-b', 'feat/x']);
+    const nested = join(worktreeDir, 'src');
+    mkdirSync(nested);
+
+    expect(await worktree(worktreeDir)).toEqual({ path: realpathSync(worktreeDir), name: 'x' });
+    expect(await worktree(nested)).toEqual({ path: realpathSync(worktreeDir), name: 'x' });
+  });
+
+  it('reports no worktree for the main checkout, root or subdirectory alike', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'garden-git-'));
+    initRepo(dir);
+    const nested = join(dir, 'packages', 'web');
+    mkdirSync(nested, { recursive: true });
+
+    // This is the case a cwd/repoRoot string comparison gets wrong: `nested` differs from the
+    // repo root as a path, but its tree is still the main checkout, not a worktree.
+    expect(await worktree(dir)).toBeNull();
+    expect(await worktree(nested)).toBeNull();
   });
 
   it('reports a subdirectory as the prefix status paths are relative to', async () => {

@@ -35,6 +35,7 @@ describe('diff', () => {
       ...before,
       cwd: '/Users/dev/other',
       repoRoot: '/Users/dev/other',
+      worktree: 'other',
       branch: 'topic',
       title: 'Another session',
       recap: 'Done.',

@@ -37,6 +37,12 @@ const rootResolved: GardenEvent = {
   repoRoot: '/Users/dev/repo',
 };
 
+const worktreeResolved: GardenEvent = {
+  type: 'worktree-resolved',
+  cwd: '/Users/dev/repo/.worktrees/feat/x',
+  name: 'x',
+};
+
 const sequences: GardenEvent[][] = [
   [],
   [storeLoaded],
@@ -126,6 +132,7 @@ const everyVariant: Record<GardenEvent['type'], GardenEvent> = {
   },
   'transcript-changed': transcript({}, now),
   'repo-root-resolved': rootResolved,
+  'worktree-resolved': worktreeResolved,
   hook: { type: 'hook', payload: aHookEvent({ session_id: 'sid-1' }) },
   'tmux-snapshot': snapshot(false),
 };

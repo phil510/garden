@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { dirname } from 'node:path';
+import { basename, dirname } from 'node:path';
 import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
@@ -66,6 +66,34 @@ export async function workTreePrefix(cwd: string): Promise<string> {
 export async function branch(cwd: string): Promise<string> {
   const stdout = await run(cwd, ['rev-parse', '--abbrev-ref', 'HEAD']);
   return stdout.trim();
+}
+
+export interface WorktreeInfo {
+  readonly path: string;
+  readonly name: string;
+}
+
+/**
+ * The linked worktree `cwd` sits inside, or null when `cwd`'s working tree is the main
+ * checkout. `--git-dir` and `--git-common-dir` resolve to the same path for the main checkout
+ * and diverge for a linked worktree (whose `.git` is a file pointing at
+ * `<repo>/.git/worktrees/<name>`, while `--git-common-dir` always answers with the repo's own
+ * `.git`), so comparing the two — rather than comparing `cwd` to `repoRoot` — correctly
+ * answers "is this a worktree" for `cwd` anywhere inside the tree, worktree root or
+ * subdirectory alike. All three values come from one `rev-parse` call, resolved through git's
+ * own symlink handling, so a symlinked ancestor can't desync the comparison.
+ */
+export async function worktree(cwd: string): Promise<WorktreeInfo | null> {
+  const stdout = await run(cwd, [
+    'rev-parse',
+    '--path-format=absolute',
+    '--git-dir',
+    '--git-common-dir',
+    '--show-toplevel',
+  ]);
+  const [gitDir, commonDir, toplevel] = stdout.trim().split('\n');
+  if (gitDir === commonDir || toplevel === undefined) return null;
+  return { path: toplevel, name: basename(toplevel) };
 }
 
 /**

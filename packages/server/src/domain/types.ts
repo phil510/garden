@@ -30,6 +30,7 @@ export type GardenEvent =
   | { type: 'session-registered'; id: string; tmuxName: string; cwd: string }
   | { type: 'transcript-changed'; path: string; record: TranscriptRecord }
   | { type: 'repo-root-resolved'; cwd: string; repoRoot: string }
+  | { type: 'worktree-resolved'; cwd: string; name: string }
   | { type: 'hook'; payload: HookPayload }
   | { type: 'tmux-snapshot'; sessions: TmuxSessionFact[] };
 
@@ -42,6 +43,9 @@ export interface GardenState {
    *  what the root is a function of: sessions sharing a cwd share one answer, and an answer
    *  that lands before the session it describes is still waiting when the session appears. */
   repoRoots: Record<string, string>;
+  /** Resolved worktree name by cwd, present only for a cwd git confirmed sits inside a linked
+   *  worktree. Keyed by directory for the same reason as `repoRoots`. */
+  worktrees: Record<string, string>;
   ended: Record<string, boolean>;
   /** The latest status-bearing hook per session, by session id. */
   reported: Record<string, ReportedStatus>;

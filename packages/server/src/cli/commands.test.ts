@@ -23,6 +23,7 @@ function aSession(overrides: Partial<SessionState> = {}): SessionState {
     id: 'session-1',
     cwd: '/repo',
     repoRoot: '/repo',
+    worktree: null,
     branch: 'main',
     title: 'fix the bug',
     recap: null,
