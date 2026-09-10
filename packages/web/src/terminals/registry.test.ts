@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PaneSize, PaneSocketHandlers } from '../api/paneSocket.js';
+import { unicodeV11Provider } from './unicodeWidth.js';
 
 // The registry is garden's one imperative escape hatch (docs/architecture.md §5.1): all it holds
 // is the wiring between xterm, the fit addon, a ResizeObserver and a pane socket, and that wiring
@@ -254,6 +255,14 @@ describe('attachPane', () => {
     attachPane('session-a', aContainer({ width: '800px', height: '600px' }), 0);
 
     expect(lastTerminal().customKeyEventHandler).toBeInstanceOf(Function);
+  });
+
+  it('activates the Unicode width provider that matches tmux', async () => {
+    const { attachPane } = await loadRegistry();
+
+    attachPane('session-a', aContainer({ width: '800px', height: '600px' }), 0);
+
+    expect(lastTerminal().unicode.activeVersion).toBe(unicodeV11Provider.version);
   });
 });
 
