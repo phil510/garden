@@ -164,8 +164,10 @@ wanting logic there, it belongs in `app/` (orchestration) or `domain/` (rules).
 
 `cli/` is a thin HTTP client against the local server, so the CLI and the browser drive one
 code path. It does not import `app/` or `adapters/`, and it never shells out to tmux itself —
-with one carve-out: `uninstall` kills the tmux server directly, because it has to work when
-the garden server is not running to do it. `garden ls` is a `GET /sessions`.
+with one carve-out: `uninstall` and `stop --all` both kill the tmux server directly, because
+each has to work with the garden server dead (`uninstall` after it stops the server itself,
+`stop --all` as the last step of the same hard stop). Both share the one `killTmuxServer` call,
+in `cli/tmux.ts`. `garden ls` is a `GET /sessions`.
 
 ## 5. Client
 
