@@ -230,8 +230,9 @@ behaviour those layers implement.
 ### Data flow
 
 - **Registry.** On boot and on file change, the server turns each in-scope `*.jsonl` into a session
-  record: id, cwd (from the **first** conversation-bearing line), repo root (git toplevel of that
-  cwd), branch, title, recap, and last activity. Last activity is the timestamp of the last line
+  record: id (from the **first** conversation-bearing line), repo root (git toplevel of the current
+  cwd), cwd and branch (from the **last** conversation-bearing line), title, recap, and last
+  activity. Last activity is the timestamp of the last line
   carrying one — not file mtime, which can advance with nothing appended. Only sessions whose cwd is
   under a configured root are kept. Sessions started outside
   garden — plain `claude` in iTerm2, or before garden existed — are included, which is how historical
@@ -269,10 +270,11 @@ cheap filters apply in order, before any file is opened:
 1. **Directory-name prefix filter.** A cwd under a configured root produces a slug starting with that
    root's slug. Encode each root and keep only matching directories — this discards most of the 118
    directories without a single read.
-2. **Head-and-tail read, never the whole file.** The first conversation-bearing line gives `cwd`,
-   `gitBranch`, and `sessionId`; the title, last prompt, and recap all come from the end. Read a
-   bounded head and a bounded tail and parse only the complete lines within each. A single line can
-   exceed the window — a record missing a title is then correct behaviour, not an error.
+2. **Head-and-tail read, never the whole file.** The first conversation-bearing line gives
+   `sessionId`; `cwd` and `gitBranch` come from the last conversation-bearing line, alongside the
+   title, last prompt, and recap. Read a bounded head and a bounded tail and parse only the
+   complete lines within each. A single line can exceed the window — a record missing a title is
+   then correct behaviour, not an error.
 
 Deciding _which_ bytes to read is adapter work; turning text into a record stays pure.
 
