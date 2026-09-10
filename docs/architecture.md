@@ -72,7 +72,7 @@ packages/server/src/
     paths.ts       filesystem scoping
     diff.ts        (prev, next) -> Delta[]
   adapters/        one external system each
-    tmux.ts        execFile wrapper: list, new-session, respawn-pane, kill
+    tmux.ts        execFile wrapper: list, new-session, respawn-pane, kill, version check
     git.ts         git-common-dir, branch, status --porcelain, worktree prefix
     transcripts.ts chokidar watch + read
     pty.ts         node-pty attach
@@ -268,8 +268,9 @@ which kind of test.
   state — no tmux, no filesystem, no clock. If a behaviour is hard to test here, it is
   usually because a decision leaked into an adapter.
 - **`adapters/`** get integration tests against the real thing where one exists: `store.ts`
-  and `transcripts.ts` exercise real temp-directory I/O; `tmux.ts` and `git.ts` have no tests
-  yet.
+  and `transcripts.ts` exercise real temp-directory I/O. `tmux.ts`'s pure version-parsing
+  logic has a colocated unit test, but its execFile-wrapping session calls (list/new-session/
+  respawn-pane/kill) have no test against a real tmux; `git.ts` remains fully untested.
 - **`app/`** gets tests with faked adapters, covering orchestration order.
 - **`http/`** gets a thin smoke pass. There is little to test in translation.
 - **`packages/web`** tests pure state logic only. No browser end-to-end tests in v1.
