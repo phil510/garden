@@ -1,7 +1,8 @@
 import type { CreateSessionResponse, OkResponse, SessionsResponse } from '@garden/shared';
 import { describe, expect, it } from 'vitest';
 import type { CliClient, Io } from './commands.js';
-import { isCliCommand, runCli } from './run.js';
+import type { StopAllDeps } from './stop.js';
+import { isCliCommand, runCli, usageLines } from './run.js';
 
 function collectingIo(): { io: Io; stdout: string[]; stderr: string[] } {
   const stdout: string[] = [];
@@ -101,5 +102,61 @@ describe('runCli', () => {
     expect(calls).toEqual([]);
     expect(stdout).toEqual([]);
     expect(stderr).toEqual(['garden: usage: garden new <dir>\n']);
+  });
+
+  it('shows [--all] on the stop subcommand', () => {
+    expect(usageLines()).toContain('stop [--all]');
+  });
+});
+
+function fakeStopAllDeps(overrides: Partial<StopAllDeps> = {}): {
+  deps: StopAllDeps;
+  calls: string[];
+} {
+  const calls: string[] = [];
+  const deps: StopAllDeps = {
+    confirm: () => {
+      calls.push('confirm');
+      return Promise.resolve(true);
+    },
+    stop: () => {
+      calls.push('stop');
+      return Promise.resolve(0);
+    },
+    killTmuxServer: () => {
+      calls.push('killTmuxServer');
+      return Promise.resolve();
+    },
+    home: '/home/garden-user',
+    appDir: '/home/garden-user/.garden',
+    tmuxSocket: 'garden',
+    ...overrides,
+  };
+  return { deps, calls };
+}
+
+describe('runCli dispatch of "stop --all"', () => {
+  it('confirms, stops, and kills tmux when --all is set', async () => {
+    const { io } = collectingIo();
+    const { client, calls: clientCalls } = recordingClient();
+    const { deps, calls } = fakeStopAllDeps();
+
+    const exitCode = await runCli('stop', ['--all'], io, client, deps);
+
+    expect(exitCode).toBe(0);
+    expect(clientCalls).toEqual(['ls']);
+    expect(calls).toEqual(['confirm', 'stop', 'killTmuxServer']);
+  });
+
+  it('skips confirmation and the session-count fetch when --all --yes are both set', async () => {
+    const { io } = collectingIo();
+    const { client, calls: clientCalls } = recordingClient();
+    const { deps, calls } = fakeStopAllDeps();
+
+    const exitCode = await runCli('stop', ['--all', '--yes'], io, client, deps);
+
+    expect(exitCode).toBe(0);
+    expect(clientCalls).toEqual([]);
+    expect(calls).toEqual(['stop', 'killTmuxServer']);
   });
 });
