@@ -9,7 +9,13 @@ import {
   readTranscriptRecord,
   watchTranscripts,
 } from './adapters/transcripts.js';
-import { killSession, listPanes, newSession, respawnPane } from './adapters/tmux.js';
+import {
+  checkTmuxVersionWarning,
+  killSession,
+  listPanes,
+  newSession,
+  respawnPane,
+} from './adapters/tmux.js';
 import type { TmuxTarget } from './adapters/tmux.js';
 import { createAttachRegistry, type AttachRegistry } from './app/attach.js';
 import type {
@@ -121,6 +127,8 @@ export async function main(): Promise<void> {
   const settingsPath = writeClaudeSettings(config.appDir);
 
   const logger = createLogger();
+  const tmuxVersionWarning = await checkTmuxVersionWarning();
+  if (tmuxVersionWarning !== null) logger.warn(tmuxVersionWarning);
   const store = storePort(config.appDir, logger);
   const tmux = tmuxPort({ socket: config.tmuxSocket, confPath });
   const transcripts = transcriptPort(config, logger);

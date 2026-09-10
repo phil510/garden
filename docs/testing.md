@@ -44,9 +44,10 @@ hook that spawns tmux servers makes committing depend on the developer's environ
 both tiers and builds tmux 3.6a from source for the second, since apt on `ubuntu-latest` ships
 3.4. A green pre-commit tells you the logic holds, not that the tmux calls are right.
 
-The integration tier needs tmux 3.6 or newer. Below that, a race in tmux's utempter handling
-can drop a pane's exit status: if tmux sees the pty EOF before the child's SIGCHLD, the child
-stays a zombie and `exitCode` never arrives (fixed in [tmux/tmux#4559](https://github.com/tmux/tmux/issues/4559)).
+The integration tier needs tmux 3.6 or newer. Below that, `utempter_remove_record` resets
+`SIGCHLD` to `SIG_DFL` around its own fork-and-wait, so the exiting pane's `SIGCHLD` is
+discarded and `pane_dead_status` never gets set — `exitCode` never arrives (fixed in
+[tmux/tmux#4559](https://github.com/tmux/tmux/issues/4559)).
 
 ## What each layer's tests look like
 

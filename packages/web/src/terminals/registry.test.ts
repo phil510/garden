@@ -1,11 +1,20 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PaneSize, PaneSocketHandlers } from '../api/paneSocket.js';
+import { unicodeV11Provider } from './unicodeWidth.js';
 
 // The registry is garden's one imperative escape hatch (docs/architecture.md §5.1): all it holds
 // is the wiring between xterm, the fit addon, a ResizeObserver and a pane socket, and that wiring
 // is what breaks. Standing each collaborator in for the real thing is what makes the wiring
 // observable — the same reason `dockview-identity.test.ts` needs a DOM.
+
+/** `createPane`'s one call site always registers and activates the same provider, so there is no
+ *  mismatch for a fake to guard against — just a settable `activeVersion` to read back. */
+class FakeUnicodeHandling {
+  activeVersion = '';
+
+  register(): void {}
+}
 
 class FakeTerminal {
   static instances: FakeTerminal[] = [];
@@ -13,6 +22,7 @@ class FakeTerminal {
   readonly resizes: PaneSize[] = [];
   disposed = false;
   customKeyEventHandler: ((event: KeyboardEvent) => boolean) | undefined;
+  readonly unicode = new FakeUnicodeHandling();
 
   constructor() {
     FakeTerminal.instances.push(this);
@@ -232,6 +242,14 @@ describe('attachPane', () => {
     attachPane('session-a', aContainer({ width: '800px', height: '600px' }), 0);
 
     expect(lastTerminal().customKeyEventHandler).toBeInstanceOf(Function);
+  });
+
+  it('activates the Unicode width provider that matches tmux', async () => {
+    const { attachPane } = await loadRegistry();
+
+    attachPane('session-a', aContainer({ width: '800px', height: '600px' }), 0);
+
+    expect(lastTerminal().unicode.activeVersion).toBe(unicodeV11Provider.version);
   });
 });
 
