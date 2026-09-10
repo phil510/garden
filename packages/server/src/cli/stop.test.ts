@@ -176,6 +176,29 @@ describe('runStopAll', () => {
     await runStopAll(io, false, client, deps);
 
     expect(seenMessage).toMatch(/2 live sessions/);
+    // Plural possessive takes a trailing apostrophe only, not another "s".
+    expect(seenMessage).toContain("losing 2 live sessions' in-flight Claude work");
+  });
+
+  it('uses singular possessive grammar for exactly one live session', async () => {
+    const { io } = collectingIo();
+    const { client } = fakeClient({
+      listSessions: () =>
+        Promise.resolve({
+          sessions: [{ liveness: 'live' }] as unknown as SessionsResponse['sessions'],
+        }),
+    });
+    let seenMessage = '';
+    const { deps } = baseStopAllDeps({
+      confirm: (message) => {
+        seenMessage = message;
+        return Promise.resolve(true);
+      },
+    });
+
+    await runStopAll(io, false, client, deps);
+
+    expect(seenMessage).toContain("losing 1 live session's in-flight Claude work");
   });
 
   it('falls back to an uncounted prompt when the server is unreachable', async () => {
@@ -194,6 +217,9 @@ describe('runStopAll', () => {
     await runStopAll(io, false, client, deps);
 
     expect(seenMessage).toMatch(/uncounted number of live sessions/);
+    expect(seenMessage).toContain(
+      "losing an uncounted number of live sessions' in-flight Claude work",
+    );
   });
 
   it('skips the confirmation prompt and the session count fetch when told to', async () => {

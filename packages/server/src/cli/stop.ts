@@ -106,12 +106,16 @@ async function liveSessionCount(client: CliClient): Promise<number | null> {
 }
 
 function confirmMessage(liveCount: number | null): string {
-  const sessionsPhrase =
+  // Built as a possessive already, since "session's" (singular) and "sessions'" (plural)
+  // take the apostrophe in different places — a suffix appended after the fact can't do both.
+  const sessionsPossessive =
     liveCount === null
-      ? 'an uncounted number of live sessions'
-      : `${String(liveCount)} live session${liveCount === 1 ? '' : 's'}`;
+      ? "an uncounted number of live sessions'"
+      : liveCount === 1
+        ? "1 live session's"
+        : `${String(liveCount)} live sessions'`;
   return (
-    `This stops garden and kills every tmux session it manages, losing ${sessionsPhrase}'s ` +
+    `This stops garden and kills every tmux session it manages, losing ${sessionsPossessive} ` +
     `in-flight Claude work. ~/.garden is kept. Continue? [y/N] `
   );
 }
