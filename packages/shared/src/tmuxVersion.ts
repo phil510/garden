@@ -1,8 +1,8 @@
 /** `major.minor` as parsed from `tmux -V`. tmux's trailing patch letter (e.g. "3.6a") and any
  *  branch prefix (e.g. "next-3.4") are not part of the comparison. */
 export interface TmuxVersion {
-  major: number;
-  minor: number;
+  readonly major: number;
+  readonly minor: number;
 }
 
 /** Returns null when no version can be read, rather than throwing — callers decide what an
