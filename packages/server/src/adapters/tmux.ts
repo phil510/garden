@@ -3,6 +3,11 @@ import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
 
+/** Below this, `utempter_remove_record` resets SIGCHLD to SIG_DFL around its own
+ *  fork-and-wait, discarding the exiting pane's SIGCHLD before `pane_dead_status`
+ *  can be set (tmux/tmux#4559, fixed in 3.6). */
+const MINIMUM_RELIABLE_EXIT_STATUS_VERSION = { major: 3, minor: 6 } as const;
+
 /** Which tmux server to talk to. Passed in; the adapter never reads config itself. */
 export interface TmuxTarget {
   readonly socket: string;
@@ -109,4 +114,35 @@ export async function respawnPane(target: TmuxTarget, request: RespawnRequest): 
 
 export async function killSession(target: TmuxTarget, name: string): Promise<void> {
   await run(target, ['kill-session', '-t', name]);
+}
+
+/** `tmux -V` prints e.g. "tmux 3.6a" or "tmux next-3.4"; the trailing letter is a patch
+ *  suffix. Sibling of `cli/preflight.ts`'s `evaluateTmuxVersion` — kept separate rather
+ *  than shared because `cli/**` cannot import `adapters/**` (see `eslint.config.js`) and
+ *  this gate gets a different threshold and severity (warn, not block). Update both if the
+ *  parsing regex ever changes. */
+export function describeTmuxVersionWarning(versionOutput: string): string | null {
+  const match = /(\d+)\.(\d+)/.exec(versionOutput);
+  if (!match) return null;
+  const found = { major: Number(match[1]), minor: Number(match[2]) };
+  const meetsMinimum =
+    found.major > MINIMUM_RELIABLE_EXIT_STATUS_VERSION.major ||
+    (found.major === MINIMUM_RELIABLE_EXIT_STATUS_VERSION.major &&
+      found.minor >= MINIMUM_RELIABLE_EXIT_STATUS_VERSION.minor);
+  if (meetsMinimum) return null;
+  return (
+    `tmux ${String(found.major)}.${String(found.minor)} found, 3.6 required — ` +
+    `a session's exit code may never arrive on this version`
+  );
+}
+
+/** Never throws: a failure to even run `tmux -V` must not crash or block startup. The
+ *  CLI's own `checkTmux` (`cli/preflight.ts`) already owns "tmux is not installed." */
+export async function checkTmuxVersionWarning(): Promise<string | null> {
+  try {
+    const { stdout } = await execFileAsync('tmux', ['-V']);
+    return describeTmuxVersionWarning(stdout);
+  } catch {
+    return null;
+  }
 }
