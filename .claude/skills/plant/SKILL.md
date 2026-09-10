@@ -305,10 +305,14 @@ small); developer works from brief ACs`, then go to step 6. The box
     d. **CI green** → act on brief field 7. `ask` → report CI-green
     status to the user and hand them the merge; the pipeline pauses
     here until they tell you it merged or closed. `auto` → squash-merge
-    the PR, delete the branch, `git worktree remove` the worktree, then
-    run `pipeline-finish.sh --status completed`. Default is `ask` — this
-    is the one irreversible act in the pipeline, which is why field 7
-    is the explicit switch for it.
+    the PR and delete the branch, then run `pipeline-finish.sh` with
+    `--status completed`, and **only then** `git worktree remove`. The
+    script reads and writes `.plant/<branch>/` inside the worktree, so
+    removing first makes it fail with `no workflow.md`. Its JSON is what
+    step 12's summary reports from; the status flip and lock release
+    only matter when the worktree outlives the run. Default is `ask` — this is the
+    one irreversible act in the pipeline, which is why field 7 is the
+    explicit switch for it.
 11. **Stage 1–3 escalation** → `references/escalate-resume.md`.
     Auto-resolve within the brief's Autonomy bounds if you can, otherwise
     page the user; append the event's `## Resolution` block and the
