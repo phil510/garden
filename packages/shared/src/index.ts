@@ -124,6 +124,14 @@ export const PANE_CLOSE_CODES = {
   ATTACH_FAILED: 4500,
 } as const;
 
+/** Close codes `WS /events` uses to end the connection: its own private-use range (RFC 6455
+ *  §7.4.2), separate from `PANE_CLOSE_CODES` because the two sockets close for unrelated
+ *  reasons. `DELIBERATE_SHUTDOWN` is sent when the garden server itself is stopping, so the
+ *  client knows not to reconnect. */
+export const EVENTS_CLOSE_CODES = {
+  DELIBERATE_SHUTDOWN: 4100,
+} as const;
+
 export function applyDelta(sessions: SessionMap, deltas: readonly Delta[]): SessionMap {
   const next: SessionMap = { ...sessions };
   for (const delta of deltas) {
