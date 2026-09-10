@@ -1,9 +1,11 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type { SessionsResponse } from '@garden/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { Io } from './commands.js';
-import { runStop, type StopDeps } from './stop.js';
+import type { CliClient, Io } from './commands.js';
+import { CliHttpError } from './http.js';
+import { runStop, runStopAll, type StopAllDeps, type StopDeps } from './stop.js';
 
 function collectingIo(): { io: Io; stdout: string[]; stderr: string[] } {
   const stdout: string[] = [];
@@ -106,5 +108,143 @@ describe('runStop', () => {
     expect(exitCode).toBe(1);
     expect(stderr[0]).toMatch(/did not stop within 200ms/);
     expect(calls).not.toContain('removePid');
+  });
+});
+
+function fakeClient(overrides: Partial<CliClient> = {}): { client: CliClient; calls: string[] } {
+  const calls: string[] = [];
+  const client: CliClient = {
+    listSessions: () => {
+      calls.push('listSessions');
+      return Promise.resolve({ sessions: [] } as SessionsResponse);
+    },
+    createSession: () => Promise.reject(new Error('not used by this test')),
+    resumeSession: () => Promise.reject(new Error('not used by this test')),
+    killSession: () => Promise.reject(new Error('not used by this test')),
+    ...overrides,
+  };
+  return { client, calls };
+}
+
+function baseStopAllDeps(overrides: Partial<StopAllDeps> = {}): {
+  deps: StopAllDeps;
+  calls: string[];
+} {
+  const calls: string[] = [];
+  const deps: StopAllDeps = {
+    confirm: () => {
+      calls.push('confirm');
+      return Promise.resolve(true);
+    },
+    stop: () => {
+      calls.push('stop');
+      return Promise.resolve(0);
+    },
+    killTmuxServer: (confPath, socket) => {
+      calls.push(`killTmuxServer:${confPath}:${socket}`);
+      return Promise.resolve();
+    },
+    home: '/home/garden-user',
+    appDir: '/home/garden-user/.garden',
+    tmuxSocket: 'garden',
+    ...overrides,
+  };
+  return { deps, calls };
+}
+
+describe('runStopAll', () => {
+  it('reports the live session count in the confirm message when the server is reachable', async () => {
+    const { io } = collectingIo();
+    const { client } = fakeClient({
+      listSessions: () =>
+        Promise.resolve({
+          sessions: [
+            { liveness: 'live' },
+            { liveness: 'live' },
+            { liveness: 'dead' },
+          ] as unknown as SessionsResponse['sessions'],
+        }),
+    });
+    let seenMessage = '';
+    const { deps } = baseStopAllDeps({
+      confirm: (message) => {
+        seenMessage = message;
+        return Promise.resolve(true);
+      },
+    });
+
+    await runStopAll(io, false, client, deps);
+
+    expect(seenMessage).toMatch(/2 live sessions/);
+  });
+
+  it('falls back to an uncounted prompt when the server is unreachable', async () => {
+    const { io } = collectingIo();
+    const { client } = fakeClient({
+      listSessions: () => Promise.reject(new CliHttpError('garden server is not running')),
+    });
+    let seenMessage = '';
+    const { deps } = baseStopAllDeps({
+      confirm: (message) => {
+        seenMessage = message;
+        return Promise.resolve(true);
+      },
+    });
+
+    await runStopAll(io, false, client, deps);
+
+    expect(seenMessage).toMatch(/uncounted number of live sessions/);
+  });
+
+  it('skips the confirmation prompt and the session count fetch when told to', async () => {
+    const { io } = collectingIo();
+    const { client, calls: clientCalls } = fakeClient();
+    const { deps, calls } = baseStopAllDeps();
+
+    const exitCode = await runStopAll(io, true, client, deps);
+
+    expect(exitCode).toBe(0);
+    expect(clientCalls).toEqual([]);
+    expect(calls).not.toContain('confirm');
+  });
+
+  it('aborts without stopping anything when the user declines confirmation', async () => {
+    const { io, stdout } = collectingIo();
+    const { client } = fakeClient();
+    const { deps, calls } = baseStopAllDeps({ confirm: () => Promise.resolve(false) });
+
+    const exitCode = await runStopAll(io, false, client, deps);
+
+    expect(exitCode).toBe(0);
+    expect(stdout).toEqual(['aborted\n']);
+    expect(calls).toEqual([]);
+  });
+
+  it('does not kill tmux when stopping the server fails', async () => {
+    const { io } = collectingIo();
+    const { client } = fakeClient();
+    const { deps, calls } = baseStopAllDeps({ stop: () => Promise.resolve(1) });
+
+    const exitCode = await runStopAll(io, false, client, deps);
+
+    expect(exitCode).toBe(1);
+    expect(calls.some((c) => c.startsWith('killTmuxServer'))).toBe(false);
+  });
+
+  it('stops the server then kills tmux, in order, on a successful run', async () => {
+    const { io, stdout } = collectingIo();
+    const { client, calls: clientCalls } = fakeClient();
+    const { deps, calls } = baseStopAllDeps();
+
+    const exitCode = await runStopAll(io, false, client, deps);
+
+    expect(exitCode).toBe(0);
+    expect(clientCalls).toEqual(['listSessions']);
+    expect(calls).toEqual([
+      'confirm',
+      'stop',
+      'killTmuxServer:/home/garden-user/.garden/tmux.conf:garden',
+    ]);
+    expect(stdout.at(-1)).toBe('garden stopped; tmux server killed\n');
   });
 });
