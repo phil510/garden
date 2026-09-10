@@ -512,11 +512,11 @@ function wcwidth(codepoint: number): 0 | 1 | 2 {
 // Bit layout ported from xterm's `UnicodeService` (non-exported outside the package): bit 0 is
 // the join flag, bits 1-2 are the width, the rest is a "state" nibble this provider never uses
 // (always packed as 0).
-function extractWidth(value: number): 0 | 1 | 2 {
+export function extractWidth(value: number): 0 | 1 | 2 {
   return ((value >> 1) & 0x3) as 0 | 1 | 2;
 }
 
-function packProperties(width: number, shouldJoin: boolean): number {
+export function packProperties(width: number, shouldJoin: boolean): number {
   return ((width & 3) << 1) | (shouldJoin ? 1 : 0);
 }
 
