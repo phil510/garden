@@ -107,7 +107,10 @@ export function StagePane(props: IDockviewPanelProps) {
         <div className="pane-title-wrap">
           <div className="pane-title">{session.title ?? session.cwd}</div>
           <MetaRow label="branch" value={session.branch} />
-          <MetaRow label="project" value={lastPathSegment(session.cwd)} />
+          <MetaRow
+            label="project"
+            value={session.title === null ? null : lastPathSegment(session.cwd)}
+          />
         </div>
         {live && session.status !== null && <StatusPill status={session.status} />}
         <div className="pane-header-actions">
