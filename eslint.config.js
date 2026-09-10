@@ -150,7 +150,14 @@ export default tseslint.config(
           patterns: [
             adaptersInward,
             {
-              group: ['./*', './*/**', '**/adapters/**', '!./store.js', '!./transcripts.js'],
+              group: [
+                './*',
+                './*/**',
+                '**/adapters/**',
+                '!./store.js',
+                '!./transcripts.js',
+                '!./tmux.js',
+              ],
               message:
                 'adapters/ must not import another adapter. One adapter per external system; compose them in main.ts. An adapter that needs several files becomes a directory, whose files may import each other.',
             },
