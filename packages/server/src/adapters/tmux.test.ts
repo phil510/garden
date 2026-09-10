@@ -6,9 +6,9 @@ vi.mock('node:child_process', () => ({
   execFile: vi.fn(),
 }));
 
-// Parse-and-compare cases (patch letters, newer majors, unparseable strings) live with
-// @garden/shared's parseTmuxVersion/tmuxVersionAtLeast. These cover what this module adds:
-// the 3.6 floor and its warning message.
+// Parse-and-compare cases (patch letters, newer majors) live with @garden/shared's
+// parseTmuxVersion/tmuxVersionAtLeast. These cover what this module adds: the 3.6
+// floor, its warning message, and the unparseable-string case at this call site.
 describe('describeTmuxVersionWarning', () => {
   it('warns below the floor, naming the version found and required', () => {
     const message = describeTmuxVersionWarning('tmux 3.4\n');

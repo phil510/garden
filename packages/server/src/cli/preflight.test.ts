@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { evaluateTmuxVersion } from './preflight.js';
 
-// Parse-and-compare cases (patch letters, older majors, unparseable strings) live with
-// @garden/shared's parseTmuxVersion/tmuxVersionAtLeast. These cover what this module adds:
-// the 3.2 threshold and its two message shapes.
+// Parse-and-compare cases (patch letters, older majors) live with @garden/shared's
+// parseTmuxVersion/tmuxVersionAtLeast. These cover what this module adds: the 3.2
+// threshold, its two message shapes, and the unparseable-string case at this call site.
 describe('evaluateTmuxVersion', () => {
   it('accepts a version at exactly the minimum', () => {
     expect(evaluateTmuxVersion('tmux 3.2\n')).toEqual({ ok: true });
