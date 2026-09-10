@@ -73,7 +73,7 @@ packages/server/src/
     diff.ts        (prev, next) -> Delta[]
   adapters/        one external system each
     tmux.ts        execFile wrapper: list, new-session, respawn-pane, kill
-    git.ts         git-common-dir, branch, status --porcelain, worktree prefix
+    git.ts         repo root, repo info (root + worktree, one rev-parse call), branch, status --porcelain, worktree prefix
     transcripts.ts chokidar watch + read
     pty.ts         node-pty attach
     store.ts       <appDir>/state.json, atomic writes (overlay only)
