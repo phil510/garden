@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { connectEventSocket } from './api/eventSocket';
 import { FilePanel } from './features/filetree/FilePanel';
 import { Sidebar } from './features/sidebar/Sidebar';
+import { ShutdownOverlay } from './features/shutdown/ShutdownOverlay';
 import { PresetSwitcher } from './features/stage/PresetSwitcher';
 import { Stage } from './features/stage/Stage';
 import { useLocalStore } from './state/localStore';
@@ -10,6 +11,7 @@ import { useUiStore } from './state/uiStore';
 
 export function App() {
   const [filePanelOpen, setFilePanelOpen] = useState(true);
+  const [stopped, setStopped] = useState(false);
 
   useEffect(() => {
     const sessionStore = useSessionStore.getState();
@@ -27,8 +29,11 @@ export function App() {
         uiStore.setUiState(message.uiState);
       },
       onConnect: localStore.noteConnected,
+      onShutdown: () => setStopped(true),
     });
   }, []);
+
+  if (stopped) return <ShutdownOverlay />;
 
   return (
     <div className="app-shell">
