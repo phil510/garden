@@ -53,7 +53,7 @@ function createPane(sessionId: string, container: HTMLElement, epoch: number): P
   });
   // xterm.js defaults to its bundled UnicodeV6 table, which tmux's own wide-char width table has
   // moved past — this keeps a partial redraw from stranding characters at a width tmux disagrees
-  // with (issue #58).
+  // with.
   terminal.unicode.register(unicodeV11Provider);
   terminal.unicode.activeVersion = unicodeV11Provider.version;
   const fitAddon = new FitAddon();

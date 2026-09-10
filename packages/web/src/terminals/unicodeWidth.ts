@@ -534,10 +534,10 @@ function charProperties(codepoint: number, preceding: number): number {
   return packProperties(width, shouldJoin);
 }
 
-/** Unicode width provider matching tmux's wide-char table (verified against tmux 3.6a for the
- *  glyphs in issue #58), registered with `terminal.unicode.register()` in place of xterm.js's
- *  bundled `UnicodeV6` default. Scoped to the Unicode 11 vintage of the ported tables — a glyph
- *  added to Unicode after that can still drift; see the issue for why that's out of scope here. */
+/** Unicode width provider matching tmux's wide-char table (verified against tmux 3.6a),
+ *  registered with `terminal.unicode.register()` in place of xterm.js's bundled `UnicodeV6`
+ *  default. Scoped to the Unicode 11 vintage of the ported tables — a glyph added to Unicode
+ *  after that can still drift out of step with tmux's width table. */
 export const unicodeV11Provider: IUnicodeVersionProvider = {
   version: '11',
   wcwidth,
