@@ -1,7 +1,7 @@
 import { parseArgs } from 'node:util';
 import type { CliClient, Io } from './commands.js';
 import { defaultClient, runKill, runLs, runNew, runResume } from './commands.js';
-import { runStop } from './stop.js';
+import { defaultStopAllDeps, runStop, runStopAll, type StopAllDeps } from './stop.js';
 import { runUninstall } from './uninstall.js';
 
 const CLI_COMMANDS = ['new', 'ls', 'kill', 'resume', 'stop', 'uninstall'] as const;
@@ -12,7 +12,7 @@ export function isCliCommand(command: string | undefined): command is CliCommand
 }
 
 export function usageLines(): string {
-  return 'usage: garden [new <dir> | ls | kill <id> | resume <id> | stop | uninstall]\n';
+  return 'usage: garden [new <dir> | ls | kill <id> | resume <id> | stop [--all] | uninstall]\n';
 }
 
 export type EntrypointAction =
@@ -45,18 +45,22 @@ function usage(io: Io, line: string): 1 {
   return 1;
 }
 
-/** `rest` is `garden <command>`'s remaining argv: positionals plus `--json`. */
+/** `rest` is `garden <command>`'s remaining argv: positionals plus `--json`. `stopAllDeps` is
+ *  not threaded through by any real caller — it exists so tests can dispatch `stop --all`
+ *  without exercising the real tmux-kill-server / server-stop side effects. */
 export async function runCli(
   command: CliCommand,
   rest: readonly string[],
   io: Io,
   client: CliClient = defaultClient,
+  stopAllDeps: StopAllDeps = defaultStopAllDeps,
 ): Promise<0 | 1> {
   const { values, positionals } = parseArgs({
     args: rest,
     options: {
       json: { type: 'boolean', default: false },
       yes: { type: 'boolean', default: false },
+      all: { type: 'boolean', default: false },
     },
     allowPositionals: true,
   });
@@ -78,7 +82,9 @@ export async function runCli(
         ? usage(io, 'garden resume <id>')
         : runResume(io, positionals[0], json, client);
     case 'stop':
-      return runStop(io);
+      return values.all === true
+        ? runStopAll(io, values.yes === true, client, stopAllDeps)
+        : runStop(io);
     case 'uninstall':
       return runUninstall(io, values.yes === true);
   }

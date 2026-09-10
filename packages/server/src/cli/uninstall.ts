@@ -1,14 +1,11 @@
-import { execFile } from 'node:child_process';
 import { rmSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
-import { promisify } from 'node:util';
 import { DEFAULT_CONFIG_FILE, loadConfig } from '../config.js';
 import type { Io } from './commands.js';
 import { defaultStopDeps, runStop } from './stop.js';
-
-const execFileAsync = promisify(execFile);
+import { killTmuxServer } from './tmux.js';
 
 export interface UninstallDeps {
   readonly confirm: () => Promise<boolean>;
@@ -29,19 +26,6 @@ async function promptConfirm(): Promise<boolean> {
     return /^y(es)?$/i.test(answer.trim());
   } finally {
     rl.close();
-  }
-}
-
-/** The documented exception in docs/architecture.md §4.4: uninstall must work with the
- *  garden server dead, so it shells out to tmux directly instead of going through it. */
-async function killTmuxServer(confPath: string, socket: string): Promise<void> {
-  try {
-    await execFileAsync('tmux', ['-L', socket, '-f', confPath, 'kill-server']);
-  } catch (error) {
-    const stderr = (error as { stderr?: string }).stderr ?? '';
-    // No server on this socket means nothing to kill, which is success, not a failure.
-    if (/no server running|error connecting to/i.test(stderr)) return;
-    throw error;
   }
 }
 

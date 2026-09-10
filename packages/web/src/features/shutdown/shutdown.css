@@ -1,0 +1,30 @@
+.shutdown-overlay {
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ground);
+}
+
+.shutdown-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.shutdown-body .shutdown-icon {
+  color: var(--text-faint);
+}
+
+.shutdown-body .shutdown-line1 {
+  font-size: 15px;
+  color: var(--text);
+}
+
+.shutdown-body .shutdown-line2 {
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
