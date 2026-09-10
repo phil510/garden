@@ -85,6 +85,17 @@ describe('parseTranscript', () => {
     });
   });
 
+  it('skips a trailing line with neither cwd nor gitBranch to reach an earlier line that has them', () => {
+    const text = [
+      line({ ...envelope, type: 'user', message: { content: 'hi' } }),
+      line({ type: 'assistant', message: { content: [{ type: 'text', text: 'no cwd here' }] } }),
+    ].join('\n');
+    expect(parseTranscript(text).record).toMatchObject({
+      cwd: envelope.cwd,
+      gitBranch: envelope.gitBranch,
+    });
+  });
+
   it('skips back past thinking and tool_use blocks to the last assistant text block', () => {
     const text = [
       assistant([{ type: 'text', text: 'the recap' }]),
