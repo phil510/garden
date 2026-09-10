@@ -1,5 +1,5 @@
 ---
-name: message-agent
+name: message-session
 description: >
   Use when sending a message, note, question, or handoff to another Claude Code
   session — including every case where the recipient was given as a session name
