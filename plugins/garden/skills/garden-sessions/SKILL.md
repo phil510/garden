@@ -1,6 +1,6 @@
 ---
 name: garden-sessions
-description: Drive garden's session lifecycle through its CLI — create a session in a directory, list sessions with status, kill a session, resume a session. Use for "create a garden session", "start a session in this repo", "list garden sessions", "what sessions are running", "kill a session", "resume a session", or any of the bare CLI verbs (`garden new`, `garden ls`, `garden kill`, `garden resume`). Not for `garden stop`/`garden stop --all` or `garden uninstall` — those are separate, more destructive commands this skill doesn't cover.
+description: Drive garden's session lifecycle through its CLI — create a session in a directory, list sessions with status, kill a session, resume a session. Use for "create a garden session", "start a session in this repo", "list garden sessions", "what sessions are running", "kill a session", "resume a session", or any of the bare CLI verbs (`garden new`, `garden ls`, `garden kill`, `garden resume`). Not for stopping or restarting the garden server itself, or uninstalling garden — "stop the server", "shut garden down", "restart the server", "uninstall garden" (bare CLI verbs `garden stop`, `garden stop --all`, `garden uninstall`) name a different target (the server process, not a session) and this skill doesn't cover them. If a request names a specific session to end and nothing about the server, that's still `kill`, in scope.
 ---
 
 # garden sessions
