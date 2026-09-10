@@ -44,7 +44,13 @@ function hasSize(element: HTMLElement): boolean {
  *  keypress would use — there is nothing beyond a normally-configured terminal to wire up for
  *  CC's wheel scrolling to work. */
 function createPane(sessionId: string, container: HTMLElement, epoch: number): PaneHandle {
-  const terminal = new Terminal({ fontSize: 13, theme: terminalTheme(readCssVar) });
+  // `unicode` is one of xterm.js's proposed (non-stable) APIs, gated behind allowProposedApi —
+  // without it, terminal.unicode throws at runtime instead of at the type level.
+  const terminal = new Terminal({
+    fontSize: 13,
+    theme: terminalTheme(readCssVar),
+    allowProposedApi: true,
+  });
   // xterm.js defaults to its bundled UnicodeV6 table, which tmux's own wide-char width table has
   // moved past — this keeps a partial redraw from stranding characters at a width tmux disagrees
   // with (issue #58).
