@@ -132,6 +132,31 @@ describe('readTranscriptRecord', () => {
     });
   });
 
+  it('reads cwd and gitBranch from a conversation-bearing line in the tail window, not the head', async () => {
+    await withTempHome(async (home) => {
+      const path = join(home, 'large-moved.jsonl');
+      const fillerLine = JSON.stringify({
+        type: 'assistant',
+        message: { content: 'x'.repeat(5000) },
+      });
+      const movedLine = JSON.stringify({
+        type: 'user',
+        cwd: '/Users/phil/Desktop/Extend/garden/.worktrees/feat-x',
+        gitBranch: 'feat/x',
+        message: { content: 'moved into a worktree' },
+      });
+      const text =
+        [HEAD_LINE('session-b'), fillerLine, movedLine, TITLE_LINE, LAST_PROMPT_LINE].join('\n') +
+        '\n';
+      writeFileSync(path, text, 'utf8');
+
+      const { record } = await readTranscriptRecord(path, 300);
+      expect(record.sessionId).toBe('session-b');
+      expect(record.cwd).toBe('/Users/phil/Desktop/Extend/garden/.worktrees/feat-x');
+      expect(record.gitBranch).toBe('feat/x');
+    });
+  });
+
   it('drops a single line that exceeds both windows without throwing', async () => {
     await withTempHome(async (home) => {
       const path = join(home, 'huge-line.jsonl');

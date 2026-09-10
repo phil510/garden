@@ -77,7 +77,10 @@ export function reduce(state: GardenState, event: GardenEvent): GardenState {
       const session: SessionState = {
         ...prev,
         cwd: record.cwd ?? prev.cwd,
-        branch: record.gitBranch ?? prev.branch,
+        // gitBranch must come from the same line as cwd (transcript.ts's `lastCwd`), so a new
+        // cwd takes its branch as-is, including null for a non-git directory, rather than
+        // falling back to the previous branch and re-pairing it with the new cwd.
+        branch: record.cwd === null ? prev.branch : record.gitBranch,
         title: record.title ?? record.lastPrompt ?? prev.title,
         recap: record.recap ?? prev.recap,
         // A transcript with no timestamped line reports no activity, so the previous stands.

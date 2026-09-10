@@ -87,6 +87,23 @@ function lastTimestamp(lines: Line[]): number | null {
   return null;
 }
 
+/** Unlike `sessionId`, which is fixed for the file's lifetime, `cwd` and `gitBranch` move
+ *  when a session changes directory mid-conversation (e.g. into a worktree) — so they're
+ *  read from the last conversation-bearing line rather than the first. Both come from that
+ *  same line, never from two different ones, so a move into a non-git directory reads as
+ *  no branch instead of pairing a new `cwd` with a stale `gitBranch`. */
+function lastCwd(lines: Line[]): { cwd: string | null; gitBranch: string | null } {
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    const line = lines[i];
+    if (line === undefined) continue;
+    if (line['type'] !== 'user' && line['type'] !== 'assistant') continue;
+    const cwd = asText(line['cwd']);
+    if (cwd === null) continue;
+    return { cwd, gitBranch: asText(line['gitBranch']) };
+  }
+  return { cwd: null, gitBranch: null };
+}
+
 export function parseTranscript(text: string): TranscriptParse {
   const lines: Line[] = [];
   let skipped = 0;
@@ -106,17 +123,15 @@ export function parseTranscript(text: string): TranscriptParse {
   }
 
   let sessionId: string | null = null;
-  let cwd: string | null = null;
-  let gitBranch: string | null = null;
   for (const line of lines) {
     if (line['type'] !== 'user' && line['type'] !== 'assistant') continue;
     const id = asText(line['sessionId']);
     if (id === null) continue;
     sessionId = id;
-    cwd = asText(line['cwd']);
-    gitBranch = asText(line['gitBranch']);
     break;
   }
+
+  const { cwd, gitBranch } = lastCwd(lines);
 
   return {
     record: {

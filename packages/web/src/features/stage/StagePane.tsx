@@ -7,6 +7,7 @@ import { useLocalStore } from '../../state/localStore';
 import { useSessionStore } from '../../state/sessionStore';
 import { useUiStore } from '../../state/uiStore';
 import { attachPane, detachPane } from '../../terminals/registry';
+import { lastPathSegment } from '../sidebar/lastPathSegment';
 import { deadPaneStatusLine } from './deadPaneStatus';
 import { removeFromStage } from './removeFromStage';
 
@@ -23,6 +24,23 @@ const DEAD_ICON = (
     <path d="M8 12h8" />
   </svg>
 );
+
+interface MetaRowProps {
+  label: string;
+  value: string | null;
+}
+
+function MetaRow({ label, value }: MetaRowProps) {
+  // A session momentarily has an empty cwd between creation and its first transcript read
+  // (reduce.ts's `blank()`); an empty value reads as absent, the same as null.
+  if (value === null || value === '') return null;
+  return (
+    <div className="pane-meta-row">
+      <span className="pane-meta-k">{label}:</span>
+      <span className="pane-meta-v">{value}</span>
+    </div>
+  );
+}
 
 /** The panel id is the session id, so the pane needs nothing from its dockview params. */
 export function StagePane(props: IDockviewPanelProps) {
@@ -88,12 +106,11 @@ export function StagePane(props: IDockviewPanelProps) {
       <div className="pane-header">
         <div className="pane-title-wrap">
           <div className="pane-title">{session.title ?? session.cwd}</div>
-          {session.branch !== null && (
-            <div className="pane-meta-row">
-              <span className="pane-meta-k">branch:</span>
-              <span className="pane-meta-v">{session.branch}</span>
-            </div>
-          )}
+          <MetaRow label="branch" value={session.branch} />
+          <MetaRow
+            label="project"
+            value={session.title === null ? null : lastPathSegment(session.cwd)}
+          />
         </div>
         {live && session.status !== null && <StatusPill status={session.status} />}
         <div className="pane-header-actions">

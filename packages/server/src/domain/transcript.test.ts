@@ -43,12 +43,56 @@ describe('parseTranscript', () => {
     expect(parseTranscript(text).record.recap).toBe('the conclusion');
   });
 
-  it('reads cwd and gitBranch from the same line the sessionId came from', () => {
-    const text = line({ ...envelope, type: 'user', message: { content: 'hi' } });
+  it('reads sessionId from the first conversation-bearing line', () => {
+    const text = [
+      line({ ...envelope, sessionId: 'sid-1', type: 'user', message: { content: 'hi' } }),
+      line({ ...envelope, sessionId: 'sid-2', type: 'user', message: { content: 'later' } }),
+    ].join('\n');
+    expect(parseTranscript(text).record.sessionId).toBe('sid-1');
+  });
+
+  it('reads cwd and gitBranch from the last conversation-bearing line, not the first', () => {
+    const text = [
+      line({ ...envelope, gitBranch: 'main', type: 'user', message: { content: 'hi' } }),
+      line({
+        ...envelope,
+        cwd: '/Users/dev/repo/.worktrees/feat-x',
+        gitBranch: 'feat/x',
+        type: 'user',
+        message: { content: 'moved into a worktree' },
+      }),
+    ].join('\n');
     expect(parseTranscript(text).record).toMatchObject({
-      sessionId: 'sid-1',
-      cwd: '/Users/dev/repo',
+      cwd: '/Users/dev/repo/.worktrees/feat-x',
       gitBranch: 'feat/x',
+    });
+  });
+
+  it('reads gitBranch as null rather than inherited when the last line has cwd but no branch', () => {
+    const text = [
+      line({ ...envelope, type: 'user', message: { content: 'hi' } }),
+      line({
+        ...envelope,
+        cwd: '/tmp/scratch',
+        gitBranch: null,
+        type: 'user',
+        message: { content: 'cd into a non-git directory' },
+      }),
+    ].join('\n');
+    expect(parseTranscript(text).record).toMatchObject({
+      cwd: '/tmp/scratch',
+      gitBranch: null,
+    });
+  });
+
+  it('skips a trailing line with neither cwd nor gitBranch to reach an earlier line that has them', () => {
+    const text = [
+      line({ ...envelope, type: 'user', message: { content: 'hi' } }),
+      line({ type: 'assistant', message: { content: [{ type: 'text', text: 'no cwd here' }] } }),
+    ].join('\n');
+    expect(parseTranscript(text).record).toMatchObject({
+      cwd: envelope.cwd,
+      gitBranch: envelope.gitBranch,
     });
   });
 

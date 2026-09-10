@@ -142,6 +142,22 @@ describe('reduce', () => {
     expect(Object.keys(fold([transcript({ sessionId: null })]).sessions)).toEqual([]);
   });
 
+  it('clears the branch rather than keeping the previous one when a new cwd carries no branch', () => {
+    const state = fold([
+      transcript({ cwd: '/Users/dev/repo', gitBranch: 'main' }),
+      transcript({ cwd: '/tmp/scratch', gitBranch: null }),
+    ]);
+    expect(state.sessions['sid-1']).toMatchObject({ cwd: '/tmp/scratch', branch: null });
+  });
+
+  it('keeps the previous cwd and branch together when a slice carries neither', () => {
+    const state = fold([
+      transcript({ cwd: '/Users/dev/repo', gitBranch: 'main' }),
+      transcript({ cwd: null, gitBranch: null }),
+    ]);
+    expect(state.sessions['sid-1']).toMatchObject({ cwd: '/Users/dev/repo', branch: 'main' });
+  });
+
   it('brings a session back to live when SessionStart follows SessionEnd on the same pane', () => {
     const ended = [mapped, snapshot(false), hook('SessionEnd')];
     expect(fold(ended).sessions['sid-1']?.liveness).toBe('dead');
