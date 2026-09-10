@@ -53,7 +53,7 @@ describe('parseTranscript', () => {
 
   it('reads cwd and gitBranch from the last conversation-bearing line, not the first', () => {
     const text = [
-      line({ ...envelope, type: 'user', message: { content: 'hi' } }),
+      line({ ...envelope, gitBranch: 'main', type: 'user', message: { content: 'hi' } }),
       line({
         ...envelope,
         cwd: '/Users/dev/repo/.worktrees/feat-x',

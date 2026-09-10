@@ -17,4 +17,8 @@ describe('lastPathSegment', () => {
   it('falls back to the path itself when it holds no segment', () => {
     expect(lastPathSegment('/')).toBe('/');
   });
+
+  it('returns an empty string for an empty path', () => {
+    expect(lastPathSegment('')).toBe('');
+  });
 });
