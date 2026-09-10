@@ -73,18 +73,23 @@ export interface GitStatusEntry {
   readonly status: string;
 }
 
-export interface WorktreeInfo {
-  readonly path: string;
-  readonly name: string;
+export interface RepoInfo {
+  readonly repoRoot: string;
+  /** Name of the linked worktree `cwd` sits inside, or null when its working tree is the
+   *  main checkout. */
+  readonly worktree: string | null;
 }
 
 export interface GitPort {
+  /** For a cwd whose repo root is all that's needed — a candidate directory under a
+   *  configured root, not a session's own cwd. `repoInfo` below answers the same question
+   *  together with worktree identity, for the one caller that needs both. */
   repoRoot(cwd: string): Promise<string>;
   /** `cwd` relative to its working tree root, slash-terminated, empty at the root — the basis
    *  `status` reports its paths in. */
   workTreePrefix(cwd: string): Promise<string>;
   branch(cwd: string): Promise<string>;
   status(cwd: string): Promise<GitStatusEntry[]>;
-  /** The linked worktree `cwd` sits inside, or null when its working tree is the main checkout. */
-  worktree(cwd: string): Promise<WorktreeInfo | null>;
+  /** A session cwd's repo root and worktree identity, resolved together from one git call. */
+  repoInfo(cwd: string): Promise<RepoInfo>;
 }

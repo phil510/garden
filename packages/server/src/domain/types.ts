@@ -29,8 +29,7 @@ export type GardenEvent =
   | { type: 'store-loaded'; tmuxNames: Record<string, string> }
   | { type: 'session-registered'; id: string; tmuxName: string; cwd: string }
   | { type: 'transcript-changed'; path: string; record: TranscriptRecord }
-  | { type: 'repo-root-resolved'; cwd: string; repoRoot: string }
-  | { type: 'worktree-resolved'; cwd: string; name: string }
+  | { type: 'repo-info-resolved'; cwd: string; repoRoot: string; worktree: string | null }
   | { type: 'hook'; payload: HookPayload }
   | { type: 'tmux-snapshot'; sessions: TmuxSessionFact[] };
 
@@ -39,13 +38,12 @@ export interface GardenState {
   /** The overlay fact from `state.json`: session id to tmux session name. */
   tmuxNames: Record<string, string>;
   tmux: Record<string, TmuxSessionFact>;
-  /** Resolved repo root by cwd. Keyed by directory rather than by session because that is
-   *  what the root is a function of: sessions sharing a cwd share one answer, and an answer
-   *  that lands before the session it describes is still waiting when the session appears. */
-  repoRoots: Record<string, string>;
-  /** Resolved worktree name by cwd, present only for a cwd git confirmed sits inside a linked
-   *  worktree. Keyed by directory for the same reason as `repoRoots`. */
-  worktrees: Record<string, string>;
+  /** Resolved repo root and worktree name by cwd, both known from the one git call that
+   *  resolves them together. Keyed by directory rather than by session because that is what
+   *  they are a function of: sessions sharing a cwd share one answer, and an answer that
+   *  lands before the session it describes is still waiting when the session appears.
+   *  `worktree` is null for a cwd git confirmed is the main checkout. */
+  repoInfo: Record<string, { repoRoot: string; worktree: string | null }>;
   ended: Record<string, boolean>;
   /** The latest status-bearing hook per session, by session id. */
   reported: Record<string, ReportedStatus>;

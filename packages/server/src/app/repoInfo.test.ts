@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { GardenEvent } from '../domain/types.js';
 import type { GitPort, OverlayState, StorePort } from './ports.js';
 import { createProjection, type Projection } from './projection.js';
-import { watchWorktrees } from './worktrees.js';
+import { watchRepoInfo } from './repoInfo.js';
 
 const emptyOverlay: OverlayState = {
   version: 1,
@@ -17,20 +17,20 @@ const emptyOverlay: OverlayState = {
  * seeds a session state: every session starts from a dispatched event, which is the only way
  * to catch a field the fold never fills in.
  */
-function harness(worktree: (cwd: string) => ReturnType<GitPort['worktree']>) {
+function harness(repoInfo: (cwd: string) => ReturnType<GitPort['repoInfo']>) {
   const store: StorePort = {
     read: () => emptyOverlay,
     write: () => undefined,
   };
   const asked: string[] = [];
-  const git: Pick<GitPort, 'worktree'> = {
-    worktree: (cwd) => {
+  const git: Pick<GitPort, 'repoInfo'> = {
+    repoInfo: (cwd) => {
       asked.push(cwd);
-      return worktree(cwd);
+      return repoInfo(cwd);
     },
   };
   const projection = createProjection(store);
-  return { projection, git, asked, stop: watchWorktrees({ git, projection }) };
+  return { projection, git, asked, stop: watchRepoInfo({ git, projection }) };
 }
 
 const transcript = (cwd: string, sessionId = 'sid-1'): GardenEvent => ({
@@ -50,17 +50,18 @@ const transcript = (cwd: string, sessionId = 'sid-1'): GardenEvent => ({
 const sessionOf = (projection: Projection, id: string) =>
   projection.sessions().find((session) => session.id === id);
 
-describe('watchWorktrees', () => {
-  it('names the worktree git resolved for a session discovered from a transcript', async () => {
+describe('watchRepoInfo', () => {
+  it('gives a session the root and worktree git resolved for its cwd, from one call', async () => {
     const worktreeDir = '/Users/dev/repo/.worktrees/feat/x';
     const { projection, asked, stop } = harness(() =>
-      Promise.resolve({ path: worktreeDir, name: 'x' }),
+      Promise.resolve({ repoRoot: '/Users/dev/repo', worktree: 'x' }),
     );
     try {
       projection.dispatch(transcript(worktreeDir));
       await vi.waitFor(() => {
-        expect(sessionOf(projection, 'sid-1')?.worktree).toBe('x');
+        expect(sessionOf(projection, 'sid-1')?.repoRoot).toBe('/Users/dev/repo');
       });
+      expect(sessionOf(projection, 'sid-1')?.worktree).toBe('x');
       expect(asked).toEqual([worktreeDir]);
     } finally {
       stop();
@@ -69,25 +70,27 @@ describe('watchWorktrees', () => {
 
   it('resolves a session registered by a use case as well as one read from a transcript', async () => {
     const { projection, stop } = harness(() =>
-      Promise.resolve({ path: '/Users/dev/repo/.worktrees/feat/x', name: 'x' }),
+      Promise.resolve({ repoRoot: '/Users/dev/repo', worktree: null }),
     );
     try {
       projection.dispatch({
         type: 'session-registered',
         id: 'sid-2',
         tmuxName: 'repo',
-        cwd: '/Users/dev/repo/.worktrees/feat/x',
+        cwd: '/Users/dev/repo',
       });
       await vi.waitFor(() => {
-        expect(sessionOf(projection, 'sid-2')?.worktree).toBe('x');
+        expect(sessionOf(projection, 'sid-2')?.repoRoot).toBe('/Users/dev/repo');
       });
     } finally {
       stop();
     }
   });
 
-  it('leaves a session at the main checkout worktree-less, and otherwise intact', async () => {
-    const { projection, asked, stop } = harness(() => Promise.resolve(null));
+  it('leaves a session at the main checkout worktree-less but rooted, and otherwise intact', async () => {
+    const { projection, asked, stop } = harness(() =>
+      Promise.resolve({ repoRoot: '/Users/dev/repo', worktree: null }),
+    );
     try {
       projection.dispatch(transcript('/Users/dev/repo'));
       await vi.waitFor(() => {
@@ -95,6 +98,7 @@ describe('watchWorktrees', () => {
       });
       expect(sessionOf(projection, 'sid-1')).toMatchObject({
         cwd: '/Users/dev/repo',
+        repoRoot: '/Users/dev/repo',
         worktree: null,
         title: 'A session',
       });
@@ -103,7 +107,7 @@ describe('watchWorktrees', () => {
     }
   });
 
-  it('leaves a session outside any repo worktree-less, and otherwise intact', async () => {
+  it('leaves a session outside any repo with no root and no worktree, and otherwise intact', async () => {
     const { projection, asked, stop } = harness(() =>
       Promise.reject(new Error('not a repository')),
     );
@@ -114,6 +118,7 @@ describe('watchWorktrees', () => {
       });
       expect(sessionOf(projection, 'sid-1')).toMatchObject({
         cwd: '/tmp/scratch',
+        repoRoot: null,
         worktree: null,
         title: 'A session',
       });
@@ -124,23 +129,25 @@ describe('watchWorktrees', () => {
 
   it('asks git once per directory however many sessions appear in it', async () => {
     const { projection, asked, stop } = harness(() =>
-      Promise.resolve({ path: '/Users/dev/repo/.worktrees/feat/x', name: 'x' }),
+      Promise.resolve({ repoRoot: '/Users/dev/repo', worktree: null }),
     );
     try {
-      projection.dispatch(transcript('/Users/dev/repo/.worktrees/feat/x', 'sid-1'));
-      projection.dispatch(transcript('/Users/dev/repo/.worktrees/feat/x', 'sid-2'));
+      projection.dispatch(transcript('/Users/dev/repo', 'sid-1'));
+      projection.dispatch(transcript('/Users/dev/repo', 'sid-2'));
       await vi.waitFor(() => {
-        expect(sessionOf(projection, 'sid-2')?.worktree).toBe('x');
+        expect(sessionOf(projection, 'sid-2')?.repoRoot).toBe('/Users/dev/repo');
       });
-      expect(asked).toEqual(['/Users/dev/repo/.worktrees/feat/x']);
-      expect(sessionOf(projection, 'sid-1')?.worktree).toBe('x');
+      expect(asked).toEqual(['/Users/dev/repo']);
+      expect(sessionOf(projection, 'sid-1')?.repoRoot).toBe('/Users/dev/repo');
     } finally {
       stop();
     }
   });
 
   it('stops asking once unsubscribed', async () => {
-    const { projection, asked, stop } = harness(() => Promise.resolve(null));
+    const { projection, asked, stop } = harness(() =>
+      Promise.resolve({ repoRoot: '/Users/dev/repo', worktree: null }),
+    );
     stop();
     projection.dispatch(transcript('/Users/dev/repo'));
     await Promise.resolve();

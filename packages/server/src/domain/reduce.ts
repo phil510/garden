@@ -7,8 +7,7 @@ export const initialState: GardenState = {
   sessions: {},
   tmuxNames: {},
   tmux: {},
-  repoRoots: {},
-  worktrees: {},
+  repoInfo: {},
   ended: {},
   reported: {},
 };
@@ -45,9 +44,9 @@ function rederive(state: GardenState): GardenState {
       ...session,
       tmuxName,
       // Null covers both a cwd nothing has resolved yet and one that is not in a repo.
-      repoRoot: state.repoRoots[session.cwd] ?? null,
+      repoRoot: state.repoInfo[session.cwd]?.repoRoot ?? null,
       // Null covers both a cwd nothing has resolved yet and one whose tree is the main checkout.
-      worktree: state.worktrees[session.cwd] ?? null,
+      worktree: state.repoInfo[session.cwd]?.worktree ?? null,
       liveness,
       exitCode,
       // Status belongs to live sessions: none yet heard from reads `unknown`, dead reads nothing.
@@ -89,15 +88,13 @@ export function reduce(state: GardenState, event: GardenEvent): GardenState {
       };
       return rederive({ ...state, sessions: { ...state.sessions, [id]: session } });
     }
-    case 'repo-root-resolved':
+    case 'repo-info-resolved':
       return rederive({
         ...state,
-        repoRoots: { ...state.repoRoots, [event.cwd]: event.repoRoot },
-      });
-    case 'worktree-resolved':
-      return rederive({
-        ...state,
-        worktrees: { ...state.worktrees, [event.cwd]: event.name },
+        repoInfo: {
+          ...state.repoInfo,
+          [event.cwd]: { repoRoot: event.repoRoot, worktree: event.worktree },
+        },
       });
     case 'hook': {
       const id = event.payload.session_id;

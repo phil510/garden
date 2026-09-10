@@ -68,22 +68,29 @@ export async function branch(cwd: string): Promise<string> {
   return stdout.trim();
 }
 
-export interface WorktreeInfo {
-  readonly path: string;
-  readonly name: string;
+export interface RepoInfo {
+  readonly repoRoot: string;
+  /** Name of the linked worktree `cwd` sits inside, or null when its working tree is the
+   *  main checkout. */
+  readonly worktree: string | null;
 }
 
 /**
- * The linked worktree `cwd` sits inside, or null when `cwd`'s working tree is the main
- * checkout. `--git-dir` and `--git-common-dir` resolve to the same path for the main checkout
- * and diverge for a linked worktree (whose `.git` is a file pointing at
- * `<repo>/.git/worktrees/<name>`, while `--git-common-dir` always answers with the repo's own
- * `.git`), so comparing the two — rather than comparing `cwd` to `repoRoot` — correctly
- * answers "is this a worktree" for `cwd` anywhere inside the tree, worktree root or
- * subdirectory alike. All three values come from one `rev-parse` call, resolved through git's
- * own symlink handling, so a symlinked ancestor can't desync the comparison.
+ * A session cwd's repo root and worktree identity, both read off one `rev-parse` call rather
+ * than two separate ones: `--git-common-dir` alone already answers `repoRoot` (see above), and
+ * comparing it against `--git-dir` is what tells a linked worktree (whose `.git` is a file
+ * pointing at `<repo>/.git/worktrees/<name>`) apart from the main checkout (where the two
+ * resolve to the same path) — so a caller that wants either fact for a cwd needs both flags
+ * anyway. Resolving them together also means the two facts can never observe the cwd in two
+ * different states: they come from the same git process, so no consumer can see a root without
+ * a matching worktree answer or vice versa.
+ *
+ * A cwd inside `.git` itself or a bare repository fails this whole call (no `--show-toplevel`
+ * to report), so it loses `repoRoot` along with `worktree` — where `repoRoot(cwd)` alone would
+ * still resolve. Neither is a cwd a garden session ever has: a session's cwd is always a
+ * working-tree directory a shell or editor cd'd into.
  */
-export async function worktree(cwd: string): Promise<WorktreeInfo | null> {
+export async function repoInfo(cwd: string): Promise<RepoInfo> {
   const stdout = await run(cwd, [
     'rev-parse',
     '--path-format=absolute',
@@ -92,8 +99,10 @@ export async function worktree(cwd: string): Promise<WorktreeInfo | null> {
     '--show-toplevel',
   ]);
   const [gitDir, commonDir, toplevel] = stdout.trim().split('\n');
-  if (gitDir === commonDir || toplevel === undefined) return null;
-  return { path: toplevel, name: basename(toplevel) };
+  return {
+    repoRoot: dirname(commonDir!),
+    worktree: gitDir === commonDir || toplevel === undefined ? null : basename(toplevel),
+  };
 }
 
 /**

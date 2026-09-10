@@ -6,10 +6,10 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   GitError,
   branch,
+  repoInfo,
   repoRoot,
   status,
   workTreePrefix,
-  worktree,
 } from '../../src/adapters/git.js';
 
 function git(cwd: string, args: readonly string[]): void {
@@ -59,8 +59,11 @@ describe('the git adapter', () => {
     const nested = join(worktreeDir, 'src');
     mkdirSync(nested);
 
-    expect(await worktree(worktreeDir)).toEqual({ path: realpathSync(worktreeDir), name: 'x' });
-    expect(await worktree(nested)).toEqual({ path: realpathSync(worktreeDir), name: 'x' });
+    expect(await repoInfo(worktreeDir)).toEqual({
+      repoRoot: realpathSync(repoDir),
+      worktree: 'x',
+    });
+    expect(await repoInfo(nested)).toEqual({ repoRoot: realpathSync(repoDir), worktree: 'x' });
   });
 
   it('reports no worktree for the main checkout, root or subdirectory alike', async () => {
@@ -71,8 +74,8 @@ describe('the git adapter', () => {
 
     // This is the case a cwd/repoRoot string comparison gets wrong: `nested` differs from the
     // repo root as a path, but its tree is still the main checkout, not a worktree.
-    expect(await worktree(dir)).toBeNull();
-    expect(await worktree(nested)).toBeNull();
+    expect(await repoInfo(dir)).toEqual({ repoRoot: realpathSync(dir), worktree: null });
+    expect(await repoInfo(nested)).toEqual({ repoRoot: realpathSync(dir), worktree: null });
   });
 
   it('reports a subdirectory as the prefix status paths are relative to', async () => {
@@ -156,5 +159,10 @@ describe('the git adapter', () => {
     dir = mkdtempSync(join(tmpdir(), 'garden-git-'));
     await expect(repoRoot(dir)).rejects.toBeInstanceOf(GitError);
     await expect(repoRoot(dir)).rejects.toThrow(/not a git repository/);
+  });
+
+  it('fails the combined call too, outside a git repository', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'garden-git-'));
+    await expect(repoInfo(dir)).rejects.toBeInstanceOf(GitError);
   });
 });

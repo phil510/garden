@@ -32,15 +32,10 @@ const snapshot = (paneDead: boolean): GardenEvent => ({
 const storeLoaded: GardenEvent = { type: 'store-loaded', tmuxNames: { 'sid-1': 'repo' } };
 
 const rootResolved: GardenEvent = {
-  type: 'repo-root-resolved',
+  type: 'repo-info-resolved',
   cwd: '/Users/dev/repo',
   repoRoot: '/Users/dev/repo',
-};
-
-const worktreeResolved: GardenEvent = {
-  type: 'worktree-resolved',
-  cwd: '/Users/dev/repo/.worktrees/feat/x',
-  name: 'x',
+  worktree: null,
 };
 
 const sequences: GardenEvent[][] = [
@@ -131,8 +126,7 @@ const everyVariant: Record<GardenEvent['type'], GardenEvent> = {
     cwd: '/Users/dev/repo',
   },
   'transcript-changed': transcript({}, now),
-  'repo-root-resolved': rootResolved,
-  'worktree-resolved': worktreeResolved,
+  'repo-info-resolved': rootResolved,
   hook: { type: 'hook', payload: aHookEvent({ session_id: 'sid-1' }) },
   'tmux-snapshot': snapshot(false),
 };

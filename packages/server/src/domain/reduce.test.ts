@@ -28,16 +28,15 @@ const snapshot = (paneDead: boolean, name = 'repo'): GardenEvent => ({
   sessions: [{ name, paneDead, exitCode: paneDead ? 1 : null }],
 });
 
-const resolvedRoot = (cwd: string, repoRoot: string): GardenEvent => ({
-  type: 'repo-root-resolved',
+const resolvedRepoInfo = (
+  cwd: string,
+  repoRoot: string,
+  worktree: string | null = null,
+): GardenEvent => ({
+  type: 'repo-info-resolved',
   cwd,
   repoRoot,
-});
-
-const resolvedWorktree = (cwd: string, name: string): GardenEvent => ({
-  type: 'worktree-resolved',
-  cwd,
-  name,
+  worktree,
 });
 
 const hook = (name: string, id = 'sid-1'): GardenEvent => ({
@@ -175,18 +174,21 @@ describe('reduce', () => {
   });
 
   it('takes a session repo root from the resolution for its cwd', () => {
-    const state = fold([transcript(), resolvedRoot('/Users/dev/repo', '/Users/dev/repo')]);
+    const state = fold([transcript(), resolvedRepoInfo('/Users/dev/repo', '/Users/dev/repo')]);
     expect(state.sessions['sid-1']?.repoRoot).toBe('/Users/dev/repo');
   });
 
   it('folds a worktree session into the root its cwd resolved to, not its own directory', () => {
     const worktree = '/Users/dev/repo/.worktrees/feat/x';
-    const state = fold([transcript({ cwd: worktree }), resolvedRoot(worktree, '/Users/dev/repo')]);
+    const state = fold([
+      transcript({ cwd: worktree }),
+      resolvedRepoInfo(worktree, '/Users/dev/repo'),
+    ]);
     expect(state.sessions['sid-1']?.repoRoot).toBe('/Users/dev/repo');
   });
 
   it('gives every session in one directory that root, whichever arrived first', () => {
-    const resolution = resolvedRoot('/Users/dev/repo', '/Users/dev/repo');
+    const resolution = resolvedRepoInfo('/Users/dev/repo', '/Users/dev/repo');
     const second = transcript({ sessionId: 'sid-2' });
     const before = fold([resolution, transcript(), second]);
     const after = fold([transcript(), second, resolution]);
@@ -201,7 +203,10 @@ describe('reduce', () => {
 
   it('takes a session worktree name from the resolution for its cwd', () => {
     const worktree = '/Users/dev/repo/.worktrees/feat/x';
-    const state = fold([transcript({ cwd: worktree }), resolvedWorktree(worktree, 'x')]);
+    const state = fold([
+      transcript({ cwd: worktree }),
+      resolvedRepoInfo(worktree, '/Users/dev/repo', 'x'),
+    ]);
     expect(state.sessions['sid-1']?.worktree).toBe('x');
   });
 
