@@ -31,7 +31,9 @@ interface MetaRowProps {
 }
 
 function MetaRow({ label, value }: MetaRowProps) {
-  if (value === null) return null;
+  // A session momentarily has an empty cwd between creation and its first transcript read
+  // (reduce.ts's `blank()`); an empty value reads as absent, the same as null.
+  if (value === null || value === '') return null;
   return (
     <div className="pane-meta-row">
       <span className="pane-meta-k">{label}:</span>
