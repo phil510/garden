@@ -11,6 +11,16 @@ import { lastPathSegment } from '../sidebar/lastPathSegment';
 import { deadPaneStatusLine } from './deadPaneStatus';
 import { removeFromStage } from './removeFromStage';
 
+function MetaRow(props: { label: string; value: string | null }) {
+  if (props.value === null) return null;
+  return (
+    <div className="pane-meta-row">
+      <span className="pane-meta-k">{props.label}:</span>
+      <span className="pane-meta-v">{props.value}</span>
+    </div>
+  );
+}
+
 const DEAD_ICON = (
   <svg
     width="26"
@@ -89,24 +99,12 @@ export function StagePane(props: IDockviewPanelProps) {
       <div className="pane-header">
         <div className="pane-title-wrap">
           <div className="pane-title">{session.title ?? session.cwd}</div>
-          {session.branch !== null && (
-            <div className="pane-meta-row">
-              <span className="pane-meta-k">branch:</span>
-              <span className="pane-meta-v">{session.branch}</span>
-            </div>
-          )}
-          {session.repoRoot !== null && (
-            <div className="pane-meta-row">
-              <span className="pane-meta-k">project:</span>
-              <span className="pane-meta-v">{lastPathSegment(session.repoRoot)}</span>
-            </div>
-          )}
-          {session.worktree !== null && (
-            <div className="pane-meta-row">
-              <span className="pane-meta-k">worktree:</span>
-              <span className="pane-meta-v">{session.worktree}</span>
-            </div>
-          )}
+          <MetaRow label="branch" value={session.branch} />
+          <MetaRow
+            label="project"
+            value={session.repoRoot === null ? null : lastPathSegment(session.repoRoot)}
+          />
+          <MetaRow label="worktree" value={session.worktree} />
         </div>
         {live && session.status !== null && <StatusPill status={session.status} />}
         <div className="pane-header-actions">
