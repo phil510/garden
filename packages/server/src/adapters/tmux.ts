@@ -1,12 +1,13 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { parseTmuxVersion, tmuxVersionAtLeast, type TmuxVersion } from '@garden/shared';
 
 const execFileAsync = promisify(execFile);
 
 /** Below this, `utempter_remove_record` resets SIGCHLD to SIG_DFL around its own
  *  fork-and-wait, discarding the exiting pane's SIGCHLD before `pane_dead_status`
  *  can be set (tmux/tmux#4559, fixed in 3.6). */
-const MINIMUM_RELIABLE_EXIT_STATUS_VERSION = { major: 3, minor: 6 } as const;
+const MINIMUM_RELIABLE_EXIT_STATUS_VERSION: TmuxVersion = { major: 3, minor: 6 };
 
 /** Which tmux server to talk to. Passed in; the adapter never reads config itself. */
 export interface TmuxTarget {
@@ -116,20 +117,11 @@ export async function killSession(target: TmuxTarget, name: string): Promise<voi
   await run(target, ['kill-session', '-t', name]);
 }
 
-/** `tmux -V` prints e.g. "tmux 3.6a" or "tmux next-3.4"; the trailing letter is a patch
- *  suffix. Sibling of `cli/preflight.ts`'s `evaluateTmuxVersion` — kept separate rather
- *  than shared because `cli/**` cannot import `adapters/**` (see `eslint.config.js`) and
- *  this gate gets a different threshold and severity (warn, not block). Update both if the
- *  parsing regex ever changes. */
+/** Sibling of `cli/preflight.ts`'s `evaluateTmuxVersion` — same parse-and-compare helper,
+ *  its own threshold and severity (warn, not block). */
 export function describeTmuxVersionWarning(versionOutput: string): string | null {
-  const match = /(\d+)\.(\d+)/.exec(versionOutput);
-  if (!match) return null;
-  const found = { major: Number(match[1]), minor: Number(match[2]) };
-  const meetsMinimum =
-    found.major > MINIMUM_RELIABLE_EXIT_STATUS_VERSION.major ||
-    (found.major === MINIMUM_RELIABLE_EXIT_STATUS_VERSION.major &&
-      found.minor >= MINIMUM_RELIABLE_EXIT_STATUS_VERSION.minor);
-  if (meetsMinimum) return null;
+  const found = parseTmuxVersion(versionOutput);
+  if (!found || tmuxVersionAtLeast(found, MINIMUM_RELIABLE_EXIT_STATUS_VERSION)) return null;
   return (
     `tmux ${String(found.major)}.${String(found.minor)} found, 3.6 required — ` +
     `a session's exit code may never arrive on this version`
