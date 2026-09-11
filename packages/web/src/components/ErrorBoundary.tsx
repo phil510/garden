@@ -9,6 +9,19 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
+/** Turns a non-Error thrown value into fallback text a reader can make sense of. `String()`
+ *  alone renders a thrown object as "[object Object]"; JSON.stringify gives its shape instead. */
+function describeNonError(value: unknown): string {
+  if (typeof value === 'string') return value;
+  try {
+    const json = JSON.stringify(value);
+    if (json !== undefined) return json;
+  } catch {
+    // circular or otherwise unserializable — fall through to String()
+  }
+  return String(value);
+}
+
 /** Catches a render throw anywhere in its children and swaps to a fallback panel instead of
  *  leaving the whole shell blank. Terminals live outside React (`terminals/registry.ts`), so
  *  the socket a live pane holds survives this boundary catching and unmounting its children;
@@ -17,7 +30,8 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   state: ErrorBoundaryState = { error: null };
 
   static getDerivedStateFromError(error: unknown): ErrorBoundaryState {
-    return { error: error instanceof Error ? error : new Error(String(error)) };
+    if (error instanceof Error) return { error };
+    return { error: new Error(describeNonError(error)) };
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {

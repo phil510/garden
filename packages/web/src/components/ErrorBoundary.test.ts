@@ -32,6 +32,12 @@ describe('ErrorBoundary.getDerivedStateFromError', () => {
     expect(state.error).toBeInstanceOf(Error);
     expect(state.error?.message).toBe('boom');
   });
+
+  it('wraps a thrown non-Error object into a legible message, not "[object Object]"', () => {
+    const state = ErrorBoundary.getDerivedStateFromError({ code: 'ECONNRESET' });
+    expect(state.error).toBeInstanceOf(Error);
+    expect(state.error?.message).toBe('{"code":"ECONNRESET"}');
+  });
 });
 
 describe('ErrorBoundary is a real React error boundary', () => {
