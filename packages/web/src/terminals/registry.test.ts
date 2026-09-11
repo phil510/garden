@@ -24,8 +24,8 @@ class FakeTerminal {
   customKeyEventHandler: ((event: KeyboardEvent) => boolean) | undefined;
   readonly unicode = new FakeUnicodeHandling();
   readonly loadedAddons: unknown[] = [];
-  /** Registration order of the two link providers, in the vocabulary xterm's Linkifier resolves
-   *  overlapping matches by (first registered wins) — this is what a registration-order
+  /** Registration order of the two link providers. xterm's Linkifier resolves overlapping
+   *  matches by registration order (first registered wins) — this is what a registration-order
    *  regression would get backwards. */
   readonly linkRegistrationOrder: string[] = [];
 
