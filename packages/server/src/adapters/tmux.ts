@@ -144,7 +144,7 @@ export async function killSession(target: TmuxTarget, name: string): Promise<voi
   await run(target, ['kill-session', '-t', name]);
 }
 
-/** Sibling of `cli/preflight.ts`'s `evaluateTmuxVersion` — same parse-and-compare helper,
+/** Sibling of the startup gate's pure version evaluator — same parse-and-compare logic,
  *  its own threshold and severity (warn, not block). */
 export function describeTmuxVersionWarning(versionOutput: string): string | null {
   const found = parseTmuxVersion(versionOutput);
@@ -156,7 +156,7 @@ export function describeTmuxVersionWarning(versionOutput: string): string | null
 }
 
 /** Never throws: a failure to even run `tmux -V` must not crash or block startup. The
- *  CLI's own `checkTmux` (`cli/preflight.ts`) already owns "tmux is not installed." */
+ *  startup gate already owns "tmux is not installed" as a hard failure; this is advisory only. */
 export async function checkTmuxVersionWarning(): Promise<string | null> {
   try {
     const { stdout } = await execFileAsync('tmux', ['-V']);
