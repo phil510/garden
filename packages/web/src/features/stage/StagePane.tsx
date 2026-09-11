@@ -1,5 +1,4 @@
 import { useDraggable, useDroppable } from '@dnd-kit/core';
-import { CSS } from '@dnd-kit/utilities';
 import type { IDockviewPanelProps } from 'dockview-react';
 import { useCallback, useEffect, useRef, type MouseEvent } from 'react';
 import { resumeSession, updateUiState } from '../../api/client';
@@ -59,13 +58,11 @@ export function StagePane(props: IDockviewPanelProps) {
     setNodeRef: setDraggableRef,
     attributes,
     listeners,
-    transform,
     isDragging,
   } = useDraggable({
     id: props.api.id,
   });
   const { setNodeRef: setDroppableRef, isOver } = useDroppable({ id: String(slot) });
-  const style = { transform: CSS.Translate.toString(transform) };
 
   // Stable across renders: an inline closure here would make dnd-kit's own setNodeRef see a
   // "new" ref every render, tearing down and re-registering its resize observer even when
@@ -131,7 +128,6 @@ export function StagePane(props: IDockviewPanelProps) {
   return (
     <div
       ref={setNodeRef}
-      style={style}
       className={classes.join(' ')}
       onClick={focus}
       onDoubleClick={toggleMaximise}
