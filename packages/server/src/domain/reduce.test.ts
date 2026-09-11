@@ -220,6 +220,27 @@ describe('reduce', () => {
     });
   });
 
+  it('leaves a session at needs-approval when the delayed permission_prompt notification arrives', () => {
+    const permissionRequest: GardenEvent = {
+      type: 'hook',
+      payload: aHookEvent({ session_id: 'sid-1', hook_event_name: 'PermissionRequest' }),
+    };
+    const notification: GardenEvent = {
+      type: 'hook',
+      payload: aHookEvent({
+        session_id: 'sid-1',
+        hook_event_name: 'Notification',
+        notification_type: 'permission_prompt',
+        message: 'Claude needs your permission to run rm',
+      }),
+    };
+    expect(
+      fold([mapped, permissionRequest, snapshot(false), notification]).sessions['sid-1'],
+    ).toMatchObject({
+      status: 'needs-approval',
+    });
+  });
+
   it('holds a newly registered session dead until a tmux snapshot reports its pane', () => {
     const created: GardenEvent = {
       type: 'session-registered',
