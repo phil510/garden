@@ -1,7 +1,7 @@
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import type { IDockviewPanelProps } from 'dockview-react';
-import { useEffect, useRef, type MouseEvent } from 'react';
+import { useCallback, useEffect, useRef, type MouseEvent } from 'react';
 import { resumeSession, updateUiState } from '../../api/client';
 import { reportCommandFailure } from '../../api/reportCommandFailure';
 import { StatusPill } from '../../components/StatusPill';
@@ -67,10 +67,16 @@ export function StagePane(props: IDockviewPanelProps) {
   const { setNodeRef: setDroppableRef, isOver } = useDroppable({ id: String(slot) });
   const style = { transform: CSS.Translate.toString(transform) };
 
-  function setNodeRef(node: HTMLDivElement | null) {
-    setDraggableRef(node);
-    setDroppableRef(node);
-  }
+  // Stable across renders: an inline closure here would make dnd-kit's own setNodeRef see a
+  // "new" ref every render, tearing down and re-registering its resize observer even when
+  // nothing about this pane's DOM node changed.
+  const setNodeRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      setDraggableRef(node);
+      setDroppableRef(node);
+    },
+    [setDraggableRef, setDroppableRef],
+  );
 
   // Mounts the session's terminal into this pane's container while it is live. Disposal is
   // deliberately not this cleanup: dockview reuses a panel across a layout change, remounting
