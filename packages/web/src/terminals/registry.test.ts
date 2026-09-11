@@ -23,16 +23,26 @@ class FakeTerminal {
   disposed = false;
   customKeyEventHandler: ((event: KeyboardEvent) => boolean) | undefined;
   readonly unicode = new FakeUnicodeHandling();
+  readonly loadedAddons: unknown[] = [];
+  /** Registration order of the two link providers. xterm's Linkifier resolves overlapping
+   *  matches by registration order (first registered wins) — this is what a registration-order
+   *  regression would get backwards. */
+  readonly linkRegistrationOrder: string[] = [];
 
   constructor() {
     FakeTerminal.instances.push(this);
   }
-  loadAddon(): void {}
+  loadAddon(addon: unknown): void {
+    this.loadedAddons.push(addon);
+    if (addon instanceof FakeWebLinksAddon) this.linkRegistrationOrder.push('web-links');
+  }
   open(container: HTMLElement): void {
     this.element = document.createElement('div');
     container.appendChild(this.element);
   }
-  registerLinkProvider(): void {}
+  registerLinkProvider(): void {
+    this.linkRegistrationOrder.push('path-line');
+  }
   onData(): void {}
   write(): void {}
   resize(cols: number, rows: number): void {
@@ -55,6 +65,8 @@ class FakeFitAddon {
     return proposed;
   }
 }
+
+class FakeWebLinksAddon {}
 
 class FakeSocket {
   static instances: FakeSocket[] = [];
@@ -99,6 +111,7 @@ class FakeResizeObserver {
 
 vi.mock('@xterm/xterm', () => ({ Terminal: FakeTerminal }));
 vi.mock('@xterm/addon-fit', () => ({ FitAddon: FakeFitAddon }));
+vi.mock('@xterm/addon-web-links', () => ({ WebLinksAddon: FakeWebLinksAddon }));
 vi.mock('../api/paneSocket.js', () => ({
   connectPaneSocket: (_sessionId: string, size: PaneSize, handlers: PaneSocketHandlers) =>
     new FakeSocket(size, handlers),
@@ -250,6 +263,31 @@ describe('attachPane', () => {
     attachPane('session-a', aContainer({ width: '800px', height: '600px' }), 0);
 
     expect(lastTerminal().unicode.activeVersion).toBe(unicodeV11Provider.version);
+  });
+
+  it('loads the web links addon so URLs render as clickable links', async () => {
+    const { attachPane } = await loadRegistry();
+
+    attachPane('session-a', aContainer({ width: '800px', height: '600px' }), 0);
+
+    expect(lastTerminal().loadedAddons).toContainEqual(expect.any(FakeWebLinksAddon));
+  });
+
+  it('loads the web links addon on a pane created after the first', async () => {
+    const { attachPane } = await loadRegistry();
+    attachPane('session-a', aContainer({ width: '800px', height: '600px' }), 0);
+
+    attachPane('session-b', aContainer({ width: '800px', height: '600px' }), 0);
+
+    expect(lastTerminal().loadedAddons).toContainEqual(expect.any(FakeWebLinksAddon));
+  });
+
+  it('registers the path:line link provider before the web links addon, so an overlapping match still opens in the editor', async () => {
+    const { attachPane } = await loadRegistry();
+
+    attachPane('session-a', aContainer({ width: '800px', height: '600px' }), 0);
+
+    expect(lastTerminal().linkRegistrationOrder).toEqual(['path-line', 'web-links']);
   });
 });
 
