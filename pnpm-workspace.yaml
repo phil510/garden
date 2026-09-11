@@ -31,6 +31,7 @@ catalog:
   '@vitejs/plugin-react': 6.1.0
   '@xterm/xterm': 6.0.0
   '@xterm/addon-fit': 0.11.0
+  '@xterm/addon-web-links': 0.12.0
   node-pty: 1.2.0-beta.15
   zustand: 5.0.15
   dockview-react: 8.2.0

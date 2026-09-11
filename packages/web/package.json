@@ -16,6 +16,7 @@
     "@dnd-kit/utilities": "catalog:",
     "@garden/shared": "workspace:*",
     "@xterm/addon-fit": "catalog:",
+    "@xterm/addon-web-links": "catalog:",
     "@xterm/xterm": "catalog:",
     "dockview-core": "catalog:",
     "dockview-react": "catalog:",
