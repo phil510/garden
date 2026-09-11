@@ -1,13 +1,37 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { parseTmuxVersion, tmuxVersionAtLeast, type TmuxVersion } from '@garden/shared';
 
 const execFileAsync = promisify(execFile);
 
+/** `major.minor` as parsed from `tmux -V`. tmux's trailing patch letter (e.g. "3.6a") and any
+ *  branch prefix (e.g. "next-3.4") are not part of the comparison. */
+interface TmuxVersion {
+  readonly major: number;
+  readonly minor: number;
+}
+
 /** Below this, `utempter_remove_record` resets SIGCHLD to SIG_DFL around its own
  *  fork-and-wait, discarding the exiting pane's SIGCHLD before `pane_dead_status`
- *  can be set (tmux/tmux#4559, fixed in 3.6). */
-const MINIMUM_RELIABLE_EXIT_STATUS_VERSION: TmuxVersion = { major: 3, minor: 6 };
+ *  can be set (tmux/tmux#4559, fixed in 3.6). garden's one hard requirement. */
+const MINIMUM_TMUX_VERSION: TmuxVersion = { major: 3, minor: 6 };
+
+/** Null when no version can be read; the gate turns that into its own error message. */
+function parseTmuxVersion(versionOutput: string): TmuxVersion | null {
+  const match = /(\d+)\.(\d+)/.exec(versionOutput);
+  if (!match) return null;
+  return { major: Number(match[1]), minor: Number(match[2]) };
+}
+
+function tmuxVersionAtLeast(version: TmuxVersion, minimum: TmuxVersion): boolean {
+  return (
+    version.major > minimum.major ||
+    (version.major === minimum.major && version.minor >= minimum.minor)
+  );
+}
+
+function formatVersion(version: TmuxVersion): string {
+  return `${String(version.major)}.${String(version.minor)}`;
+}
 
 /** Which tmux server to talk to. Passed in; the adapter never reads config itself. */
 export interface TmuxTarget {
@@ -144,24 +168,34 @@ export async function killSession(target: TmuxTarget, name: string): Promise<voi
   await run(target, ['kill-session', '-t', name]);
 }
 
-/** Sibling of `cli/preflight.ts`'s `evaluateTmuxVersion` — same parse-and-compare helper,
- *  its own threshold and severity (warn, not block). */
-export function describeTmuxVersionWarning(versionOutput: string): string | null {
+/** Throws when `tmux -V`'s output is unparseable or below garden's minimum. The pure half of
+ *  the startup gate — callable from a plain string, with no process involved. */
+export function assertTmuxVersion(versionOutput: string): void {
   const found = parseTmuxVersion(versionOutput);
-  if (!found || tmuxVersionAtLeast(found, MINIMUM_RELIABLE_EXIT_STATUS_VERSION)) return null;
-  return (
-    `tmux ${String(found.major)}.${String(found.minor)} found, 3.6 required — ` +
-    `a session's exit code may never arrive on this version`
-  );
+  if (!found) {
+    throw new Error(
+      `garden requires tmux ${formatVersion(MINIMUM_TMUX_VERSION)} or newer — could not read a version from "${versionOutput.trim()}"`,
+    );
+  }
+  if (!tmuxVersionAtLeast(found, MINIMUM_TMUX_VERSION)) {
+    throw new Error(
+      `garden requires tmux ${formatVersion(MINIMUM_TMUX_VERSION)} or newer, found ${formatVersion(found)}`,
+    );
+  }
 }
 
-/** Never throws: a failure to even run `tmux -V` must not crash or block startup. The
- *  CLI's own `checkTmux` (`cli/preflight.ts`) already owns "tmux is not installed." */
-export async function checkTmuxVersionWarning(): Promise<string | null> {
+/** Runs `tmux -V` once and throws if tmux is missing, unrunnable, or below garden's minimum
+ *  version. The startup gate: called first from `main()`, before anything else touches disk
+ *  or tmux. Never write a "garden: " prefix here — the caller owns that. */
+export async function checkTmuxVersion(): Promise<void> {
+  let stdout: string;
   try {
-    const { stdout } = await execFileAsync('tmux', ['-V']);
-    return describeTmuxVersionWarning(stdout);
-  } catch {
-    return null;
+    ({ stdout } = await execFileAsync('tmux', ['-V']));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      throw new Error('tmux is not installed — install it and try again', { cause: error });
+    }
+    throw new Error(`could not run tmux: ${(error as Error).message}`, { cause: error });
   }
+  assertTmuxVersion(stdout);
 }
