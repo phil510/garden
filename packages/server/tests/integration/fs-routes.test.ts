@@ -103,7 +103,49 @@ describe('/fs routes against a real temp repo', () => {
         url: '/fs/file?session=sid&path=README.md',
       });
       expect(response.statusCode).toBe(200);
-      expect(response.json()).toEqual({ path: 'README.md', text: 'hello\n', truncated: false });
+      expect(response.json()).toEqual({
+        path: 'README.md',
+        kind: 'text',
+        text: 'hello\n',
+        truncated: false,
+      });
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('reads an image file inside the repo as base64', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'garden-fs-'));
+    initRepo(dir);
+    const bytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    writeFileSync(join(dir, 'pic.png'), bytes);
+    const app = serverWithSession(dir);
+    try {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/fs/file?session=sid&path=pic.png',
+      });
+      expect(response.statusCode).toBe(200);
+      const body = response.json<{ kind: string; data: string }>();
+      expect(body.kind).toBe('image');
+      expect(body.data).toBe(bytes.toString('base64'));
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('reports a non-image binary file as unpreviewable', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'garden-fs-'));
+    initRepo(dir);
+    writeFileSync(join(dir, 'data.bin'), Buffer.from([0x41, 0x00, 0x42]));
+    const app = serverWithSession(dir);
+    try {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/fs/file?session=sid&path=data.bin',
+      });
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({ path: 'data.bin', kind: 'binary' });
     } finally {
       await app.close();
     }
