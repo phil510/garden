@@ -39,6 +39,17 @@
   border-style: dashed;
 }
 
+.pane-drag-preview {
+  padding: 6px 12px;
+  background: var(--raised);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+  cursor: grabbing;
+}
+
 .pane.empty {
   align-items: center;
   justify-content: center;
