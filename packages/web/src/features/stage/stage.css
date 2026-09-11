@@ -30,6 +30,26 @@
   border-color: var(--accent);
 }
 
+.pane.dragging {
+  opacity: 0.5;
+}
+
+.pane.drop-target {
+  border-color: var(--accent);
+  border-style: dashed;
+}
+
+.pane-drag-preview {
+  padding: 6px 12px;
+  background: var(--raised);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+  cursor: grabbing;
+}
+
 .pane.empty {
   align-items: center;
   justify-content: center;
@@ -109,6 +129,11 @@
 .pane-header-actions svg {
   width: 13px;
   height: 13px;
+}
+
+.pane-header-actions .drag-handle {
+  cursor: grab;
+  touch-action: none;
 }
 
 .pane-term {
