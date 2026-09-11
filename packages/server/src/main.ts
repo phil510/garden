@@ -10,7 +10,7 @@ import {
   watchTranscripts,
 } from './adapters/transcripts.js';
 import {
-  checkTmuxVersionWarning,
+  checkTmuxVersion,
   killSession,
   listPanes,
   newSession,
@@ -121,14 +121,14 @@ async function replay(
 
 /** The composition root: the one place that reads config and wires the parts together. */
 export async function main(): Promise<void> {
+  await checkTmuxVersion();
+
   const home = homedir();
   const config = loadConfig(process.env, ensureConfigFile(home), home);
   const confPath = writeTmuxConf(config.appDir);
   const settingsPath = writeClaudeSettings(config.appDir);
 
   const logger = createLogger();
-  const tmuxVersionWarning = await checkTmuxVersionWarning();
-  if (tmuxVersionWarning !== null) logger.warn(tmuxVersionWarning);
   const store = storePort(config.appDir, logger);
   const tmux = tmuxPort({ socket: config.tmuxSocket, confPath });
   const transcripts = transcriptPort(config, logger);
