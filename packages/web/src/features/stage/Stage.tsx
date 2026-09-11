@@ -1,3 +1,4 @@
+import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { DockviewReact, type DockviewApi, type DockviewReadyEvent } from 'dockview-react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { updateUiState } from '../../api/client';
@@ -8,6 +9,7 @@ import { applyLayout } from './applyLayout';
 import { EMPTY_SLOT_COMPONENT, PANE_COMPONENT, isEmptySlotId, presetLayout } from './presetLayout';
 import { EmptySlotPane, StagePane } from './StagePane';
 import { stageLayout } from './storedLayout';
+import { swapSlots } from './swapSlots';
 import 'dockview-react/dist/styles/dockview.css';
 import './stage.css';
 
@@ -72,11 +74,22 @@ export function Stage() {
     setApi(event.api);
   }
 
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+
+  function onDragEnd(event: DragEndEvent) {
+    if (event.over === null) return;
+    const draggedId = event.active.id as string;
+    const targetSlot = Number(event.over.id);
+    updateUiState(swapSlots(slots, draggedId, targetSlot)).catch(reportCommandFailure);
+  }
+
   return (
-    <DockviewReact
-      className="stage dockview-theme-dark"
-      components={components}
-      onReady={onReady}
-    />
+    <DndContext sensors={sensors} onDragEnd={onDragEnd}>
+      <DockviewReact
+        className="stage dockview-theme-dark"
+        components={components}
+        onReady={onReady}
+      />
+    </DndContext>
   );
 }
