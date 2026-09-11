@@ -61,8 +61,8 @@ function createPane(sessionId: string, container: HTMLElement, epoch: number): P
   terminal.loadAddon(fitAddon);
   terminal.open(container);
 
-  // Its default handler already does what AC1 asks: window.open() a new tab, then set its
-  // location to the matched URL after clearing `opener`.
+  // Its default handler opens the matched URL in a new tab: window.open(), then sets its
+  // location to the URL after clearing `opener`.
   terminal.loadAddon(new WebLinksAddon());
 
   terminal.registerLinkProvider({
