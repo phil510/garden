@@ -23,6 +23,13 @@ export function isEmptySlotId(panelId: string): boolean {
   return panelId.startsWith(EMPTY_SLOT_PREFIX);
 }
 
+/** Recovers the slot index an empty-slot panel id was minted for. Unlike a pane, whose slot is
+ *  `slots.indexOf(props.api.id)`, an empty slot can't find itself that way — `null` appears more
+ *  than once in `slots` — so the index rides in the id itself. */
+export function slotFromEmptySlotId(panelId: string): number {
+  return Number(panelId.slice(EMPTY_SLOT_PREFIX.length));
+}
+
 /** An empty slot still gets a panel so the preset's shape stays visible with nothing on stage.
  *  Session ids are uuids, so no session can collide with one of these. */
 function panelIdForSlot(slots: readonly (string | null)[], slot: number): string {
