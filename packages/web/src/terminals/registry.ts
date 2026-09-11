@@ -1,4 +1,5 @@
 import { FitAddon } from '@xterm/addon-fit';
+import { WebLinksAddon } from '@xterm/addon-web-links';
 import { Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 import { connectPaneSocket, type PaneSize } from '../api/paneSocket.js';
@@ -59,6 +60,10 @@ function createPane(sessionId: string, container: HTMLElement, epoch: number): P
   const fitAddon = new FitAddon();
   terminal.loadAddon(fitAddon);
   terminal.open(container);
+
+  // Its default handler already does what AC1 asks: window.open() a new tab, then set its
+  // location to the matched URL after clearing `opener`.
+  terminal.loadAddon(new WebLinksAddon());
 
   terminal.registerLinkProvider({
     provideLinks(bufferLineNumber, callback) {
