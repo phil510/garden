@@ -189,6 +189,19 @@
   color: var(--text-muted);
   font-size: 12px;
 }
+.fp-viewer-image {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  padding: 20px;
+}
+.fp-viewer-image img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
 .code-line {
   display: flex;
   font-family: var(--font-mono);

@@ -1,5 +1,5 @@
 import { open, readdir, realpath, stat } from 'node:fs/promises';
-import { join, relative } from 'node:path';
+import { extname, join, relative } from 'node:path';
 import type { FileResponse, TreeEntry, TreeResponse } from '@garden/shared';
 import { isWithinRoot } from '../domain/paths.js';
 import type { GitPort } from './ports.js';
@@ -39,6 +39,22 @@ export class NotADirectoryError extends Error {}
 
 /** Above this many bytes a file response is truncated rather than read whole. */
 const FILE_SIZE_CAP_BYTES = 1024 * 1024;
+
+/** Above this many bytes an image is reported too large to preview rather than read whole —
+ *  separate from `FILE_SIZE_CAP_BYTES` because a truncated image has no usable partial
+ *  render, so there is no "open anyway" the way there is for text. */
+const IMAGE_SIZE_CAP_BYTES = 10 * 1024 * 1024;
+
+/** Extensions the viewer renders as `<img>`, lowercased and without the leading dot, mapped
+ *  to the mime type the browser needs to decode the base64 payload. */
+const IMAGE_EXTENSIONS: Record<string, string> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  svg: 'image/svg+xml',
+};
 
 /**
  * Resolves `requestedPath` against `cwd` and proves it never escapes that root. `join`
@@ -156,18 +172,66 @@ async function readCapped(
   }
 }
 
-/** File contents, scoped to the session's cwd, capped at `FILE_SIZE_CAP_BYTES`. `capBytes`
- *  is an override for tests, which would otherwise need a multi-megabyte fixture to
- *  exercise truncation. */
+/** Reads at most `capBytes` bytes of an image by bounding the read call itself, the same
+ *  technique `readCapped` uses for text: attempting to read one byte past the cap proves
+ *  whether the file exceeds it at read time, immune to the file growing after the call
+ *  starts — unlike a `stat()` taken beforehand, which a still-growing file (e.g. a live
+ *  session writing a screenshot into the same cwd) can invalidate before the read runs. */
+async function readCappedBinary(
+  path: string,
+  capBytes: number,
+): Promise<{ buffer: Buffer; truncated: boolean }> {
+  const handle = await open(path, 'r');
+  try {
+    const probe = Buffer.alloc(capBytes + 1);
+    const { bytesRead } = await handle.read(probe, 0, capBytes + 1, 0);
+    if (bytesRead > capBytes) return { buffer: Buffer.alloc(0), truncated: true };
+    return { buffer: probe.subarray(0, bytesRead), truncated: false };
+  } finally {
+    await handle.close();
+  }
+}
+
+/** A NUL byte never appears in valid UTF-8 text, and always round-trips faithfully through
+ *  UTF-8 decoding (it's never a continuation or lead byte of a multi-byte sequence) — so
+ *  sniffing for it in the already-decoded text is equivalent to sniffing the raw bytes. This
+ *  is the same heuristic git's own binary detection uses, including its blind spot: a
+ *  UTF-16-encoded text file (NUL bytes between every ASCII-range character) reads as binary. */
+function looksBinary(text: string): boolean {
+  return text.includes('\0');
+}
+
+/** File contents, scoped to the session's cwd. Extension decides the branch: a recognised
+ *  image extension is read whole (or reported too large) and returned as base64; everything
+ *  else is read through the existing text cap and, only then, sniffed for binary content —
+ *  `capBytes` and `imageCapBytes` are overrides for tests, which would otherwise need
+ *  multi-megabyte fixtures to exercise truncation. */
 export async function readSessionFile(
   deps: FilesystemDeps,
   request: FileRequest,
   capBytes: number = FILE_SIZE_CAP_BYTES,
+  imageCapBytes: number = IMAGE_SIZE_CAP_BYTES,
 ): Promise<FileResponse> {
   const session = findSession(deps.projection, request.sessionId);
   const { absolute, relative: relativePath } = await resolveScoped(session.cwd, request.path);
   const info = await stat(absolute);
   if (!info.isFile()) throw new NotAFileError(`not a file: ${request.path}`);
+
+  const extension = extname(absolute).slice(1).toLowerCase();
+  const mimeType = IMAGE_EXTENSIONS[extension];
+  if (mimeType !== undefined) {
+    const { buffer, truncated } = await readCappedBinary(absolute, imageCapBytes);
+    if (truncated) return { path: relativePath, kind: 'image', mimeType, truncated: true };
+    return {
+      path: relativePath,
+      kind: 'image',
+      mimeType,
+      truncated: false,
+      data: buffer.toString('base64'),
+    };
+  }
+
   const { text, truncated } = await readCapped(absolute, info.size, capBytes);
-  return { path: relativePath, text, truncated };
+  if (looksBinary(text)) return { path: relativePath, kind: 'binary' };
+  return { path: relativePath, kind: 'text', text, truncated };
 }

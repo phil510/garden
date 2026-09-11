@@ -93,11 +93,14 @@ export interface TreeResponse {
   path: string;
   entries: TreeEntry[];
 }
-export interface FileResponse {
-  path: string;
-  text: string;
-  truncated: boolean;
-}
+/** `truncated` splits the `image` variant into two shapes rather than making `data` an
+ *  optional field on one: `truncated: false` always carries `data`, `truncated: true` never
+ *  does, so a mismatched pair is unrepresentable instead of a runtime check away. */
+export type FileResponse =
+  | { path: string; kind: 'text'; text: string; truncated: boolean }
+  | { path: string; kind: 'image'; mimeType: string; truncated: true }
+  | { path: string; kind: 'image'; mimeType: string; truncated: false; data: string }
+  | { path: string; kind: 'binary' };
 export type UiStateRequest = Partial<UiState>;
 
 /** `WS /events`: a snapshot on connect, then deltas. */
