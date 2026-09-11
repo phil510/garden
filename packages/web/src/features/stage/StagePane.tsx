@@ -1,3 +1,5 @@
+import { useDraggable, useDroppable } from '@dnd-kit/core';
+import { CSS } from '@dnd-kit/utilities';
 import type { IDockviewPanelProps } from 'dockview-react';
 import { useEffect, useRef, type MouseEvent } from 'react';
 import { resumeSession, updateUiState } from '../../api/client';
@@ -10,6 +12,7 @@ import { attachPane, detachPane } from '../../terminals/registry';
 import { lastPathSegment } from '../sidebar/lastPathSegment';
 import { deadPaneStatusLine } from './deadPaneStatus';
 import { removeFromStage } from './removeFromStage';
+import { slotFromEmptySlotId } from './presetLayout';
 
 const DEAD_ICON = (
   <svg
@@ -51,6 +54,23 @@ export function StagePane(props: IDockviewPanelProps) {
   const live = session?.liveness === 'live';
   const connectionEpoch = useLocalStore((state) => state.connectionEpoch);
   const terminalRef = useRef<HTMLDivElement>(null);
+
+  const {
+    setNodeRef: setDraggableRef,
+    attributes,
+    listeners,
+    transform,
+    isDragging,
+  } = useDraggable({
+    id: props.api.id,
+  });
+  const { setNodeRef: setDroppableRef, isOver } = useDroppable({ id: String(slot) });
+  const style = { transform: CSS.Translate.toString(transform) };
+
+  function setNodeRef(node: HTMLDivElement | null) {
+    setDraggableRef(node);
+    setDroppableRef(node);
+  }
 
   // Mounts the session's terminal into this pane's container while it is live. Disposal is
   // deliberately not this cleanup: dockview reuses a panel across a layout change, remounting
@@ -97,9 +117,16 @@ export function StagePane(props: IDockviewPanelProps) {
 
   if (session === undefined) return null;
 
+  const classes = ['pane'];
+  if (focused) classes.push('focused');
+  if (isDragging) classes.push('dragging');
+  if (isOver) classes.push('drop-target');
+
   return (
     <div
-      className={focused ? 'pane focused' : 'pane'}
+      ref={setNodeRef}
+      style={style}
+      className={classes.join(' ')}
       onClick={focus}
       onDoubleClick={toggleMaximise}
     >
@@ -114,6 +141,21 @@ export function StagePane(props: IDockviewPanelProps) {
         </div>
         {live && session.status !== null && <StatusPill status={session.status} />}
         <div className="pane-header-actions">
+          <button
+            className="ghost icon-btn drag-handle"
+            title="Drag to swap slots"
+            {...attributes}
+            {...listeners}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <circle cx="9" cy="6" r="1.2" fill="currentColor" stroke="none" />
+              <circle cx="15" cy="6" r="1.2" fill="currentColor" stroke="none" />
+              <circle cx="9" cy="12" r="1.2" fill="currentColor" stroke="none" />
+              <circle cx="15" cy="12" r="1.2" fill="currentColor" stroke="none" />
+              <circle cx="9" cy="18" r="1.2" fill="currentColor" stroke="none" />
+              <circle cx="15" cy="18" r="1.2" fill="currentColor" stroke="none" />
+            </svg>
+          </button>
           <button className="ghost icon-btn" title="Maximise" onClick={toggleMaximise}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
               <path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3" />
@@ -142,6 +184,14 @@ export function StagePane(props: IDockviewPanelProps) {
   );
 }
 
-export function EmptySlotPane() {
-  return <div className="pane empty">Empty slot — click a session to fill it</div>;
+export function EmptySlotPane(props: IDockviewPanelProps) {
+  const slot = slotFromEmptySlotId(props.api.id);
+  const { setNodeRef, isOver } = useDroppable({ id: String(slot) });
+  const className = isOver ? 'pane empty drop-target' : 'pane empty';
+
+  return (
+    <div ref={setNodeRef} className={className}>
+      Empty slot — click a session to fill it
+    </div>
+  );
 }
