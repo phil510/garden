@@ -14,7 +14,14 @@ export function decideStartupAction(pid: PidStatus): 'attach' | 'start' {
   return pid === 'running' ? 'attach' : 'start';
 }
 
-/** The one failure the spec names by shape: the port is already held by something else. */
+/**
+ * The one failure the spec names by shape: the port is already held by something else.
+ *
+ * Never returns a "garden: "-prefixed string — `runStart` owns that prefix. The child
+ * process (`bin/garden.ts`'s `runServer`) writes its own `garden: <message>` to stderr
+ * when it exits on a thrown startup error, so a leading prefix here is stripped rather
+ * than relayed, or the caller's own prefix would double up.
+ */
 export function describeStartupFailure(input: {
   readonly port: number;
   readonly configPath: string;
@@ -23,7 +30,7 @@ export function describeStartupFailure(input: {
   if (/EADDRINUSE/i.test(input.stderr)) {
     return `port ${String(input.port)} is already in use by another process — stop it or change "port" in ${input.configPath}`;
   }
-  const trimmed = input.stderr.trim();
+  const trimmed = input.stderr.trim().replace(/^garden: /, '');
   return trimmed !== '' ? trimmed : 'garden server failed to start';
 }
 

@@ -91,6 +91,16 @@ describe('describeStartupFailure', () => {
     expect(describeStartupFailure({ port: 4310, configPath: 'x', stderr: 'boom\n' })).toBe('boom');
   });
 
+  it('strips a "garden: " prefix the child already wrote, so the caller does not double it', () => {
+    expect(
+      describeStartupFailure({
+        port: 4310,
+        configPath: 'x',
+        stderr: 'garden: tmux is not installed\n',
+      }),
+    ).toBe('tmux is not installed');
+  });
+
   it('falls back to a generic message when stderr is empty', () => {
     expect(describeStartupFailure({ port: 4310, configPath: 'x', stderr: '' })).toBe(
       'garden server failed to start',
@@ -190,6 +200,23 @@ describe('runStart', () => {
     expect(stderr[0]).toMatch(/port 4310 is already in use/);
     expect(calls).not.toContain('writePid:999');
     expect(calls).not.toContain('chromeInstalled');
+  });
+
+  it('does not double the "garden: " prefix when the child already wrote one', async () => {
+    const { io, stderr } = collectingIo();
+    const { deps } = baseDeps({
+      spawnServer: () =>
+        Promise.resolve({
+          kind: 'exited',
+          code: 1,
+          stderr: 'garden: tmux is not installed — install it and try again\n',
+        }),
+    });
+
+    const exitCode = await runStart(io, deps);
+
+    expect(exitCode).toBe(1);
+    expect(stderr).toEqual(['garden: tmux is not installed — install it and try again\n']);
   });
 
   it('prints the url instead of opening a window when Chrome is absent', async () => {
