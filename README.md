@@ -17,7 +17,9 @@ packages/
 
 - Node 22
 - pnpm
-- tmux 3.6 or newer — required, not optional. garden has no Windows support, because tmux doesn't run there. Below 3.6, `utempter_remove_record` resets `SIGCHLD` to `SIG_DFL` around its own fork-and-wait, discarding the exiting pane's `SIGCHLD` so `pane_dead_status` never gets set ([tmux/tmux#4559](https://github.com/tmux/tmux/issues/4559), fixed in 3.6). Ubuntu 24.04's apt package is tmux 3.4; install a newer tmux from another source on that distro.
+- tmux — garden has no Windows support, because tmux doesn't run there. Two versions matter:
+  - **3.2** is the startup minimum. garden refuses to start below it.
+  - **3.6** is recommended for reliable pane exit-status reporting. Below 3.6, `utempter_remove_record` resets `SIGCHLD` to `SIG_DFL` around its own fork-and-wait, discarding the exiting pane's `SIGCHLD` so `pane_dead_status` never gets set ([tmux/tmux#4559](https://github.com/tmux/tmux/issues/4559), fixed in 3.6). Ubuntu 24.04's apt package is tmux 3.4; install a newer tmux from another source on that distro.
 
 ## Setup
 
