@@ -234,7 +234,7 @@ describe('readSessionFile', () => {
 
     const result = await readSessionFile(deps, { sessionId: session.id, path: 'a.txt' });
 
-    expect(result).toEqual({ path: 'a.txt', text: 'hello', truncated: false });
+    expect(result).toEqual({ path: 'a.txt', kind: 'text', text: 'hello', truncated: false });
   });
 
   it('caps the read and reports truncation past the cap', async () => {
@@ -245,7 +245,74 @@ describe('readSessionFile', () => {
 
     const result = await readSessionFile(deps, { sessionId: session.id, path: 'big.txt' }, 4);
 
-    expect(result).toEqual({ path: 'big.txt', text: '0123', truncated: true });
+    expect(result).toEqual({ path: 'big.txt', kind: 'text', text: '0123', truncated: true });
+  });
+
+  it('reads an image file whole and reports it base64-encoded', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'garden-fs-'));
+    const bytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    writeFileSync(join(dir, 'pic.png'), bytes);
+    const session = aSession({ cwd: dir });
+    const deps = { projection: fakeProjection([session]), git: fakeGit() };
+
+    const result = await readSessionFile(deps, { sessionId: session.id, path: 'pic.png' });
+
+    expect(result).toEqual({
+      path: 'pic.png',
+      kind: 'image',
+      mimeType: 'image/png',
+      truncated: false,
+      data: bytes.toString('base64'),
+    });
+  });
+
+  it('reports an oversized image as truncated, with no data', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'garden-fs-'));
+    writeFileSync(join(dir, 'big.png'), Buffer.from([1, 2, 3, 4, 5]));
+    const session = aSession({ cwd: dir });
+    const deps = { projection: fakeProjection([session]), git: fakeGit() };
+
+    const result = await readSessionFile(
+      deps,
+      { sessionId: session.id, path: 'big.png' },
+      undefined,
+      4,
+    );
+
+    expect(result).toEqual({
+      path: 'big.png',
+      kind: 'image',
+      mimeType: 'image/png',
+      truncated: true,
+    });
+  });
+
+  it('classifies a NUL-containing, non-image file as binary', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'garden-fs-'));
+    writeFileSync(join(dir, 'data.bin'), Buffer.from([0x41, 0x00, 0x42]));
+    const session = aSession({ cwd: dir });
+    const deps = { projection: fakeProjection([session]), git: fakeGit() };
+
+    const result = await readSessionFile(deps, { sessionId: session.id, path: 'data.bin' });
+
+    expect(result).toEqual({ path: 'data.bin', kind: 'binary' });
+  });
+
+  it('classifies an SVG as an image by extension, not sniffed as text', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'garden-fs-'));
+    writeFileSync(join(dir, 'icon.svg'), '<svg></svg>');
+    const session = aSession({ cwd: dir });
+    const deps = { projection: fakeProjection([session]), git: fakeGit() };
+
+    const result = await readSessionFile(deps, { sessionId: session.id, path: 'icon.svg' });
+
+    expect(result).toEqual({
+      path: 'icon.svg',
+      kind: 'image',
+      mimeType: 'image/svg+xml',
+      truncated: false,
+      data: Buffer.from('<svg></svg>').toString('base64'),
+    });
   });
 
   it('rejects a symlink that resolves outside the session cwd', async () => {
@@ -273,7 +340,7 @@ describe('readSessionFile', () => {
 
     const result = await readSessionFile(deps, { sessionId: session.id, path: 'alias.txt' });
 
-    expect(result).toEqual({ path: 'alias.txt', text: 'hi', truncated: false });
+    expect(result).toEqual({ path: 'alias.txt', kind: 'text', text: 'hi', truncated: false });
   });
 
   it('rejects reading a directory as if it were a file', async () => {
