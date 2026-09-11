@@ -20,8 +20,10 @@ const HOOK_STATUS: Record<string, Status> = {
 
 export function hookOutcome(payload: HookPayload): HookOutcome {
   const name = payload.hook_event_name;
+  const isPermissionPromptNotification =
+    name === 'Notification' && payload.notification_type === 'permission_prompt';
   return {
-    status: HOOK_STATUS[name] ?? null,
+    status: isPermissionPromptNotification ? 'needs-approval' : (HOOK_STATUS[name] ?? null),
     reason: name === 'Notification' ? (payload.message ?? null) : null,
     ended: name === 'SessionEnd' ? true : name === 'SessionStart' ? false : null,
   };

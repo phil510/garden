@@ -57,6 +57,7 @@ export interface HookPayload {
   permission_mode?: string;
   last_assistant_message?: string;
   message?: string;
+  notification_type?: string;
 }
 
 export interface SessionsResponse {
