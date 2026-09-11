@@ -4,7 +4,6 @@ import { ensureConfigFile, loadConfig } from '../config.js';
 import { chromeInstalled, openChromeWindow } from './browser.js';
 import type { Io } from './commands.js';
 import { isProcessRunning, readPidFile, writePidFile } from './pid.js';
-import { checkTmux, type PreflightResult } from './preflight.js';
 import { spawnServer, type SpawnResult } from './serverProcess.js';
 
 export type PidStatus = 'running' | 'not-running';
@@ -38,7 +37,6 @@ export function describeStartupFailure(input: {
 export const SERVER_PROCESS_ENV = 'GARDEN_SERVER_PROCESS';
 
 export interface StartDeps {
-  readonly checkTmux: () => Promise<PreflightResult>;
   readonly readPid: (path: string) => number | null;
   readonly writePid: (path: string, pid: number) => void;
   readonly isProcessRunning: (pid: number) => boolean;
@@ -54,7 +52,6 @@ export interface StartDeps {
 }
 
 export const defaultStartDeps: StartDeps = {
-  checkTmux,
   readPid: readPidFile,
   writePid: writePidFile,
   isProcessRunning,
@@ -67,12 +64,6 @@ export const defaultStartDeps: StartDeps = {
 
 /** `garden` — start the server if needed, then open the browser window. */
 export async function runStart(io: Io, deps: StartDeps = defaultStartDeps): Promise<0 | 1> {
-  const preflight = await deps.checkTmux();
-  if (!preflight.ok) {
-    io.stderr.write(`garden: ${preflight.message}\n`);
-    return 1;
-  }
-
   const config = loadConfig(process.env, ensureConfigFile(deps.home), deps.home);
   const pidPath = join(config.appDir, 'server.pid');
   const existingPid = deps.readPid(pidPath);

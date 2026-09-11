@@ -34,10 +34,6 @@ afterEach(() => {
 function baseDeps(overrides: Partial<StartDeps> = {}): { deps: StartDeps; calls: string[] } {
   const calls: string[] = [];
   const deps: StartDeps = {
-    checkTmux: () => {
-      calls.push('checkTmux');
-      return Promise.resolve({ ok: true });
-    },
     readPid: () => {
       calls.push('readPid');
       return null;
@@ -109,22 +105,6 @@ describe('describeStartupFailure', () => {
 });
 
 describe('runStart', () => {
-  it('fails at startup on a tmux preflight failure and attempts nothing else', async () => {
-    const { io, stderr } = collectingIo();
-    const { deps, calls } = baseDeps({
-      checkTmux: () => {
-        calls.push('checkTmux');
-        return Promise.resolve({ ok: false, message: 'tmux is not installed' });
-      },
-    });
-
-    const exitCode = await runStart(io, deps);
-
-    expect(exitCode).toBe(1);
-    expect(stderr).toEqual(['garden: tmux is not installed\n']);
-    expect(calls).toEqual(['checkTmux']);
-  });
-
   it('spawns the server when no pid is recorded, then opens the browser', async () => {
     const { io } = collectingIo();
     const { deps, calls } = baseDeps();
@@ -133,7 +113,6 @@ describe('runStart', () => {
 
     expect(exitCode).toBe(0);
     expect(calls).toEqual([
-      'checkTmux',
       'readPid',
       'spawnServer',
       'writePid:999',
