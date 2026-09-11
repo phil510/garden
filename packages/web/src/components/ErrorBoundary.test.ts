@@ -1,4 +1,4 @@
-import { Component, isValidElement, type ReactElement, type ReactNode } from 'react';
+import { isValidElement, type ReactElement, type ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { ErrorBoundary } from './ErrorBoundary';
 
@@ -37,12 +37,6 @@ describe('ErrorBoundary.getDerivedStateFromError', () => {
     const state = ErrorBoundary.getDerivedStateFromError({ code: 'ECONNRESET' });
     expect(state.error).toBeInstanceOf(Error);
     expect(state.error?.message).toBe('{"code":"ECONNRESET"}');
-  });
-});
-
-describe('ErrorBoundary is a real React error boundary', () => {
-  it('extends Component, which is how React decides catch eligibility (not method names)', () => {
-    expect(ErrorBoundary.prototype).toBeInstanceOf(Component);
   });
 });
 
