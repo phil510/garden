@@ -9,17 +9,20 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-/** Turns a non-Error thrown value into fallback text a reader can make sense of. `String()`
- *  alone renders a thrown object as "[object Object]"; JSON.stringify gives its shape instead. */
+/** Turns a non-Error thrown value into fallback text a reader can make sense of. Primitives go
+ *  through `String()` — JSON.stringify would flatten NaN/Infinity to the misleading "null".
+ *  Objects go through JSON.stringify instead: `String()` alone renders one as "[object Object]",
+ *  where JSON.stringify gives its shape. */
 function describeNonError(value: unknown): string {
-  if (typeof value === 'string') return value;
+  if (typeof value !== 'object' || value === null) return String(value);
   try {
     const json = JSON.stringify(value);
     if (json !== undefined) return json;
   } catch {
     // circular or otherwise unserializable — fall through to String()
   }
-  return String(value);
+  const fallback: unknown = value;
+  return String(fallback);
 }
 
 /** Catches a render throw anywhere in its children and swaps to a fallback panel instead of

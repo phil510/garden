@@ -38,6 +38,12 @@ describe('ErrorBoundary.getDerivedStateFromError', () => {
     expect(state.error).toBeInstanceOf(Error);
     expect(state.error?.message).toBe('{"code":"ECONNRESET"}');
   });
+
+  it('wraps a thrown NaN into "NaN", not the JSON.stringify-flattened "null"', () => {
+    const state = ErrorBoundary.getDerivedStateFromError(NaN);
+    expect(state.error).toBeInstanceOf(Error);
+    expect(state.error?.message).toBe('NaN');
+  });
 });
 
 describe('ErrorBoundary#componentDidCatch', () => {
