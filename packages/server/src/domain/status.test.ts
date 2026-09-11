@@ -26,6 +26,43 @@ describe('hookOutcome', () => {
     );
   });
 
+  it('marks a session needs-approval on a permission_prompt Notification, so it cannot downgrade an existing needs-approval', () => {
+    const outcome = hookOutcome(
+      aHookEvent({
+        hook_event_name: 'Notification',
+        notification_type: 'permission_prompt',
+        message: 'Claude needs your permission',
+      }),
+    );
+    expect(outcome).toEqual({
+      status: 'needs-approval',
+      reason: 'Claude needs your permission',
+      ended: null,
+    });
+  });
+
+  it('still marks waiting for a Notification with a different notification_type', () => {
+    const outcome = hookOutcome(
+      aHookEvent({
+        hook_event_name: 'Notification',
+        notification_type: 'idle_timeout',
+        message: 'Claude is waiting for your input',
+      }),
+    );
+    expect(outcome).toEqual({
+      status: 'waiting',
+      reason: 'Claude is waiting for your input',
+      ended: null,
+    });
+  });
+
+  it('still marks waiting for a Notification with no notification_type', () => {
+    const outcome = hookOutcome(
+      aHookEvent({ hook_event_name: 'Notification', message: 'Claude needs your permission' }),
+    );
+    expect(outcome.status).toBe('waiting');
+  });
+
   it('ends the session on SessionEnd without asserting a status', () => {
     const outcome = hookOutcome(aHookEvent({ hook_event_name: 'SessionEnd' }));
     expect(outcome.ended).toBe(true);
