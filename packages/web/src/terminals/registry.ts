@@ -61,11 +61,11 @@ function createPane(sessionId: string, container: HTMLElement, epoch: number): P
   terminal.loadAddon(fitAddon);
   terminal.open(container);
 
-  // xterm's Linkifier resolves overlapping matches by registration order, first registered wins
-  // (`Linkifier._removeIntersectingLinks` in `@xterm/xterm`): this provider is registered before
-  // WebLinksAddon below so a path:line link (e.g. inside a dev-server URL like
-  // `http://localhost:5173/src/App.tsx:120`) keeps opening in garden's own editor instead of
-  // being shadowed by the addon's plain URL match over the same buffer columns.
+  // xterm's Linkifier resolves overlapping link matches by registration order, first registered
+  // wins: this provider is registered before WebLinksAddon below so a path:line link (e.g.
+  // inside a dev-server URL like `http://localhost:5173/src/App.tsx:120`) keeps opening in
+  // garden's own editor instead of being shadowed by the addon's plain URL match over the same
+  // buffer columns.
   terminal.registerLinkProvider({
     provideLinks(bufferLineNumber, callback) {
       const line = terminal.buffer.active.getLine(bufferLineNumber - 1);
@@ -88,8 +88,8 @@ function createPane(sessionId: string, container: HTMLElement, epoch: number): P
     },
   });
 
-  // Its default handler opens the matched URL in a new tab: window.open(), then sets its
-  // location to the URL after clearing `opener`.
+  // No custom handler is passed: WebLinksAddon's default already opens the matched URL in a new
+  // tab, which is the behavior this pane wants.
   terminal.loadAddon(new WebLinksAddon());
 
   // `proposeDimensions` reports "no size to fit to" in two ways for a pane that is hidden or not
