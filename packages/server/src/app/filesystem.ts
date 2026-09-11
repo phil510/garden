@@ -1,4 +1,4 @@
-import { open, readdir, readFile, realpath, stat } from 'node:fs/promises';
+import { open, readdir, realpath, stat } from 'node:fs/promises';
 import { extname, join, relative } from 'node:path';
 import type { FileResponse, TreeEntry, TreeResponse } from '@garden/shared';
 import { isWithinRoot } from '../domain/paths.js';
@@ -172,6 +172,26 @@ async function readCapped(
   }
 }
 
+/** Reads at most `capBytes` bytes of an image by bounding the read call itself, the same
+ *  technique `readCapped` uses for text: attempting to read one byte past the cap proves
+ *  whether the file exceeds it at read time, immune to the file growing after the call
+ *  starts — unlike a `stat()` taken beforehand, which a still-growing file (e.g. a live
+ *  session writing a screenshot into the same cwd) can invalidate before the read runs. */
+async function readCappedBinary(
+  path: string,
+  capBytes: number,
+): Promise<{ buffer: Buffer; truncated: boolean }> {
+  const handle = await open(path, 'r');
+  try {
+    const probe = Buffer.alloc(capBytes + 1);
+    const { bytesRead } = await handle.read(probe, 0, capBytes + 1, 0);
+    if (bytesRead > capBytes) return { buffer: Buffer.alloc(0), truncated: true };
+    return { buffer: probe.subarray(0, bytesRead), truncated: false };
+  } finally {
+    await handle.close();
+  }
+}
+
 /** A NUL byte never appears in valid UTF-8 text, and always round-trips faithfully through
  *  UTF-8 decoding (it's never a continuation or lead byte of a multi-byte sequence) — so
  *  sniffing for it in the already-decoded text is equivalent to sniffing the raw bytes. This
@@ -200,9 +220,8 @@ export async function readSessionFile(
   const extension = extname(absolute).slice(1).toLowerCase();
   const mimeType = IMAGE_EXTENSIONS[extension];
   if (mimeType !== undefined) {
-    if (info.size > imageCapBytes)
-      return { path: relativePath, kind: 'image', mimeType, truncated: true };
-    const buffer = await readFile(absolute);
+    const { buffer, truncated } = await readCappedBinary(absolute, imageCapBytes);
+    if (truncated) return { path: relativePath, kind: 'image', mimeType, truncated: true };
     return {
       path: relativePath,
       kind: 'image',
