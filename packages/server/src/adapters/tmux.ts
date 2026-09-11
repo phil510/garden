@@ -15,8 +15,7 @@ interface TmuxVersion {
  *  can be set (tmux/tmux#4559, fixed in 3.6). garden's one hard requirement. */
 const MINIMUM_TMUX_VERSION: TmuxVersion = { major: 3, minor: 6 };
 
-/** Returns null when no version can be read, rather than throwing — callers decide what an
- *  unparseable string means for them. */
+/** Null when no version can be read; the gate turns that into its own error message. */
 function parseTmuxVersion(versionOutput: string): TmuxVersion | null {
   const match = /(\d+)\.(\d+)/.exec(versionOutput);
   if (!match) return null;
