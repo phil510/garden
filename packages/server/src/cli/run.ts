@@ -1,6 +1,7 @@
 import { parseArgs } from 'node:util';
 import type { CliClient, Io } from './commands.js';
 import { defaultClient, runKill, runLs, runNew, runResume } from './commands.js';
+import { writeAll } from './io.js';
 import { defaultStopAllDeps, runStop, runStopAll, type StopAllDeps } from './stop.js';
 import { runUninstall } from './uninstall.js';
 
@@ -40,8 +41,8 @@ export function decideEntrypointAction(
   return { kind: 'unknown', command };
 }
 
-function usage(io: Io, line: string): 1 {
-  io.stderr.write(`garden: usage: ${line}\n`);
+async function usage(io: Io, line: string): Promise<1> {
+  await writeAll(io.stderr, `garden: usage: ${line}\n`);
   return 1;
 }
 

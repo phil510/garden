@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { DEFAULT_CONFIG_FILE, loadConfig } from '../config.js';
 import type { Io } from './commands.js';
+import { writeAll } from './io.js';
 import { defaultStopDeps, runStop } from './stop.js';
 import { killTmuxServer } from './tmux.js';
 
@@ -53,7 +54,7 @@ export async function runUninstall(
   deps: UninstallDeps = defaultUninstallDeps,
 ): Promise<0 | 1> {
   if (!skipConfirm && !(await deps.confirm())) {
-    io.stdout.write('aborted\n');
+    await writeAll(io.stdout, 'aborted\n');
     return 0;
   }
 
@@ -63,6 +64,6 @@ export async function runUninstall(
   await deps.killTmuxServer(join(deps.appDir, 'tmux.conf'), deps.tmuxSocket);
   deps.removeAppDir(deps.appDir);
 
-  io.stdout.write('garden uninstalled\n');
+  await writeAll(io.stdout, 'garden uninstalled\n');
   return 0;
 }

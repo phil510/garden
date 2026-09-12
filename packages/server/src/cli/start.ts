@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { ensureConfigFile, loadConfig } from '../config.js';
 import { chromeInstalled, openChromeWindow } from './browser.js';
 import type { Io } from './commands.js';
+import { writeAll } from './io.js';
 import { isProcessRunning, readPidFile, writePidFile } from './pid.js';
 import { spawnServer, type SpawnResult } from './serverProcess.js';
 
@@ -79,7 +80,8 @@ export async function runStart(io: Io, deps: StartDeps = defaultStartDeps): Prom
     );
     if (result.kind !== 'ready') {
       const configPath = join(config.appDir, 'config.json');
-      io.stderr.write(
+      await writeAll(
+        io.stderr,
         `garden: ${describeStartupFailure({ port: config.port, configPath, stderr: result.stderr })}\n`,
       );
       return 1;
@@ -91,7 +93,7 @@ export async function runStart(io: Io, deps: StartDeps = defaultStartDeps): Prom
   if (deps.chromeInstalled()) {
     await deps.openChromeWindow(url);
   } else {
-    io.stdout.write(`${url}\n`);
+    await writeAll(io.stdout, `${url}\n`);
   }
   return 0;
 }

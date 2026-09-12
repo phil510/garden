@@ -1,3 +1,4 @@
+import { writeAll } from '../src/cli/io.js';
 import { decideEntrypointAction, runCli, usageLines } from '../src/cli/run.js';
 import { runStart, SERVER_PROCESS_ENV } from '../src/cli/start.js';
 import { main } from '../src/main.js';
@@ -9,7 +10,10 @@ async function runServer(): Promise<void> {
     await main();
   } catch (error) {
     // Startup failures (tmux missing, port taken) are for the user to act on, not stack traces.
-    process.stderr.write(`garden: ${error instanceof Error ? error.message : String(error)}\n`);
+    await writeAll(
+      process.stderr,
+      `garden: ${error instanceof Error ? error.message : String(error)}\n`,
+    );
     process.exit(1);
   }
 }
@@ -29,7 +33,7 @@ switch (action.kind) {
     process.exit(await runStart(io));
     break;
   case 'unknown':
-    process.stderr.write(`garden: unknown command "${action.command}"\n${usageLines()}`);
+    await writeAll(process.stderr, `garden: unknown command "${action.command}"\n${usageLines()}`);
     process.exit(1);
     break;
 }
