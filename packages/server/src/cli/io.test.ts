@@ -40,6 +40,13 @@ describe('writeAll', () => {
       resolved = true;
     });
 
+    // Flush a microtask tick before asserting `resolved`. Without this, the assertion below
+    // holds trivially for ANY implementation — a `.then()` callback can't run until the
+    // current synchronous stack unwinds, so a broken fire-and-forget `writeAll` (one that
+    // resolves immediately and ignores the write callback) would also read `resolved: false`
+    // here by sheer timing, not because its promise was genuinely pending.
+    await Promise.resolve();
+
     // The chunk is still sitting in the stream's internal buffer here — proof the code under
     // test could not yet safely call process.exit() without truncating it.
     expect(stream.writableLength).toBeGreaterThan(0);
