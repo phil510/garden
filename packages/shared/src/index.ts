@@ -61,6 +61,14 @@ export interface HookPayload {
 export interface SessionsResponse {
   sessions: SessionState[];
 }
+/** Passed to `Projection.sessions(filter)` from the HTTP route and the CLI. Omitting a field
+ *  applies its default (7 days, 500 chars) rather than leaving that dimension unbounded. */
+export interface SessionsFilter {
+  sinceDays?: number;
+  maxRecapChars?: number;
+  live?: boolean;
+  status?: Status;
+}
 export interface CreateSessionRequest {
   cwd: string;
 }
