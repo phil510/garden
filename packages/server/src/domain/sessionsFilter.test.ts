@@ -93,6 +93,13 @@ describe('filterSessions', () => {
     expect(filterSessions([live, dead], { live: true }, now).map((s) => s.id)).toEqual(['live']);
   });
 
+  it('filters to dead-only when live is explicitly false, rather than a no-op', () => {
+    const live = aSession({ id: 'live', liveness: 'live' });
+    const dead = aSession({ id: 'dead', liveness: 'dead', lastActivity: now });
+
+    expect(filterSessions([live, dead], { live: false }, now).map((s) => s.id)).toEqual(['dead']);
+  });
+
   it('applies the --status filter', () => {
     const working = aSession({ id: 'working', status: 'working' });
     const waiting = aSession({ id: 'waiting', status: 'waiting' });

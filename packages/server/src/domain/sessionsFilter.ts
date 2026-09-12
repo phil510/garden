@@ -17,7 +17,10 @@ export function filterSessions(
 
   return sessions
     .filter((session) => session.liveness === 'live' || now - session.lastActivity <= sinceMs)
-    .filter((session) => filter.live !== true || session.liveness === 'live')
+    .filter(
+      (session) =>
+        filter.live === undefined || session.liveness === (filter.live ? 'live' : 'dead'),
+    )
     .filter((session) => filter.status === undefined || session.status === filter.status)
     .map((session) => {
       if (session.recap === null) return session;
