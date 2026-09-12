@@ -1,5 +1,5 @@
 import { aSession } from '@garden/shared/fixtures';
-import type { SessionState } from '@garden/shared';
+import type { SessionsFilter, SessionState } from '@garden/shared';
 import Fastify from 'fastify';
 import { describe, expect, it } from 'vitest';
 import type { OverlayState, StorePort, TmuxNewSessionRequest, TmuxPort } from '../../app/ports.js';
@@ -35,9 +35,15 @@ function fakeStore(initial: OverlayState = emptyOverlay): StorePort {
   };
 }
 
-function fakeProjection(sessions: SessionState[] = []): Projection {
+function fakeProjection(
+  sessions: SessionState[] = [],
+  onSessions?: (filter: SessionsFilter | undefined) => void,
+): Projection {
   return {
-    sessions: () => sessions,
+    sessions: (filter) => {
+      onSessions?.(filter);
+      return sessions;
+    },
     uiState: () => {
       throw new Error('not used by this test');
     },
@@ -74,6 +80,93 @@ describe('GET /sessions', () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ sessions: [session] });
+  });
+
+  it('resolves the default sinceDays/maxRecapChars when no query params are given', async () => {
+    let seenFilter: SessionsFilter | undefined;
+    const app = buildApp({
+      tmux: fakeTmux(),
+      store: fakeStore(),
+      projection: fakeProjection([], (filter) => (seenFilter = filter)),
+      serverPort: 4310,
+      settingsPath,
+      claudeCommand: ['claude'],
+    });
+
+    const response = await app.inject({ method: 'GET', url: '/sessions' });
+
+    expect(response.statusCode).toBe(200);
+    expect(seenFilter).toEqual({ sinceDays: 7, maxRecapChars: 500 });
+  });
+
+  it('passes explicit query params through as the filter', async () => {
+    let seenFilter: SessionsFilter | undefined;
+    const app = buildApp({
+      tmux: fakeTmux(),
+      store: fakeStore(),
+      projection: fakeProjection([], (filter) => (seenFilter = filter)),
+      serverPort: 4310,
+      settingsPath,
+      claudeCommand: ['claude'],
+    });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/sessions?sinceDays=30&maxRecapChars=100&live=true&status=working',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(seenFilter).toEqual({
+      sinceDays: 30,
+      maxRecapChars: 100,
+      live: true,
+      status: 'working',
+    });
+  });
+
+  it('rejects a non-numeric sinceDays with a 400', async () => {
+    const app = buildApp({
+      tmux: fakeTmux(),
+      store: fakeStore(),
+      projection: fakeProjection(),
+      serverPort: 4310,
+      settingsPath,
+      claudeCommand: ['claude'],
+    });
+
+    const response = await app.inject({ method: 'GET', url: '/sessions?sinceDays=nope' });
+
+    expect(response.statusCode).toBe(400);
+  });
+
+  it('rejects a non-numeric maxRecapChars with a 400', async () => {
+    const app = buildApp({
+      tmux: fakeTmux(),
+      store: fakeStore(),
+      projection: fakeProjection(),
+      serverPort: 4310,
+      settingsPath,
+      claudeCommand: ['claude'],
+    });
+
+    const response = await app.inject({ method: 'GET', url: '/sessions?maxRecapChars=nope' });
+
+    expect(response.statusCode).toBe(400);
+  });
+
+  it('rejects a status value outside the four Status literals with a 400', async () => {
+    const app = buildApp({
+      tmux: fakeTmux(),
+      store: fakeStore(),
+      projection: fakeProjection(),
+      serverPort: 4310,
+      settingsPath,
+      claudeCommand: ['claude'],
+    });
+
+    const response = await app.inject({ method: 'GET', url: '/sessions?status=bogus' });
+
+    expect(response.statusCode).toBe(400);
   });
 });
 
