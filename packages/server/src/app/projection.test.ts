@@ -47,6 +47,22 @@ const hook = (name: string, id = 'sid-1'): GardenEvent => ({
   payload: aHookEvent({ session_id: id, hook_event_name: name }),
 });
 
+/** No tmux snapshot ever arrives for this session, so `deriveLiveness` reads it as dead —
+ *  and stale, 30 days before `now`, past the default 7-day retention window. */
+const staleTranscript = (id: string): GardenEvent => ({
+  type: 'transcript-changed',
+  path: '/t.jsonl',
+  record: {
+    sessionId: id,
+    cwd: '/Users/dev/repo',
+    gitBranch: 'main',
+    title: null,
+    lastPrompt: null,
+    recap: null,
+    lastActivity: now - 30 * 86_400_000,
+  },
+});
+
 describe('dispatch', () => {
   it('notifies subscribers with the deltas the fold produced', () => {
     const projection = createProjection(fakeStore().port);
@@ -113,6 +129,24 @@ describe('dispatch', () => {
     projection.dispatch(hook('UserPromptSubmit', 'sid-2'));
 
     expect(projection.sessions().map((s) => s.id)).toEqual(['sid-1', 'sid-2']);
+  });
+});
+
+describe('sessions(filter)', () => {
+  it('stays unfiltered when called with no argument, dead and stale sessions included', () => {
+    const projection = createProjection(fakeStore().port);
+    projection.dispatch(hook('UserPromptSubmit', 'sid-1'));
+    projection.dispatch(staleTranscript('sid-1'));
+
+    expect(projection.sessions().map((s) => s.id)).toEqual(['sid-1']);
+  });
+
+  it('applies the domain filter when one is passed', () => {
+    const projection = createProjection(fakeStore().port);
+    projection.dispatch(hook('UserPromptSubmit', 'sid-1'));
+    projection.dispatch(staleTranscript('sid-1'));
+
+    expect(projection.sessions({ sinceDays: 7 })).toEqual([]);
   });
 });
 
