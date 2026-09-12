@@ -180,6 +180,20 @@ describe('runCli', () => {
     expect(stderr).toEqual(['garden: usage: garden ls --since-days <non-negative integer days>\n']);
   });
 
+  it('rejects a trailing --since-days with no value as a usage error, not a crash', async () => {
+    // node:util's parseArgs throws synchronously when a string-typed option is the last
+    // token with no following value — this must surface as a usage error, not an uncaught
+    // exception reaching bin/garden.ts's unguarded process.exit(await runCli(...)).
+    const { io, stderr } = collectingIo();
+    const { client, calls } = recordingClient();
+
+    const exitCode = await runCli('ls', ['--since-days'], io, client);
+
+    expect(exitCode).toBe(1);
+    expect(calls).toEqual([]);
+    expect(stderr).toEqual([expect.stringContaining('garden: usage:')]);
+  });
+
   it('rejects a fractional --max-recap-chars with a usage error', async () => {
     // A naive `Number.isFinite` boundary check lets 0.5 through: `.slice(-0.5)` truncates
     // toward zero to `.slice(-0)`, which is `.slice(0)` — the whole string, uncapped.

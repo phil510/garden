@@ -1,4 +1,5 @@
 import { parseArgs } from 'node:util';
+import type { ParseArgsConfig } from 'node:util';
 import type { SessionsFilter } from '@garden/shared';
 import { isStatus } from '@garden/shared';
 import type { CliClient, Io } from './commands.js';
@@ -96,6 +97,21 @@ function parseLsFilter(values: {
   return { ok: true, filter: hasAny ? filter : undefined };
 }
 
+/** `parseArgs` throws synchronously — not a rejected promise a caller can inspect — when a
+ *  string-typed option is the last token with no following value (e.g. a trailing
+ *  `--since-days` with nothing after it). Wrapping every call here turns that into the same
+ *  usage-error path as every other rejected argument, instead of an uncaught exception reaching
+ *  `bin/garden.ts`'s unguarded `process.exit(await runCli(...))`. */
+function tryParseArgs<T extends ParseArgsConfig>(
+  config: T,
+): { ok: true; result: ReturnType<typeof parseArgs<T>> } | { ok: false; message: string } {
+  try {
+    return { ok: true, result: parseArgs(config) };
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : String(error) };
+  }
+}
+
 /** `rest` is `garden <command>`'s remaining argv: positionals plus `--json`. `stopAllDeps` is
  *  not threaded through by any real caller — it exists so tests can dispatch `stop --all`
  *  without exercising the real tmux-kill-server / server-stop side effects. */
@@ -106,7 +122,7 @@ export async function runCli(
   client: CliClient = defaultClient,
   stopAllDeps: StopAllDeps = defaultStopAllDeps,
 ): Promise<0 | 1> {
-  const { values, positionals } = parseArgs({
+  const parsedArgs = tryParseArgs({
     args: rest,
     options: {
       json: { type: 'boolean', default: false },
@@ -119,6 +135,8 @@ export async function runCli(
     },
     allowPositionals: true,
   });
+  if (!parsedArgs.ok) return usage(io, parsedArgs.message);
+  const { values, positionals } = parsedArgs.result;
   const json = values.json === true;
 
   switch (command) {
