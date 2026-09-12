@@ -39,15 +39,15 @@ function parseSessionsFilter(query: SessionsQuerystring): ParsedFilter {
 
   if (query.sinceDays !== undefined) {
     const sinceDays = Number(query.sinceDays);
-    if (!Number.isFinite(sinceDays) || sinceDays < 0)
-      return { ok: false, error: 'sinceDays must be a non-negative number' };
+    if (!Number.isInteger(sinceDays) || sinceDays < 0)
+      return { ok: false, error: 'sinceDays must be a non-negative integer' };
     filter.sinceDays = sinceDays;
   }
 
   if (query.maxRecapChars !== undefined) {
     const maxRecapChars = Number(query.maxRecapChars);
-    if (!Number.isFinite(maxRecapChars) || maxRecapChars < 0)
-      return { ok: false, error: 'maxRecapChars must be a non-negative number' };
+    if (!Number.isInteger(maxRecapChars) || maxRecapChars < 0)
+      return { ok: false, error: 'maxRecapChars must be a non-negative integer' };
     filter.maxRecapChars = maxRecapChars;
   }
 

@@ -67,16 +67,16 @@ function parseLsFilter(values: {
 
   if (values['since-days'] !== undefined) {
     const sinceDays = Number(values['since-days']);
-    if (!Number.isFinite(sinceDays) || sinceDays < 0)
-      return { ok: false, message: 'garden ls --since-days <non-negative days>' };
+    if (!Number.isInteger(sinceDays) || sinceDays < 0)
+      return { ok: false, message: 'garden ls --since-days <non-negative integer days>' };
     filter.sinceDays = sinceDays;
     hasAny = true;
   }
 
   if (values['max-recap-chars'] !== undefined) {
     const maxRecapChars = Number(values['max-recap-chars']);
-    if (!Number.isFinite(maxRecapChars) || maxRecapChars < 0)
-      return { ok: false, message: 'garden ls --max-recap-chars <non-negative chars>' };
+    if (!Number.isInteger(maxRecapChars) || maxRecapChars < 0)
+      return { ok: false, message: 'garden ls --max-recap-chars <non-negative integer chars>' };
     filter.maxRecapChars = maxRecapChars;
     hasAny = true;
   }

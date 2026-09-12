@@ -184,6 +184,23 @@ describe('GET /sessions', () => {
     expect(response.statusCode).toBe(400);
   });
 
+  it('rejects a fractional maxRecapChars with a 400', async () => {
+    // A naive `Number.isFinite` boundary check lets 0.5 through: `.slice(-0.5)` truncates
+    // toward zero to `.slice(-0)`, which is `.slice(0)` — the whole string, uncapped.
+    const app = buildApp({
+      tmux: fakeTmux(),
+      store: fakeStore(),
+      projection: fakeProjection(),
+      serverPort: 4310,
+      settingsPath,
+      claudeCommand: ['claude'],
+    });
+
+    const response = await app.inject({ method: 'GET', url: '/sessions?maxRecapChars=0.5' });
+
+    expect(response.statusCode).toBe(400);
+  });
+
   it('rejects a status value outside the four Status literals with a 400', async () => {
     const app = buildApp({
       tmux: fakeTmux(),

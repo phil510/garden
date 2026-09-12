@@ -166,7 +166,7 @@ describe('runCli', () => {
 
     expect(exitCode).toBe(1);
     expect(calls).toEqual([]);
-    expect(stderr).toEqual(['garden: usage: garden ls --since-days <non-negative days>\n']);
+    expect(stderr).toEqual(['garden: usage: garden ls --since-days <non-negative integer days>\n']);
   });
 
   it('rejects a negative --since-days with a usage error', async () => {
@@ -177,7 +177,22 @@ describe('runCli', () => {
 
     expect(exitCode).toBe(1);
     expect(calls).toEqual([]);
-    expect(stderr).toEqual(['garden: usage: garden ls --since-days <non-negative days>\n']);
+    expect(stderr).toEqual(['garden: usage: garden ls --since-days <non-negative integer days>\n']);
+  });
+
+  it('rejects a fractional --max-recap-chars with a usage error', async () => {
+    // A naive `Number.isFinite` boundary check lets 0.5 through: `.slice(-0.5)` truncates
+    // toward zero to `.slice(-0)`, which is `.slice(0)` — the whole string, uncapped.
+    const { io, stderr } = collectingIo();
+    const { client, calls } = recordingClient();
+
+    const exitCode = await runCli('ls', ['--max-recap-chars=0.5'], io, client);
+
+    expect(exitCode).toBe(1);
+    expect(calls).toEqual([]);
+    expect(stderr).toEqual([
+      'garden: usage: garden ls --max-recap-chars <non-negative integer chars>\n',
+    ]);
   });
 
   it('rejects a non-numeric --max-recap-chars with a usage error', async () => {
@@ -188,7 +203,9 @@ describe('runCli', () => {
 
     expect(exitCode).toBe(1);
     expect(calls).toEqual([]);
-    expect(stderr).toEqual(['garden: usage: garden ls --max-recap-chars <non-negative chars>\n']);
+    expect(stderr).toEqual([
+      'garden: usage: garden ls --max-recap-chars <non-negative integer chars>\n',
+    ]);
   });
 
   it('rejects a negative --max-recap-chars with a usage error', async () => {
@@ -199,7 +216,9 @@ describe('runCli', () => {
 
     expect(exitCode).toBe(1);
     expect(calls).toEqual([]);
-    expect(stderr).toEqual(['garden: usage: garden ls --max-recap-chars <non-negative chars>\n']);
+    expect(stderr).toEqual([
+      'garden: usage: garden ls --max-recap-chars <non-negative integer chars>\n',
+    ]);
   });
 
   it('rejects an invalid --status with a usage error', async () => {
