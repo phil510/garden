@@ -5,9 +5,8 @@ import type {
   OkResponse,
   SessionsFilter,
   SessionsResponse,
-  Status,
 } from '@garden/shared';
-import { STATUSES } from '@garden/shared';
+import { isStatus } from '@garden/shared';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import {
   createSession,
@@ -22,13 +21,6 @@ function isCreateSessionRequest(body: unknown): body is CreateSessionRequest {
   return typeof (body as Record<string, unknown>).cwd === 'string';
 }
 
-const DEFAULT_SINCE_DAYS = 7;
-const DEFAULT_MAX_RECAP_CHARS = 500;
-
-function isStatus(value: string): value is Status {
-  return (STATUSES as readonly string[]).includes(value);
-}
-
 interface SessionsQuerystring {
   sinceDays?: string;
   maxRecapChars?: string;
@@ -38,24 +30,26 @@ interface SessionsQuerystring {
 
 type ParsedFilter = { ok: true; filter: SessionsFilter } | { ok: false; error: string };
 
-/** Query params arrive as strings; this is where AC2/AC3's 7-day/500-char defaults are
- *  resolved and where an unparseable or out-of-range value becomes a 400 rather than
- *  silently passing a `NaN` or an unmatchable status through to the filter. */
+/** Query params arrive as strings; this validates and translates them into a `SessionsFilter`,
+ *  rejecting a non-numeric or negative `sinceDays`/`maxRecapChars` and an unmatchable `status`
+ *  with a 400 rather than passing it through. The 7-day/500-char defaults belong to
+ *  `sessionsFilter.ts`, not here — an omitted field is simply left off the returned filter. */
 function parseSessionsFilter(query: SessionsQuerystring): ParsedFilter {
-  let sinceDays = DEFAULT_SINCE_DAYS;
+  const filter: SessionsFilter = {};
+
   if (query.sinceDays !== undefined) {
-    sinceDays = Number(query.sinceDays);
-    if (!Number.isFinite(sinceDays)) return { ok: false, error: 'sinceDays must be a number' };
+    const sinceDays = Number(query.sinceDays);
+    if (!Number.isFinite(sinceDays) || sinceDays < 0)
+      return { ok: false, error: 'sinceDays must be a non-negative number' };
+    filter.sinceDays = sinceDays;
   }
 
-  let maxRecapChars = DEFAULT_MAX_RECAP_CHARS;
   if (query.maxRecapChars !== undefined) {
-    maxRecapChars = Number(query.maxRecapChars);
-    if (!Number.isFinite(maxRecapChars))
-      return { ok: false, error: 'maxRecapChars must be a number' };
+    const maxRecapChars = Number(query.maxRecapChars);
+    if (!Number.isFinite(maxRecapChars) || maxRecapChars < 0)
+      return { ok: false, error: 'maxRecapChars must be a non-negative number' };
+    filter.maxRecapChars = maxRecapChars;
   }
-
-  const filter: SessionsFilter = { sinceDays, maxRecapChars };
 
   if (query.live !== undefined) {
     if (query.live !== 'true' && query.live !== 'false')

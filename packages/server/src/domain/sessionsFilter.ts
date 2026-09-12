@@ -19,7 +19,11 @@ export function filterSessions(
     .filter((session) => session.liveness === 'live' || now - session.lastActivity <= sinceMs)
     .filter((session) => filter.live !== true || session.liveness === 'live')
     .filter((session) => filter.status === undefined || session.status === filter.status)
-    .map((session) =>
-      session.recap === null ? session : { ...session, recap: session.recap.slice(-maxRecapChars) },
-    );
+    .map((session) => {
+      if (session.recap === null) return session;
+      // `.slice(-0)` is `.slice(0)` (the whole string) and a negative `maxRecapChars` flips
+      // into a head-trim, so 0-or-below is handled explicitly rather than falling through.
+      const recap = maxRecapChars <= 0 ? '' : session.recap.slice(-maxRecapChars);
+      return { ...session, recap };
+    });
 }

@@ -61,6 +61,23 @@ describe('filterSessions', () => {
     expect(filtered?.recap).toBe('short recap');
   });
 
+  it('caps recap to an empty string when maxRecapChars is 0, rather than returning the whole string', () => {
+    // `.slice(-0)` is `.slice(0)` — a naive pass-through would return the entire recap here.
+    const session = aSession({ recap: 'a'.repeat(50) });
+
+    const [filtered] = filterSessions([session], { maxRecapChars: 0 }, now);
+
+    expect(filtered?.recap).toBe('');
+  });
+
+  it('caps recap to an empty string for a negative maxRecapChars too', () => {
+    const session = aSession({ recap: 'a'.repeat(50) });
+
+    const [filtered] = filterSessions([session], { maxRecapChars: -10 }, now);
+
+    expect(filtered?.recap).toBe('');
+  });
+
   it('leaves a null recap untouched', () => {
     const session = aSession({ recap: null });
 

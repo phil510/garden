@@ -82,7 +82,7 @@ describe('GET /sessions', () => {
     expect(response.json()).toEqual({ sessions: [session] });
   });
 
-  it('resolves the default sinceDays/maxRecapChars when no query params are given', async () => {
+  it('passes an empty filter when no query params are given, leaving the 7-day/500-char defaults to the domain layer', async () => {
     let seenFilter: SessionsFilter | undefined;
     const app = buildApp({
       tmux: fakeTmux(),
@@ -96,7 +96,7 @@ describe('GET /sessions', () => {
     const response = await app.inject({ method: 'GET', url: '/sessions' });
 
     expect(response.statusCode).toBe(200);
-    expect(seenFilter).toEqual({ sinceDays: 7, maxRecapChars: 500 });
+    expect(seenFilter).toEqual({});
   });
 
   it('passes explicit query params through as the filter', async () => {
@@ -150,6 +150,36 @@ describe('GET /sessions', () => {
     });
 
     const response = await app.inject({ method: 'GET', url: '/sessions?maxRecapChars=nope' });
+
+    expect(response.statusCode).toBe(400);
+  });
+
+  it('rejects a negative sinceDays with a 400', async () => {
+    const app = buildApp({
+      tmux: fakeTmux(),
+      store: fakeStore(),
+      projection: fakeProjection(),
+      serverPort: 4310,
+      settingsPath,
+      claudeCommand: ['claude'],
+    });
+
+    const response = await app.inject({ method: 'GET', url: '/sessions?sinceDays=-1' });
+
+    expect(response.statusCode).toBe(400);
+  });
+
+  it('rejects a negative maxRecapChars with a 400', async () => {
+    const app = buildApp({
+      tmux: fakeTmux(),
+      store: fakeStore(),
+      projection: fakeProjection(),
+      serverPort: 4310,
+      settingsPath,
+      claudeCommand: ['claude'],
+    });
+
+    const response = await app.inject({ method: 'GET', url: '/sessions?maxRecapChars=-1' });
 
     expect(response.statusCode).toBe(400);
   });

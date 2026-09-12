@@ -6,6 +6,9 @@ export interface HealthStatus {
 export type Liveness = 'live' | 'dead';
 export const STATUSES = ['working', 'needs-approval', 'waiting', 'unknown'] as const;
 export type Status = (typeof STATUSES)[number];
+export function isStatus(value: string): value is Status {
+  return (STATUSES as readonly string[]).includes(value);
+}
 export const STAGE_PRESETS = ['single', 'two-across', 'two-stacked', 'three', 'grid-2x2'] as const;
 export type StagePreset = (typeof STAGE_PRESETS)[number];
 

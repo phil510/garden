@@ -166,7 +166,18 @@ describe('runCli', () => {
 
     expect(exitCode).toBe(1);
     expect(calls).toEqual([]);
-    expect(stderr).toEqual(['garden: usage: garden ls --since-days <days>\n']);
+    expect(stderr).toEqual(['garden: usage: garden ls --since-days <non-negative days>\n']);
+  });
+
+  it('rejects a negative --since-days with a usage error', async () => {
+    const { io, stderr } = collectingIo();
+    const { client, calls } = recordingClient();
+
+    const exitCode = await runCli('ls', ['--since-days=-1'], io, client);
+
+    expect(exitCode).toBe(1);
+    expect(calls).toEqual([]);
+    expect(stderr).toEqual(['garden: usage: garden ls --since-days <non-negative days>\n']);
   });
 
   it('rejects a non-numeric --max-recap-chars with a usage error', async () => {
@@ -177,7 +188,18 @@ describe('runCli', () => {
 
     expect(exitCode).toBe(1);
     expect(calls).toEqual([]);
-    expect(stderr).toEqual(['garden: usage: garden ls --max-recap-chars <chars>\n']);
+    expect(stderr).toEqual(['garden: usage: garden ls --max-recap-chars <non-negative chars>\n']);
+  });
+
+  it('rejects a negative --max-recap-chars with a usage error', async () => {
+    const { io, stderr } = collectingIo();
+    const { client, calls } = recordingClient();
+
+    const exitCode = await runCli('ls', ['--max-recap-chars=-1'], io, client);
+
+    expect(exitCode).toBe(1);
+    expect(calls).toEqual([]);
+    expect(stderr).toEqual(['garden: usage: garden ls --max-recap-chars <non-negative chars>\n']);
   });
 
   it('rejects an invalid --status with a usage error', async () => {

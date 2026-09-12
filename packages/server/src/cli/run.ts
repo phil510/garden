@@ -1,6 +1,6 @@
 import { parseArgs } from 'node:util';
-import type { SessionsFilter, Status } from '@garden/shared';
-import { STATUSES } from '@garden/shared';
+import type { SessionsFilter } from '@garden/shared';
+import { isStatus } from '@garden/shared';
 import type { CliClient, Io } from './commands.js';
 import { defaultClient, runKill, runLs, runNew, runResume } from './commands.js';
 import { writeAll } from './io.js';
@@ -48,10 +48,6 @@ async function usage(io: Io, line: string): Promise<1> {
   return 1;
 }
 
-function isStatus(value: string): value is Status {
-  return (STATUSES as readonly string[]).includes(value);
-}
-
 type LsFilterResult =
   { ok: true; filter: SessionsFilter | undefined } | { ok: false; message: string };
 
@@ -71,15 +67,16 @@ function parseLsFilter(values: {
 
   if (values['since-days'] !== undefined) {
     const sinceDays = Number(values['since-days']);
-    if (!Number.isFinite(sinceDays)) return { ok: false, message: 'garden ls --since-days <days>' };
+    if (!Number.isFinite(sinceDays) || sinceDays < 0)
+      return { ok: false, message: 'garden ls --since-days <non-negative days>' };
     filter.sinceDays = sinceDays;
     hasAny = true;
   }
 
   if (values['max-recap-chars'] !== undefined) {
     const maxRecapChars = Number(values['max-recap-chars']);
-    if (!Number.isFinite(maxRecapChars))
-      return { ok: false, message: 'garden ls --max-recap-chars <chars>' };
+    if (!Number.isFinite(maxRecapChars) || maxRecapChars < 0)
+      return { ok: false, message: 'garden ls --max-recap-chars <non-negative chars>' };
     filter.maxRecapChars = maxRecapChars;
     hasAny = true;
   }
