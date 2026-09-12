@@ -30,8 +30,8 @@ function recordingClient(): { client: CliClient; calls: string[] } {
   const created: CreateSessionResponse = { id: 'abc', tmuxName: 'repo' };
   const ok: OkResponse = { ok: true };
   const client: CliClient = {
-    listSessions: () => {
-      calls.push('ls');
+    listSessions: (filter) => {
+      calls.push(filter === undefined ? 'ls' : `ls:${JSON.stringify(filter)}`);
       return Promise.resolve(sessions);
     },
     createSession: (cwd) => {
@@ -130,6 +130,67 @@ describe('runCli', () => {
     await runCli('ls', ['--json'], io, client);
 
     expect(stdout).toEqual(['[]\n']);
+  });
+
+  it('threads --since-days, --max-recap-chars, --live and --status into the filter', async () => {
+    const { io } = collectingIo();
+    const { client, calls } = recordingClient();
+
+    const exitCode = await runCli(
+      'ls',
+      ['--since-days', '30', '--max-recap-chars', '100', '--live', '--status', 'working'],
+      io,
+      client,
+    );
+
+    expect(exitCode).toBe(0);
+    expect(calls).toEqual([
+      `ls:${JSON.stringify({ sinceDays: 30, maxRecapChars: 100, live: true, status: 'working' })}`,
+    ]);
+  });
+
+  it('calls listSessions unfiltered when no ls flags are given', async () => {
+    const { io } = collectingIo();
+    const { client, calls } = recordingClient();
+
+    await runCli('ls', [], io, client);
+
+    expect(calls).toEqual(['ls']);
+  });
+
+  it('rejects a non-numeric --since-days with a usage error', async () => {
+    const { io, stderr } = collectingIo();
+    const { client, calls } = recordingClient();
+
+    const exitCode = await runCli('ls', ['--since-days', 'nope'], io, client);
+
+    expect(exitCode).toBe(1);
+    expect(calls).toEqual([]);
+    expect(stderr).toEqual(['garden: usage: garden ls --since-days <days>\n']);
+  });
+
+  it('rejects a non-numeric --max-recap-chars with a usage error', async () => {
+    const { io, stderr } = collectingIo();
+    const { client, calls } = recordingClient();
+
+    const exitCode = await runCli('ls', ['--max-recap-chars', 'nope'], io, client);
+
+    expect(exitCode).toBe(1);
+    expect(calls).toEqual([]);
+    expect(stderr).toEqual(['garden: usage: garden ls --max-recap-chars <chars>\n']);
+  });
+
+  it('rejects an invalid --status with a usage error', async () => {
+    const { io, stderr } = collectingIo();
+    const { client, calls } = recordingClient();
+
+    const exitCode = await runCli('ls', ['--status', 'bogus'], io, client);
+
+    expect(exitCode).toBe(1);
+    expect(calls).toEqual([]);
+    expect(stderr).toEqual([
+      'garden: usage: garden ls --status <working|waiting|needs-approval|unknown>\n',
+    ]);
   });
 
   it('prints a usage message and exits 1 when the required positional is missing', async () => {

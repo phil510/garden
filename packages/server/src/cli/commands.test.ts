@@ -1,6 +1,7 @@
 import type {
   CreateSessionResponse,
   OkResponse,
+  SessionsFilter,
   SessionState,
   SessionsResponse,
 } from '@garden/shared';
@@ -142,6 +143,23 @@ describe('runLs', () => {
 
     expect(exitCode).toBe(0);
     expect(stdout).toEqual([`${JSON.stringify(sessions.sessions)}\n`]);
+  });
+
+  it('threads the filter through to the client, unfiltered when none is given', async () => {
+    const { io } = collectingIo();
+    const seenFilters: (SessionsFilter | undefined)[] = [];
+    const client: CliClient = {
+      ...throwingClient(new Error('unused')),
+      listSessions: (filter) => {
+        seenFilters.push(filter);
+        return Promise.resolve({ sessions: [] });
+      },
+    };
+
+    await runLs(io, false, client);
+    await runLs(io, false, client, { sinceDays: 30, live: true });
+
+    expect(seenFilters).toEqual([undefined, { sinceDays: 30, live: true }]);
   });
 });
 

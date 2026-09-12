@@ -7,6 +7,7 @@ import type {
   SessionsResponse,
   Status,
 } from '@garden/shared';
+import { STATUSES } from '@garden/shared';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import {
   createSession,
@@ -23,10 +24,9 @@ function isCreateSessionRequest(body: unknown): body is CreateSessionRequest {
 
 const DEFAULT_SINCE_DAYS = 7;
 const DEFAULT_MAX_RECAP_CHARS = 500;
-const STATUS_VALUES: readonly Status[] = ['working', 'needs-approval', 'waiting', 'unknown'];
 
 function isStatus(value: string): value is Status {
-  return (STATUS_VALUES as readonly string[]).includes(value);
+  return (STATUSES as readonly string[]).includes(value);
 }
 
 interface SessionsQuerystring {

@@ -1,4 +1,9 @@
-import type { CreateSessionResponse, OkResponse, SessionsResponse } from '@garden/shared';
+import type {
+  CreateSessionResponse,
+  OkResponse,
+  SessionsFilter,
+  SessionsResponse,
+} from '@garden/shared';
 import * as http from './http.js';
 import { writeAll, type WritableLike } from './io.js';
 
@@ -9,7 +14,7 @@ export interface Io {
 
 /** The four calls a subcommand needs. `./http.ts`'s exports satisfy this by shape. */
 export interface CliClient {
-  listSessions(): Promise<SessionsResponse>;
+  listSessions(filter?: SessionsFilter): Promise<SessionsResponse>;
   createSession(cwd: string): Promise<CreateSessionResponse>;
   resumeSession(id: string): Promise<CreateSessionResponse>;
   killSession(id: string): Promise<OkResponse>;
@@ -56,11 +61,16 @@ export function runNew(
   );
 }
 
-export function runLs(io: Io, json: boolean, client: CliClient = defaultClient): Promise<0 | 1> {
+export function runLs(
+  io: Io,
+  json: boolean,
+  client: CliClient = defaultClient,
+  filter?: SessionsFilter,
+): Promise<0 | 1> {
   return runCommand(
     io,
     json,
-    async () => (await client.listSessions()).sessions,
+    async () => (await client.listSessions(filter)).sessions,
     (sessions) =>
       sessions.length === 0
         ? 'no sessions'
