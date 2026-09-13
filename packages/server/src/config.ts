@@ -127,7 +127,7 @@ export function loadConfig(
     tmuxSocket: envString(env, 'GARDEN_TMUX_SOCKET') ?? TMUX_SOCKET,
     transcriptsDir: envString(env, 'GARDEN_TRANSCRIPTS_DIR') ?? join(home, '.claude', 'projects'),
     claudeCommand: envClaudeCommand(env) ?? ['claude'],
-    permissionMode: file.permissionMode ?? DEFAULT_CONFIG_FILE.permissionMode,
+    permissionMode: file.permissionMode,
   };
 }
 
