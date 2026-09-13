@@ -94,6 +94,20 @@ describe('capDeadSessions', () => {
     expect(capped).toContainEqual(live);
     expect(capped).toHaveLength(11);
   });
+
+  it('keeps exactly 10 dead sessions when the cap is not exceeded', () => {
+    const sessions = Array.from({ length: 10 }, (_, i) =>
+      aSession({ id: `dead-${i}`, liveness: 'dead' }),
+    );
+    expect(capDeadSessions(sessions, false)).toEqual(sessions);
+  });
+
+  it('drops exactly the 11th dead session when one over the cap', () => {
+    const sessions = Array.from({ length: 11 }, (_, i) =>
+      aSession({ id: `dead-${i}`, liveness: 'dead' }),
+    );
+    expect(capDeadSessions(sessions, false)).toEqual(sessions.slice(0, 10));
+  });
 });
 
 describe('hiddenCappedDeadCount', () => {

@@ -89,7 +89,7 @@ export function RepoGroup({
             onSelect={onSelectSession}
           />
         ))}
-        {(expanded || hiddenCappedCount > 0) && (
+        {hiddenCappedCount > 0 && (
           <div className="show-older-row" onClick={() => setExpanded(!expanded)}>
             {expanded ? 'Show less' : `Show ${hiddenCappedCount} more…`}
           </div>
