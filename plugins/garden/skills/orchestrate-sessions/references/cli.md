@@ -1,13 +1,8 @@
----
-name: garden-sessions
-description: Drive garden's session lifecycle through its CLI — create a session in a directory, list sessions with status, kill a session, resume a session. Use for "create a garden session", "start a session in this repo", "list garden sessions", "what sessions are running", "kill a session", "resume a session", or any of the bare CLI verbs (`garden new`, `garden ls`, `garden kill`, `garden resume`). Not for stopping or restarting the garden server itself, or uninstalling garden — "stop the server", "shut garden down", "restart the server", "uninstall garden" (bare CLI verbs `garden stop`, `garden stop --all`, `garden uninstall`) name a different target (the server process, not a session) and this skill doesn't cover them. If a request names a specific session to end and nothing about the server, that's still `kill`, in scope.
----
+# garden CLI reference
 
-# garden sessions
-
-garden manages Claude Code sessions as tmux sessions behind a local server. Its CLI is the
-control surface — this skill teaches the four lifecycle operations it exposes, each read
-through `--json` output rather than the human-readable text the CLI prints by default.
+The four session-lifecycle subcommands, read through `--json` rather than the human-readable
+text the CLI prints by default. `garden stop` and `garden uninstall` also exist; they target the
+server process rather than a session and are out of scope here.
 
 ## Precondition
 
@@ -45,10 +40,17 @@ garden new <dir> --json
 { "id": "...", "tmuxName": "..." }
 ```
 
+The session inherits the permission mode and, by default, the model the local `claude` would
+use on its own — garden passes no flag for either, though `GARDEN_CLAUDE_COMMAND` can pin the
+whole command server-wide. So a dispatched peer is not necessarily in the mode, or on the
+model, that this session is.
+
 ## List sessions
 
 ```
 garden ls --json
+garden ls --json --live --status working
+garden ls --json --since-days 30 --max-recap-chars 2000
 ```
 
 Output is a **bare array** of `SessionState` objects — not `{"sessions": [...]}`. Each object:
@@ -68,6 +70,22 @@ Output is a **bare array** of `SessionState` objects — not `{"sessions": [...]
 | `tmuxName`     | the underlying tmux session name, or `null`                                           |
 | `lastActivity` | epoch ms of the last timestamped transcript line                                      |
 
+### Filters
+
+Without filters, `ls` returns every session the server has ever loaded — hundreds, nearly all
+dead. Ask for the subset you want instead of fetching everything and filtering client-side:
+
+| flag                    | effect                                                   |
+| ----------------------- | -------------------------------------------------------- |
+| `--live`                | live sessions only                                       |
+| `--status <status>`     | one of `working`, `waiting`, `needs-approval`, `unknown` |
+| `--since-days <n>`      | drop dead sessions idle longer than `n` days             |
+| `--max-recap-chars <n>` | keep only the last `n` characters of each `recap`        |
+
+The last two have defaults, so an unfiltered `ls` is already bounded; pass them explicitly only
+to widen the window for a specific search. Filtering happens when the list is read, not by
+pruning stored state, so widening always works — nothing has been thrown away.
+
 ## Kill a session
 
 ```
@@ -82,4 +100,5 @@ Output: `{ "ok": true }`.
 garden resume <id> --json
 ```
 
-Output: `{ "id": "...", "tmuxName": "..." }` — same shape as create.
+Output: `{ "id": "...", "tmuxName": "..." }` — same shape as create. The session id survives;
+the tmux name may not.
