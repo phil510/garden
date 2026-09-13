@@ -8,6 +8,7 @@ beforeEach(() => {
     openFileRequest: null,
     sidebarWidth: 280,
     filePanelWidth: 320,
+    repoList: null,
   });
 });
 
@@ -133,5 +134,19 @@ describe('localStore', () => {
   it('caps the file panel resize below its own maximum when the sidebar and stage floor would not otherwise fit', () => {
     useLocalStore.getState().resizeFilePanelBy(1000, 1000, 500);
     expect(useLocalStore.getState().filePanelWidth).toBe(300);
+  });
+
+  it('starts with no cached repo list', () => {
+    expect(useLocalStore.getState().repoList).toBeNull();
+  });
+
+  it('replaces the cached repo list wholesale', () => {
+    const repos = [{ path: '/repo-a', name: 'repo-a', branch: 'main', isWorktree: false }];
+    useLocalStore.getState().setRepoList(repos);
+    expect(useLocalStore.getState().repoList).toEqual(repos);
+
+    const nextRepos = [{ path: '/repo-b', name: 'repo-b', branch: 'main', isWorktree: false }];
+    useLocalStore.getState().setRepoList(nextRepos);
+    expect(useLocalStore.getState().repoList).toEqual(nextRepos);
   });
 });
