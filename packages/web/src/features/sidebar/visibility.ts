@@ -1,6 +1,7 @@
 import type { SessionState } from '@garden/shared';
 
 const OLD_DEAD_THRESHOLD_MS = 14 * 24 * 60 * 60 * 1000;
+const DEAD_SESSION_CAP = 10;
 
 export interface VisibilityState {
   hideDead: boolean;
@@ -36,4 +37,26 @@ export function hiddenOldDeadCount(
 ): number {
   if (hideDead) return 0;
   return sessions.filter((session) => isOldDead(session, now)).length;
+}
+
+/**
+ * Caps dead sessions at `DEAD_SESSION_CAP`, keeping their existing order, unless `expanded`
+ * reveals the rest. Live sessions are never counted against the cap or dropped.
+ */
+export function capDeadSessions(
+  sessions: readonly SessionState[],
+  expanded: boolean,
+): SessionState[] {
+  if (expanded) return [...sessions];
+  let deadKept = 0;
+  return sessions.filter((session) => {
+    if (session.liveness !== 'dead') return true;
+    deadKept += 1;
+    return deadKept <= DEAD_SESSION_CAP;
+  });
+}
+
+export function hiddenCappedDeadCount(sessions: readonly SessionState[]): number {
+  const deadCount = sessions.filter((session) => session.liveness === 'dead').length;
+  return Math.max(0, deadCount - DEAD_SESSION_CAP);
 }
