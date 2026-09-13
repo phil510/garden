@@ -62,4 +62,16 @@ describe('presetLayout', () => {
     expect(children.map((child) => child.type)).toEqual(['leaf', 'branch']);
     expect(leftSize).toBeGreaterThan(rightSize);
   });
+
+  it('splits grid-2x2 into two half-height row branches under a vertical root', () => {
+    const layout = presetLayout('grid-2x2', SLOTS);
+    const root = layout.grid.root;
+    const rows = Array.isArray(root.data) ? root.data : [];
+
+    expect(layout.grid.orientation).toBe('VERTICAL');
+    expect(rows).toHaveLength(2);
+    expect(rows.map((row) => row.type)).toEqual(['branch', 'branch']);
+    // Half of the module's nominal 1000-unit viewport height (presetLayout.ts's LAYOUT_HEIGHT).
+    expect(rows.map((row) => row.size)).toEqual([500, 500]);
+  });
 });

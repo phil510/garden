@@ -15,6 +15,7 @@ import { useSessionStore } from '../../state/sessionStore';
 import { useUiStore } from '../../state/uiStore';
 import { detachPane } from '../../terminals/registry';
 import { applyLayout } from './applyLayout';
+import { wireRowMirror } from './mirrorRows';
 import { EMPTY_SLOT_COMPONENT, PANE_COMPONENT, isEmptySlotId, presetLayout } from './presetLayout';
 import { EmptySlotPane, StagePane } from './StagePane';
 import { stageLayout } from './storedLayout';
@@ -58,6 +59,18 @@ export function Stage() {
   useEffect(() => {
     applyRef.current();
   }, [api, arrangement]);
+
+  // Keeps the 2x2 preset's two rows' column splits in sync: whichever row's own widths just
+  // changed gets copied onto the other (see `wireRowMirror`). Declared after the apply effect
+  // above so it runs after `applyLayout`, seeding its "previous widths" from what that effect
+  // just applied — a legacy lopsided persisted layout stays exactly as loaded until a real
+  // column-width change. Re-seeds whenever the arrangement changes since the effect is fully
+  // torn down and recreated then anyway.
+  useEffect(() => {
+    if (api === null || preset !== 'grid-2x2') return;
+    const dispose = wireRowMirror(api);
+    return dispose ?? undefined;
+  }, [api, preset, arrangement]);
 
   useEffect(() => {
     if (api === null) return;
