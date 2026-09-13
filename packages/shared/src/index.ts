@@ -4,7 +4,11 @@ export interface HealthStatus {
 }
 
 export type Liveness = 'live' | 'dead';
-export type Status = 'working' | 'needs-approval' | 'waiting' | 'unknown';
+export const STATUSES = ['working', 'needs-approval', 'waiting', 'unknown'] as const;
+export type Status = (typeof STATUSES)[number];
+export function isStatus(value: string): value is Status {
+  return (STATUSES as readonly string[]).includes(value);
+}
 export const STAGE_PRESETS = ['single', 'two-across', 'two-stacked', 'three', 'grid-2x2'] as const;
 export type StagePreset = (typeof STAGE_PRESETS)[number];
 
@@ -60,6 +64,28 @@ export interface HookPayload {
 
 export interface SessionsResponse {
   sessions: SessionState[];
+}
+/** Passed to `Projection.sessions(filter)` from the HTTP route and the CLI. Omitting a field
+ *  applies its default (7 days, 500 chars) rather than leaving that dimension unbounded. */
+export interface SessionsFilter {
+  sinceDays?: number;
+  maxRecapChars?: number;
+  live?: boolean;
+  status?: Status;
+}
+
+/** Validates a raw CLI flag or query-string value as a non-negative integer before any
+ *  numeric coercion. `Number('')` and `Number('  ')` are both `0`, so checking the coerced
+ *  result alone lets an empty value through silently; checking the raw string first closes
+ *  that. Returns `undefined` for anything that isn't a non-negative integer, including
+ *  empty or whitespace-only input, or a non-string value — a repeated HTTP query key
+ *  arrives as a `string[]` at runtime despite `SessionsQuerystring`'s compile-time `string`
+ *  type — the CLI and HTTP route each turn that into their own error surface. */
+export function parseNonNegativeInt(raw: string): number | undefined {
+  if (typeof raw !== 'string') return undefined;
+  if (raw.trim() === '') return undefined;
+  const value = Number(raw);
+  return Number.isInteger(value) && value >= 0 ? value : undefined;
 }
 export interface CreateSessionRequest {
   cwd: string;

@@ -1,6 +1,7 @@
 import type {
   CreateSessionResponse,
   OkResponse,
+  SessionsFilter,
   SessionState,
   SessionsResponse,
 } from '@garden/shared';
@@ -12,8 +13,18 @@ function collectingIo(): { io: Io; stdout: string[]; stderr: string[] } {
   const stdout: string[] = [];
   const stderr: string[] = [];
   const io: Io = {
-    stdout: { write: (text) => void stdout.push(text) },
-    stderr: { write: (text) => void stderr.push(text) },
+    stdout: {
+      write: (text, callback) => {
+        stdout.push(text);
+        callback?.();
+      },
+    },
+    stderr: {
+      write: (text, callback) => {
+        stderr.push(text);
+        callback?.();
+      },
+    },
   };
   return { io, stdout, stderr };
 }
@@ -132,6 +143,23 @@ describe('runLs', () => {
 
     expect(exitCode).toBe(0);
     expect(stdout).toEqual([`${JSON.stringify(sessions.sessions)}\n`]);
+  });
+
+  it('threads the filter through to the client, unfiltered when none is given', async () => {
+    const { io } = collectingIo();
+    const seenFilters: (SessionsFilter | undefined)[] = [];
+    const client: CliClient = {
+      ...throwingClient(new Error('unused')),
+      listSessions: (filter) => {
+        seenFilters.push(filter);
+        return Promise.resolve({ sessions: [] });
+      },
+    };
+
+    await runLs(io, false, client);
+    await runLs(io, false, client, { sinceDays: 30, live: true });
+
+    expect(seenFilters).toEqual([undefined, { sinceDays: 30, live: true }]);
   });
 });
 

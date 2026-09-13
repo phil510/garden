@@ -4,6 +4,7 @@ import type {
   CreateSessionResponse,
   ErrorResponse,
   OkResponse,
+  SessionsFilter,
   SessionsResponse,
 } from '@garden/shared';
 import { ensureConfigFile, loadConfig } from '../config.js';
@@ -36,8 +37,19 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
-export function listSessions(): Promise<SessionsResponse> {
-  return request('/sessions');
+/** Mirrors `packages/web/src/api/client.ts`'s `URLSearchParams` idiom for building a query. */
+function sessionsQuery(filter: SessionsFilter): string {
+  const params = new URLSearchParams();
+  if (filter.sinceDays !== undefined) params.set('sinceDays', String(filter.sinceDays));
+  if (filter.maxRecapChars !== undefined) params.set('maxRecapChars', String(filter.maxRecapChars));
+  if (filter.live !== undefined) params.set('live', String(filter.live));
+  if (filter.status !== undefined) params.set('status', filter.status);
+  const query = params.toString();
+  return query === '' ? '' : `?${query}`;
+}
+
+export function listSessions(filter?: SessionsFilter): Promise<SessionsResponse> {
+  return request(`/sessions${filter === undefined ? '' : sessionsQuery(filter)}`);
 }
 
 export function createSession(cwd: string): Promise<CreateSessionResponse> {

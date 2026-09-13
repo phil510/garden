@@ -1,5 +1,5 @@
 import { aSession } from '@garden/shared/fixtures';
-import type { SessionState } from '@garden/shared';
+import type { SessionsFilter, SessionState } from '@garden/shared';
 import Fastify from 'fastify';
 import { describe, expect, it } from 'vitest';
 import type { OverlayState, StorePort, TmuxNewSessionRequest, TmuxPort } from '../../app/ports.js';
@@ -35,9 +35,15 @@ function fakeStore(initial: OverlayState = emptyOverlay): StorePort {
   };
 }
 
-function fakeProjection(sessions: SessionState[] = []): Projection {
+function fakeProjection(
+  sessions: SessionState[] = [],
+  onSessions?: (filter: SessionsFilter | undefined) => void,
+): Projection {
   return {
-    sessions: () => sessions,
+    sessions: (filter) => {
+      onSessions?.(filter);
+      return sessions;
+    },
     uiState: () => {
       throw new Error('not used by this test');
     },
@@ -74,6 +80,207 @@ describe('GET /sessions', () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ sessions: [session] });
+  });
+
+  it('passes an empty filter when no query params are given, leaving the 7-day/500-char defaults to the domain layer', async () => {
+    let seenFilter: SessionsFilter | undefined;
+    const app = buildApp({
+      tmux: fakeTmux(),
+      store: fakeStore(),
+      projection: fakeProjection([], (filter) => (seenFilter = filter)),
+      serverPort: 4310,
+      settingsPath,
+      claudeCommand: ['claude'],
+    });
+
+    const response = await app.inject({ method: 'GET', url: '/sessions' });
+
+    expect(response.statusCode).toBe(200);
+    expect(seenFilter).toEqual({});
+  });
+
+  it('passes explicit query params through as the filter', async () => {
+    let seenFilter: SessionsFilter | undefined;
+    const app = buildApp({
+      tmux: fakeTmux(),
+      store: fakeStore(),
+      projection: fakeProjection([], (filter) => (seenFilter = filter)),
+      serverPort: 4310,
+      settingsPath,
+      claudeCommand: ['claude'],
+    });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/sessions?sinceDays=30&maxRecapChars=100&live=true&status=working',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(seenFilter).toEqual({
+      sinceDays: 30,
+      maxRecapChars: 100,
+      live: true,
+      status: 'working',
+    });
+  });
+
+  it('rejects a non-numeric sinceDays with a 400', async () => {
+    const app = buildApp({
+      tmux: fakeTmux(),
+      store: fakeStore(),
+      projection: fakeProjection(),
+      serverPort: 4310,
+      settingsPath,
+      claudeCommand: ['claude'],
+    });
+
+    const response = await app.inject({ method: 'GET', url: '/sessions?sinceDays=nope' });
+
+    expect(response.statusCode).toBe(400);
+  });
+
+  it('rejects a non-numeric maxRecapChars with a 400', async () => {
+    const app = buildApp({
+      tmux: fakeTmux(),
+      store: fakeStore(),
+      projection: fakeProjection(),
+      serverPort: 4310,
+      settingsPath,
+      claudeCommand: ['claude'],
+    });
+
+    const response = await app.inject({ method: 'GET', url: '/sessions?maxRecapChars=nope' });
+
+    expect(response.statusCode).toBe(400);
+  });
+
+  it('rejects a negative sinceDays with a 400', async () => {
+    const app = buildApp({
+      tmux: fakeTmux(),
+      store: fakeStore(),
+      projection: fakeProjection(),
+      serverPort: 4310,
+      settingsPath,
+      claudeCommand: ['claude'],
+    });
+
+    const response = await app.inject({ method: 'GET', url: '/sessions?sinceDays=-1' });
+
+    expect(response.statusCode).toBe(400);
+  });
+
+  it('rejects a negative maxRecapChars with a 400', async () => {
+    const app = buildApp({
+      tmux: fakeTmux(),
+      store: fakeStore(),
+      projection: fakeProjection(),
+      serverPort: 4310,
+      settingsPath,
+      claudeCommand: ['claude'],
+    });
+
+    const response = await app.inject({ method: 'GET', url: '/sessions?maxRecapChars=-1' });
+
+    expect(response.statusCode).toBe(400);
+  });
+
+  it('rejects an empty sinceDays with a 400 rather than coercing to 0', async () => {
+    // `Number('')` is `0`, which is a non-negative integer — checking the coerced result
+    // alone would silently apply sinceDays: 0 instead of surfacing the caller's mistake.
+    const app = buildApp({
+      tmux: fakeTmux(),
+      store: fakeStore(),
+      projection: fakeProjection(),
+      serverPort: 4310,
+      settingsPath,
+      claudeCommand: ['claude'],
+    });
+
+    const response = await app.inject({ method: 'GET', url: '/sessions?sinceDays=' });
+
+    expect(response.statusCode).toBe(400);
+  });
+
+  it('rejects an empty maxRecapChars with a 400 rather than coercing to 0', async () => {
+    const app = buildApp({
+      tmux: fakeTmux(),
+      store: fakeStore(),
+      projection: fakeProjection(),
+      serverPort: 4310,
+      settingsPath,
+      claudeCommand: ['claude'],
+    });
+
+    const response = await app.inject({ method: 'GET', url: '/sessions?maxRecapChars=' });
+
+    expect(response.statusCode).toBe(400);
+  });
+
+  it('rejects a fractional maxRecapChars with a 400', async () => {
+    // A naive `Number.isFinite` boundary check lets 0.5 through: `.slice(-0.5)` truncates
+    // toward zero to `.slice(-0)`, which is `.slice(0)` — the whole string, uncapped.
+    const app = buildApp({
+      tmux: fakeTmux(),
+      store: fakeStore(),
+      projection: fakeProjection(),
+      serverPort: 4310,
+      settingsPath,
+      claudeCommand: ['claude'],
+    });
+
+    const response = await app.inject({ method: 'GET', url: '/sessions?maxRecapChars=0.5' });
+
+    expect(response.statusCode).toBe(400);
+  });
+
+  it('rejects a repeated sinceDays query key with a 400 instead of crashing', async () => {
+    // Fastify's default querystring parser turns a repeated key into an array at runtime,
+    // even though `SessionsQuerystring` declares `sinceDays?: string` at compile time.
+    const app = buildApp({
+      tmux: fakeTmux(),
+      store: fakeStore(),
+      projection: fakeProjection(),
+      serverPort: 4310,
+      settingsPath,
+      claudeCommand: ['claude'],
+    });
+
+    const response = await app.inject({ method: 'GET', url: '/sessions?sinceDays=5&sinceDays=7' });
+
+    expect(response.statusCode).toBe(400);
+  });
+
+  it('rejects a repeated maxRecapChars query key with a 400 instead of crashing', async () => {
+    const app = buildApp({
+      tmux: fakeTmux(),
+      store: fakeStore(),
+      projection: fakeProjection(),
+      serverPort: 4310,
+      settingsPath,
+      claudeCommand: ['claude'],
+    });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/sessions?maxRecapChars=100&maxRecapChars=200',
+    });
+
+    expect(response.statusCode).toBe(400);
+  });
+
+  it('rejects a status value outside the four Status literals with a 400', async () => {
+    const app = buildApp({
+      tmux: fakeTmux(),
+      store: fakeStore(),
+      projection: fakeProjection(),
+      serverPort: 4310,
+      settingsPath,
+      claudeCommand: ['claude'],
+    });
+
+    const response = await app.inject({ method: 'GET', url: '/sessions?status=bogus' });
+
+    expect(response.statusCode).toBe(400);
   });
 });
 

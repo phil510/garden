@@ -1,6 +1,10 @@
 import { parseArgs } from 'node:util';
+import type { ParseArgsConfig } from 'node:util';
+import type { SessionsFilter } from '@garden/shared';
+import { isStatus, parseNonNegativeInt } from '@garden/shared';
 import type { CliClient, Io } from './commands.js';
 import { defaultClient, runKill, runLs, runNew, runResume } from './commands.js';
+import { writeAll } from './io.js';
 import { defaultStopAllDeps, runStop, runStopAll, type StopAllDeps } from './stop.js';
 import { runUninstall } from './uninstall.js';
 
@@ -40,9 +44,73 @@ export function decideEntrypointAction(
   return { kind: 'unknown', command };
 }
 
-function usage(io: Io, line: string): 1 {
-  io.stderr.write(`garden: usage: ${line}\n`);
+async function usage(io: Io, line: string): Promise<1> {
+  await writeAll(io.stderr, `garden: usage: ${line}\n`);
   return 1;
+}
+
+type LsFilterResult =
+  { ok: true; filter: SessionsFilter | undefined } | { ok: false; message: string };
+
+/** `parseArgs` has no numeric option type, so `--since-days`/`--max-recap-chars` arrive as
+ *  strings here and are parsed and range-checked before `runLs` sees them — a non-numeric
+ *  value is a usage error, not a `NaN` passed through to the server. `filter` comes back
+ *  `undefined` when no flag was given, but `sessionRoutes` always passes an object to
+ *  `projection.sessions`, so a bare `garden ls` is still bounded by the 7-day/500-char
+ *  defaults rather than unfiltered. */
+function parseLsFilter(values: {
+  'since-days': string | undefined;
+  'max-recap-chars': string | undefined;
+  live: boolean;
+  status: string | undefined;
+}): LsFilterResult {
+  const filter: SessionsFilter = {};
+  let hasAny = false;
+
+  if (values['since-days'] !== undefined) {
+    const sinceDays = parseNonNegativeInt(values['since-days']);
+    if (sinceDays === undefined)
+      return { ok: false, message: 'garden ls --since-days <non-negative integer days>' };
+    filter.sinceDays = sinceDays;
+    hasAny = true;
+  }
+
+  if (values['max-recap-chars'] !== undefined) {
+    const maxRecapChars = parseNonNegativeInt(values['max-recap-chars']);
+    if (maxRecapChars === undefined)
+      return { ok: false, message: 'garden ls --max-recap-chars <non-negative integer chars>' };
+    filter.maxRecapChars = maxRecapChars;
+    hasAny = true;
+  }
+
+  if (values.live) {
+    filter.live = true;
+    hasAny = true;
+  }
+
+  if (values.status !== undefined) {
+    if (!isStatus(values.status))
+      return { ok: false, message: 'garden ls --status <working|waiting|needs-approval|unknown>' };
+    filter.status = values.status;
+    hasAny = true;
+  }
+
+  return { ok: true, filter: hasAny ? filter : undefined };
+}
+
+/** `parseArgs` throws synchronously — not a rejected promise a caller can inspect — when a
+ *  string-typed option is the last token with no following value (e.g. a trailing
+ *  `--since-days` with nothing after it). Wrapping every call here turns that into the same
+ *  usage-error path as every other rejected argument, instead of an uncaught exception reaching
+ *  `bin/garden.ts`'s unguarded `process.exit(await runCli(...))`. */
+function tryParseArgs<T extends ParseArgsConfig>(
+  config: T,
+): { ok: true; result: ReturnType<typeof parseArgs<T>> } | { ok: false; message: string } {
+  try {
+    return { ok: true, result: parseArgs(config) };
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : String(error) };
+  }
 }
 
 /** `rest` is `garden <command>`'s remaining argv: positionals plus `--json`. `stopAllDeps` is
@@ -55,15 +123,21 @@ export async function runCli(
   client: CliClient = defaultClient,
   stopAllDeps: StopAllDeps = defaultStopAllDeps,
 ): Promise<0 | 1> {
-  const { values, positionals } = parseArgs({
+  const parsedArgs = tryParseArgs({
     args: rest,
     options: {
       json: { type: 'boolean', default: false },
       yes: { type: 'boolean', default: false },
       all: { type: 'boolean', default: false },
+      'since-days': { type: 'string' },
+      'max-recap-chars': { type: 'string' },
+      live: { type: 'boolean', default: false },
+      status: { type: 'string' },
     },
     allowPositionals: true,
   });
+  if (!parsedArgs.ok) return usage(io, parsedArgs.message);
+  const { values, positionals } = parsedArgs.result;
   const json = values.json === true;
 
   switch (command) {
@@ -71,8 +145,15 @@ export async function runCli(
       return positionals[0] === undefined
         ? usage(io, 'garden new <dir>')
         : runNew(io, positionals[0], json, client);
-    case 'ls':
-      return runLs(io, json, client);
+    case 'ls': {
+      const parsed = parseLsFilter({
+        'since-days': values['since-days'],
+        'max-recap-chars': values['max-recap-chars'],
+        live: values.live,
+        status: values.status,
+      });
+      return parsed.ok ? runLs(io, json, client, parsed.filter) : usage(io, parsed.message);
+    }
     case 'kill':
       return positionals[0] === undefined
         ? usage(io, 'garden kill <id>')

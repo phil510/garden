@@ -5,6 +5,7 @@ import { DEFAULT_CONFIG_FILE, ensureConfigFile, loadConfig } from '../config.js'
 import type { CliClient, Io } from './commands.js';
 import { defaultClient } from './commands.js';
 import { CliHttpError } from './http.js';
+import { writeAll } from './io.js';
 import { isProcessRunning, readPidFile, removePidFile } from './pid.js';
 import { killTmuxServer } from './tmux.js';
 
@@ -39,7 +40,7 @@ export async function runStop(io: Io, deps: StopDeps = defaultStopDeps): Promise
   if (pid === null || !deps.isProcessRunning(pid)) {
     // A recorded pid that is no longer running is stale bookkeeping, not a running server.
     deps.removePid(pidPath);
-    io.stdout.write('garden is not running\n');
+    await writeAll(io.stdout, 'garden is not running\n');
     return 0;
   }
 
@@ -47,7 +48,8 @@ export async function runStop(io: Io, deps: StopDeps = defaultStopDeps): Promise
   const deadline = Date.now() + deps.stopTimeoutMs;
   while (deps.isProcessRunning(pid)) {
     if (Date.now() >= deadline) {
-      io.stderr.write(
+      await writeAll(
+        io.stderr,
         `garden: server (pid ${String(pid)}) did not stop within ${String(deps.stopTimeoutMs)}ms\n`,
       );
       return 1;
@@ -56,7 +58,7 @@ export async function runStop(io: Io, deps: StopDeps = defaultStopDeps): Promise
   }
 
   deps.removePid(pidPath);
-  io.stdout.write('garden stopped\n');
+  await writeAll(io.stdout, 'garden stopped\n');
   return 0;
 }
 
@@ -131,7 +133,7 @@ export async function runStopAll(
   if (!skipConfirm) {
     const liveCount = await liveSessionCount(client);
     if (!(await deps.confirm(confirmMessage(liveCount)))) {
-      io.stdout.write('aborted\n');
+      await writeAll(io.stdout, 'aborted\n');
       return 0;
     }
   }
@@ -140,6 +142,6 @@ export async function runStopAll(
   if (stopResult !== 0) return stopResult;
 
   await deps.killTmuxServer(join(deps.appDir, 'tmux.conf'), deps.tmuxSocket);
-  io.stdout.write('garden stopped; tmux server killed\n');
+  await writeAll(io.stdout, 'garden stopped; tmux server killed\n');
   return 0;
 }

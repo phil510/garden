@@ -1,12 +1,16 @@
-import type { Delta, SessionState, UiState, UiStateRequest } from '@garden/shared';
+import type { Delta, SessionsFilter, SessionState, UiState, UiStateRequest } from '@garden/shared';
 import { diff } from '../domain/diff.js';
 import { initialState, reduce } from '../domain/reduce.js';
+import { filterSessions } from '../domain/sessionsFilter.js';
 import { switchPreset } from '../domain/stage.js';
 import type { GardenEvent } from '../domain/types.js';
 import type { OverlayGroup, OverlayState, StorePort } from './ports.js';
 
 export interface Projection {
-  sessions(): SessionState[];
+  /** No argument: today's exact unfiltered behavior, for the four internal call sites that
+   *  must keep seeing true state (repo-root sweep, name-dedup, the WS snapshot). A filter
+   *  bounds the result for the HTTP route and the CLI. */
+  sessions(filter?: SessionsFilter): SessionState[];
   uiState(): UiState;
   dispatch(event: GardenEvent): void;
   updateUiState(patch: UiStateRequest): void;
@@ -63,7 +67,10 @@ export function createProjection(store: StorePort): Projection {
   const uiListeners = new Set<(uiState: UiState) => void>();
 
   return {
-    sessions: () => Object.values(state.sessions),
+    sessions: (filter) => {
+      const all = Object.values(state.sessions);
+      return filter === undefined ? all : filterSessions(all, filter, Date.now());
+    },
     uiState: () => ui,
 
     dispatch(event) {

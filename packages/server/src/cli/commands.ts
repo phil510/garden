@@ -1,14 +1,20 @@
-import type { CreateSessionResponse, OkResponse, SessionsResponse } from '@garden/shared';
+import type {
+  CreateSessionResponse,
+  OkResponse,
+  SessionsFilter,
+  SessionsResponse,
+} from '@garden/shared';
 import * as http from './http.js';
+import { writeAll, type WritableLike } from './io.js';
 
 export interface Io {
-  readonly stdout: { write(text: string): void };
-  readonly stderr: { write(text: string): void };
+  readonly stdout: WritableLike;
+  readonly stderr: WritableLike;
 }
 
 /** The four calls a subcommand needs. `./http.ts`'s exports satisfy this by shape. */
 export interface CliClient {
-  listSessions(): Promise<SessionsResponse>;
+  listSessions(filter?: SessionsFilter): Promise<SessionsResponse>;
   createSession(cwd: string): Promise<CreateSessionResponse>;
   resumeSession(id: string): Promise<CreateSessionResponse>;
   killSession(id: string): Promise<OkResponse>;
@@ -16,13 +22,13 @@ export interface CliClient {
 
 export const defaultClient: CliClient = http;
 
-function printResult(io: Io, json: boolean, data: unknown, line: () => string): void {
-  io.stdout.write(json ? `${JSON.stringify(data)}\n` : `${line()}\n`);
+function printResult(io: Io, json: boolean, data: unknown, line: () => string): Promise<void> {
+  return writeAll(io.stdout, json ? `${JSON.stringify(data)}\n` : `${line()}\n`);
 }
 
-function printError(io: Io, error: unknown): void {
+function printError(io: Io, error: unknown): Promise<void> {
   const message = error instanceof Error ? error.message : String(error);
-  io.stderr.write(`garden: ${message}\n`);
+  return writeAll(io.stderr, `garden: ${message}\n`);
 }
 
 async function runCommand<T>(
@@ -33,10 +39,10 @@ async function runCommand<T>(
 ): Promise<0 | 1> {
   try {
     const result = await action();
-    printResult(io, json, result, () => line(result));
+    await printResult(io, json, result, () => line(result));
     return 0;
   } catch (error) {
-    printError(io, error);
+    await printError(io, error);
     return 1;
   }
 }
@@ -55,11 +61,16 @@ export function runNew(
   );
 }
 
-export function runLs(io: Io, json: boolean, client: CliClient = defaultClient): Promise<0 | 1> {
+export function runLs(
+  io: Io,
+  json: boolean,
+  client: CliClient = defaultClient,
+  filter?: SessionsFilter,
+): Promise<0 | 1> {
   return runCommand(
     io,
     json,
-    async () => (await client.listSessions()).sessions,
+    async () => (await client.listSessions(filter)).sessions,
     (sessions) =>
       sessions.length === 0
         ? 'no sessions'

@@ -6,8 +6,18 @@ function collectingIo(): { io: Io; stdout: string[]; stderr: string[] } {
   const stdout: string[] = [];
   const stderr: string[] = [];
   const io: Io = {
-    stdout: { write: (text) => void stdout.push(text) },
-    stderr: { write: (text) => void stderr.push(text) },
+    stdout: {
+      write: (text, callback) => {
+        stdout.push(text);
+        callback?.();
+      },
+    },
+    stderr: {
+      write: (text, callback) => {
+        stderr.push(text);
+        callback?.();
+      },
+    },
   };
   return { io, stdout, stderr };
 }

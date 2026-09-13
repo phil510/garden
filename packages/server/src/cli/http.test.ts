@@ -66,6 +66,32 @@ describe('listSessions', () => {
     });
     await expect(listSessions()).resolves.toEqual({ sessions: [] });
   });
+
+  it('sends no query string when called with no filter', async () => {
+    await startServer((request, response) => {
+      expect(request.url).toBe('/sessions');
+      sendJson(response, 200, { sessions: [] });
+    });
+    await expect(listSessions()).resolves.toEqual({ sessions: [] });
+  });
+
+  it('builds a query string from the filter fields that are set', async () => {
+    await startServer((request, response) => {
+      expect(request.url).toBe('/sessions?sinceDays=30&maxRecapChars=100&live=true&status=working');
+      sendJson(response, 200, { sessions: [] });
+    });
+    await expect(
+      listSessions({ sinceDays: 30, maxRecapChars: 100, live: true, status: 'working' }),
+    ).resolves.toEqual({ sessions: [] });
+  });
+
+  it('omits unset filter fields from the query string', async () => {
+    await startServer((request, response) => {
+      expect(request.url).toBe('/sessions?sinceDays=30');
+      sendJson(response, 200, { sessions: [] });
+    });
+    await expect(listSessions({ sinceDays: 30 })).resolves.toEqual({ sessions: [] });
+  });
 });
 
 describe('createSession', () => {
