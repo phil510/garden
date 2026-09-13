@@ -29,6 +29,18 @@ A concurrent sandbox needs its own port, tmux socket and app dir — see `docs/t
 - PRs follow `.github/pull_request_template.md` and include `Closes #N`.
 - Use the `gh` CLI for issues and PRs. Issue templates live in `.github/ISSUE_TEMPLATE/`.
 - Stay inside the scope of the issue. Work you find outside it gets surfaced, not silently absorbed.
+- Surfacing something is not the same as deferring it. When what you found is in the code you are
+  already changing, the default is to fix it now: you have the context loaded and the reviewer has
+  the diff in front of them, where a follow-up issue costs someone a fresh page-in to change three
+  lines. "Ready except for one thing" is the phrase to distrust — it means the PR isn't ready, not
+  that the thing needs an issue. Leave the code better than you found it.
+- File it for later when the work is genuinely separate: another subsystem, a change that needs its
+  own design conversation, or a defect loud enough to announce itself. Loudness is the useful test.
+  Something that errors in your face will be found again, so deferring it is cheap; something that
+  fails quietly will not be, and an issue is where it goes to be forgotten. A hypothetical nit about
+  a path nobody takes can wait. A wrong value that propagates in silence cannot.
+- Between those two, ask. "Fix it here or file it?" is one line, and whoever is reviewing usually
+  knows immediately. Don't assume either way.
 
 ## Docs
 
