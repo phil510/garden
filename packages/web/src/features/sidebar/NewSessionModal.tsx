@@ -1,7 +1,7 @@
-import type { RepoEntry } from '@garden/shared';
 import { useEffect, useState, type MouseEvent } from 'react';
 import { createSession, listRepos } from '../../api/client';
 import { reportCommandFailure } from '../../api/reportCommandFailure';
+import { useLocalStore } from '../../state/localStore';
 import { buildPickerGroups } from './pickerItems';
 
 interface NewSessionModalProps {
@@ -10,15 +10,18 @@ interface NewSessionModalProps {
 }
 
 export function NewSessionModal({ onClose, onCreated }: NewSessionModalProps) {
-  const [repos, setRepos] = useState<RepoEntry[] | null>(null);
+  const repos = useLocalStore((state) => state.repoList);
+  const setRepoList = useLocalStore((state) => state.setRepoList);
   const [failed, setFailed] = useState(false);
   const [query, setQuery] = useState('');
 
+  // Always refetch on mount, so the list never goes stale — but a prior open's cached
+  // `repoList` (if any) renders immediately in the meantime instead of a loading state.
   useEffect(() => {
     let cancelled = false;
     listRepos()
       .then((response) => {
-        if (!cancelled) setRepos(response.repos);
+        if (!cancelled) setRepoList(response.repos);
       })
       .catch((error: unknown) => {
         reportCommandFailure(error);
@@ -27,7 +30,7 @@ export function NewSessionModal({ onClose, onCreated }: NewSessionModalProps) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [setRepoList]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {

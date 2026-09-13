@@ -1,3 +1,4 @@
+import type { RepoEntry } from '@garden/shared';
 import { create } from 'zustand';
 
 export interface OpenFileRequest {
@@ -50,6 +51,12 @@ interface LocalStore {
    *  its local scrollback. */
   connectionEpoch: number;
   noteConnected: () => void;
+  /** The new-session picker's repo list, cached across mounts so reopening it renders
+   *  immediately instead of showing a loading state while a fresh fetch is in flight. Null
+   *  until the first fetch resolves; the picker still refetches on every open (kept fresh, per
+   *  its own effect) and simply overwrites this once the fetch settles. */
+  repoList: RepoEntry[] | null;
+  setRepoList: (repos: RepoEntry[]) => void;
 }
 
 export const useLocalStore = create<LocalStore>((set) => ({
@@ -88,4 +95,6 @@ export const useLocalStore = create<LocalStore>((set) => ({
   requestOpenFile: (sessionId, path, line) => set({ openFileRequest: { sessionId, path, line } }),
   connectionEpoch: 0,
   noteConnected: () => set((state) => ({ connectionEpoch: state.connectionEpoch + 1 })),
+  repoList: null,
+  setRepoList: (repos) => set({ repoList: repos }),
 }));
