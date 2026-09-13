@@ -28,19 +28,19 @@ A concurrent sandbox needs its own port, tmux socket and app dir — see `docs/t
 - Commit messages: descriptive sentences, in logical chunks that each stand on their own. No conventional-commits prefixes (`feat:`, `fix:`, etc.).
 - PRs follow `.github/pull_request_template.md` and include `Closes #N`.
 - Use the `gh` CLI for issues and PRs. Issue templates live in `.github/ISSUE_TEMPLATE/`.
-- Stay inside the scope of the issue. Work you find outside it gets surfaced, not silently absorbed.
-- Surfacing something is not the same as deferring it. When what you found is in the code you are
-  already changing, the default is to fix it now: you have the context loaded and the reviewer has
-  the diff in front of them, where a follow-up issue costs someone a fresh page-in to change three
-  lines. "Ready except for one thing" is the phrase to distrust — it means the PR isn't ready, not
-  that the thing needs an issue. Leave the code better than you found it.
-- File it for later when the work is genuinely separate: another subsystem, a change that needs its
-  own design conversation, or a defect loud enough to announce itself. Loudness is the useful test.
-  Something that errors in your face will be found again, so deferring it is cheap; something that
-  fails quietly will not be, and an issue is where it goes to be forgotten. A hypothetical nit about
-  a path nobody takes can wait. A wrong value that propagates in silence cannot.
+- Stay inside the scope of the issue. Work you find outside it gets surfaced, not silently
+  absorbed — but surfacing is not the same as deferring. When what you found is in the code you
+  are already changing, the default is to fix it now: you have the context loaded and the reviewer
+  has the diff in front of them, where a follow-up issue costs someone a fresh page-in to change
+  three lines. "Ready except for one thing" is the phrase to distrust — it means the PR isn't
+  ready, not that the thing needs an issue.
+- File it for later when the work is genuinely separate: another subsystem, or a change that needs
+  its own design conversation. Among those, loudness decides what may wait. Something that errors
+  in your face will be found again, so deferring it is cheap; something that fails quietly will
+  not be, and an issue is where it goes to be forgotten.
 - Between those two, ask. "Fix it here or file it?" is one line, and whoever is reviewing usually
-  knows immediately. Don't assume either way.
+  knows immediately. With nobody to ask, fix it and say so in the PR body — a reviewer can undo a
+  fix they see, not a decision they never heard.
 
 ## Docs
 
