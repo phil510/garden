@@ -127,6 +127,86 @@ describe('listRepos', () => {
     expect(await listRepos({ git, roots: [dir] })).toEqual([]);
   });
 
+  it('does not descend into a worktree looking for worktrees nested inside it', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'garden-repos-'));
+    const repo = join(dir, 'repoF');
+    const worktree = join(repo, '.worktrees', 'feat-x');
+    // A `.git` two levels inside the already-found worktree — reachable only if the recursion
+    // boundary in findWorktrees failed to stop once `feat-x` itself was identified as a worktree.
+    const nestedGitDir = join(worktree, 'vendor', 'nested-repo');
+    mkdirSync(nestedGitDir, { recursive: true });
+    markAsGitDir(repo);
+    markAsGitDir(worktree);
+    markAsGitDir(nestedGitDir);
+    const resolvedRepo = realpathSync(repo);
+    const git = fakeGit(
+      {
+        [repo]: resolvedRepo,
+        [worktree]: resolvedRepo,
+        [nestedGitDir]: realpathSync(nestedGitDir),
+      },
+      { [repo]: 'main', [worktree]: 'feat/x', [nestedGitDir]: 'main' },
+    );
+
+    const repos = await listRepos({ git, roots: [dir] });
+
+    expect(repos).toEqual([
+      { path: repo, name: 'repoF', branch: 'main', isWorktree: false },
+      { path: worktree, name: 'feat-x', branch: 'feat/x', isWorktree: true },
+    ]);
+  });
+
+  it('bounds concurrent git spawns while still running them in parallel', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'garden-repos-'));
+    const repoCount = 20;
+    const repoPaths: string[] = [];
+    for (let i = 0; i < repoCount; i += 1) {
+      const repo = join(dir, `repo${i}`);
+      mkdirSync(repo, { recursive: true });
+      markAsGitDir(repo);
+      repoPaths.push(repo);
+    }
+
+    let inFlight = 0;
+    let peakInFlight = 0;
+
+    /** Resolves on a macrotask instead of synchronously, so several calls can genuinely
+     *  overlap in flight — a fake that settles immediately (like `fakeGit` above) could never
+     *  show more than one call in flight regardless of whether the caller bounds concurrency. */
+    function gated<T>(result: () => T): Promise<T> {
+      inFlight += 1;
+      peakInFlight = Math.max(peakInFlight, inFlight);
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          inFlight -= 1;
+          resolve(result());
+        }, 5);
+      });
+    }
+
+    const roots = Object.fromEntries(repoPaths.map((repo) => [repo, realpathSync(repo)]));
+    const branches = Object.fromEntries(repoPaths.map((repo) => [repo, 'main']));
+    const git: Pick<GitPort, 'repoRoot' | 'branch'> = {
+      repoRoot: (cwd) =>
+        roots[cwd] === undefined
+          ? Promise.reject(new Error(`not a git repository: ${cwd}`))
+          : gated(() => roots[cwd]!),
+      branch: (cwd) =>
+        branches[cwd] === undefined
+          ? Promise.reject(new Error(`no branch: ${cwd}`))
+          : gated(() => branches[cwd]!),
+    };
+
+    const repos = await listRepos({ git, roots: [dir] });
+
+    expect(repos).toHaveLength(repoCount);
+    // The bound holds (never more in flight than the limiter allows) and fan-out is real
+    // (more than one in flight at once) — either assertion alone can't tell correctly-bounded
+    // concurrent code apart from unchanged sequential code.
+    expect(peakInFlight).toBeLessThanOrEqual(8);
+    expect(peakInFlight).toBeGreaterThan(1);
+  });
+
   it('skips a worktree checked out directly under a root rather than listing it as its own repo', async () => {
     dir = mkdtempSync(join(tmpdir(), 'garden-repos-'));
     const repo = join(dir, 'repoD');
