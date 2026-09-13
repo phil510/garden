@@ -30,6 +30,15 @@ there is no separate step. If the hook ever goes missing, `pnpm rebuild lefthook
 
 **Pre-commit gate.** lefthook runs typecheck, lint, formatting, and unit tests on every commit. CI runs those plus a workspace build and the integration tier, which needs tmux — so a clean commit is a good signal, not a guarantee of a green PR.
 
+## Configuration
+
+garden reads `~/.garden/config.json` on startup, writing a default one on first run. Fields:
+
+- `port` — the port the server listens on. Default `4310`.
+- `roots` — the repo roots garden scans for sessions. Default `["~/Desktop/Extend"]`.
+- `permissionMode` — `"default"` or `"bypassPermissions"`. Default `"default"`. `"bypassPermissions"`
+  skips Claude Code's permission prompts for every session garden spawns or resumes.
+
 ## Dev loop
 
 `pnpm build` builds every package. Linking the `garden` bin globally makes the `garden` command start the server and open the console in a Chrome app window. See the design spec (§8, §9) for the CLI and build shape.

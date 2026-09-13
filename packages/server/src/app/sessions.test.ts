@@ -133,6 +133,41 @@ describe('createSession', () => {
     ]);
   });
 
+  it('adds --permission-mode bypassPermissions ahead of --settings when configured', async () => {
+    const calls: TmuxNewSessionRequest[] = [];
+    const tmux = fakeTmux({
+      newSession: (request) => {
+        calls.push(request);
+        return Promise.resolve();
+      },
+    });
+    const { projection } = fakeProjection();
+    const { store } = fakeStore();
+
+    const result = await createSession(
+      {
+        tmux,
+        store,
+        projection,
+        serverPort: 4310,
+        settingsPath: '/home/.garden/claude-settings.json',
+        claudeCommand: ['claude'],
+        permissionMode: 'bypassPermissions',
+      },
+      { cwd: '/Users/dev/garden' },
+    );
+
+    expect(calls[0]?.command).toEqual([
+      'claude',
+      '--session-id',
+      result.id,
+      '--permission-mode',
+      'bypassPermissions',
+      '--settings',
+      '/home/.garden/claude-settings.json',
+    ]);
+  });
+
   it('derives a name unique against every tmux name the projection already knows', async () => {
     const tmux = fakeTmux({ newSession: () => Promise.resolve() });
     const { projection } = fakeProjection([aSession({ tmuxName: 'garden' })]);
@@ -207,6 +242,47 @@ describe('resumeSession', () => {
     expect(written().tmuxNames).toEqual({ 'sid-1': 'garden' });
   });
 
+  it('adds --permission-mode bypassPermissions to the respawnPane command when configured', async () => {
+    const respawned: unknown[] = [];
+    const tmux = fakeTmux({
+      listPanes: () => Promise.resolve([{ session: 'garden', dead: true, exitCode: 1 }]),
+      respawnPane: (request) => {
+        respawned.push(request);
+        return Promise.resolve();
+      },
+    });
+    const { projection } = fakeProjection([deadSession]);
+    const { store } = fakeStore();
+
+    await resumeSession(
+      {
+        tmux,
+        store,
+        projection,
+        serverPort: 4310,
+        settingsPath,
+        claudeCommand: ['claude'],
+        permissionMode: 'bypassPermissions',
+      },
+      { id: 'sid-1' },
+    );
+
+    expect(respawned).toEqual([
+      {
+        name: 'garden',
+        command: [
+          'claude',
+          '--resume',
+          'sid-1',
+          '--permission-mode',
+          'bypassPermissions',
+          '--settings',
+          settingsPath,
+        ],
+      },
+    ]);
+  });
+
   it('puts every token of a multi-token claudeCommand ahead of --resume', async () => {
     const respawned: unknown[] = [];
     const tmux = fakeTmux({
@@ -235,6 +311,49 @@ describe('resumeSession', () => {
       {
         name: 'garden',
         command: ['tsx', 'scripts/fake-claude.ts', '--resume', 'sid-1', '--settings', settingsPath],
+      },
+    ]);
+  });
+
+  it('adds --permission-mode bypassPermissions to the fresh-newSession command when configured', async () => {
+    const created: unknown[] = [];
+    const tmux = fakeTmux({
+      listPanes: () => Promise.resolve([]),
+      newSession: (request) => {
+        created.push(request);
+        return Promise.resolve();
+      },
+    });
+    const { projection } = fakeProjection([deadSession]);
+    const { store } = fakeStore();
+
+    await resumeSession(
+      {
+        tmux,
+        store,
+        projection,
+        serverPort: 4310,
+        settingsPath,
+        claudeCommand: ['claude'],
+        permissionMode: 'bypassPermissions',
+      },
+      { id: 'sid-1' },
+    );
+
+    expect(created).toEqual([
+      {
+        name: 'garden',
+        cwd: '/Users/dev/garden',
+        port: 4310,
+        command: [
+          'claude',
+          '--resume',
+          'sid-1',
+          '--permission-mode',
+          'bypassPermissions',
+          '--settings',
+          settingsPath,
+        ],
       },
     ]);
   });

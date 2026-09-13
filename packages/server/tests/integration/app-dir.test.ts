@@ -27,7 +27,11 @@ describe('ensureConfigFile', () => {
       ensureConfigFile(home);
       const path = join(home, '.garden', 'config.json');
       writeFileSync(path, '{"port": 4999, "roots": ["/srv/code"]}', 'utf8');
-      expect(ensureConfigFile(home)).toEqual({ port: 4999, roots: ['/srv/code'] });
+      expect(ensureConfigFile(home)).toEqual({
+        port: 4999,
+        roots: ['/srv/code'],
+        permissionMode: 'default',
+      });
       expect(readFileSync(path, 'utf8')).toContain('4999');
     });
   });

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { SessionState } from '@garden/shared';
+import type { PermissionMode } from '../config.js';
 import { deriveTmuxName } from '../domain/tmuxName.js';
 import type { StorePort, TmuxPort } from './ports.js';
 import type { Projection } from './projection.js';
@@ -35,6 +36,12 @@ export interface SessionsDeps {
   readonly serverPort: number;
   readonly settingsPath: string;
   readonly claudeCommand: readonly string[];
+  readonly permissionMode?: PermissionMode;
+}
+
+/** No flag by default; `'bypassPermissions'` is the only mode that adds one. */
+function permissionFlags(mode: PermissionMode | undefined): readonly string[] {
+  return mode === 'bypassPermissions' ? ['--permission-mode', 'bypassPermissions'] : [];
 }
 
 export class SessionNotFoundError extends Error {}
@@ -65,7 +72,7 @@ export async function createSession(
   deps: SessionsDeps,
   request: CreateSessionRequest,
 ): Promise<CreateSessionResult> {
-  const { tmux, store, projection, serverPort, settingsPath, claudeCommand } = deps;
+  const { tmux, store, projection, serverPort, settingsPath, claudeCommand, permissionMode } = deps;
   const takenNames = projection
     .sessions()
     .map((session) => session.tmuxName)
@@ -77,7 +84,14 @@ export async function createSession(
     name: tmuxName,
     cwd: request.cwd,
     port: serverPort,
-    command: [...claudeCommand, '--session-id', id, '--settings', settingsPath],
+    command: [
+      ...claudeCommand,
+      '--session-id',
+      id,
+      ...permissionFlags(permissionMode),
+      '--settings',
+      settingsPath,
+    ],
   });
 
   writeTmuxName(store, id, tmuxName);
@@ -94,9 +108,16 @@ export async function resumeSession(
   deps: SessionsDeps,
   request: ResumeSessionRequest,
 ): Promise<ResumeSessionResult> {
-  const { tmux, store, projection, serverPort, settingsPath, claudeCommand } = deps;
+  const { tmux, store, projection, serverPort, settingsPath, claudeCommand, permissionMode } = deps;
   const session = findSession(projection, request.id);
-  const command = [...claudeCommand, '--resume', request.id, '--settings', settingsPath];
+  const command = [
+    ...claudeCommand,
+    '--resume',
+    request.id,
+    ...permissionFlags(permissionMode),
+    '--settings',
+    settingsPath,
+  ];
   const panes = await tmux.listPanes();
   const priorName = session.tmuxName;
 
