@@ -75,11 +75,11 @@ export const useLocalStore = create<LocalStore>((set) => ({
   filePanelWidth: 320,
   resizeFilePanelBy: (deltaPx, viewportWidth, otherPanelReserved) =>
     set((state) => {
+      // Half the viewport on a wide display, but never less than the 640px floor that governs
+      // narrow ones — so behaviour there is unchanged.
+      const proportionalMax = Math.max(FILE_PANEL_WIDTH_MAX, viewportWidth / 2);
       const roomForStage = viewportWidth - otherPanelReserved - STAGE_MIN_WIDTH;
-      const effectiveMax = Math.min(
-        FILE_PANEL_WIDTH_MAX,
-        Math.max(FILE_PANEL_WIDTH_MIN, roomForStage),
-      );
+      const effectiveMax = Math.min(proportionalMax, Math.max(FILE_PANEL_WIDTH_MIN, roomForStage));
       return {
         filePanelWidth: clamp(state.filePanelWidth + deltaPx, FILE_PANEL_WIDTH_MIN, effectiveMax),
       };
