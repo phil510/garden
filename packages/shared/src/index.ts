@@ -78,9 +78,11 @@ export interface SessionsFilter {
  *  numeric coercion. `Number('')` and `Number('  ')` are both `0`, so checking the coerced
  *  result alone lets an empty value through silently; checking the raw string first closes
  *  that. Returns `undefined` for anything that isn't a non-negative integer, including
- *  empty or whitespace-only input — the CLI and HTTP route each turn that into their own
- *  error surface. */
+ *  empty or whitespace-only input, or a non-string value — a repeated HTTP query key
+ *  arrives as a `string[]` at runtime despite `SessionsQuerystring`'s compile-time `string`
+ *  type — the CLI and HTTP route each turn that into their own error surface. */
 export function parseNonNegativeInt(raw: string): number | undefined {
+  if (typeof raw !== 'string') return undefined;
   if (raw.trim() === '') return undefined;
   const value = Number(raw);
   return Number.isInteger(value) && value >= 0 ? value : undefined;
