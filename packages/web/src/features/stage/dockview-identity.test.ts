@@ -88,38 +88,55 @@ describe('grid-2x2 leaf group resize', () => {
     expect(component.api.getGroup(topRight)?.api.width).toBe(700);
   });
 
+  /** Mirrors Stage.tsx's actual `onDidLayoutChange` handler shape, so these tests exercise the
+   *  real control flow (including dockview's real async re-fire) rather than a stand-in. */
+  function wireMirrorHandler(
+    component: DockviewComponent,
+    ids: readonly [string, string, string, string],
+  ): { fireCount: () => number } {
+    const [topLeft, topRight, bottomLeft, bottomRight] = ids;
+    let fireCount = 0;
+    let previousTop = rowWidths(component, [topLeft, topRight]);
+    let previousBottom = rowWidths(component, [bottomLeft, bottomRight]);
+    component.api.onDidLayoutChange(() => {
+      fireCount++;
+      if (fireCount > 10) return; // safety net only; a converging handler never reaches this
+      const top = rowWidths(component, [topLeft, topRight]);
+      const bottom = rowWidths(component, [bottomLeft, bottomRight]);
+      const mirror = resolveRowMirror(top, bottom, previousTop, previousBottom);
+      if (mirror !== null) {
+        const [leftId, rightId] =
+          mirror.target === 'top' ? [topLeft, topRight] : [bottomLeft, bottomRight];
+        component.api.getGroup(leftId)?.api.setSize({ width: mirror.widths[0] });
+        component.api.getGroup(rightId)?.api.setSize({ width: mirror.widths[1] });
+      }
+      previousTop = mirror?.target === 'top' ? mirror.widths : top;
+      previousBottom = mirror?.target === 'bottom' ? mirror.widths : bottom;
+    });
+    return { fireCount: () => fireCount };
+  }
+
+  function rowWidths(
+    component: DockviewComponent,
+    ids: readonly [string, string],
+  ): readonly [number, number] {
+    return [
+      component.api.getGroup(ids[0])?.api.width ?? 0,
+      component.api.getGroup(ids[1])?.api.width ?? 0,
+    ];
+  }
+
   it('a resolveRowMirror-gated handler self-terminates without a re-entrancy guard', async () => {
     // `setSize` re-fires `onDidLayoutChange` asynchronously (confirmed empirically — a plain
     // handler that unconditionally calls `setSize` again cascades without ever converging on
-    // its own). Task 4's actual handler doesn't call `setSize` unconditionally, though: it asks
-    // `resolveRowMirror` first, and after one mirror the two rows match, so the next re-fire's
-    // call returns `null` and the chain stops itself. No extra "applying" flag needed.
+    // its own). The real handler doesn't call `setSize` unconditionally, though: it asks
+    // `resolveRowMirror` first, and once both rows have been observed at matching widths, the
+    // next re-fire's call returns `null` and the chain stops itself. No extra "applying" flag
+    // needed.
     const component = makeSizedComponent();
-    const [topLeft, topRight, bottomLeft, bottomRight] = groupIdsForGrid2x2(SLOTS);
-    let fireCount = 0;
-    let baseline: readonly [number, number] = [
-      component.api.getGroup(topLeft)?.api.width ?? 0,
-      component.api.getGroup(topRight)?.api.width ?? 0,
-    ];
-    component.api.onDidLayoutChange(() => {
-      fireCount++;
-      if (fireCount > 10) return; // safety net only; a real cascade would never reach this
-      const top: readonly [number, number] = [
-        component.api.getGroup(topLeft)?.api.width ?? 0,
-        component.api.getGroup(topRight)?.api.width ?? 0,
-      ];
-      const bottom: readonly [number, number] = [
-        component.api.getGroup(bottomLeft)?.api.width ?? 0,
-        component.api.getGroup(bottomRight)?.api.width ?? 0,
-      ];
-      const mirror = resolveRowMirror(top, bottom, baseline);
-      if (mirror === null) return;
-      const [leftId, rightId] =
-        mirror.target === 'top' ? [topLeft, topRight] : [bottomLeft, bottomRight];
-      component.api.getGroup(leftId)?.api.setSize({ width: mirror.widths[0] });
-      component.api.getGroup(rightId)?.api.setSize({ width: mirror.widths[1] });
-      baseline = mirror.widths;
-    });
+    const ids = groupIdsForGrid2x2(SLOTS);
+    const [topLeft, topRight, bottomLeft, bottomRight] = ids;
+    const handler = wireMirrorHandler(component, ids);
 
     component.api.getGroup(topLeft)?.api.setSize({ width: 300 });
     component.api.getGroup(topRight)?.api.setSize({ width: 700 });
@@ -127,8 +144,33 @@ describe('grid-2x2 leaf group resize', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    expect(fireCount).toBe(2);
+    expect(handler.fireCount()).toBeLessThan(10);
     expect(component.api.getGroup(bottomLeft)?.api.width).toBe(300);
     expect(component.api.getGroup(bottomRight)?.api.width).toBe(700);
+  });
+
+  it('leaves a lopsided layout untouched when a non-width layout change fires', async () => {
+    // The two rows already differ here, as a legacy pre-fix layout would. A shared-baseline
+    // design would treat that mismatch itself as something to "fix" the moment any layout event
+    // fires, even one that never touched column widths — this pins that a height-only change
+    // does not do that.
+    const component = makeSizedComponent();
+    const ids = groupIdsForGrid2x2(SLOTS);
+    const [topLeft, topRight, bottomLeft, bottomRight] = ids;
+    component.api.getGroup(topLeft)?.api.setSize({ width: 300 });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    // Widths now differ between rows (300/700 on top, 500/500 on bottom) — attach the handler
+    // only now, so it observes exactly this lopsided state as its starting point, the same way
+    // Stage.tsx seeds from whatever `applyLayout` just produced.
+    wireMirrorHandler(component, ids);
+
+    component.api.getGroup(topLeft)?.api.setSize({ height: 300 });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(component.api.getGroup(topLeft)?.api.width).toBe(300);
+    expect(component.api.getGroup(topRight)?.api.width).toBe(700);
+    expect(component.api.getGroup(bottomLeft)?.api.width).toBe(500);
+    expect(component.api.getGroup(bottomRight)?.api.width).toBe(500);
   });
 });

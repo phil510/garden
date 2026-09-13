@@ -76,7 +76,8 @@ describe('presetLayout', () => {
     expect(layout.grid.orientation).toBe('VERTICAL');
     expect(rows).toHaveLength(2);
     expect(rows.map((row) => row.type)).toEqual(['branch', 'branch']);
-    expect(rows.map((row) => row.size)).toEqual([rows[0]?.size, rows[0]?.size]);
+    // Half of the module's nominal 1000-unit viewport height (presetLayout.ts's LAYOUT_HEIGHT).
+    expect(rows.map((row) => row.size)).toEqual([500, 500]);
   });
 
   it('gives groupIdsForGrid2x2 the same group ids as the layout it names, in slot order', () => {
@@ -89,9 +90,9 @@ describe('presetLayout', () => {
   it('names an empty-slot placeholder group in groupIdsForGrid2x2', () => {
     const ids = groupIdsForGrid2x2([null, 'b', null, 'd']);
 
-    expect(ids[0]).toMatch(/^group-empty-slot-0$/);
+    expect(ids[0]).toBe('group-empty-slot-0');
     expect(ids[1]).toBe('group-b');
-    expect(ids[2]).toMatch(/^group-empty-slot-2$/);
+    expect(ids[2]).toBe('group-empty-slot-2');
     expect(ids[3]).toBe('group-d');
   });
 });

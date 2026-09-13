@@ -30,9 +30,11 @@ describe('stageLayout', () => {
   });
 
   it('keeps a pre-fix grid-2x2 blob whose two rows have different column splits', () => {
-    // Before this change, nothing kept the two rows' column widths in sync, so a real stored
-    // blob could easily have lopsided rows. `fits()` only checks root orientation and the
-    // panel-id set, so a blob like this must keep loading unchanged, exactly as it did before.
+    // `fits()` only checks root orientation and the panel-id set, so it accepts this the same
+    // way it accepts any other shape-matching blob — this pins that a lopsided grid-2x2 layout
+    // specifically (the shape a pre-fix session could have persisted) is not an exception. The
+    // separate concern of whether the *mirror effect* leaves an already-loaded lopsided layout
+    // alone is covered in Stage.tsx's own tests (dockview-identity.test.ts).
     const grid2x2Wanted = presetLayout('grid-2x2', ['sid-a', 'sid-b', 'sid-c', 'sid-d']);
     const lopsided = {
       ...grid2x2Wanted,

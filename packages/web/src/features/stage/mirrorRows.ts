@@ -10,18 +10,23 @@ function widthsEqual(a: RowWidths, b: RowWidths): boolean {
 }
 
 /**
- * Decides which row's column widths to bring back in sync with the other, given the widths
- * both rows last agreed on. `baselineWidths` is seeded from the applied layout (Stage.tsx) so
- * the two rows are always symmetric before the first real divergence — there is no "no baseline
- * yet" case to handle here. Returns `null` when the rows already match.
+ * Decides which row's column widths to copy onto the other, by diffing each row's current
+ * widths against its own previous observation — not against whether the two rows currently
+ * match each other. That distinction is what keeps this inert for a layout change that never
+ * touched column widths at all (dragging the row-height divider, a window resize): neither row's
+ * widths moved since the last observation, so this returns `null` even when the two rows already
+ * differ (a legacy lopsided layout). Mirrors only when exactly one row changed; two rows
+ * changing at once, or neither changing, is left alone rather than guessed at.
  */
 export function resolveRowMirror(
   topWidths: RowWidths,
   bottomWidths: RowWidths,
-  baselineWidths: RowWidths,
+  previousTopWidths: RowWidths,
+  previousBottomWidths: RowWidths,
 ): RowMirror | null {
-  if (widthsEqual(topWidths, bottomWidths)) return null;
-  return widthsEqual(topWidths, baselineWidths)
-    ? { target: 'top', widths: bottomWidths }
-    : { target: 'bottom', widths: topWidths };
+  const topChanged = !widthsEqual(topWidths, previousTopWidths);
+  const bottomChanged = !widthsEqual(bottomWidths, previousBottomWidths);
+  if (topChanged && !bottomChanged) return { target: 'bottom', widths: topWidths };
+  if (bottomChanged && !topChanged) return { target: 'top', widths: bottomWidths };
+  return null;
 }
