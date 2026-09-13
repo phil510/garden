@@ -29,7 +29,8 @@ export function groupSessions(
   }
 
   const pinned = new Set(uiState.pinnedRepos);
-  const collapsed = new Set(uiState.collapsedRepos);
+  // Membership marks a repo as expanded; a repo absent from the list (the default) is collapsed.
+  const expandedRepoRoots = new Set(uiState.collapsedRepos);
   const order = new Map(uiState.groupOrder.map((repoRoot, index) => [repoRoot, index]));
 
   const mostRecentActivity = new Map(
@@ -50,7 +51,7 @@ export function groupSessions(
       (session) => session.status === 'needs-approval' || session.status === 'waiting',
     ),
     pinned: pinned.has(repoRoot),
-    collapsed: collapsed.has(repoRoot),
+    collapsed: !expandedRepoRoots.has(repoRoot),
   }));
 
   groups.sort((a, b) => {
