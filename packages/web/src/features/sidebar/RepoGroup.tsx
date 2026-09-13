@@ -4,7 +4,12 @@ import { CSS } from '@dnd-kit/utilities';
 import { useState, type KeyboardEvent } from 'react';
 import type { SidebarGroup } from './groupSessions';
 import { SessionRow } from './SessionRow';
-import { hiddenOldDeadCount, visibleSessions } from './visibility';
+import {
+  capDeadSessions,
+  hiddenCappedDeadCount,
+  hiddenOldDeadCount,
+  visibleSessions,
+} from './visibility';
 
 interface RepoGroupProps {
   group: SidebarGroup;
@@ -28,6 +33,7 @@ export function RepoGroup({
   onSelectSession,
 }: RepoGroupProps) {
   const [showOlder, setShowOlder] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const { setNodeRef, attributes, listeners, transform, transition, isDragging } = useSortable({
     id: group.repoRoot,
   });
@@ -47,6 +53,8 @@ export function RepoGroup({
     .filter((s): s is NonNullable<typeof s> => s !== undefined);
   const visible = visibleSessions(members, { hideDead, showOlder }, now);
   const hiddenCount = hiddenOldDeadCount(members, hideDead, now);
+  const capped = capDeadSessions(visible, expanded);
+  const hiddenCappedCount = hiddenCappedDeadCount(visible);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -70,8 +78,8 @@ export function RepoGroup({
         <span className="repo-count mono">{group.liveCount} live</span>
       </div>
       <div className={`repo-rows${group.collapsed ? ' collapsed' : ''}`}>
-        {visible.length === 0 && <div className="empty-groups-note">Nothing to show.</div>}
-        {visible.map((session) => (
+        {capped.length === 0 && <div className="empty-groups-note">Nothing to show.</div>}
+        {capped.map((session) => (
           <SessionRow
             key={session.id}
             session={session}
@@ -81,6 +89,11 @@ export function RepoGroup({
             onSelect={onSelectSession}
           />
         ))}
+        {hiddenCappedCount > 0 && (
+          <div className="show-older-row" onClick={() => setExpanded(!expanded)}>
+            {expanded ? 'Show less' : `Show ${hiddenCappedCount} more…`}
+          </div>
+        )}
         {!showOlder && hiddenCount > 0 && (
           <div className="show-older-row" onClick={() => setShowOlder(true)}>
             Show {hiddenCount} older dead session{hiddenCount === 1 ? '' : 's'}…
