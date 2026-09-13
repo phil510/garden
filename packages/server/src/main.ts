@@ -164,6 +164,7 @@ export async function main(): Promise<void> {
     serverPort: config.port,
     settingsPath,
     claudeCommand: config.claudeCommand,
+    permissionMode: config.permissionMode,
   });
   app.addHook('onClose', () => {
     clearInterval(poll);
