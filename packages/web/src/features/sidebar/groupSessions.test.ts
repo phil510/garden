@@ -50,10 +50,16 @@ describe('groupSessions', () => {
     expect(group?.attention).toBe(true);
   });
 
-  it('reports collapsed from the overlay state', () => {
+  it('reports expanded from the overlay state', () => {
     const session = aSession({ id: 'sid-1', repoRoot: '/repo' });
     const groups = groupSessions(asMap(session), { ...uiState, collapsedRepos: ['/repo'] });
-    expect(groups[0]?.collapsed).toBe(true);
+    expect(groups[0]?.collapsed).toBe(false);
+  });
+
+  it('collapses by default when no prior choice is recorded', () => {
+    const session = aSession({ id: 'sid-1', repoRoot: '/repo' });
+    const [group] = groupSessions(asMap(session), uiState);
+    expect(group?.collapsed).toBe(true);
   });
 
   it('orders unpinned groups by most recent activity, newest first', () => {
