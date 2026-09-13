@@ -28,6 +28,9 @@ A concurrent sandbox needs its own port, tmux socket and app dir — see `docs/t
 - Commit messages: descriptive sentences, in logical chunks that each stand on their own. No conventional-commits prefixes (`feat:`, `fix:`, etc.).
 - PRs follow `.github/pull_request_template.md` and include `Closes #N`.
 - Use the `gh` CLI for issues and PRs. Issue templates live in `.github/ISSUE_TEMPLATE/`.
+- The Claude Code plugin lives in `plugins/garden/`. Its manifest deliberately declares no
+  `version`, and the marketplace entry no `description` — `plugins/garden/README.md` says why, and
+  adding either back is what makes plugin updates silently stop landing.
 - Stay inside the scope of the issue. Work you find outside it gets surfaced, not silently
   absorbed — but surfacing is not the same as deferring. When what you found is in the code you
   are already changing, the default is to fix it now: you have the context loaded and the reviewer
