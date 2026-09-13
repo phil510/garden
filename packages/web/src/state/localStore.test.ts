@@ -141,9 +141,10 @@ describe('localStore', () => {
   });
 
   it('keeps the stage floor winning over the proportional maximum on a wide display', () => {
-    // Viewport 3000px (proportional max 1500px) but the sidebar reserves 2700px, leaving only
-    // 100px of room for the stage floor -> the file panel is capped at its own minimum.
-    useLocalStore.getState().resizeFilePanelBy(5000, 3000, 2700);
-    expect(useLocalStore.getState().filePanelWidth).toBe(220);
+    // Viewport 3000px gives a proportional max of 1500px, but the sidebar reserves 2500px,
+    // leaving only 300px of room once the stage floor is held back -> that room, not the
+    // proportional max, is what caps the file panel.
+    useLocalStore.getState().resizeFilePanelBy(5000, 3000, 2500);
+    expect(useLocalStore.getState().filePanelWidth).toBe(300);
   });
 });
