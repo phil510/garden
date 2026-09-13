@@ -22,10 +22,9 @@ export function NewSessionModal({ onClose, onCreated }: NewSessionModalProps) {
     let cancelled = false;
     listRepos()
       .then((response) => {
-        setCachedRepoList(response.repos);
         if (!cancelled) {
+          setCachedRepoList(response.repos);
           setRepos(response.repos);
-          setFailed(false);
         }
       })
       .catch((error: unknown) => {
