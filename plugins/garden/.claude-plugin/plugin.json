@@ -1,6 +1,6 @@
 {
   "name": "garden",
-  "description": "Drive garden's session lifecycle (create, list, kill, resume) through its CLI.",
+  "description": "Drive and oversee garden sessions: create, dispatch, watch, kill, and resume Claude Code sessions through garden's CLI, and address messages to a named session.",
   "version": "0.1.0",
   "author": {
     "name": "phil510"
