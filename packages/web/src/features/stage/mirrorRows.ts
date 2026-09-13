@@ -1,4 +1,4 @@
-import type { SerializedDockview } from 'dockview-core';
+import type { DockviewApi, SerializedDockview } from 'dockview-core';
 
 export type RowWidths = readonly [number, number];
 
@@ -57,4 +57,43 @@ export function groupIdsFromAppliedGrid2x2(
   return ids.every((id): id is string => id !== null)
     ? (ids as [string, string, string, string])
     : null;
+}
+
+function rowWidths(api: DockviewApi, ids: readonly [string, string]): RowWidths {
+  return [api.getGroup(ids[0])?.api.width ?? 0, api.getGroup(ids[1])?.api.width ?? 0];
+}
+
+/**
+ * Wires up the grid-2x2 row-mirroring behavior on a live dockview api: whichever row's own
+ * column widths just changed gets copied onto the other, on every `onDidLayoutChange` fire.
+ * Returns `null` (nothing wired) when the applied grid isn't shaped like grid-2x2's two rows of
+ * two leaves. Caller owns disposal — call the returned function to tear the listener down.
+ *
+ * `onDidLayoutChange` fires for the row-height divider, a window resize, or anything else that
+ * touches the layout, not just a column-width drag — diffing each row against its own
+ * last-observed widths, rather than whether the two rows currently match, is what keeps this
+ * inert for those. `setSize` re-fires the event asynchronously, but needs no re-entrancy guard:
+ * after mirroring, both rows have been observed at their new widths, so the re-fire sees neither
+ * row as changed and `resolveRowMirror` returns `null`.
+ */
+export function wireRowMirror(api: DockviewApi): (() => void) | null {
+  const ids = groupIdsFromAppliedGrid2x2(api.toJSON().grid.root);
+  if (ids === null) return null;
+  const [topLeft, topRight, bottomLeft, bottomRight] = ids;
+  let previousTop = rowWidths(api, [topLeft, topRight]);
+  let previousBottom = rowWidths(api, [bottomLeft, bottomRight]);
+  const disposable = api.onDidLayoutChange(() => {
+    const top = rowWidths(api, [topLeft, topRight]);
+    const bottom = rowWidths(api, [bottomLeft, bottomRight]);
+    const mirror = resolveRowMirror(top, bottom, previousTop, previousBottom);
+    if (mirror !== null) {
+      const [leftId, rightId] =
+        mirror.target === 'top' ? [topLeft, topRight] : [bottomLeft, bottomRight];
+      api.getGroup(leftId)?.api.setSize({ width: mirror.widths[0] });
+      api.getGroup(rightId)?.api.setSize({ width: mirror.widths[1] });
+    }
+    previousTop = mirror?.target === 'top' ? mirror.widths : top;
+    previousBottom = mirror?.target === 'bottom' ? mirror.widths : bottom;
+  });
+  return () => disposable.dispose();
 }

@@ -15,7 +15,7 @@ import { useSessionStore } from '../../state/sessionStore';
 import { useUiStore } from '../../state/uiStore';
 import { detachPane } from '../../terminals/registry';
 import { applyLayout } from './applyLayout';
-import { groupIdsFromAppliedGrid2x2, resolveRowMirror, type RowWidths } from './mirrorRows';
+import { wireRowMirror } from './mirrorRows';
 import { EMPTY_SLOT_COMPONENT, PANE_COMPONENT, isEmptySlotId, presetLayout } from './presetLayout';
 import { EmptySlotPane, StagePane } from './StagePane';
 import { stageLayout } from './storedLayout';
@@ -24,10 +24,6 @@ import 'dockview-react/dist/styles/dockview.css';
 import './stage.css';
 
 const components = { [PANE_COMPONENT]: StagePane, [EMPTY_SLOT_COMPONENT]: EmptySlotPane };
-
-function rowWidths(api: DockviewApi, ids: readonly [string, string]): RowWidths {
-  return [api.getGroup(ids[0])?.api.width ?? 0, api.getGroup(ids[1])?.api.width ?? 0];
-}
 
 /** Long enough that dragging a sash writes once rather than per animation frame, short enough
  *  that a reload straight after a drag still finds the new sizes. */
@@ -65,40 +61,15 @@ export function Stage() {
   }, [api, arrangement]);
 
   // Keeps the 2x2 preset's two rows' column splits in sync: whichever row's own widths just
-  // changed gets copied onto the other. Declared after the apply effect above so it runs after
-  // `applyLayout`, seeding its "previous widths" from what that effect just applied — a legacy
-  // lopsided persisted layout stays exactly as loaded until a real column-width change. Row group
-  // ids come from the live applied grid, not `slots` (see `groupIdsFromAppliedGrid2x2`). Re-seeds
-  // whenever the arrangement changes since the effect is fully torn down and recreated then
-  // anyway.
-  //
-  // `onDidLayoutChange` fires for the row-height divider, a window resize, or anything else that
-  // touches the layout, not just a column-width drag — diffing each row against its own
-  // last-observed widths, rather than whether the two rows currently match, is what keeps this
-  // inert for those. `setSize` re-fires the event asynchronously, but needs no re-entrancy guard:
-  // after mirroring, both rows have been observed at their new widths, so the re-fire sees
-  // neither row as changed and `resolveRowMirror` returns `null`.
+  // changed gets copied onto the other (see `wireRowMirror`). Declared after the apply effect
+  // above so it runs after `applyLayout`, seeding its "previous widths" from what that effect
+  // just applied — a legacy lopsided persisted layout stays exactly as loaded until a real
+  // column-width change. Re-seeds whenever the arrangement changes since the effect is fully
+  // torn down and recreated then anyway.
   useEffect(() => {
     if (api === null || preset !== 'grid-2x2') return;
-    const ids = groupIdsFromAppliedGrid2x2(api.toJSON().grid.root);
-    if (ids === null) return;
-    const [topLeft, topRight, bottomLeft, bottomRight] = ids;
-    let previousTop = rowWidths(api, [topLeft, topRight]);
-    let previousBottom = rowWidths(api, [bottomLeft, bottomRight]);
-    const disposable = api.onDidLayoutChange(() => {
-      const top = rowWidths(api, [topLeft, topRight]);
-      const bottom = rowWidths(api, [bottomLeft, bottomRight]);
-      const mirror = resolveRowMirror(top, bottom, previousTop, previousBottom);
-      if (mirror !== null) {
-        const [leftId, rightId] =
-          mirror.target === 'top' ? [topLeft, topRight] : [bottomLeft, bottomRight];
-        api.getGroup(leftId)?.api.setSize({ width: mirror.widths[0] });
-        api.getGroup(rightId)?.api.setSize({ width: mirror.widths[1] });
-      }
-      previousTop = mirror?.target === 'top' ? mirror.widths : top;
-      previousBottom = mirror?.target === 'bottom' ? mirror.widths : bottom;
-    });
-    return () => disposable.dispose();
+    const dispose = wireRowMirror(api);
+    return dispose ?? undefined;
   }, [api, preset, arrangement]);
 
   useEffect(() => {
