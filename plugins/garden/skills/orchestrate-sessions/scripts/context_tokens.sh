@@ -20,14 +20,16 @@ else
   [ -n "$transcript" ] || die "no transcript found for session $arg"
 fi
 
-tokens=$(jq -r '
+turns=$(jq -r '
   select(.type == "assistant" and .message.usage != null)
   | .message.usage
   | (.input_tokens // 0)
     + (.cache_creation_input_tokens // 0)
     + (.cache_read_input_tokens // 0)
     + (.output_tokens // 0)
-' "$transcript" | tail -1)
+' "$transcript" 2>/dev/null) || die "could not read $transcript as JSON lines"
+
+tokens=$(printf '%s\n' "$turns" | tail -1)
 
 [ -n "$tokens" ] || die "no assistant turns yet in $transcript"
 echo "$tokens"

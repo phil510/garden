@@ -1,8 +1,7 @@
 # garden CLI reference
 
 The four session-lifecycle subcommands, read through `--json` rather than the human-readable
-text the CLI prints by default. `garden stop` and `garden uninstall` also exist; they target the
-server process rather than a session and are out of scope here.
+text the CLI prints by default.
 
 ## Precondition
 
@@ -13,8 +12,7 @@ same way: exit 1, with stderr
 garden: garden server is not running — start it with `garden`
 ```
 
-Check for this once rather than re-deriving it per command — if a subcommand fails, read stderr
-first to see whether this is the cause before assuming anything else went wrong.
+When a subcommand fails, read stderr for this line before assuming anything else went wrong.
 
 ## Exit-code branching
 
@@ -40,10 +38,8 @@ garden new <dir> --json
 { "id": "...", "tmuxName": "..." }
 ```
 
-The session inherits the permission mode and, by default, the model the local `claude` would
-use on its own — garden passes no flag for either, though `GARDEN_CLAUDE_COMMAND` can pin the
-whole command server-wide. So a dispatched peer is not necessarily in the mode, or on the
-model, that this session is.
+garden passes no permission-mode or model flag, so the session gets whatever the local `claude`
+would use on its own. `GARDEN_CLAUDE_COMMAND` pins the whole command server-wide.
 
 ## List sessions
 
@@ -72,8 +68,7 @@ Output is a **bare array** of `SessionState` objects — not `{"sessions": [...]
 
 ### Filters
 
-Without filters, `ls` returns every session the server has ever loaded — hundreds, nearly all
-dead. Ask for the subset you want instead of fetching everything and filtering client-side:
+Ask for the subset you want instead of fetching everything and filtering client-side:
 
 | flag                    | effect                                                   |
 | ----------------------- | -------------------------------------------------------- |
@@ -83,8 +78,8 @@ dead. Ask for the subset you want instead of fetching everything and filtering c
 | `--max-recap-chars <n>` | keep only the last `n` characters of each `recap`        |
 
 The last two have defaults, so an unfiltered `ls` is already bounded; pass them explicitly only
-to widen the window for a specific search. Filtering happens when the list is read, not by
-pruning stored state, so widening always works — nothing has been thrown away.
+to widen the window for a specific search. Filtering happens when the list is read rather than
+by pruning stored state, so widening always works.
 
 ## Kill a session
 
