@@ -15,14 +15,8 @@ import { useSessionStore } from '../../state/sessionStore';
 import { useUiStore } from '../../state/uiStore';
 import { detachPane } from '../../terminals/registry';
 import { applyLayout } from './applyLayout';
-import { resolveRowMirror, type RowWidths } from './mirrorRows';
-import {
-  EMPTY_SLOT_COMPONENT,
-  PANE_COMPONENT,
-  groupIdsForGrid2x2,
-  isEmptySlotId,
-  presetLayout,
-} from './presetLayout';
+import { groupIdsFromAppliedGrid2x2, resolveRowMirror, type RowWidths } from './mirrorRows';
+import { EMPTY_SLOT_COMPONENT, PANE_COMPONENT, isEmptySlotId, presetLayout } from './presetLayout';
 import { EmptySlotPane, StagePane } from './StagePane';
 import { stageLayout } from './storedLayout';
 import { swapSlots } from './swapSlots';
@@ -54,13 +48,7 @@ export function Stage() {
   // The layout the server's state asks for. Read through a ref inside the effects so a change
   // to the stored blob — which every persist round-trips back — never itself re-applies a layout.
   const applyRef = useRef<() => void>(() => undefined);
-  // The mirror effect below keys its own dependency array on `arrangement` (a string), not on
-  // `slots` (an array whose identity changes on every `ui-state` message even when its contents
-  // haven't) — so it reads the current value through this ref instead, keeping `slots` itself
-  // out of that effect's dependency list.
-  const slotsRef = useRef(slots);
   useLayoutEffect(() => {
-    slotsRef.current = slots;
     applyRef.current = () => {
       if (api === null) return;
       applyLayout(api, stageLayout(presetLayout(preset, slots), storedLayout));
@@ -78,24 +66,23 @@ export function Stage() {
 
   // Keeps the 2x2 preset's two rows' column splits in sync: whichever row's own widths just
   // changed gets copied onto the other. Declared after the apply effect above so it runs after
-  // `applyLayout`, and it seeds its "previous widths" from what that effect just applied — a
-  // legacy lopsided persisted layout stays exactly as loaded until a real column-width change,
-  // rather than snapping the two rows together on mount. Re-seeds whenever the arrangement
-  // changes since the effect is fully torn down and recreated then anyway.
+  // `applyLayout`, seeding its "previous widths" from what that effect just applied — a legacy
+  // lopsided persisted layout stays exactly as loaded until a real column-width change. Row group
+  // ids come from the live applied grid, not `slots` (see `groupIdsFromAppliedGrid2x2`). Re-seeds
+  // whenever the arrangement changes since the effect is fully torn down and recreated then
+  // anyway.
   //
-  // Diffing each row against its own last-observed widths (rather than checking whether the two
-  // rows currently match) matters: `onDidLayoutChange` fires for the row-height divider, a
-  // window resize, or anything else that touches the layout, not just a column-width drag. A
-  // shared-baseline design mirrors on any such event once the rows already differ, which
-  // corrupts a legacy lopsided layout the moment something unrelated fires the event. This
-  // design only acts when exactly one row's widths actually moved.
-  //
-  // No re-entrancy guard needed even though `setSize` re-fires `onDidLayoutChange`
-  // asynchronously: after mirroring, both rows have been observed at their new widths, so a
-  // re-fire sees neither row as changed and `resolveRowMirror` returns `null`.
+  // `onDidLayoutChange` fires for the row-height divider, a window resize, or anything else that
+  // touches the layout, not just a column-width drag — diffing each row against its own
+  // last-observed widths, rather than whether the two rows currently match, is what keeps this
+  // inert for those. `setSize` re-fires the event asynchronously, but needs no re-entrancy guard:
+  // after mirroring, both rows have been observed at their new widths, so the re-fire sees
+  // neither row as changed and `resolveRowMirror` returns `null`.
   useEffect(() => {
     if (api === null || preset !== 'grid-2x2') return;
-    const [topLeft, topRight, bottomLeft, bottomRight] = groupIdsForGrid2x2(slotsRef.current);
+    const ids = groupIdsFromAppliedGrid2x2(api.toJSON().grid.root);
+    if (ids === null) return;
+    const [topLeft, topRight, bottomLeft, bottomRight] = ids;
     let previousTop = rowWidths(api, [topLeft, topRight]);
     let previousBottom = rowWidths(api, [bottomLeft, bottomRight]);
     const disposable = api.onDidLayoutChange(() => {

@@ -1,3 +1,5 @@
+import type { SerializedDockview } from 'dockview-core';
+
 export type RowWidths = readonly [number, number];
 
 export interface RowMirror {
@@ -10,13 +12,10 @@ function widthsEqual(a: RowWidths, b: RowWidths): boolean {
 }
 
 /**
- * Decides which row's column widths to copy onto the other, by diffing each row's current
- * widths against its own previous observation — not against whether the two rows currently
- * match each other. That distinction is what keeps this inert for a layout change that never
- * touched column widths at all (dragging the row-height divider, a window resize): neither row's
- * widths moved since the last observation, so this returns `null` even when the two rows already
- * differ (a legacy lopsided layout). Mirrors only when exactly one row changed; two rows
- * changing at once, or neither changing, is left alone rather than guessed at.
+ * Decides which row's column widths to copy onto the other. Diffs each row against its own last
+ * observation rather than checking whether the two rows currently match, so a layout event that
+ * never touched column widths (the row-height divider, a window resize) stays inert even when
+ * the rows already differ. Mirrors only when exactly one row changed.
  */
 export function resolveRowMirror(
   topWidths: RowWidths,
@@ -29,4 +28,33 @@ export function resolveRowMirror(
   if (topChanged && !bottomChanged) return { target: 'bottom', widths: topWidths };
   if (bottomChanged && !topChanged) return { target: 'top', widths: bottomWidths };
   return null;
+}
+
+type GridNode = SerializedDockview['grid']['root'];
+
+function leafId(node: GridNode): string | null {
+  return Array.isArray(node.data) ? null : node.data.id;
+}
+
+/**
+ * The four leaf group ids of a rendered grid-2x2 layout — [top-left, top-right, bottom-left,
+ * bottom-right] — read from dockview's own applied tree. Row membership must come from here, not
+ * from `slots`: a drag-swap can change `slots` without moving any panel (`storedLayout.ts`'s
+ * `fits()` is positionally blind to swaps, a pre-existing issue out of scope here), which leaves
+ * `slots` order disagreeing with which groups are physically a row. Returns `null` if the tree
+ * isn't shaped like two branches of two leaves each.
+ */
+export function groupIdsFromAppliedGrid2x2(
+  root: GridNode,
+): readonly [string, string, string, string] | null {
+  const rows = Array.isArray(root.data) ? root.data : null;
+  if (rows === null || rows.length !== 2) return null;
+  const [topRow, bottomRow] = rows as [GridNode, GridNode];
+  const topLeaves = Array.isArray(topRow.data) ? topRow.data : null;
+  const bottomLeaves = Array.isArray(bottomRow.data) ? bottomRow.data : null;
+  if (topLeaves?.length !== 2 || bottomLeaves?.length !== 2) return null;
+  const ids = [...topLeaves, ...bottomLeaves].map(leafId);
+  return ids.every((id): id is string => id !== null)
+    ? (ids as [string, string, string, string])
+    : null;
 }

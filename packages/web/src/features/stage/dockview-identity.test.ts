@@ -2,7 +2,7 @@
 import { DockviewComponent } from 'dockview-core';
 import { describe, expect, it } from 'vitest';
 import { applyLayout } from './applyLayout';
-import { resolveRowMirror } from './mirrorRows';
+import { groupIdsFromAppliedGrid2x2, resolveRowMirror } from './mirrorRows';
 import { groupIdsForGrid2x2, PANE_COMPONENT, presetLayout } from './presetLayout';
 
 /** Stands in for garden's xterm pane: what matters is that it is one long-lived instance per
@@ -88,6 +88,20 @@ describe('grid-2x2 leaf group resize', () => {
     expect(component.api.getGroup(topRight)?.api.width).toBe(700);
   });
 
+  it('groupIdsFromAppliedGrid2x2 disagrees with slots-derived ids once slots and the grid diverge', () => {
+    // storedLayout.ts's fits() is positionally blind to swaps (a pre-existing issue, out of
+    // scope here): a cross-row swap changes `slots` without moving any panel, so `slots` order
+    // stops describing physical position. Row-group ids must come from the applied tree.
+    const component = makeSizedComponent();
+    const swappedSlots = ['c', 'b', 'a', 'd']; // 'a' (top-left) and 'c' (bottom-left) swapped
+
+    const bySlots = groupIdsForGrid2x2(swappedSlots);
+    const byAppliedGrid = groupIdsFromAppliedGrid2x2(component.api.toJSON().grid.root);
+
+    expect(byAppliedGrid).toEqual(groupIdsForGrid2x2(SLOTS)); // nothing actually moved
+    expect(byAppliedGrid).not.toEqual(bySlots); // slots alone would mispair the rows
+  });
+
   /** Mirrors Stage.tsx's actual `onDidLayoutChange` handler shape, so these tests exercise the
    *  real control flow (including dockview's real async re-fire) rather than a stand-in. */
   function wireMirrorHandler(
@@ -150,10 +164,9 @@ describe('grid-2x2 leaf group resize', () => {
   });
 
   it('leaves a lopsided layout untouched when a non-width layout change fires', async () => {
-    // The two rows already differ here, as a legacy pre-fix layout would. A shared-baseline
-    // design would treat that mismatch itself as something to "fix" the moment any layout event
-    // fires, even one that never touched column widths — this pins that a height-only change
-    // does not do that.
+    // The two rows already differ here, as a legacy pre-fix layout would. Pins that a
+    // height-only change (the row-height divider) doesn't treat that mismatch as something to
+    // fix — see `resolveRowMirror`'s doc comment for why.
     const component = makeSizedComponent();
     const ids = groupIdsForGrid2x2(SLOTS);
     const [topLeft, topRight, bottomLeft, bottomRight] = ids;
