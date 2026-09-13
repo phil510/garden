@@ -2,10 +2,19 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
+/** The permission mode garden passes to a spawned or resumed Claude Code process.
+ *  `'bypassPermissions'` skips its permission prompts; `'default'` passes no flag. */
+export type PermissionMode = 'default' | 'bypassPermissions';
+
+function isPermissionMode(value: unknown): value is PermissionMode {
+  return value === 'default' || value === 'bypassPermissions';
+}
+
 /** What `~/.garden/config.json` may contain. Omitted keys fall back to the defaults below. */
 export interface ConfigFile {
   readonly port: number;
   readonly roots: readonly string[];
+  readonly permissionMode: PermissionMode;
 }
 export interface Config {
   readonly port: number;
@@ -15,9 +24,14 @@ export interface Config {
   readonly tmuxSocket: string;
   readonly transcriptsDir: string;
   readonly claudeCommand: readonly string[];
+  readonly permissionMode: PermissionMode;
 }
 
-export const DEFAULT_CONFIG_FILE: ConfigFile = { port: 4310, roots: ['~/Desktop/Extend'] };
+export const DEFAULT_CONFIG_FILE: ConfigFile = {
+  port: 4310,
+  roots: ['~/Desktop/Extend'],
+  permissionMode: 'default',
+};
 
 /** Loopback-only, and deliberately not configurable: garden is not a remote-access tool. */
 const HOST = '127.0.0.1';
@@ -71,7 +85,11 @@ export function parseConfigFile(text: string, source: string): ConfigFile {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
     throw new Error(`${source} must contain a JSON object`);
   }
-  const { port, roots } = raw as { port?: unknown; roots?: unknown };
+  const { port, roots, permissionMode } = raw as {
+    port?: unknown;
+    roots?: unknown;
+    permissionMode?: unknown;
+  };
   if (port !== undefined && !isPort(port)) {
     throw new Error(`${source}: "port" must be an integer between 1 and 65535`);
   }
@@ -81,9 +99,13 @@ export function parseConfigFile(text: string, source: string): ConfigFile {
   ) {
     throw new Error(`${source}: "roots" must be an array of strings`);
   }
+  if (permissionMode !== undefined && !isPermissionMode(permissionMode)) {
+    throw new Error(`${source}: "permissionMode" must be "default" or "bypassPermissions"`);
+  }
   return {
     port: port ?? DEFAULT_CONFIG_FILE.port,
     roots: (roots as readonly string[] | undefined) ?? DEFAULT_CONFIG_FILE.roots,
+    permissionMode: permissionMode ?? DEFAULT_CONFIG_FILE.permissionMode,
   };
 }
 
@@ -105,6 +127,7 @@ export function loadConfig(
     tmuxSocket: envString(env, 'GARDEN_TMUX_SOCKET') ?? TMUX_SOCKET,
     transcriptsDir: envString(env, 'GARDEN_TRANSCRIPTS_DIR') ?? join(home, '.claude', 'projects'),
     claudeCommand: envClaudeCommand(env) ?? ['claude'],
+    permissionMode: file.permissionMode ?? DEFAULT_CONFIG_FILE.permissionMode,
   };
 }
 

@@ -28,15 +28,27 @@ describe('loadConfig', () => {
 
 describe('loadConfig precedence and root expansion', () => {
   it('prefers GARDEN_PORT over the port in the config file', () => {
-    expect(loadConfig({ GARDEN_PORT: '5000' }, { port: 4400, roots: [] }, '/h').port).toBe(5000);
+    expect(
+      loadConfig(
+        { GARDEN_PORT: '5000' },
+        { port: 4400, roots: [], permissionMode: 'default' },
+        '/h',
+      ).port,
+    ).toBe(5000);
   });
 
   it('falls back to the config file port when GARDEN_PORT is unset', () => {
-    expect(loadConfig({}, { port: 4400, roots: [] }, '/h').port).toBe(4400);
+    expect(loadConfig({}, { port: 4400, roots: [], permissionMode: 'default' }, '/h').port).toBe(
+      4400,
+    );
   });
 
   it('expands a leading ~ in a root against the given home and leaves absolute roots alone', () => {
-    const config = loadConfig({}, { port: 4310, roots: ['~/Desktop/Extend', '/srv/code'] }, '/h');
+    const config = loadConfig(
+      {},
+      { port: 4310, roots: ['~/Desktop/Extend', '/srv/code'], permissionMode: 'default' },
+      '/h',
+    );
     expect(config.roots).toEqual(['/h/Desktop/Extend', '/srv/code']);
   });
 
@@ -95,6 +107,13 @@ describe('loadConfig precedence and root expansion', () => {
       ).toEqual(['claude']);
     }
   });
+
+  it('passes a file-configured permissionMode through unchanged, with no env override', () => {
+    expect(
+      loadConfig({}, { port: 4310, roots: [], permissionMode: 'bypassPermissions' }, '/h')
+        .permissionMode,
+    ).toBe('bypassPermissions');
+  });
 });
 
 describe('appDirPath', () => {
@@ -120,6 +139,18 @@ describe('parseConfigFile', () => {
 
   it('rejects a port outside the valid range', () => {
     expect(() => parseConfigFile('{"port": 0}', '/c.json')).toThrow(/"port"/);
+  });
+
+  it('resolves a valid permissionMode', () => {
+    expect(
+      parseConfigFile('{"permissionMode":"bypassPermissions"}', '/c.json').permissionMode,
+    ).toBe('bypassPermissions');
+  });
+
+  it('rejects an unrecognized permissionMode', () => {
+    expect(() => parseConfigFile('{"permissionMode":"yolo"}', '/c.json')).toThrow(
+      /"permissionMode"/,
+    );
   });
 
   it('supplies defaults for keys the file omits', () => {
