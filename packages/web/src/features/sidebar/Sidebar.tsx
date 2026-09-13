@@ -18,6 +18,7 @@ import { placeOnStage } from './placeOnStage';
 import { reorderGroups } from './reorderGroups';
 import { RepoGroup } from './RepoGroup';
 import { focusedSessionId } from './stageFocus';
+import { toggleRepoCollapse } from './toggleRepoCollapse';
 import './sidebar.css';
 
 export function Sidebar() {
@@ -27,10 +28,9 @@ export function Sidebar() {
   const [pickerOpen, setPickerOpen] = useState(false);
 
   function toggleCollapse(repoRoot: string) {
-    const collapsedRepos = uiState.collapsedRepos.includes(repoRoot)
-      ? uiState.collapsedRepos.filter((root) => root !== repoRoot)
-      : [...uiState.collapsedRepos, repoRoot];
-    updateUiState({ collapsedRepos }).catch(reportCommandFailure);
+    updateUiState({ collapsedRepos: toggleRepoCollapse(uiState.collapsedRepos, repoRoot) }).catch(
+      reportCommandFailure,
+    );
   }
 
   function toggleHideDead() {
