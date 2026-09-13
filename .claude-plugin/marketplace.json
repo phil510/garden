@@ -7,8 +7,7 @@
   "plugins": [
     {
       "name": "garden",
-      "source": "./plugins/garden",
-      "description": "Drive garden's session lifecycle (create, list, kill, resume) through its CLI."
+      "source": "./plugins/garden"
     }
   ]
 }
