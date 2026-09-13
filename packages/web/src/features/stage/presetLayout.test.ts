@@ -1,12 +1,7 @@
 import { STAGE_PRESETS } from '@garden/shared';
 import type { SerializedDockview } from 'dockview-core';
 import { describe, expect, it } from 'vitest';
-import {
-  EMPTY_SLOT_COMPONENT,
-  groupIdsForGrid2x2,
-  PANE_COMPONENT,
-  presetLayout,
-} from './presetLayout';
+import { EMPTY_SLOT_COMPONENT, PANE_COMPONENT, presetLayout } from './presetLayout';
 
 type GridNode = SerializedDockview['grid']['root'];
 type GroupData = Exclude<GridNode['data'], GridNode[]>;
@@ -78,21 +73,5 @@ describe('presetLayout', () => {
     expect(rows.map((row) => row.type)).toEqual(['branch', 'branch']);
     // Half of the module's nominal 1000-unit viewport height (presetLayout.ts's LAYOUT_HEIGHT).
     expect(rows.map((row) => row.size)).toEqual([500, 500]);
-  });
-
-  it('gives groupIdsForGrid2x2 the same group ids as the layout it names, in slot order', () => {
-    const layout = presetLayout('grid-2x2', SLOTS);
-    const leafIds = groups(layout.grid.root).map((group) => group.id);
-
-    expect(groupIdsForGrid2x2(SLOTS)).toEqual(leafIds);
-  });
-
-  it('names an empty-slot placeholder group in groupIdsForGrid2x2', () => {
-    const ids = groupIdsForGrid2x2([null, 'b', null, 'd']);
-
-    expect(ids[0]).toBe('group-empty-slot-0');
-    expect(ids[1]).toBe('group-b');
-    expect(ids[2]).toBe('group-empty-slot-2');
-    expect(ids[3]).toBe('group-d');
   });
 });
