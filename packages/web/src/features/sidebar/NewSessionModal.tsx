@@ -1,8 +1,9 @@
 import { useEffect, useState, type MouseEvent } from 'react';
+import type { RepoEntry } from '@garden/shared';
 import { createSession, listRepos } from '../../api/client';
 import { reportCommandFailure } from '../../api/reportCommandFailure';
-import { useLocalStore } from '../../state/localStore';
 import { buildPickerGroups } from './pickerItems';
+import { getCachedRepoList, setCachedRepoList } from './repoListCache';
 
 interface NewSessionModalProps {
   onClose: () => void;
@@ -10,18 +11,22 @@ interface NewSessionModalProps {
 }
 
 export function NewSessionModal({ onClose, onCreated }: NewSessionModalProps) {
-  const repos = useLocalStore((state) => state.repoList);
-  const setRepoList = useLocalStore((state) => state.setRepoList);
+  // Seeded from the cache left by a prior open, so a second mount renders the list immediately
+  // instead of a loading state — see repoListCache.ts for why this isn't in localStore.
+  const [repos, setRepos] = useState<RepoEntry[] | null>(getCachedRepoList);
   const [failed, setFailed] = useState(false);
   const [query, setQuery] = useState('');
 
-  // Always refetch on mount, so the list never goes stale — but a prior open's cached
-  // `repoList` (if any) renders immediately in the meantime instead of a loading state.
+  // Always refetch on mount, so the list never goes stale.
   useEffect(() => {
     let cancelled = false;
     listRepos()
       .then((response) => {
-        if (!cancelled) setRepoList(response.repos);
+        setCachedRepoList(response.repos);
+        if (!cancelled) {
+          setRepos(response.repos);
+          setFailed(false);
+        }
       })
       .catch((error: unknown) => {
         reportCommandFailure(error);
@@ -30,7 +35,7 @@ export function NewSessionModal({ onClose, onCreated }: NewSessionModalProps) {
     return () => {
       cancelled = true;
     };
-  }, [setRepoList]);
+  }, []);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -50,7 +55,9 @@ export function NewSessionModal({ onClose, onCreated }: NewSessionModalProps) {
       .catch(reportCommandFailure);
   }
 
-  const groups = repos === null ? [] : buildPickerGroups(repos, query);
+  // A failed refetch must not leave a previously-cached, now-unverified list on screen and
+  // clickable — hide it behind the error banner above rather than trusting stale data.
+  const groups = failed || repos === null ? [] : buildPickerGroups(repos, query);
 
   return (
     <div className="modal-overlay" onClick={onOverlayClick}>
@@ -68,7 +75,7 @@ export function NewSessionModal({ onClose, onCreated }: NewSessionModalProps) {
         <div className="modal-list">
           {failed && <div className="modal-empty">Could not load repos.</div>}
           {!failed && repos === null && <div className="modal-empty">Loading repos…</div>}
-          {repos !== null && groups.length === 0 && (
+          {!failed && repos !== null && groups.length === 0 && (
             <div className="modal-empty">No repos or worktrees match &quot;{query}&quot;.</div>
           )}
           {groups.map((group) => (
