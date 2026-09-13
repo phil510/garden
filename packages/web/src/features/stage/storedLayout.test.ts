@@ -29,6 +29,58 @@ describe('stageLayout', () => {
     expect(stageLayout(wanted, stored)).toBe(wanted);
   });
 
+  it('keeps a pre-fix grid-2x2 blob whose two rows have different column splits', () => {
+    // Before this change, nothing kept the two rows' column widths in sync, so a real stored
+    // blob could easily have lopsided rows. `fits()` only checks root orientation and the
+    // panel-id set, so a blob like this must keep loading unchanged, exactly as it did before.
+    const grid2x2Wanted = presetLayout('grid-2x2', ['sid-a', 'sid-b', 'sid-c', 'sid-d']);
+    const lopsided = {
+      ...grid2x2Wanted,
+      grid: {
+        ...grid2x2Wanted.grid,
+        root: {
+          ...grid2x2Wanted.grid.root,
+          data: [
+            {
+              type: 'branch' as const,
+              size: 500,
+              data: [
+                {
+                  type: 'leaf' as const,
+                  size: 300,
+                  data: { id: 'group-sid-a', views: ['sid-a'], activeView: 'sid-a' },
+                },
+                {
+                  type: 'leaf' as const,
+                  size: 700,
+                  data: { id: 'group-sid-b', views: ['sid-b'], activeView: 'sid-b' },
+                },
+              ],
+            },
+            {
+              type: 'branch' as const,
+              size: 500,
+              data: [
+                {
+                  type: 'leaf' as const,
+                  size: 500,
+                  data: { id: 'group-sid-c', views: ['sid-c'], activeView: 'sid-c' },
+                },
+                {
+                  type: 'leaf' as const,
+                  size: 500,
+                  data: { id: 'group-sid-d', views: ['sid-d'], activeView: 'sid-d' },
+                },
+              ],
+            },
+          ],
+        },
+      },
+    };
+
+    expect(stageLayout(grid2x2Wanted, lopsided)).toEqual(lopsided);
+  });
+
   it('drops the maximised node so a reload never restores a stage with a pane hidden', () => {
     const stored = { ...wanted, grid: { ...wanted.grid, maximizedNode: { location: [0] } } };
 
