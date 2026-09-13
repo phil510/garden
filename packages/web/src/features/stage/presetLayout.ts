@@ -107,6 +107,20 @@ function gridForPreset(preset: StagePreset, panelId: (slot: number) => string) {
   }
 }
 
+/** The four leaf group ids in `grid-2x2`, in slot order [top-left, top-right, bottom-left,
+ *  bottom-right]. Reuses `panelIdForSlot`'s empty-slot convention so callers that mirror the
+ *  two rows' widths (Stage.tsx) don't have to re-derive the `group-` prefix themselves. */
+export function groupIdsForGrid2x2(
+  slots: readonly (string | null)[],
+): readonly [string, string, string, string] {
+  return [
+    `group-${panelIdForSlot(slots, 0)}`,
+    `group-${panelIdForSlot(slots, 1)}`,
+    `group-${panelIdForSlot(slots, 2)}`,
+    `group-${panelIdForSlot(slots, 3)}`,
+  ];
+}
+
 function collectViews(node: GridNode): string[] {
   return Array.isArray(node.data) ? node.data.flatMap(collectViews) : node.data.views;
 }
