@@ -6,7 +6,7 @@ import type {
   SessionsFilter,
   SessionsResponse,
 } from '@garden/shared';
-import { isStatus } from '@garden/shared';
+import { isStatus, parseNonNegativeInt } from '@garden/shared';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import {
   createSession,
@@ -38,15 +38,15 @@ function parseSessionsFilter(query: SessionsQuerystring): ParsedFilter {
   const filter: SessionsFilter = {};
 
   if (query.sinceDays !== undefined) {
-    const sinceDays = Number(query.sinceDays);
-    if (!Number.isInteger(sinceDays) || sinceDays < 0)
+    const sinceDays = parseNonNegativeInt(query.sinceDays);
+    if (sinceDays === undefined)
       return { ok: false, error: 'sinceDays must be a non-negative integer' };
     filter.sinceDays = sinceDays;
   }
 
   if (query.maxRecapChars !== undefined) {
-    const maxRecapChars = Number(query.maxRecapChars);
-    if (!Number.isInteger(maxRecapChars) || maxRecapChars < 0)
+    const maxRecapChars = parseNonNegativeInt(query.maxRecapChars);
+    if (maxRecapChars === undefined)
       return { ok: false, error: 'maxRecapChars must be a non-negative integer' };
     filter.maxRecapChars = maxRecapChars;
   }

@@ -73,6 +73,18 @@ export interface SessionsFilter {
   live?: boolean;
   status?: Status;
 }
+
+/** Validates a raw CLI flag or query-string value as a non-negative integer before any
+ *  numeric coercion. `Number('')` and `Number('  ')` are both `0`, so checking the coerced
+ *  result alone lets an empty value through silently; checking the raw string first closes
+ *  that. Returns `undefined` for anything that isn't a non-negative integer, including
+ *  empty or whitespace-only input — the CLI and HTTP route each turn that into their own
+ *  error surface. */
+export function parseNonNegativeInt(raw: string): number | undefined {
+  if (raw.trim() === '') return undefined;
+  const value = Number(raw);
+  return Number.isInteger(value) && value >= 0 ? value : undefined;
+}
 export interface CreateSessionRequest {
   cwd: string;
 }

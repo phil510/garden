@@ -180,6 +180,19 @@ describe('runCli', () => {
     expect(stderr).toEqual(['garden: usage: garden ls --since-days <non-negative integer days>\n']);
   });
 
+  it('rejects an empty --since-days with a usage error rather than coercing to 0', async () => {
+    // `Number('')` is `0`, which is a non-negative integer — checking the coerced result
+    // alone would silently apply sinceDays: 0 instead of surfacing the caller's mistake.
+    const { io, stderr } = collectingIo();
+    const { client, calls } = recordingClient();
+
+    const exitCode = await runCli('ls', ['--since-days='], io, client);
+
+    expect(exitCode).toBe(1);
+    expect(calls).toEqual([]);
+    expect(stderr).toEqual(['garden: usage: garden ls --since-days <non-negative integer days>\n']);
+  });
+
   it('rejects a trailing --since-days with no value as a usage error, not a crash', async () => {
     // node:util's parseArgs throws synchronously when a string-typed option is the last
     // token with no following value — this must surface as a usage error, not an uncaught
@@ -227,6 +240,19 @@ describe('runCli', () => {
     const { client, calls } = recordingClient();
 
     const exitCode = await runCli('ls', ['--max-recap-chars=-1'], io, client);
+
+    expect(exitCode).toBe(1);
+    expect(calls).toEqual([]);
+    expect(stderr).toEqual([
+      'garden: usage: garden ls --max-recap-chars <non-negative integer chars>\n',
+    ]);
+  });
+
+  it('rejects an empty --max-recap-chars with a usage error rather than coercing to 0', async () => {
+    const { io, stderr } = collectingIo();
+    const { client, calls } = recordingClient();
+
+    const exitCode = await runCli('ls', ['--max-recap-chars='], io, client);
 
     expect(exitCode).toBe(1);
     expect(calls).toEqual([]);

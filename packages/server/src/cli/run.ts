@@ -1,7 +1,7 @@
 import { parseArgs } from 'node:util';
 import type { ParseArgsConfig } from 'node:util';
 import type { SessionsFilter } from '@garden/shared';
-import { isStatus } from '@garden/shared';
+import { isStatus, parseNonNegativeInt } from '@garden/shared';
 import type { CliClient, Io } from './commands.js';
 import { defaultClient, runKill, runLs, runNew, runResume } from './commands.js';
 import { writeAll } from './io.js';
@@ -67,16 +67,16 @@ function parseLsFilter(values: {
   let hasAny = false;
 
   if (values['since-days'] !== undefined) {
-    const sinceDays = Number(values['since-days']);
-    if (!Number.isInteger(sinceDays) || sinceDays < 0)
+    const sinceDays = parseNonNegativeInt(values['since-days']);
+    if (sinceDays === undefined)
       return { ok: false, message: 'garden ls --since-days <non-negative integer days>' };
     filter.sinceDays = sinceDays;
     hasAny = true;
   }
 
   if (values['max-recap-chars'] !== undefined) {
-    const maxRecapChars = Number(values['max-recap-chars']);
-    if (!Number.isInteger(maxRecapChars) || maxRecapChars < 0)
+    const maxRecapChars = parseNonNegativeInt(values['max-recap-chars']);
+    if (maxRecapChars === undefined)
       return { ok: false, message: 'garden ls --max-recap-chars <non-negative integer chars>' };
     filter.maxRecapChars = maxRecapChars;
     hasAny = true;

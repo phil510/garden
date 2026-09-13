@@ -184,6 +184,38 @@ describe('GET /sessions', () => {
     expect(response.statusCode).toBe(400);
   });
 
+  it('rejects an empty sinceDays with a 400 rather than coercing to 0', async () => {
+    // `Number('')` is `0`, which is a non-negative integer — checking the coerced result
+    // alone would silently apply sinceDays: 0 instead of surfacing the caller's mistake.
+    const app = buildApp({
+      tmux: fakeTmux(),
+      store: fakeStore(),
+      projection: fakeProjection(),
+      serverPort: 4310,
+      settingsPath,
+      claudeCommand: ['claude'],
+    });
+
+    const response = await app.inject({ method: 'GET', url: '/sessions?sinceDays=' });
+
+    expect(response.statusCode).toBe(400);
+  });
+
+  it('rejects an empty maxRecapChars with a 400 rather than coercing to 0', async () => {
+    const app = buildApp({
+      tmux: fakeTmux(),
+      store: fakeStore(),
+      projection: fakeProjection(),
+      serverPort: 4310,
+      settingsPath,
+      claudeCommand: ['claude'],
+    });
+
+    const response = await app.inject({ method: 'GET', url: '/sessions?maxRecapChars=' });
+
+    expect(response.statusCode).toBe(400);
+  });
+
   it('rejects a fractional maxRecapChars with a 400', async () => {
     // A naive `Number.isFinite` boundary check lets 0.5 through: `.slice(-0.5)` truncates
     // toward zero to `.slice(-0)`, which is `.slice(0)` — the whole string, uncapped.
