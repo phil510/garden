@@ -55,8 +55,9 @@ type LsFilterResult =
 /** `parseArgs` has no numeric option type, so `--since-days`/`--max-recap-chars` arrive as
  *  strings here and are parsed and range-checked before `runLs` sees them — a non-numeric
  *  value is a usage error, not a `NaN` passed through to the server. `filter` comes back
- *  `undefined` when no flag was given, so `runLs` calls `listSessions()` unfiltered exactly
- *  as it always has. */
+ *  `undefined` when no flag was given, but `sessionRoutes` always passes an object to
+ *  `projection.sessions`, so a bare `garden ls` is still bounded by the 7-day/500-char
+ *  defaults rather than unfiltered. */
 function parseLsFilter(values: {
   'since-days': string | undefined;
   'max-recap-chars': string | undefined;
