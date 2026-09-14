@@ -19,10 +19,12 @@ export function MarkdownCodeBlock({ language, value }: MarkdownCodeBlockProps) {
   const [tokens, setTokens] = useState<ThemedToken[][] | null>(null);
 
   useEffect(() => {
-    if (language === undefined) {
-      setTokens(null);
-      return;
-    }
+    // Clear any previous block's tokens up front — React reuses this component positionally
+    // across different files' fenced blocks, so leaving a stale array in place while a new
+    // tokenize call is in flight (or fails) would paint the old block's highlighted content
+    // under the new one instead of falling back to plain text.
+    setTokens(null);
+    if (language === undefined) return;
     let cancelled = false;
     tokenizeText(value, language)
       .then((result) => {
