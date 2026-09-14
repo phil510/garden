@@ -22,44 +22,66 @@ function isCreateSessionRequest(body: unknown): body is CreateSessionRequest {
 }
 
 interface SessionsQuerystring {
-  sinceDays?: string;
-  maxRecapChars?: string;
-  live?: string;
-  status?: string;
+  sinceDays?: string | string[];
+  maxRecapChars?: string | string[];
+  live?: string | string[];
+  status?: string | string[];
 }
 
 type ParsedFilter = { ok: true; filter: SessionsFilter } | { ok: false; error: string };
 
-/** Query params arrive as strings; this validates and translates them into a `SessionsFilter`,
- *  rejecting a non-numeric or negative `sinceDays`/`maxRecapChars` and an unmatchable `status`
- *  with a 400 rather than passing it through. The 7-day/500-char defaults belong to
- *  `sessionsFilter.ts`, not here — an omitted field is simply left off the returned filter. */
+type NarrowedField = { ok: true; value: string | undefined } | { ok: false; error: string };
+
+/** Fastify's querystring parser turns a repeated key into an array, even though a
+ *  well-formed request only ever supplies one value per field — this is the one place
+ *  that distinction is enforced, before any field-specific parsing runs. A length-1 array
+ *  can't occur with the pinned `fast-querystring` parser (a repeated key is always
+ *  length >= 2), so every array is rejected unconditionally rather than special-cased. */
+function narrowQueryField(field: string, raw: string | string[] | undefined): NarrowedField {
+  if (Array.isArray(raw)) return { ok: false, error: `${field} must not be repeated` };
+  return { ok: true, value: raw };
+}
+
+/** Validates and translates the querystring into a `SessionsFilter`, rejecting a repeated
+ *  key (see `narrowQueryField`), a non-numeric or negative `sinceDays`/`maxRecapChars`, and
+ *  an unmatchable `status` with a 400 rather than passing it through. The 7-day/500-char
+ *  defaults belong to `sessionsFilter.ts`, not here — an omitted field is simply left off
+ *  the returned filter. */
 function parseSessionsFilter(query: SessionsQuerystring): ParsedFilter {
   const filter: SessionsFilter = {};
 
-  if (query.sinceDays !== undefined) {
-    const sinceDays = parseNonNegativeInt(query.sinceDays);
+  const sinceDaysField = narrowQueryField('sinceDays', query.sinceDays);
+  if (!sinceDaysField.ok) return sinceDaysField;
+  if (sinceDaysField.value !== undefined) {
+    const sinceDays = parseNonNegativeInt(sinceDaysField.value);
     if (sinceDays === undefined)
       return { ok: false, error: 'sinceDays must be a non-negative integer' };
     filter.sinceDays = sinceDays;
   }
 
-  if (query.maxRecapChars !== undefined) {
-    const maxRecapChars = parseNonNegativeInt(query.maxRecapChars);
+  const maxRecapCharsField = narrowQueryField('maxRecapChars', query.maxRecapChars);
+  if (!maxRecapCharsField.ok) return maxRecapCharsField;
+  if (maxRecapCharsField.value !== undefined) {
+    const maxRecapChars = parseNonNegativeInt(maxRecapCharsField.value);
     if (maxRecapChars === undefined)
       return { ok: false, error: 'maxRecapChars must be a non-negative integer' };
     filter.maxRecapChars = maxRecapChars;
   }
 
-  if (query.live !== undefined) {
-    if (query.live !== 'true' && query.live !== 'false')
+  const liveField = narrowQueryField('live', query.live);
+  if (!liveField.ok) return liveField;
+  if (liveField.value !== undefined) {
+    if (liveField.value !== 'true' && liveField.value !== 'false')
       return { ok: false, error: 'live must be "true" or "false"' };
-    filter.live = query.live === 'true';
+    filter.live = liveField.value === 'true';
   }
 
-  if (query.status !== undefined) {
-    if (!isStatus(query.status)) return { ok: false, error: `invalid status: ${query.status}` };
-    filter.status = query.status;
+  const statusField = narrowQueryField('status', query.status);
+  if (!statusField.ok) return statusField;
+  if (statusField.value !== undefined) {
+    if (!isStatus(statusField.value))
+      return { ok: false, error: `invalid status: ${statusField.value}` };
+    filter.status = statusField.value;
   }
 
   return { ok: true, filter };
