@@ -1,16 +1,5 @@
-import type { SerializedDockview } from 'dockview-core';
 import { describe, expect, it } from 'vitest';
-import { groupIdsFromAppliedGrid2x2, resolveRowMirror } from './mirrorRows';
-
-type GridNode = SerializedDockview['grid']['root'];
-
-function leaf(id: string): GridNode {
-  return { type: 'leaf', size: 500, data: { id, views: [id] } };
-}
-
-function branch(children: GridNode[]): GridNode {
-  return { type: 'branch', size: 1000, data: children };
-}
+import { groupIdsFromSlots, resolveRowMirror } from './mirrorRows';
 
 describe('resolveRowMirror', () => {
   it('returns null when neither row changed since the last observation', () => {
@@ -43,29 +32,22 @@ describe('resolveRowMirror', () => {
   });
 });
 
-describe('groupIdsFromAppliedGrid2x2', () => {
-  it('reads the four leaf ids in [top-left, top-right, bottom-left, bottom-right] order', () => {
-    const root = branch([branch([leaf('a'), leaf('b')]), branch([leaf('c'), leaf('d')])]);
-
-    expect(groupIdsFromAppliedGrid2x2(root)).toEqual(['a', 'b', 'c', 'd']);
+describe('groupIdsFromSlots', () => {
+  it('returns the four group ids in [top-left, top-right, bottom-left, bottom-right] order', () => {
+    expect(groupIdsFromSlots(['a', 'b', 'c', 'd'])).toEqual([
+      'group-a',
+      'group-b',
+      'group-c',
+      'group-d',
+    ]);
   });
 
-  it.each([
-    ['a lone leaf root', leaf('a')],
-    [
-      'three rows instead of two',
-      branch([
-        branch([leaf('a'), leaf('b')]),
-        branch([leaf('c'), leaf('d')]),
-        branch([leaf('e'), leaf('f')]),
-      ]),
-    ],
-    [
-      'a row with three leaves',
-      branch([branch([leaf('a'), leaf('b'), leaf('c')]), branch([leaf('d'), leaf('e')])]),
-    ],
-    ['a row that is itself a leaf', branch([leaf('a'), branch([leaf('c'), leaf('d')])])],
-  ])('returns null for %s', (_description, root) => {
-    expect(groupIdsFromAppliedGrid2x2(root)).toBeNull();
+  it('falls back to the empty-slot convention for a null slot', () => {
+    expect(groupIdsFromSlots(['a', null, 'c', 'd'])).toEqual([
+      'group-a',
+      'group-empty-slot-1',
+      'group-c',
+      'group-d',
+    ]);
   });
 });

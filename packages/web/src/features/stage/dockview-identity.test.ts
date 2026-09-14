@@ -2,7 +2,7 @@
 import { DockviewComponent } from 'dockview-core';
 import { describe, expect, it } from 'vitest';
 import { applyLayout } from './applyLayout';
-import { groupIdsFromAppliedGrid2x2, wireRowMirror } from './mirrorRows';
+import { groupIdsFromSlots, wireRowMirror } from './mirrorRows';
 import { PANE_COMPONENT, presetLayout } from './presetLayout';
 
 /** Stands in for garden's xterm pane: what matters is that it is one long-lived instance per
@@ -78,16 +78,14 @@ describe('grid-2x2 leaf group resize', () => {
     return component;
   }
 
-  /** The four leaf group ids of the sized component's applied grid-2x2 tree. */
-  function appliedIds(component: DockviewComponent): readonly [string, string, string, string] {
-    const ids = groupIdsFromAppliedGrid2x2(component.api.toJSON().grid.root);
-    if (ids === null) throw new Error('expected a grid-2x2 layout');
-    return ids;
+  /** The four leaf group ids the fixture's own `SLOTS` maps to. */
+  function appliedIds(): readonly [string, string, string, string] {
+    return groupIdsFromSlots(SLOTS);
   }
 
   it('reflects a leaf group resize in toJSON, redistributing its row sibling', () => {
     const component = makeSizedComponent();
-    const [topLeft, topRight] = appliedIds(component);
+    const [topLeft, topRight] = appliedIds();
 
     component.api.getGroup(topLeft)?.api.setSize({ width: 300 });
 
@@ -103,10 +101,10 @@ describe('grid-2x2 leaf group resize', () => {
     // next re-fire's call returns `null` and the chain stops itself. No extra "applying" flag
     // needed.
     const component = makeSizedComponent();
-    const [topLeft, topRight, bottomLeft, bottomRight] = appliedIds(component);
+    const [topLeft, topRight, bottomLeft, bottomRight] = appliedIds();
     let fireCount = 0;
     component.api.onDidLayoutChange(() => fireCount++);
-    wireRowMirror(component.api);
+    wireRowMirror(component.api, SLOTS);
 
     component.api.getGroup(topLeft)?.api.setSize({ width: 300 });
     component.api.getGroup(topRight)?.api.setSize({ width: 700 });
@@ -124,13 +122,13 @@ describe('grid-2x2 leaf group resize', () => {
     // height-only change (the row-height divider) doesn't treat that mismatch as something to
     // fix — see `resolveRowMirror`'s doc comment for why.
     const component = makeSizedComponent();
-    const [topLeft, topRight, bottomLeft, bottomRight] = appliedIds(component);
+    const [topLeft, topRight, bottomLeft, bottomRight] = appliedIds();
     component.api.getGroup(topLeft)?.api.setSize({ width: 300 });
     await new Promise((resolve) => setTimeout(resolve, 0));
     // Widths now differ between rows (300/700 on top, 500/500 on bottom) — wire the mirror only
     // now, so it observes exactly this lopsided state as its starting point, the same way
     // Stage.tsx seeds from whatever `applyLayout` just produced.
-    wireRowMirror(component.api);
+    wireRowMirror(component.api, SLOTS);
 
     component.api.getGroup(topLeft)?.api.setSize({ height: 300 });
     await new Promise((resolve) => setTimeout(resolve, 0));

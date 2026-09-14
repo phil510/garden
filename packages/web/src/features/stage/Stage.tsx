@@ -68,9 +68,8 @@ export function Stage() {
   // torn down and recreated then anyway.
   useEffect(() => {
     if (api === null || preset !== 'grid-2x2') return;
-    const dispose = wireRowMirror(api);
-    return dispose ?? undefined;
-  }, [api, preset, arrangement]);
+    return wireRowMirror(api, slots);
+  }, [api, preset, slots, arrangement]);
 
   useEffect(() => {
     if (api === null) return;
