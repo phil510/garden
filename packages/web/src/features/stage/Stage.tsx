@@ -60,6 +60,14 @@ export function Stage() {
     applyRef.current();
   }, [api, arrangement]);
 
+  // Read through a ref in the row-mirror effect below for the same reason as `applyRef`: `slots`
+  // is already encoded in `arrangement`, so the effect shouldn't re-subscribe on identity churn
+  // alone.
+  const slotsRef = useRef(slots);
+  useLayoutEffect(() => {
+    slotsRef.current = slots;
+  });
+
   // Keeps the 2x2 preset's two rows' column splits in sync: whichever row's own widths just
   // changed gets copied onto the other (see `wireRowMirror`). Declared after the apply effect
   // above so it runs after `applyLayout`, seeding its "previous widths" from what that effect
@@ -68,8 +76,8 @@ export function Stage() {
   // torn down and recreated then anyway.
   useEffect(() => {
     if (api === null || preset !== 'grid-2x2') return;
-    return wireRowMirror(api, slots);
-  }, [api, preset, slots, arrangement]);
+    return wireRowMirror(api, slotsRef.current);
+  }, [api, preset, arrangement]);
 
   useEffect(() => {
     if (api === null) return;
