@@ -65,17 +65,20 @@ function getHighlighter(): Promise<HighlighterCore> {
 }
 
 /**
- * Tokenises `text` for syntax colouring, one array of tokens per line. `path`'s extension
- * guesses the language; a guess that isn't a loaded grammar (either not a shiki language at
- * all, or one this file doesn't bundle) falls back to plain, uncoloured text rather than
- * throwing.
+ * Tokenises `text` for syntax colouring under `lang`, one array of tokens per line. A `lang`
+ * that isn't a loaded grammar (either not a shiki language at all, or one this file doesn't
+ * bundle) falls back to plain, uncoloured text rather than throwing.
  */
-export async function tokenizeFile(path: string, text: string): Promise<ThemedToken[][]> {
+export async function tokenizeText(text: string, lang: string): Promise<ThemedToken[][]> {
   const shiki = await getHighlighter();
-  const lang = languageGuess(path);
   try {
     return shiki.codeToTokens(text, { lang, theme: THEME }).tokens;
   } catch {
     return shiki.codeToTokens(text, { lang: 'text', theme: THEME }).tokens;
   }
+}
+
+/** Tokenises a whole file's `text`, guessing its language from `path`'s extension. */
+export function tokenizeFile(path: string, text: string): Promise<ThemedToken[][]> {
+  return tokenizeText(text, languageGuess(path));
 }
