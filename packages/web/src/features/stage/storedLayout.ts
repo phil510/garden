@@ -35,6 +35,11 @@ function collectStoredViews(node: unknown): string[] | null {
  *  render — and that its root splits along the same axis, which is the only thing separating the
  *  two two-pane presets. Each id in the grid also has to have a `panels` entry: `fromJSON` doesn't
  *  reject a view with no matching panel state, it silently drops it, leaving that leaf empty.
+ *  `panels` also can't hold anything *beyond* the grid's own ids: `fromJSON({ reuseExistingPanels:
+ *  true })` stages every live panel whose id appears in `Object.keys(stored.panels)` — including
+ *  one the grid never references — into a temporary group and reclaims it through a path that
+ *  suppresses the removal event `Stage.tsx` relies on to detach a dropped pane's socket, so an
+ *  unreferenced `panels` entry would leak silently instead of erroring.
  *
  *  Order is compared via each tree's flattened leaf list, not tree shape: two structurally
  *  different grids could in principle flatten to the same ordered id list. This is believed
@@ -50,6 +55,7 @@ function fits(stored: unknown, wanted: SerializedDockview): stored is Serialized
   return (
     storedOrder !== null &&
     storedOrder.length === wantedOrder.length &&
+    Object.keys(panels).length === storedOrder.length &&
     storedOrder.every((id, index) => id === wantedOrder[index] && id in panels)
   );
 }
