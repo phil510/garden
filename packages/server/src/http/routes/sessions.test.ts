@@ -233,9 +233,11 @@ describe('GET /sessions', () => {
     expect(response.statusCode).toBe(400);
   });
 
-  it('rejects a repeated sinceDays query key with a 400 instead of crashing', async () => {
+  it('rejects a repeated sinceDays query key with a 400 from the boundary, not a downstream guard', async () => {
     // Fastify's default querystring parser turns a repeated key into an array at runtime,
-    // even though `SessionsQuerystring` declares `sinceDays?: string` at compile time.
+    // even though `SessionsQuerystring` declares `sinceDays?: string | string[]` to match.
+    // Asserting the error message (not just the status code) proves `narrowQueryField`
+    // caught this — a field-specific message would mean some other check got lucky instead.
     const app = buildApp({
       tmux: fakeTmux(),
       store: fakeStore(),
@@ -248,9 +250,10 @@ describe('GET /sessions', () => {
     const response = await app.inject({ method: 'GET', url: '/sessions?sinceDays=5&sinceDays=7' });
 
     expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: 'sinceDays must not be repeated' });
   });
 
-  it('rejects a repeated maxRecapChars query key with a 400 instead of crashing', async () => {
+  it('rejects a repeated maxRecapChars query key with a 400 from the boundary, not a downstream guard', async () => {
     const app = buildApp({
       tmux: fakeTmux(),
       store: fakeStore(),
@@ -266,6 +269,42 @@ describe('GET /sessions', () => {
     });
 
     expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: 'maxRecapChars must not be repeated' });
+  });
+
+  it('rejects a repeated live query key with a 400 from the boundary', async () => {
+    const app = buildApp({
+      tmux: fakeTmux(),
+      store: fakeStore(),
+      projection: fakeProjection(),
+      serverPort: 4310,
+      settingsPath,
+      claudeCommand: ['claude'],
+    });
+
+    const response = await app.inject({ method: 'GET', url: '/sessions?live=true&live=false' });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: 'live must not be repeated' });
+  });
+
+  it('rejects a repeated status query key with a 400 from the boundary', async () => {
+    const app = buildApp({
+      tmux: fakeTmux(),
+      store: fakeStore(),
+      projection: fakeProjection(),
+      serverPort: 4310,
+      settingsPath,
+      claudeCommand: ['claude'],
+    });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/sessions?status=working&status=idle',
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: 'status must not be repeated' });
   });
 
   it('rejects a status value outside the four Status literals with a 400', async () => {
