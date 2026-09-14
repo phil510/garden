@@ -11,6 +11,12 @@ describe('stageLayout', () => {
     expect(stageLayout(wanted, stored)).toEqual(stored);
   });
 
+  it('falls back to the preset default when the stored layout has the same panes in a different order', () => {
+    const stored = presetLayout('two-across', ['sid-b', 'sid-a']);
+
+    expect(stageLayout(wanted, stored)).toBe(wanted);
+  });
+
   it('falls back to the preset default when the stored layout holds other sessions', () => {
     const stored = presetLayout('two-across', ['sid-a', 'sid-c']);
 
