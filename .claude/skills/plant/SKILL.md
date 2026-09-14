@@ -321,9 +321,9 @@ small); developer works from brief ACs`, then go to step 6. The box
     `> RESOLVED` annotation, then fresh-spawn under the next name with the
     decision in the opener.
 12. **Completion or abort — the shared convergence point for however the
-    pipeline ends**, reached from step 10(d) once the user reports the
-    PR merged or closed without merging, or from an abort at any earlier
-    stage.
+    pipeline ends**, reached from step 10(d) once the PR merges — self-
+    verified for `auto`, reported by the user for `ask` — or closes
+    without merging, or from an abort at any earlier stage.
     a. **Merged only.** Read `decisions.md` and confirm every entry is
     reflected on the PR — its description, a commit, or a review thread.
     The PR is the only surface here that outlives the run; the summary
