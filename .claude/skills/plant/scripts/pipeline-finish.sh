@@ -22,7 +22,7 @@ pipeline is left alone).
 
 Prints JSON: branch, status, pr_url, started, ended, duration_seconds,
 duration_human, review_rounds, escalations{annotated,open,open_files[]},
-events_total, lock_released.
+events_total, decisions_entries, lock_released.
 
 escalations.annotated counts `> ESCALATED` lines; escalations.open counts
 escalation event files with no `## Resolution` section.
@@ -80,6 +80,9 @@ shopt -s nullglob
 rounds=("$PLANTDIR"/review-round-*.md)
 review_rounds=${#rounds[@]}
 
+decisions_entries=$(grep -c '^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T' "$PLANTDIR/decisions.md" 2>/dev/null || true)
+: "${decisions_entries:=0}"
+
 # Scoped to the ## Annotations section for the same reason pipeline-status.sh
 # scopes its annotation read: the brief body above it is free user prose.
 esc_total=$(sed -n '/^## Annotations/,$p' "$WORKFLOW" 2>/dev/null \
@@ -116,9 +119,9 @@ if [ -f "$LOCK" ]; then
   fi
 fi
 
-printf '{"branch":"%s","status":"%s","pr_url":"%s","started":"%s","ended":"%s","duration_seconds":%s,"duration_human":"%s","review_rounds":%s,"escalations":{"annotated":%s,"open":%s,"open_files":[%s]},"events_total":%s,"lock_released":%s}\n' \
+printf '{"branch":"%s","status":"%s","pr_url":"%s","started":"%s","ended":"%s","duration_seconds":%s,"duration_human":"%s","review_rounds":%s,"escalations":{"annotated":%s,"open":%s,"open_files":[%s]},"events_total":%s,"decisions_entries":%s,"lock_released":%s}\n' \
   "$(jesc "$BRANCH")" "$(jesc "$NEW_STATUS")" "$(jesc "$PR_URL")" \
   "$(jesc "$STARTED")" "$(jesc "$ENDED")" \
   "${DURATION:-null}" "$(human_duration "$DURATION")" \
   "$review_rounds" "$esc_total" "$esc_open" "$unrouted_json" \
-  "$events_total" "$lock_released"
+  "$events_total" "$decisions_entries" "$lock_released"

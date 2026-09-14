@@ -49,7 +49,7 @@ line. Each line already carries its own actor and ISO timestamp, so
 grouping by stage would add nothing. The harder constraint is that both
 script readers anchor annotations at **column 0** — `grep '^>'` in
 `pipeline-status.sh:115` and `grep -c '^> ESCALATED'` in
-`pipeline-finish.sh:86` — so an indented or checkbox-nested annotation is
+`pipeline-finish.sh:89` — so an indented or checkbox-nested annotation is
 silently invisible to status reporting and escalation counting.
 `<actor>` is `planner | developer | reviewer | orchestrator`.
 

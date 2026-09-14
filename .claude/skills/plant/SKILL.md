@@ -304,25 +304,63 @@ small); developer works from brief ACs`, then go to step 6. The box
     a developer fix-round against it, then re-check from (b).
     d. **CI green** → act on brief field 7. `ask` → report CI-green
     status to the user and hand them the merge; the pipeline pauses
-    here until they tell you it merged or closed. `auto` → squash-merge
-    the PR and delete the branch, then run `pipeline-finish.sh` with
-    `--status completed`, and **only then** `git worktree remove`. The
-    script reads and writes `.plant/<branch>/` inside the worktree, so
-    removing first makes it fail with `no workflow.md`. Its JSON is what
-    step 12's summary reports from; the status flip and lock release
-    only matter when the worktree outlives the run. Default is `ask` — this is the
-    one irreversible act in the pipeline, which is why field 7 is the
+    here until they tell you it merged or closed. `auto` →
+    `gh pr merge <url> --squash --delete-branch`. Its exit code is not
+    the success signal when run from inside the worktree: the command's
+    local post-merge step tries to switch to the default branch to free
+    the feature branch for deletion, and that switch fails (the default
+    branch is already checked out in the main checkout) even though the
+    GitHub-side merge and remote branch deletion both went through.
+    Check `gh pr view <url> --json state` for `MERGED` instead of
+    trusting the exit code. Default is `ask` — this is the one
+    irreversible act in the pipeline, which is why field 7 is the
     explicit switch for it.
 11. **Stage 1–3 escalation** → `references/escalate-resume.md`.
     Auto-resolve within the brief's Autonomy bounds if you can, otherwise
     page the user; append the event's `## Resolution` block and the
     `> RESOLVED` annotation, then fresh-spawn under the next name with the
     decision in the opener.
-12. **Completion or abort** → run `pipeline-finish.sh --worktree <abs>
---status completed|aborted` and summarize to the user from its JSON:
-    duration, review rounds, escalation counts, the `decisions.md`
-    entries (what got auto-resolved and why — this is what makes an
-    unattended run reviewable after the fact), and the PR URL.
+12. **Completion or abort — the shared convergence point for however the
+    pipeline ends**, reached from step 10(d) once the PR merges — self-
+    verified for `auto`, reported by the user for `ask` — or closes
+    without merging, or from an abort at any earlier stage.
+    a. **Merged only.** Read `decisions.md` and confirm every entry is
+    reflected on the PR — its description, a commit, or a review thread.
+    The PR is the only surface here that outlives the run; the summary
+    you post to the user in (b) is chat, gone once the session ends, so
+    it reports what (a) already put on the PR rather than carrying
+    anything on its own. Add anything missing to the PR now — the last
+    point it can still be edited.
+    b. Run `pipeline-finish.sh --worktree <abs>
+--status completed|aborted` — `completed` only once the PR has merged;
+    `aborted` for a closed-without-merge report, or any earlier-stage
+    abort — and summarize its JSON to the user: duration, review rounds,
+    escalation counts, `decisions_entries`, and the PR URL. **Merged
+    only:** cross-check `decisions_entries` against what (a) found
+    reflected; a higher count than you accounted for means going back to
+    cover the gap before moving on.
+    c. **Merged only, from the main checkout, never from inside the
+    worktree being removed:** `git -C <main-checkout> worktree remove
+<abs>`, then `git -C <main-checkout> branch -D <branch>`, in that
+    order. Removal must precede the branch delete — git refuses to
+    delete a branch checked out in a linked worktree, from either
+    checkout, failing with `cannot delete branch '<branch>' used by
+worktree at <path>`. Running both via `git -C` from the main
+    checkout, rather than from inside the worktree, also sidesteps the
+    cwd reset that removing a worktree the shell is standing in causes —
+    every command after that point would otherwise need an absolute
+    path to recover. This is also why (b) runs before (c):
+    `pipeline-finish.sh` reads and writes `.plant/<branch>/` inside the
+    worktree it's about to lose.
+    d. **Merged only.** `.plant/<branch>/` — `workflow.md`, `plan.md`,
+    `decisions.md`, every `review-round-N.md` — is deleted with the
+    worktree by design: once (a) has put what mattered onto the PR,
+    nothing here needs to survive it.
+
+    For an aborted pipeline, or a PR closed without merging, run only
+    (b) with `--status aborted` and stop — leave the worktree and branch
+    for the user, per the no-auto-rollback invariant; this step doesn't
+    add cleanup behavior beyond what already applies.
 
 **Mid-pipeline scope changes.** When a user decision changes scope, edit
 the brief field in place and annotate — only between worker invocations,
