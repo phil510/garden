@@ -32,8 +32,14 @@ export function slotFromEmptySlotId(panelId: string): number {
 
 /** An empty slot still gets a panel so the preset's shape stays visible with nothing on stage.
  *  Session ids are uuids, so no session can collide with one of these. */
-function panelIdForSlot(slots: readonly (string | null)[], slot: number): string {
+export function panelIdForSlot(slots: readonly (string | null)[], slot: number): string {
   return slots[slot] ?? `${EMPTY_SLOT_PREFIX}${String(slot)}`;
+}
+
+/** The `leaf()` group-id convention (`group-<panelId>`), keyed by slot instead of by panel id
+ *  directly — the caller usually has a slot index on hand, not the panel id it maps to. */
+export function groupIdForSlot(slots: readonly (string | null)[], slot: number): string {
+  return `group-${panelIdForSlot(slots, slot)}`;
 }
 
 /** Every pane is alone in its own group: a group holding two panels would show one and stack the
@@ -107,7 +113,7 @@ function gridForPreset(preset: StagePreset, panelId: (slot: number) => string) {
   }
 }
 
-function collectViews(node: GridNode): string[] {
+export function collectViews(node: GridNode): string[] {
   return Array.isArray(node.data) ? node.data.flatMap(collectViews) : node.data.views;
 }
 
