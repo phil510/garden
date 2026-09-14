@@ -41,6 +41,9 @@
   font-size: 11px;
   color: var(--text-muted);
 }
+.repo-count.live {
+  color: var(--accent);
+}
 .attn-badge {
   width: 7px;
   height: 7px;
