@@ -167,7 +167,7 @@ export function FilePanel() {
   }
 
   function openFile(path: string) {
-    if (sessionId !== null) requestOpenFile(sessionId, path, 1);
+    if (sessionId !== null) requestOpenFile(sessionId, path, null);
   }
 
   // Memoized so Viewer's effect that calls this on a fresh fetch can depend on it without an

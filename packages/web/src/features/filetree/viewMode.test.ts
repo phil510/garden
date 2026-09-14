@@ -10,8 +10,8 @@ describe('resetModeForOpenedFile', () => {
     expect(resetModeForOpenedFile(true, null)).toBe('rendered');
   });
 
-  it('opens a markdown file rendered for the tree-click default of line 1', () => {
-    expect(resetModeForOpenedFile(true, 1)).toBe('rendered');
+  it('opens a markdown file in source mode for a jump to line 1', () => {
+    expect(resetModeForOpenedFile(true, 1)).toBe('source');
   });
 
   it('opens a markdown file in source mode for a jump past line 1', () => {
