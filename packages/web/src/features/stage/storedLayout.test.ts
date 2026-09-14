@@ -17,6 +17,15 @@ describe('stageLayout', () => {
     expect(stageLayout(wanted, stored)).toBe(wanted);
   });
 
+  it('falls back to the preset default when the grid order matches but a panel entry is missing', () => {
+    const stored = presetLayout('two-across', ['sid-a', 'sid-b']);
+    const panels = Object.fromEntries(
+      Object.entries(stored.panels).filter(([id]) => id !== 'sid-b'),
+    );
+
+    expect(stageLayout(wanted, { ...stored, panels })).toBe(wanted);
+  });
+
   it('falls back to the preset default when the stored layout holds other sessions', () => {
     const stored = presetLayout('two-across', ['sid-a', 'sid-c']);
 

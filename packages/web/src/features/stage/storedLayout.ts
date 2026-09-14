@@ -33,7 +33,8 @@ function collectStoredViews(node: unknown): string[] | null {
  *  bottom order — a blob whose panel-id *set* matches but whose order doesn't reflects a swap
  *  `slots` has already moved past, and reusing it verbatim would silently undo the swap on
  *  render — and that its root splits along the same axis, which is the only thing separating the
- *  two two-pane presets.
+ *  two two-pane presets. Each id in the grid also has to have a `panels` entry: `fromJSON` doesn't
+ *  reject a view with no matching panel state, it silently drops it, leaving that leaf empty.
  *
  *  Order is compared via each tree's flattened leaf list, not tree shape: two structurally
  *  different grids could in principle flatten to the same ordered id list. This is believed
@@ -45,10 +46,11 @@ function fits(stored: unknown, wanted: SerializedDockview): stored is Serialized
   if (stored['grid']['orientation'] !== wanted.grid.orientation) return false;
   const storedOrder = collectStoredViews(stored['grid']['root']);
   const wantedOrder = collectViews(wanted.grid.root);
+  const panels = stored['panels'];
   return (
     storedOrder !== null &&
     storedOrder.length === wantedOrder.length &&
-    storedOrder.every((id, index) => id === wantedOrder[index])
+    storedOrder.every((id, index) => id === wantedOrder[index] && id in panels)
   );
 }
 
