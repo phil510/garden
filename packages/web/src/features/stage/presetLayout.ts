@@ -32,7 +32,7 @@ export function slotFromEmptySlotId(panelId: string): number {
 
 /** An empty slot still gets a panel so the preset's shape stays visible with nothing on stage.
  *  Session ids are uuids, so no session can collide with one of these. */
-export function panelIdForSlot(slots: readonly (string | null)[], slot: number): string {
+function panelIdForSlot(slots: readonly (string | null)[], slot: number): string {
   return slots[slot] ?? `${EMPTY_SLOT_PREFIX}${String(slot)}`;
 }
 
