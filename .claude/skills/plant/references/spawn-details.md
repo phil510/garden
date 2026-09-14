@@ -264,8 +264,8 @@ Only the orchestrator talks to the user. Workers never do.
   page — this is the one irreversible act in the pipeline, so it's the
   one field the user set explicitly for it.
 - **Completion summary.** Duration, round count, escalation count,
-  `decisions.md` entries, PR URL — all returned by
-  `scripts/pipeline-finish.sh`.
+  `decisions_entries` (a count, not the entries' content), PR URL — all
+  returned by `scripts/pipeline-finish.sh`.
 
 ## Permission mode
 
