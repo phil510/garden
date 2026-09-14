@@ -77,6 +77,15 @@ export function Viewer({ sessionId, onFileOpened }: ViewerProps) {
   const [pendingLine, setPendingLine] = useState<number | null>(null);
   const [openAnyway, setOpenAnyway] = useState<ReadonlySet<string>>(new Set());
   const [mode, setMode] = useState<ViewMode>('rendered');
+  // Tracks which `file` `mode` was last reset for, so a new file resets it to 'rendered'
+  // during render rather than in an effect. An effect would still leave the tokenize effect
+  // below reading this render's stale `mode` (effects fire in declaration order against the
+  // same render's closures), risking one stale frame before a second pass corrects it.
+  const [modeResetFor, setModeResetFor] = useState<FileResponse | null>(null);
+  if (file !== modeResetFor) {
+    setModeResetFor(file);
+    setMode('rendered');
+  }
   const bodyRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -112,7 +121,6 @@ export function Viewer({ sessionId, onFileOpened }: ViewerProps) {
 
   useEffect(() => {
     setImageFailed(false);
-    setMode('rendered');
   }, [file]);
 
   useEffect(() => {
