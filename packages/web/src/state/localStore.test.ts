@@ -68,6 +68,15 @@ describe('localStore', () => {
     });
   });
 
+  it('records a requested file open with no line target', () => {
+    useLocalStore.getState().requestOpenFile('sid-1', 'src/foo.ts', null);
+    expect(useLocalStore.getState().openFileRequest).toEqual({
+      sessionId: 'sid-1',
+      path: 'src/foo.ts',
+      line: null,
+    });
+  });
+
   it('gives every connection its own epoch, so a pane can tell a reconnect from a redraw', () => {
     const start = useLocalStore.getState().connectionEpoch;
     useLocalStore.getState().noteConnected();

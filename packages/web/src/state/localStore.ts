@@ -3,7 +3,8 @@ import { create } from 'zustand';
 export interface OpenFileRequest {
   sessionId: string;
   path: string;
-  line: number;
+  /** Null means "no jump target" — a plain tree click, as opposed to a real `path:line` link. */
+  line: number | null;
 }
 
 const SIDEBAR_WIDTH_MIN = 180;
@@ -43,7 +44,7 @@ interface LocalStore {
   /** A `path:line` clicked in a pane's terminal output, resolved against the session's cwd by
    *  whichever endpoint later opens it. Null once nothing is pending. */
   openFileRequest: OpenFileRequest | null;
-  requestOpenFile: (sessionId: string, path: string, line: number) => void;
+  requestOpenFile: (sessionId: string, path: string, line: number | null) => void;
   /** Counts connections of the event socket. A pane keys its attach on this and opens a fresh
    *  socket on reconnect — the failure modes that drop this socket (server restart, sleep/wake)
    *  usually take pane attaches with them, and rebuilding a pane that was still fine costs only
