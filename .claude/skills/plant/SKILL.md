@@ -314,26 +314,29 @@ small); developer works from brief ACs`, then go to step 6. The box
     Check `gh pr view <url> --json state` for `MERGED` instead of
     trusting the exit code. Default is `ask` — this is the one
     irreversible act in the pipeline, which is why field 7 is the
-    explicit switch for it. Both branches converge on step 12 once the
-    PR is merged (or the pipeline is aborted).
+    explicit switch for it.
 11. **Stage 1–3 escalation** → `references/escalate-resume.md`.
     Auto-resolve within the brief's Autonomy bounds if you can, otherwise
     page the user; append the event's `## Resolution` block and the
     `> RESOLVED` annotation, then fresh-spawn under the next name with the
     decision in the opener.
-12. **Completion or abort — the shared convergence point for both merge
-    policies**, reached from step 10(d) once the PR is merged, or from
-    an abort at any stage.
+12. **Completion or abort — the shared convergence point for however the
+    pipeline ends**, reached from step 10(d) once the user reports the
+    PR merged or closed without merging, or from an abort at any earlier
+    stage.
     a. **Merged only.** Read `decisions.md` and confirm every entry is
-    reflected somewhere that outlives the run — the PR's description, a
-    commit, a review thread, or the completion report you write in (b).
-    Terminal scrollback doesn't count; it's gone once the session ends.
-    Add anything missing to the PR now, while it can still be edited —
-    this is the last point at which it can be.
+    reflected on the PR — its description, a commit, or a review thread.
+    The PR is the only surface here that outlives the run; the summary
+    you post to the user in (b) is chat, gone once the session ends, so
+    it reports what (a) already put on the PR rather than carrying
+    anything on its own. Add anything missing to the PR now — the last
+    point it can still be edited.
     b. Run `pipeline-finish.sh --worktree <abs>
---status completed|aborted` and summarize its JSON to the user:
-    duration, review rounds, escalation counts, `decisions_entries`, and
-    the PR URL. Cross-check `decisions_entries` against what (a) found
+--status completed|aborted` — `completed` only once the PR has merged;
+    `aborted` for a closed-without-merge report, or any earlier-stage
+    abort — and summarize its JSON to the user: duration, review rounds,
+    escalation counts, `decisions_entries`, and the PR URL. **Merged
+    only:** cross-check `decisions_entries` against what (a) found
     reflected; a higher count than you accounted for means going back to
     cover the gap before moving on.
     c. **Merged only, from the main checkout, never from inside the
@@ -351,13 +354,13 @@ worktree at <path>`. Running both via `git -C` from the main
     worktree it's about to lose.
     d. **Merged only.** `.plant/<branch>/` — `workflow.md`, `plan.md`,
     `decisions.md`, every `review-round-N.md` — is deleted with the
-    worktree by design. Its job was to get what mattered onto the PR and
-    the report in (a) and (b); once that's done, nothing in it needs to
-    survive.
+    worktree by design: once (a) has put what mattered onto the PR,
+    nothing here needs to survive it.
 
-    For an aborted pipeline, run only (b) and stop. Leave the worktree
-    and branch for the user, per the no-auto-rollback invariant — this
-    step doesn't add abort-cleanup behavior beyond what already applies.
+    For an aborted pipeline, or a PR closed without merging, run only
+    (b) with `--status aborted` and stop — leave the worktree and branch
+    for the user, per the no-auto-rollback invariant; this step doesn't
+    add cleanup behavior beyond what already applies.
 
 **Mid-pipeline scope changes.** When a user decision changes scope, edit
 the brief field in place and annotate — only between worker invocations,
