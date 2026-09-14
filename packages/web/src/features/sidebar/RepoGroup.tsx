@@ -75,7 +75,9 @@ export function RepoGroup({
         </svg>
         <span className="repo-name">{group.repoName}</span>
         {group.attention && <span className="attn-badge" title="Needs attention" />}
-        <span className="repo-count mono">{group.liveCount} live</span>
+        <span className={`repo-count mono${group.liveCount > 0 ? ' live' : ''}`}>
+          {group.liveCount} live
+        </span>
       </div>
       <div className={`repo-rows${group.collapsed ? ' collapsed' : ''}`}>
         {capped.length === 0 && <div className="empty-groups-note">Nothing to show.</div>}
