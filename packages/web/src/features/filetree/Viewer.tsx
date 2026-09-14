@@ -9,14 +9,13 @@ import { tokenizeFile } from './highlighter';
 import { isMarkdownFile } from './markdown';
 import { MarkdownCodeBlock } from './MarkdownCodeBlock';
 import { tokenStyle } from './tokenStyle';
+import { resetModeForOpenedFile, type ViewMode } from './viewMode';
 
 interface ViewerProps {
   sessionId: string;
   /** Called once a requested file has actually loaded, so the tab above can pick up its name. */
   onFileOpened: (path: string) => void;
 }
-
-type ViewMode = 'rendered' | 'source';
 
 /** Every link renders as inert text — the viewer has no route to resolve a relative link's
  *  target, and the brief scopes navigation and absolute-vs-relative treatment out alike. */
@@ -77,6 +76,7 @@ export function Viewer({ sessionId, onFileOpened }: ViewerProps) {
   const [pendingLine, setPendingLine] = useState<number | null>(null);
   const [openAnyway, setOpenAnyway] = useState<ReadonlySet<string>>(new Set());
   const [mode, setMode] = useState<ViewMode>('rendered');
+  const showMarkdown = file !== null && file.kind === 'text' && isMarkdownFile(file.path);
   // Tracks which `file` `mode` was last reset for, so a new file resets it to 'rendered'
   // during render rather than in an effect. An effect would still leave the tokenize effect
   // below reading this render's stale `mode` (effects fire in declaration order against the
@@ -84,7 +84,12 @@ export function Viewer({ sessionId, onFileOpened }: ViewerProps) {
   const [modeResetFor, setModeResetFor] = useState<FileResponse | null>(null);
   if (file !== modeResetFor) {
     setModeResetFor(file);
-    setMode('rendered');
+    const nextMode = resetModeForOpenedFile(showMarkdown, pendingLine);
+    setMode(nextMode);
+    // A line request the new mode won't honor (rendered mode never scrolls) is already
+    // consumed — leaving it pending would fire a late, unexpected scroll if the user manually
+    // switches to source mode afterward.
+    if (showMarkdown && nextMode === 'rendered' && pendingLine !== null) setPendingLine(null);
   }
   const bodyRef = useRef<HTMLDivElement>(null);
 
@@ -116,7 +121,6 @@ export function Viewer({ sessionId, onFileOpened }: ViewerProps) {
     file.kind === 'text' &&
     file.truncated &&
     !openAnyway.has(openAnywayKey(sessionId, file.path));
-  const showMarkdown = file !== null && file.kind === 'text' && isMarkdownFile(file.path);
   const [imageFailed, setImageFailed] = useState(false);
 
   useEffect(() => {
