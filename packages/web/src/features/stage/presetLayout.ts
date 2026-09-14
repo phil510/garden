@@ -36,6 +36,12 @@ function panelIdForSlot(slots: readonly (string | null)[], slot: number): string
   return slots[slot] ?? `${EMPTY_SLOT_PREFIX}${String(slot)}`;
 }
 
+/** The `leaf()` group-id convention (`group-<panelId>`), keyed by slot instead of by panel id
+ *  directly — the caller usually has a slot index on hand, not the panel id it maps to. */
+export function groupIdForSlot(slots: readonly (string | null)[], slot: number): string {
+  return `group-${panelIdForSlot(slots, slot)}`;
+}
+
 /** Every pane is alone in its own group: a group holding two panels would show one and stack the
  *  other behind a tab that `hideHeader` has removed. */
 function leaf(panelId: string, size: number): GridNode {
@@ -107,7 +113,7 @@ function gridForPreset(preset: StagePreset, panelId: (slot: number) => string) {
   }
 }
 
-function collectViews(node: GridNode): string[] {
+export function collectViews(node: GridNode): string[] {
   return Array.isArray(node.data) ? node.data.flatMap(collectViews) : node.data.views;
 }
 

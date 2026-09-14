@@ -11,6 +11,28 @@ describe('stageLayout', () => {
     expect(stageLayout(wanted, stored)).toEqual(stored);
   });
 
+  it('falls back to the preset default when the stored layout has the same panes in a different order', () => {
+    const stored = presetLayout('two-across', ['sid-b', 'sid-a']);
+
+    expect(stageLayout(wanted, stored)).toBe(wanted);
+  });
+
+  it('falls back to the preset default when the grid order matches but a panel entry is missing', () => {
+    const stored = presetLayout('two-across', ['sid-a', 'sid-b']);
+    const panels = Object.fromEntries(
+      Object.entries(stored.panels).filter(([id]) => id !== 'sid-b'),
+    );
+
+    expect(stageLayout(wanted, { ...stored, panels })).toBe(wanted);
+  });
+
+  it('falls back to the preset default when panels holds an entry the grid never references', () => {
+    const stored = presetLayout('two-across', ['sid-a', 'sid-b']);
+    const panels = { ...stored.panels, 'sid-stale': { id: 'sid-stale' } };
+
+    expect(stageLayout(wanted, { ...stored, panels })).toBe(wanted);
+  });
+
   it('falls back to the preset default when the stored layout holds other sessions', () => {
     const stored = presetLayout('two-across', ['sid-a', 'sid-c']);
 
@@ -95,4 +117,27 @@ describe('stageLayout', () => {
       expect(stageLayout(wanted, stored)).toBe(wanted);
     },
   );
+
+  it('falls back to the preset default when a nested leaf node is malformed', () => {
+    const stored: unknown = {
+      ...wanted,
+      grid: {
+        ...wanted.grid,
+        root: {
+          type: 'branch',
+          size: 1000,
+          data: [
+            { type: 'leaf', size: 500, data: 'not-a-record' },
+            {
+              type: 'leaf',
+              size: 500,
+              data: { id: 'group-sid-b', views: ['sid-b'], activeView: 'sid-b' },
+            },
+          ],
+        },
+      },
+    };
+
+    expect(stageLayout(wanted, stored)).toBe(wanted);
+  });
 });
