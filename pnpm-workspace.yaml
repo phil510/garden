@@ -41,3 +41,5 @@ catalog:
   '@dnd-kit/utilities': 3.2.2
   shiki: 4.4.3
   happy-dom: 20.11.15
+  react-markdown: 10.1.0
+  remark-gfm: 4.0.1
