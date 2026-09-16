@@ -7,14 +7,13 @@ import { StatusPill } from '../../components/StatusPill';
 import { useLocalStore } from '../../state/localStore';
 import { useSessionStore } from '../../state/sessionStore';
 import { useUiStore } from '../../state/uiStore';
+import { useCopyFlash } from '../../hooks/useCopyFlash';
 import { attachPane, detachPane } from '../../terminals/registry';
 import { sessionIdentityLabel } from '../sidebar/sessionIdentity';
 import { deadPaneStatusLine } from './deadPaneStatus';
 import { paneTitle } from './paneTitle';
 import { removeFromStage } from './removeFromStage';
 import { slotFromEmptySlotId } from './presetLayout';
-
-const COPIED_RESET_MS = 1400;
 
 const DEAD_ICON = (
   <svg
@@ -57,7 +56,7 @@ export function StagePane(props: IDockviewPanelProps) {
   const connectionEpoch = useLocalStore((state) => state.connectionEpoch);
   const terminalRef = useRef<HTMLDivElement>(null);
   const [confirmingKill, setConfirmingKill] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const sessionIdCopy = useCopyFlash();
 
   const {
     setNodeRef: setDraggableRef,
@@ -106,12 +105,6 @@ export function StagePane(props: IDockviewPanelProps) {
     setConfirmingKill(false);
   }, [live]);
 
-  useEffect(() => {
-    if (!copied) return;
-    const timer = setTimeout(() => setCopied(false), COPIED_RESET_MS);
-    return () => clearTimeout(timer);
-  }, [copied]);
-
   function focus() {
     if (slot === -1 || focused) return;
     updateUiState({ focusedSlot: slot }).catch(reportCommandFailure);
@@ -159,10 +152,7 @@ export function StagePane(props: IDockviewPanelProps) {
   function handleCopySessionId(event: MouseEvent) {
     event.stopPropagation();
     if (session === undefined) return;
-    navigator.clipboard
-      .writeText(session.id)
-      .then(() => setCopied(true))
-      .catch(reportCommandFailure);
+    sessionIdCopy.copy(session.id);
   }
 
   if (session === undefined) return null;
@@ -190,7 +180,9 @@ export function StagePane(props: IDockviewPanelProps) {
           >
             <span className="pane-meta-k">session:</span>
             <span className="pane-meta-v">
-              {copied ? 'Copied' : sessionIdentityLabel(session.claudeSessionName, session.id)}
+              {sessionIdCopy.copied
+                ? 'Copied'
+                : sessionIdentityLabel(session.claudeSessionName, session.id)}
             </span>
           </div>
         </div>
