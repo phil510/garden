@@ -112,6 +112,10 @@ export function StagePane(props: IDockviewPanelProps) {
     setConfirmingKill(false);
   }, [live]);
 
+  // Every hook above must run unconditionally, so the "no session" bail-out sits here rather
+  // than at the top — everything below can then treat `session` as defined.
+  if (session === undefined) return null;
+
   function focus() {
     if (slot === -1 || focused) return;
     updateUiState({ focusedSlot: slot }).catch(reportCommandFailure);
@@ -156,13 +160,10 @@ export function StagePane(props: IDockviewPanelProps) {
       .catch(reportCommandFailure);
   }
 
-  function handleCopySessionId(event: MouseEvent) {
+  const handleCopySessionId = (event: MouseEvent) => {
     event.stopPropagation();
-    if (session === undefined) return;
     sessionIdCopy.copy(session.id);
-  }
-
-  if (session === undefined) return null;
+  };
 
   const classes = ['pane'];
   if (focused) classes.push('focused');
