@@ -149,8 +149,11 @@ export function StagePane(props: IDockviewPanelProps) {
 
   function handleKillConfirm(event: MouseEvent) {
     event.stopPropagation();
-    setConfirmingKill(false);
-    killSession(props.api.id).catch(reportCommandFailure);
+    // Cleared on success, not optimistically: a failed kill then leaves the confirm/cancel
+    // pair on screen instead of disappearing as though it worked while the session stays live.
+    killSession(props.api.id)
+      .then(() => setConfirmingKill(false))
+      .catch(reportCommandFailure);
   }
 
   function handleCopySessionId(event: MouseEvent) {
