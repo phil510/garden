@@ -23,13 +23,15 @@ export function SessionRow({ session, onStage, focused, now, onSelect }: Session
   const [rowEl, setRowEl] = useState<HTMLDivElement | null>(null);
   const [hovered, setHovered] = useState(false);
   const [confirmingKill, setConfirmingKill] = useState(false);
-  const [copied, setCopied] = useState(false);
+  // Names which affordance was last copied, since the attach command and the session id are
+  // two independent "just copied" flashes and must not flip each other's label.
+  const [copied, setCopied] = useState<'attach' | 'id' | null>(null);
   const dead = session.liveness === 'dead';
   const title = session.title ?? lastPathSegment(session.cwd);
 
   useEffect(() => {
-    if (!copied) return;
-    const timer = setTimeout(() => setCopied(false), COPIED_RESET_MS);
+    if (copied === null) return;
+    const timer = setTimeout(() => setCopied(null), COPIED_RESET_MS);
     return () => clearTimeout(timer);
   }, [copied]);
 
@@ -59,7 +61,15 @@ export function SessionRow({ session, onStage, focused, now, onSelect }: Session
     if (session.tmuxName === null) return;
     navigator.clipboard
       .writeText(`tmux -L garden attach -t ${session.tmuxName}`)
-      .then(() => setCopied(true))
+      .then(() => setCopied('attach'))
+      .catch(reportCommandFailure);
+  }
+
+  function handleCopyId(event: MouseEvent) {
+    event.stopPropagation();
+    navigator.clipboard
+      .writeText(session.id)
+      .then(() => setCopied('id'))
       .catch(reportCommandFailure);
   }
 
@@ -75,6 +85,9 @@ export function SessionRow({ session, onStage, focused, now, onSelect }: Session
       {focused && <span className="focused-mark" title="Focused" />}
       <div className="row-top">
         <span className="row-title">{title}</span>
+        <span className="row-id mono" title={session.id} onClick={handleCopyId}>
+          {copied === 'id' ? 'Copied' : session.id.slice(0, 8)}
+        </span>
         {session.liveness === 'live' && session.status !== null && (
           <StatusPill status={session.status} />
         )}
@@ -103,7 +116,9 @@ export function SessionRow({ session, onStage, focused, now, onSelect }: Session
             </button>
           )}
           {session.tmuxName !== null && (
-            <button onClick={handleCopyAttach}>{copied ? 'Copied' : 'Copy attach'}</button>
+            <button onClick={handleCopyAttach}>
+              {copied === 'attach' ? 'Copied' : 'Copy attach'}
+            </button>
           )}
         </div>
       )}

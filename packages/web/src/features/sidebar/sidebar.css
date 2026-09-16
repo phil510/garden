@@ -103,6 +103,12 @@
   flex: 1;
   min-width: 0;
 }
+.row-id {
+  flex: 0 0 auto;
+  font-size: 10px;
+  color: var(--text-faint);
+  cursor: pointer;
+}
 .status-pill {
   display: inline-flex;
   align-items: center;
