@@ -12,7 +12,7 @@ function withTempDir(fn: (dir: string) => Promise<void>): Promise<void> {
 describe('readClaudeSessionNames', () => {
   it('resolves to an empty map when the registry directory does not exist', async () => {
     await withTempDir(async (dir) => {
-      expect(await readClaudeSessionNames(join(dir, 'missing'))).toEqual({});
+      expect(await readClaudeSessionNames(join(dir, 'missing'))).toEqual({ names: {}, skipped: 0 });
     });
   });
 
@@ -22,7 +22,10 @@ describe('readClaudeSessionNames', () => {
         join(dir, '1234.json'),
         JSON.stringify({ pid: 1234, sessionId: 'sid-1', name: 'garden-7a' }),
       );
-      expect(await readClaudeSessionNames(dir)).toEqual({ 'sid-1': 'garden-7a' });
+      expect(await readClaudeSessionNames(dir)).toEqual({
+        names: { 'sid-1': 'garden-7a' },
+        skipped: 0,
+      });
     });
   });
 
@@ -33,7 +36,10 @@ describe('readClaudeSessionNames', () => {
         join(dir, '5678.json'),
         JSON.stringify({ pid: 5678, sessionId: 'sid-2', name: 'garden-9c' }),
       );
-      expect(await readClaudeSessionNames(dir)).toEqual({ 'sid-2': 'garden-9c' });
+      expect(await readClaudeSessionNames(dir)).toEqual({
+        names: { 'sid-2': 'garden-9c' },
+        skipped: 1,
+      });
     });
   });
 
@@ -50,7 +56,7 @@ describe('readClaudeSessionNames', () => {
         join(dir, '2222.json'),
         JSON.stringify({ pid: 2222, sessionId: 'sid-3', name: 'garden-new' }),
       );
-      expect(await readClaudeSessionNames(dir)).toEqual({});
+      expect(await readClaudeSessionNames(dir)).toEqual({ names: {}, skipped: 0 });
     });
   });
 });

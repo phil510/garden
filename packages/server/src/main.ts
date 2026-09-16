@@ -97,11 +97,13 @@ async function dispatchTmuxSnapshot(projection: Projection, tmux: TmuxPort): Pro
 async function dispatchClaudeSessionNames(
   projection: Projection,
   sessionsDir: string,
+  logger: Logger,
 ): Promise<void> {
-  projection.dispatch({
-    type: 'claude-session-names-loaded',
-    names: await readClaudeSessionNames(sessionsDir),
-  });
+  const { names, skipped } = await readClaudeSessionNames(sessionsDir);
+  if (skipped > 0) {
+    logger.warn(`skipped ${String(skipped)} unreadable registry file(s) in ${sessionsDir}`);
+  }
+  projection.dispatch({ type: 'claude-session-names-loaded', names });
 }
 
 /**
@@ -122,7 +124,7 @@ async function replay(
   try {
     // Same boundary as the poll tick's own try/catch: a registry read failure is a missing
     // display name, not a reason to fail boot.
-    await dispatchClaudeSessionNames(projection, claudeSessionsDir);
+    await dispatchClaudeSessionNames(projection, claudeSessionsDir, logger);
   } catch (error) {
     logger.error(
       `claude session registry read failed: ${error instanceof Error ? error.message : String(error)}`,
@@ -175,11 +177,13 @@ export async function main(): Promise<void> {
     });
     // Its own try/catch, not chained onto the tmux snapshot's promise: a registry read
     // failure must not swallow that tick's liveness dispatch.
-    dispatchClaudeSessionNames(projection, config.claudeSessionsDir).catch((error: unknown) => {
-      logger.error(
-        `claude session registry poll failed: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    });
+    dispatchClaudeSessionNames(projection, config.claudeSessionsDir, logger).catch(
+      (error: unknown) => {
+        logger.error(
+          `claude session registry poll failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      },
+    );
   }, TMUX_POLL_INTERVAL_MS);
 
   const app = createServer({
