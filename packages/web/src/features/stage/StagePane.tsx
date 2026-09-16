@@ -1,17 +1,20 @@
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import type { IDockviewPanelProps } from 'dockview-react';
-import { useCallback, useEffect, useRef, type MouseEvent } from 'react';
-import { resumeSession, updateUiState } from '../../api/client';
+import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react';
+import { killSession, resumeSession, updateUiState } from '../../api/client';
 import { reportCommandFailure } from '../../api/reportCommandFailure';
 import { StatusPill } from '../../components/StatusPill';
 import { useLocalStore } from '../../state/localStore';
 import { useSessionStore } from '../../state/sessionStore';
 import { useUiStore } from '../../state/uiStore';
 import { attachPane, detachPane } from '../../terminals/registry';
-import { lastPathSegment } from '../sidebar/lastPathSegment';
+import { sessionIdentityLabel } from '../sidebar/sessionIdentity';
 import { deadPaneStatusLine } from './deadPaneStatus';
+import { paneTitle } from './paneTitle';
 import { removeFromStage } from './removeFromStage';
 import { slotFromEmptySlotId } from './presetLayout';
+
+const COPIED_RESET_MS = 1400;
 
 const DEAD_ICON = (
   <svg
@@ -53,6 +56,8 @@ export function StagePane(props: IDockviewPanelProps) {
   const live = session?.liveness === 'live';
   const connectionEpoch = useLocalStore((state) => state.connectionEpoch);
   const terminalRef = useRef<HTMLDivElement>(null);
+  const [confirmingKill, setConfirmingKill] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const {
     setNodeRef: setDraggableRef,
@@ -93,6 +98,12 @@ export function StagePane(props: IDockviewPanelProps) {
     detachPane(props.api.id);
   }, [props.api.id, live]);
 
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), COPIED_RESET_MS);
+    return () => clearTimeout(timer);
+  }, [copied]);
+
   function focus() {
     if (slot === -1 || focused) return;
     updateUiState({ focusedSlot: slot }).catch(reportCommandFailure);
@@ -118,6 +129,31 @@ export function StagePane(props: IDockviewPanelProps) {
     resumeSession(props.api.id).catch(reportCommandFailure);
   }
 
+  function handleKill(event: MouseEvent) {
+    event.stopPropagation();
+    setConfirmingKill(true);
+  }
+
+  function handleKillCancel(event: MouseEvent) {
+    event.stopPropagation();
+    setConfirmingKill(false);
+  }
+
+  function handleKillConfirm(event: MouseEvent) {
+    event.stopPropagation();
+    setConfirmingKill(false);
+    killSession(props.api.id).catch(reportCommandFailure);
+  }
+
+  function handleCopySessionId(event: MouseEvent) {
+    event.stopPropagation();
+    if (session === undefined) return;
+    navigator.clipboard
+      .writeText(session.id)
+      .then(() => setCopied(true))
+      .catch(reportCommandFailure);
+  }
+
   if (session === undefined) return null;
 
   const classes = ['pane'];
@@ -134,15 +170,46 @@ export function StagePane(props: IDockviewPanelProps) {
     >
       <div className="pane-header">
         <div className="pane-title-wrap">
-          <div className="pane-title">{session.title ?? session.cwd}</div>
+          <div className="pane-title">{paneTitle(session)}</div>
           <MetaRow label="branch" value={session.branch} />
-          <MetaRow
-            label="project"
-            value={session.title === null ? null : lastPathSegment(session.cwd)}
-          />
+          <div
+            className="pane-meta-row copyable"
+            onClick={handleCopySessionId}
+            title="Click to copy session id"
+          >
+            <span className="pane-meta-k">session:</span>
+            <span className="pane-meta-v">
+              {copied ? 'Copied' : sessionIdentityLabel(session.claudeSessionName, session.id)}
+            </span>
+          </div>
         </div>
         {live && session.status !== null && <StatusPill status={session.status} />}
         <div className="pane-header-actions">
+          {live &&
+            (confirmingKill ? (
+              <>
+                <button
+                  className="ghost icon-btn danger"
+                  title="Confirm kill"
+                  onClick={handleKillConfirm}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                    <path d="M5 13l4 4L19 7" />
+                  </svg>
+                </button>
+                <button className="ghost icon-btn" title="Cancel" onClick={handleKillCancel}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                    <path d="M6 6l12 12M18 6L6 18" />
+                  </svg>
+                </button>
+              </>
+            ) : (
+              <button className="ghost icon-btn danger" title="Kill session" onClick={handleKill}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M10 7l1 13a1 1 0 0 0 1 1h0a1 1 0 0 0 1-1l1-13" />
+                </svg>
+              </button>
+            ))}
           <button
             className="ghost icon-btn drag-handle"
             title="Drag to swap slots"
