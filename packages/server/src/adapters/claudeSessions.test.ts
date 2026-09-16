@@ -43,6 +43,15 @@ describe('readClaudeSessionNames', () => {
     });
   });
 
+  it('counts a well-formed JSON file missing sessionId or name as skipped', async () => {
+    await withTempDir(async (dir) => {
+      // Unlike unparseable JSON, this file parses fine — it just isn't shaped like a
+      // registry entry, a structurally different rejection path through isRegistryEntry.
+      writeFileSync(join(dir, '1234.json'), JSON.stringify({ pid: 1234, sessionId: 'sid-1' }));
+      expect(await readClaudeSessionNames(dir)).toEqual({ names: {}, skipped: 1 });
+    });
+  });
+
   it('drops the name for a sessionId that two registry files both claim', async () => {
     await withTempDir(async (dir) => {
       // A lingering dead-process file and a fresh resume can both name the same sessionId
