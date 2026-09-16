@@ -98,6 +98,14 @@ export function StagePane(props: IDockviewPanelProps) {
     detachPane(props.api.id);
   }, [props.api.id, live]);
 
+  // The panel is keyed by session id, so the same component instance survives a kill/resume
+  // round trip. Without this, an armed-but-unconfirmed kill would still be armed after the
+  // session came back live, defeating the confirmation step for the next click.
+  useEffect(() => {
+    if (live) return;
+    setConfirmingKill(false);
+  }, [live]);
+
   useEffect(() => {
     if (!copied) return;
     const timer = setTimeout(() => setCopied(false), COPIED_RESET_MS);
