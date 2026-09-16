@@ -28,6 +28,9 @@ export interface SessionState {
   /** The last timestamped transcript line, in epoch ms. Display, sorting and filtering only;
    *  liveness never reads it. */
   lastActivity: number;
+  /** The Claude-side addressable name (e.g. `garden-7a`) read from the Claude session
+   *  registry. Null when the registry carries no entry for this session's id. */
+  claudeSessionName: string | null;
 }
 
 export type SessionMap = Record<string, SessionState>;

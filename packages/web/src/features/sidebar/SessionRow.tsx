@@ -1,13 +1,12 @@
 import type { SessionState } from '@garden/shared';
-import { useEffect, useState, type MouseEvent } from 'react';
+import { useState, type MouseEvent } from 'react';
 import { killSession, resumeSession } from '../../api/client';
 import { reportCommandFailure } from '../../api/reportCommandFailure';
 import { StatusPill } from '../../components/StatusPill';
+import { useCopyFlash } from '../../hooks/useCopyFlash';
 import { HoverCard } from './HoverCard';
 import { lastPathSegment } from './lastPathSegment';
 import { formatRelativeTime } from './relativeTime';
-
-const COPIED_RESET_MS = 1400;
 
 interface SessionRowProps {
   session: SessionState;
@@ -23,15 +22,12 @@ export function SessionRow({ session, onStage, focused, now, onSelect }: Session
   const [rowEl, setRowEl] = useState<HTMLDivElement | null>(null);
   const [hovered, setHovered] = useState(false);
   const [confirmingKill, setConfirmingKill] = useState(false);
-  const [copied, setCopied] = useState(false);
+  // Two independent hook instances, since the attach command and the session id are two
+  // independent "just copied" flashes and must not flip each other's label.
+  const attachCopy = useCopyFlash();
+  const idCopy = useCopyFlash();
   const dead = session.liveness === 'dead';
   const title = session.title ?? lastPathSegment(session.cwd);
-
-  useEffect(() => {
-    if (!copied) return;
-    const timer = setTimeout(() => setCopied(false), COPIED_RESET_MS);
-    return () => clearTimeout(timer);
-  }, [copied]);
 
   function handleKill(event: MouseEvent) {
     event.stopPropagation();
@@ -57,10 +53,12 @@ export function SessionRow({ session, onStage, focused, now, onSelect }: Session
   function handleCopyAttach(event: MouseEvent) {
     event.stopPropagation();
     if (session.tmuxName === null) return;
-    navigator.clipboard
-      .writeText(`tmux -L garden attach -t ${session.tmuxName}`)
-      .then(() => setCopied(true))
-      .catch(reportCommandFailure);
+    attachCopy.copy(`tmux -L garden attach -t ${session.tmuxName}`);
+  }
+
+  function handleCopyId(event: MouseEvent) {
+    event.stopPropagation();
+    idCopy.copy(session.id);
   }
 
   return (
@@ -75,6 +73,9 @@ export function SessionRow({ session, onStage, focused, now, onSelect }: Session
       {focused && <span className="focused-mark" title="Focused" />}
       <div className="row-top">
         <span className="row-title">{title}</span>
+        <span className="row-id mono" title={session.id} onClick={handleCopyId}>
+          {idCopy.copied ? 'Copied' : session.id.slice(0, 8)}
+        </span>
         {session.liveness === 'live' && session.status !== null && (
           <StatusPill status={session.status} />
         )}
@@ -103,7 +104,9 @@ export function SessionRow({ session, onStage, focused, now, onSelect }: Session
             </button>
           )}
           {session.tmuxName !== null && (
-            <button onClick={handleCopyAttach}>{copied ? 'Copied' : 'Copy attach'}</button>
+            <button onClick={handleCopyAttach}>
+              {attachCopy.copied ? 'Copied' : 'Copy attach'}
+            </button>
           )}
         </div>
       )}

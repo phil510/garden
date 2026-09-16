@@ -23,6 +23,7 @@ export interface Config {
   readonly appDir: string;
   readonly tmuxSocket: string;
   readonly transcriptsDir: string;
+  readonly claudeSessionsDir: string;
   readonly claudeCommand: readonly string[];
   readonly permissionMode: PermissionMode;
 }
@@ -126,6 +127,7 @@ export function loadConfig(
     appDir: appDirPath(home, env),
     tmuxSocket: envString(env, 'GARDEN_TMUX_SOCKET') ?? TMUX_SOCKET,
     transcriptsDir: envString(env, 'GARDEN_TRANSCRIPTS_DIR') ?? join(home, '.claude', 'projects'),
+    claudeSessionsDir: join(home, '.claude', 'sessions'),
     claudeCommand: envClaudeCommand(env) ?? ['claude'],
     permissionMode: file.permissionMode,
   };

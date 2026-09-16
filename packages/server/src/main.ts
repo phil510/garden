@@ -1,4 +1,5 @@
 import { homedir } from 'node:os';
+import { readClaudeSessionNames } from './adapters/claudeSessions.js';
 import { branch, repoRoot, status, workTreePrefix } from './adapters/git.js';
 import { createLogger, type Logger } from './adapters/logger.js';
 import { attachPty } from './adapters/pty.js';
@@ -93,6 +94,18 @@ async function dispatchTmuxSnapshot(projection: Projection, tmux: TmuxPort): Pro
   projection.dispatch({ type: 'tmux-snapshot', sessions: toSessionFacts(await tmux.listPanes()) });
 }
 
+async function dispatchClaudeSessionNames(
+  projection: Projection,
+  sessionsDir: string,
+  logger: Logger,
+): Promise<void> {
+  const { names, skipped } = await readClaudeSessionNames(sessionsDir);
+  if (skipped > 0) {
+    logger.warn(`skipped ${String(skipped)} unreadable registry file(s) in ${sessionsDir}`);
+  }
+  projection.dispatch({ type: 'claude-session-names-loaded', names });
+}
+
 /**
  * Boot is a replay rather than a restore: the store contributes only the overlay facts
  * garden cannot recompute, and every session fact is re-derived from the events the
@@ -104,9 +117,19 @@ async function replay(
   tmux: TmuxPort,
   transcripts: TranscriptPort,
   logger: Logger,
+  claudeSessionsDir: string,
 ): Promise<void> {
   projection.dispatch({ type: 'store-loaded', tmuxNames: { ...store.read().tmuxNames } });
   await dispatchTmuxSnapshot(projection, tmux);
+  try {
+    // Same boundary as the poll tick's own try/catch: a registry read failure is a missing
+    // display name, not a reason to fail boot.
+    await dispatchClaudeSessionNames(projection, claudeSessionsDir, logger);
+  } catch (error) {
+    logger.error(
+      `claude session registry read failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
   for (const path of await transcripts.listFiles()) {
     try {
       const { record, skipped } = await transcripts.readRecord(path);
@@ -142,7 +165,7 @@ export async function main(): Promise<void> {
   // Subscribed before the replay so boot's own dispatches are what drive the first resolutions.
   const stopRepoRoots = watchRepoRoots({ git, projection });
 
-  await replay(projection, store, tmux, transcripts, logger);
+  await replay(projection, store, tmux, transcripts, logger, config.claudeSessionsDir);
 
   const watcher = transcripts.watch((event) => {
     projection.dispatch(event);
@@ -152,6 +175,15 @@ export async function main(): Promise<void> {
     dispatchTmuxSnapshot(projection, tmux).catch((error: unknown) => {
       logger.error(`tmux poll failed: ${error instanceof Error ? error.message : String(error)}`);
     });
+    // Its own try/catch, not chained onto the tmux snapshot's promise: a registry read
+    // failure must not swallow that tick's liveness dispatch.
+    dispatchClaudeSessionNames(projection, config.claudeSessionsDir, logger).catch(
+      (error: unknown) => {
+        logger.error(
+          `claude session registry poll failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      },
+    );
   }, TMUX_POLL_INTERVAL_MS);
 
   const app = createServer({

@@ -10,6 +10,7 @@ export const initialState: GardenState = {
   repoRoots: {},
   ended: {},
   reported: {},
+  claudeSessionNames: {},
 };
 
 function blank(id: string): SessionState {
@@ -26,6 +27,7 @@ function blank(id: string): SessionState {
     exitCode: null,
     tmuxName: null,
     lastActivity: 0,
+    claudeSessionName: null,
   };
 }
 
@@ -44,6 +46,7 @@ function rederive(state: GardenState): GardenState {
       tmuxName,
       // Null covers both a cwd nothing has resolved yet and one that is not in a repo.
       repoRoot: state.repoRoots[session.cwd] ?? null,
+      claudeSessionName: state.claudeSessionNames[id] ?? null,
       liveness,
       exitCode,
       // Status belongs to live sessions: none yet heard from reads `unknown`, dead reads nothing.
@@ -117,6 +120,10 @@ export function reduce(state: GardenState, event: GardenEvent): GardenState {
       for (const fact of event.sessions) tmux[fact.name] = fact;
       return rederive({ ...state, tmux });
     }
+    case 'claude-session-names-loaded':
+      // A full snapshot, replacing rather than merging: a registry entry can outlive its
+      // process, so a name that drops out of one snapshot must drop out of state too.
+      return rederive({ ...state, claudeSessionNames: event.names });
   }
   // No default arm: a switch without one narrows to never here, so a new event
   // variant fails to compile rather than being silently swallowed.

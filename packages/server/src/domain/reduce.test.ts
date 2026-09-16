@@ -39,6 +39,11 @@ const hook = (name: string, id = 'sid-1'): GardenEvent => ({
   payload: aHookEvent({ session_id: id, hook_event_name: name }),
 });
 
+const claudeSessionNames = (names: Record<string, string>): GardenEvent => ({
+  type: 'claude-session-names-loaded',
+  names,
+});
+
 describe('reduce', () => {
   it('creates a session from a hook alone, under the hook id and with the hook cwd', () => {
     const state = fold([hook('UserPromptSubmit', 'sid-9')]);
@@ -253,5 +258,33 @@ describe('reduce', () => {
       liveness: 'live',
       status: 'unknown',
     });
+  });
+
+  it('picks up a Claude-side name for a session the registry snapshot names', () => {
+    const state = fold([transcript(), claudeSessionNames({ 'sid-1': 'garden-7a' })]);
+    expect(state.sessions['sid-1']?.claudeSessionName).toBe('garden-7a');
+  });
+
+  it('leaves a session the registry snapshot does not name at null', () => {
+    const state = fold([
+      transcript(),
+      transcript({ sessionId: 'sid-2' }),
+      claudeSessionNames({ 'sid-1': 'garden-7a' }),
+    ]);
+    expect(state.sessions['sid-2']?.claudeSessionName).toBeNull();
+  });
+
+  it('reverts to null when a name present in one snapshot is absent from the next', () => {
+    const state = fold([
+      transcript(),
+      claudeSessionNames({ 'sid-1': 'garden-7a' }),
+      claudeSessionNames({}),
+    ]);
+    expect(state.sessions['sid-1']?.claudeSessionName).toBeNull();
+  });
+
+  it('lands a Claude-side name that arrived before the session was otherwise known', () => {
+    const state = fold([claudeSessionNames({ 'sid-1': 'garden-7a' }), transcript()]);
+    expect(state.sessions['sid-1']?.claudeSessionName).toBe('garden-7a');
   });
 });

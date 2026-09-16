@@ -31,7 +31,8 @@ export type GardenEvent =
   | { type: 'transcript-changed'; path: string; record: TranscriptRecord }
   | { type: 'repo-root-resolved'; cwd: string; repoRoot: string }
   | { type: 'hook'; payload: HookPayload }
-  | { type: 'tmux-snapshot'; sessions: TmuxSessionFact[] };
+  | { type: 'tmux-snapshot'; sessions: TmuxSessionFact[] }
+  | { type: 'claude-session-names-loaded'; names: Record<string, string> };
 
 export interface GardenState {
   sessions: SessionMap;
@@ -45,4 +46,6 @@ export interface GardenState {
   ended: Record<string, boolean>;
   /** The latest status-bearing hook per session, by session id. */
   reported: Record<string, ReportedStatus>;
+  /** The Claude session registry's latest snapshot, session id to Claude-side name. */
+  claudeSessionNames: Record<string, string>;
 }

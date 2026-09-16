@@ -14,6 +14,7 @@ export function aSession(overrides: Partial<SessionState> = {}): SessionState {
     exitCode: null,
     tmuxName: 'repo',
     lastActivity: 1_000_000,
+    claudeSessionName: null,
     ...overrides,
   };
 }

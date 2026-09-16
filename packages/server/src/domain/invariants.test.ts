@@ -128,6 +128,10 @@ const everyVariant: Record<GardenEvent['type'], GardenEvent> = {
   'repo-root-resolved': rootResolved,
   hook: { type: 'hook', payload: aHookEvent({ session_id: 'sid-1' }) },
   'tmux-snapshot': snapshot(false),
+  'claude-session-names-loaded': {
+    type: 'claude-session-names-loaded',
+    names: { 'sid-1': 'garden-7a' },
+  },
 };
 
 const states = {

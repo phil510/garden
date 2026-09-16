@@ -44,6 +44,7 @@ describe('diff', () => {
       exitCode: 130,
       tmuxName: 'other',
       lastActivity: before.lastActivity + 1,
+      claudeSessionName: 'garden-7a',
     };
     const [delta] = diff(withSessions(before), withSessions(after));
     const changed = delta?.type === 'session-changed' ? Object.keys(delta.changes) : [];
