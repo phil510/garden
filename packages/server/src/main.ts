@@ -119,7 +119,15 @@ async function replay(
 ): Promise<void> {
   projection.dispatch({ type: 'store-loaded', tmuxNames: { ...store.read().tmuxNames } });
   await dispatchTmuxSnapshot(projection, tmux);
-  await dispatchClaudeSessionNames(projection, claudeSessionsDir);
+  try {
+    // Same boundary as the poll tick's own try/catch: a registry read failure is a missing
+    // display name, not a reason to fail boot.
+    await dispatchClaudeSessionNames(projection, claudeSessionsDir);
+  } catch (error) {
+    logger.error(
+      `claude session registry read failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
   for (const path of await transcripts.listFiles()) {
     try {
       const { record, skipped } = await transcripts.readRecord(path);
