@@ -157,6 +157,7 @@ export default tseslint.config(
                 '!./store.js',
                 '!./transcripts.js',
                 '!./tmux.js',
+                '!./claudeSessions.js',
               ],
               message:
                 'adapters/ must not import another adapter. One adapter per external system; compose them in main.ts. An adapter that needs several files becomes a directory, whose files may import each other.',
