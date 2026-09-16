@@ -36,4 +36,21 @@ describe('readClaudeSessionNames', () => {
       expect(await readClaudeSessionNames(dir)).toEqual({ 'sid-2': 'garden-9c' });
     });
   });
+
+  it('drops the name for a sessionId that two registry files both claim', async () => {
+    await withTempDir(async (dir) => {
+      // A lingering dead-process file and a fresh resume can both name the same sessionId
+      // before cleanup removes the old one — which one is "current" isn't decidable from the
+      // registry alone, so neither name is trusted.
+      writeFileSync(
+        join(dir, '1111.json'),
+        JSON.stringify({ pid: 1111, sessionId: 'sid-3', name: 'garden-old' }),
+      );
+      writeFileSync(
+        join(dir, '2222.json'),
+        JSON.stringify({ pid: 2222, sessionId: 'sid-3', name: 'garden-new' }),
+      );
+      expect(await readClaudeSessionNames(dir)).toEqual({});
+    });
+  });
 });
