@@ -32,14 +32,21 @@ const DEAD_ICON = (
 interface MetaRowProps {
   label: string;
   value: string | null;
+  /** Set together to make the row a click-to-copy affordance; omitted for a plain row. */
+  onClick?: (event: MouseEvent) => void;
+  title?: string;
 }
 
-function MetaRow({ label, value }: MetaRowProps) {
+function MetaRow({ label, value, onClick, title }: MetaRowProps) {
   // A session momentarily has an empty cwd between creation and its first transcript read
   // (reduce.ts's `blank()`); an empty value reads as absent, the same as null.
   if (value === null || value === '') return null;
   return (
-    <div className="pane-meta-row">
+    <div
+      className={onClick === undefined ? 'pane-meta-row' : 'pane-meta-row copyable'}
+      onClick={onClick}
+      title={title}
+    >
       <span className="pane-meta-k">{label}:</span>
       <span className="pane-meta-v">{value}</span>
     </div>
@@ -173,18 +180,16 @@ export function StagePane(props: IDockviewPanelProps) {
         <div className="pane-title-wrap">
           <div className="pane-title">{paneTitle(session)}</div>
           <MetaRow label="branch" value={session.branch} />
-          <div
-            className="pane-meta-row copyable"
+          <MetaRow
+            label="session"
+            value={
+              sessionIdCopy.copied
+                ? 'Copied'
+                : sessionIdentityLabel(session.claudeSessionName, session.id)
+            }
             onClick={handleCopySessionId}
             title="Click to copy session id"
-          >
-            <span className="pane-meta-k">session:</span>
-            <span className="pane-meta-v">
-              {sessionIdCopy.copied
-                ? 'Copied'
-                : sessionIdentityLabel(session.claudeSessionName, session.id)}
-            </span>
-          </div>
+          />
         </div>
         {live && session.status !== null && <StatusPill status={session.status} />}
         <div className="pane-header-actions">
