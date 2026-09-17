@@ -303,27 +303,32 @@ small); developer works from brief ACs`, then go to step 6. The box
     `Issue`, `Failure scenario`) describing what CI reported, dispatch
     a developer fix-round against it, then re-check from (b).
     d. **CI green** → act on brief field 7. `ask` → report CI-green
-    status to the user and hand them the merge; the pipeline pauses
-    here until they tell you it merged or closed. `auto` →
-    `gh pr merge <url> --squash --delete-branch`. Its exit code is not
-    the success signal when run from inside the worktree: the command's
-    local post-merge step tries to switch to the default branch to free
-    the feature branch for deletion, and that switch fails (the default
-    branch is already checked out in the main checkout) even though the
-    GitHub-side merge and remote branch deletion both went through.
-    Check `gh pr view <url> --json state` for `MERGED` instead of
-    trusting the exit code. Default is `ask` — this is the one
-    irreversible act in the pipeline, which is why field 7 is the
-    explicit switch for it.
+    status to whoever is waiting on this pipeline — the local user, and
+    the dispatching peer if the brief named one — and hand them the
+    merge; the pipeline pauses here until step 12 confirms it. `auto` →
+    `gh pr merge <url> --squash --delete-branch`; step 12's check is
+    what tells you whether this succeeded, not the exit code. Default
+    is `ask` — this is the one irreversible act in the pipeline, which
+    is why field 7 is the explicit switch for it.
 11. **Stage 1–3 escalation** → `references/escalate-resume.md`.
     Auto-resolve within the brief's Autonomy bounds if you can, otherwise
     page the user; append the event's `## Resolution` block and the
     `> RESOLVED` annotation, then fresh-spawn under the next name with the
     decision in the opener.
 12. **Completion or abort — the shared convergence point for however the
-    pipeline ends**, reached from step 10(d) once the PR merges — self-
-    verified for `auto`, reported by the user for `ask` — or closes
-    without merging, or from an abort at any earlier stage.
+    pipeline ends**, reached from step 10(d) once `gh pr view --json state`
+    confirms `MERGED`, under every merge policy — neither of the
+    two things that might otherwise stand in for that confirmation can
+    be trusted. `gh pr merge --delete-branch`'s exit code lies when run
+    from inside the worktree: its local post-merge step tries to switch
+    to the default branch to free the feature branch for deletion, and
+    that switch fails (the default branch is already checked out in the
+    main checkout) even though the GitHub-side merge and remote branch
+    deletion both went through. And a report that the PR merged, from
+    the user or from a dispatching peer, is only a prompt to check it,
+    not the confirmation itself — verifying against GitHub directly is
+    what makes the reporter's identity irrelevant. Otherwise the
+    pipeline closes without merging, or aborts at any earlier stage.
     a. **Merged only.** Read `decisions.md` and confirm every entry is
     reflected on the PR — its description, a commit, or a review thread.
     The PR is the only surface here that outlives the run; the summary

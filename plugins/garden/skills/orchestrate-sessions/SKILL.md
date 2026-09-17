@@ -45,6 +45,22 @@ your own name out, because the peer cannot derive it. Write the rest of the brie
 the peer shares none of your context, and `message-session` covers what a note needs to survive
 the trip.
 
+**Settle merge/approval policy in the brief.** Naming the approver and the merge policy before
+the peer starts is what keeps an `ask`-style gate from stalling later. Relaying an
+approval only sequences the decision; it doesn't authorize it, because the gate isn't yours to
+close by relay. A peer that refuses a relayed approval is the anti-laundering boundary working as
+intended, not a bug to route around.
+
+**Merge and create-issue are two separate autonomy switches**, each `auto` or `ask-human`, not one
+combined setting — they differ in timing and in reversibility. Never dispatch a peer with either
+switch more autonomous than your own: an orchestrator under a human gate that dispatches a peer
+able to merge on its own hasn't delegated that decision, it has deleted it, and nothing in the
+system reports that it's gone. Merging a peer's PR yourself, under your own policy, and then
+telling the peer closes its gate — the same rule as above, not an exception: an approval leaves a
+peer nothing to check, only your word to trust or refuse, while a merge leaves a public record it
+can confirm instead. Cleanup (worktree, branch) stays with whichever session is alive and holding
+the PR; you inherit it only if that peer died while holding.
+
 ## Two naming systems
 
 A session has a garden/tmux name (`79-bounded-session-list`) and a Claude Code name that
@@ -54,6 +70,10 @@ resolve the address with `message-session`'s `resolve_session.sh`, every time. T
 belongs to one process: resume or restart a session and it comes back under a different one, so a
 name quoted from memory is stale the moment its process is — and a misdelivered note fails
 silently in both directions.
+
+When you report to your user, use the Claude Code name — that's what renders in the web console
+alongside the id, not the garden/tmux name. The tmux name still answers a different question and
+stays in the vocabulary for it: which pane to attach a terminal to.
 
 ## Wait by subscribing, never by polling
 
@@ -69,7 +89,10 @@ delivering anything; include one to do both at once. Three properties decide how
   it is still `working`. It fires on the _next_ idle transition, so a peer already `waiting` is
   one you read, not one you wait on.
 - **It is one-shot.** A session that goes idle, receives another message, and works again will
-  not notify you a second time. Re-subscribe if you still care.
+  not notify you a second time — that notice fired and is spent, so a later round needs its own
+  subscription — spend it again only where a report won't already cover it: where the brief
+  mandates a report, the notice lands beside a report you already have and adds nothing; where
+  the peer might go silent instead of reporting, that notice is the only signal you'll get.
 - **It can expire**, and says so when it does. That means "no news", not "still working" —
   re-subscribe, or read `recap`, before concluding anything.
 
