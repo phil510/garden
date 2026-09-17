@@ -22,10 +22,10 @@ export interface Projection {
 function toUiState(overlay: OverlayState): UiState {
   const entries = Object.entries(overlay.groups).sort((a, b) => a[1].order - b[1].order);
   return {
-    hideDead: overlay.hideDead,
     groupOrder: entries.map(([path]) => path),
     pinnedRepos: entries.filter(([, group]) => group.pinned).map(([path]) => path),
     collapsedRepos: entries.filter(([, group]) => group.collapsed).map(([path]) => path),
+    hideDeadRepos: entries.filter(([, group]) => group.hideDead).map(([path]) => path),
     preset: overlay.stage.preset,
     slots: [...overlay.stage.slots],
     focusedSlot: overlay.stage.focusedSlot,
@@ -36,7 +36,12 @@ function toUiState(overlay: OverlayState): UiState {
 /** Folds the UI slice back onto an overlay read moments earlier, so fields the client
  *  never sees — the tmux name map — survive the write. */
 function toOverlay(base: OverlayState, ui: UiState): OverlayState {
-  const named = new Set([...ui.groupOrder, ...ui.pinnedRepos, ...ui.collapsedRepos]);
+  const named = new Set([
+    ...ui.groupOrder,
+    ...ui.pinnedRepos,
+    ...ui.collapsedRepos,
+    ...ui.hideDeadRepos,
+  ]);
   const ordered = [...ui.groupOrder, ...[...named].filter((p) => !ui.groupOrder.includes(p))];
   const groups: Record<string, OverlayGroup> = {};
   ordered.forEach((path, order) => {
@@ -44,11 +49,11 @@ function toOverlay(base: OverlayState, ui: UiState): OverlayState {
       pinned: ui.pinnedRepos.includes(path),
       order,
       collapsed: ui.collapsedRepos.includes(path),
+      hideDead: ui.hideDeadRepos.includes(path),
     };
   });
   return {
     ...base,
-    hideDead: ui.hideDead,
     groups,
     stage: {
       ...base.stage,

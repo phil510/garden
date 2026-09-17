@@ -8,7 +8,6 @@ import { createProjection } from './projection.js';
 const emptyOverlay: OverlayState = {
   version: 1,
   tmuxNames: {},
-  hideDead: false,
   groups: {},
   stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
 };
@@ -154,10 +153,9 @@ describe('ui state', () => {
   const overlay: OverlayState = {
     version: 1,
     tmuxNames: { 'sid-1': 'repo' },
-    hideDead: true,
     groups: {
-      '/repos/b': { pinned: false, order: 1, collapsed: true },
-      '/repos/a': { pinned: true, order: 0, collapsed: false },
+      '/repos/b': { pinned: false, order: 1, collapsed: true, hideDead: false },
+      '/repos/a': { pinned: true, order: 0, collapsed: false, hideDead: true },
     },
     stage: {
       preset: 'two-across',
@@ -171,10 +169,10 @@ describe('ui state', () => {
     const projection = createProjection(fakeStore(overlay).port);
 
     expect(projection.uiState()).toEqual<UiState>({
-      hideDead: true,
       groupOrder: ['/repos/a', '/repos/b'],
       pinnedRepos: ['/repos/a'],
       collapsedRepos: ['/repos/b'],
+      hideDeadRepos: ['/repos/a'],
       preset: 'two-across',
       slots: ['sid-1', null],
       focusedSlot: 1,
@@ -185,10 +183,10 @@ describe('ui state', () => {
   it('applies a partial update and leaves the rest of the slice standing', () => {
     const projection = createProjection(fakeStore(overlay).port);
 
-    projection.updateUiState({ hideDead: false, focusedSlot: 0 });
+    projection.updateUiState({ hideDeadRepos: [], focusedSlot: 0 });
 
     expect(projection.uiState()).toMatchObject({
-      hideDead: false,
+      hideDeadRepos: [],
       focusedSlot: 0,
       preset: 'two-across',
       groupOrder: ['/repos/a', '/repos/b'],
@@ -199,7 +197,7 @@ describe('ui state', () => {
     const store = fakeStore(overlay);
     const projection = createProjection(store.port);
 
-    projection.updateUiState({ hideDead: false });
+    projection.updateUiState({ hideDeadRepos: [] });
 
     expect(store.written().tmuxNames).toEqual({ 'sid-1': 'repo' });
     expect(store.written().version).toBe(1);
@@ -241,8 +239,8 @@ describe('ui state', () => {
     projection.updateUiState({ groupOrder: ['/repos/b', '/repos/a'] });
 
     expect(store.written().groups).toEqual({
-      '/repos/b': { pinned: false, order: 0, collapsed: true },
-      '/repos/a': { pinned: true, order: 1, collapsed: false },
+      '/repos/b': { pinned: false, order: 0, collapsed: true, hideDead: false },
+      '/repos/a': { pinned: true, order: 1, collapsed: false, hideDead: true },
     });
     expect(projection.uiState().groupOrder).toEqual(['/repos/b', '/repos/a']);
   });
@@ -254,8 +252,20 @@ describe('ui state', () => {
     projection.updateUiState({ groupOrder: ['/repos/a'], pinnedRepos: ['/repos/z'] });
 
     expect(store.written().groups).toEqual({
-      '/repos/a': { pinned: false, order: 0, collapsed: false },
-      '/repos/z': { pinned: true, order: 1, collapsed: false },
+      '/repos/a': { pinned: false, order: 0, collapsed: false, hideDead: false },
+      '/repos/z': { pinned: true, order: 1, collapsed: false, hideDead: false },
+    });
+  });
+
+  it('keeps a repo named only as hide-dead, ordering it after the ordered ones', () => {
+    const store = fakeStore(emptyOverlay);
+    const projection = createProjection(store.port);
+
+    projection.updateUiState({ groupOrder: ['/repos/a'], hideDeadRepos: ['/repos/z'] });
+
+    expect(store.written().groups).toEqual({
+      '/repos/a': { pinned: false, order: 0, collapsed: false, hideDead: false },
+      '/repos/z': { pinned: false, order: 1, collapsed: false, hideDead: true },
     });
   });
 
@@ -264,12 +274,12 @@ describe('ui state', () => {
     const seen: UiState[] = [];
     const unsubscribe = projection.subscribeUiState((ui) => seen.push(ui));
 
-    projection.updateUiState({ hideDead: false });
+    projection.updateUiState({ hideDeadRepos: [] });
     unsubscribe();
-    projection.updateUiState({ hideDead: true });
+    projection.updateUiState({ hideDeadRepos: ['/repos/a', '/repos/b'] });
 
     expect(seen).toHaveLength(1);
-    expect(seen[0]?.hideDead).toBe(false);
+    expect(seen[0]?.hideDeadRepos).toEqual([]);
   });
 
   it('does not notify session subscribers when only the ui slice moves', () => {
@@ -277,7 +287,7 @@ describe('ui state', () => {
     const seen: Delta[][] = [];
     projection.subscribe((deltas) => seen.push(deltas));
 
-    projection.updateUiState({ hideDead: false });
+    projection.updateUiState({ hideDeadRepos: [] });
 
     expect(seen).toEqual([]);
   });
@@ -295,8 +305,8 @@ describe('updateUiState when the store write fails', () => {
     const seen: UiState[] = [];
     projection.subscribeUiState((ui) => void seen.push(ui));
 
-    expect(() => projection.updateUiState({ hideDead: true })).toThrow('EACCES');
-    expect(projection.uiState().hideDead).toBe(false);
+    expect(() => projection.updateUiState({ hideDeadRepos: ['/repos/a'] })).toThrow('EACCES');
+    expect(projection.uiState().hideDeadRepos).toEqual([]);
     expect(seen).toEqual([]);
   });
 });
