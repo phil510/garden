@@ -89,6 +89,10 @@ export function createBranchSweeper(deps: BranchSweeperDeps): BranchSweeper {
       let results: PromiseSettledResult<void>[];
       try {
         const sessions = deps.projection.sessions();
+        // `liveness` marks whether garden itself is polling a tmux pane for a session, not
+        // whether the underlying process is running — a session garden didn't start is always
+        // `'dead'` here. Its cwd still gets exactly one resolution below, so a branch change
+        // made from such a session after that point won't be picked back up.
         const live = new Set(
           sessions.filter((s) => s.liveness === 'live' && s.cwd !== '').map((s) => s.cwd),
         );
