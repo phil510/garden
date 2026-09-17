@@ -79,11 +79,18 @@ describe('hookOutcome', () => {
     expect(outcome.ended).toBe(false);
   });
 
-  it('still reports working for a genuine SessionStart', () => {
-    expect(
-      hookOutcome(aHookEvent({ hook_event_name: 'SessionStart', source: 'startup' })).status,
-    ).toBe('working');
+  it('does not report working for a startup-source SessionStart, so a fresh session waits for its first prompt', () => {
+    const outcome = hookOutcome(aHookEvent({ hook_event_name: 'SessionStart', source: 'startup' }));
+    expect(outcome.status).toBe('waiting');
+    expect(outcome.ended).toBe(false);
+  });
+
+  it('still reports working for a SessionStart with no source', () => {
     expect(hookOutcome(aHookEvent({ hook_event_name: 'SessionStart' })).status).toBe('working');
+  });
+
+  it('transitions to working on a session’s first UserPromptSubmit', () => {
+    expect(hookOutcome(aHookEvent({ hook_event_name: 'UserPromptSubmit' })).status).toBe('working');
   });
 
   it('returns no status for an unrecognised event name rather than throwing', () => {
