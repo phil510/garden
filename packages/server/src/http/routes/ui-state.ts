@@ -29,10 +29,10 @@ function isSlotIndex(value: unknown): value is number {
 function isUiStateRequest(body: unknown): body is UiStateRequest {
   if (typeof body !== 'object' || body === null) return false;
   const patch = body as Record<string, unknown>;
-  if ('hideDead' in patch && typeof patch.hideDead !== 'boolean') return false;
   if ('groupOrder' in patch && !isStringArray(patch.groupOrder)) return false;
   if ('pinnedRepos' in patch && !isStringArray(patch.pinnedRepos)) return false;
   if ('collapsedRepos' in patch && !isStringArray(patch.collapsedRepos)) return false;
+  if ('hideDeadRepos' in patch && !isStringArray(patch.hideDeadRepos)) return false;
   if ('preset' in patch && !presets.has(patch.preset as StagePreset)) return false;
   if ('slots' in patch && !isSlotsArray(patch.slots)) return false;
   if ('focusedSlot' in patch && !isSlotIndex(patch.focusedSlot)) return false;

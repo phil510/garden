@@ -7,7 +7,6 @@ import { watchRepoRoots } from './repoRoots.js';
 const emptyOverlay: OverlayState = {
   version: 1,
   tmuxNames: {},
-  hideDead: false,
   groups: {},
   stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
 };

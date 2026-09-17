@@ -135,8 +135,9 @@ mapping. It does not optimistically mutate state and hope tmux agrees.
 ### 4.2 Boot, and what is persisted
 
 `<appDir>/state.json` holds **overlay facts only** — things garden itself decided and cannot
-recompute: the session id to tmux name map, group order and pins, collapsed groups, stage
-preset and slot assignments, focused slot, and the hide-dead toggle. It does **not** hold a
+recompute: the session id to tmux name map, group order, and per-project pins, collapsed state
+and hide-dead toggle, plus stage preset and slot assignments and focused slot. It does **not**
+hold a
 `SessionState` snapshot. Every session fact is derived on every boot — liveness, exit code and
 tmux name from tmux, cwd, branch, title and recap from the transcripts, status from hooks —
 because those are the sources of truth and a persisted copy of them can only be wrong.

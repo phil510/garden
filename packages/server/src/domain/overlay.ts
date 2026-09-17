@@ -4,6 +4,7 @@ export interface OverlayGroup {
   readonly pinned: boolean;
   readonly order: number;
   readonly collapsed: boolean;
+  readonly hideDead: boolean;
 }
 
 export interface OverlayStage {
@@ -19,7 +20,6 @@ export interface OverlayStage {
 export interface OverlayState {
   readonly version: 1;
   readonly tmuxNames: Readonly<Record<string, string>>;
-  readonly hideDead: boolean;
   readonly groups: Readonly<Record<string, OverlayGroup>>;
   readonly stage: OverlayStage;
 }

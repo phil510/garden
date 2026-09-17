@@ -18,6 +18,7 @@ import { placeOnStage } from './placeOnStage';
 import { reorderGroups } from './reorderGroups';
 import { RepoGroup } from './RepoGroup';
 import { focusedSessionId } from './stageFocus';
+import { toggleHideDeadRepo } from './toggleHideDeadRepo';
 import { toggleRepoCollapse } from './toggleRepoCollapse';
 import './sidebar.css';
 
@@ -33,8 +34,10 @@ export function Sidebar() {
     );
   }
 
-  function toggleHideDead() {
-    updateUiState({ hideDead: !uiState.hideDead }).catch(reportCommandFailure);
+  function toggleHideDead(repoRoot: string) {
+    updateUiState({ hideDeadRepos: toggleHideDeadRepo(uiState.hideDeadRepos, repoRoot) }).catch(
+      reportCommandFailure,
+    );
   }
 
   function selectSession(id: string) {
@@ -60,14 +63,6 @@ export function Sidebar() {
   return (
     <>
       <div className="sidebar-toolbar">
-        <button
-          className={`toggle-pill${uiState.hideDead ? ' on' : ''}`}
-          title="Hide dead sessions"
-          onClick={toggleHideDead}
-        >
-          <span className="dot" />
-          <span>Hide dead</span>
-        </button>
         <button className="btn-new" onClick={() => setPickerOpen(true)}>
           <svg
             width="12"
@@ -89,11 +84,11 @@ export function Sidebar() {
               key={group.repoRoot}
               group={group}
               sessions={sessions}
-              hideDead={uiState.hideDead}
               now={now}
               onStageIds={onStageIds}
               focusedSessionId={focusedId}
               onToggleCollapse={toggleCollapse}
+              onToggleHideDead={toggleHideDead}
               onSelectSession={selectSession}
             />
           ))}

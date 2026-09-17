@@ -230,6 +230,10 @@
 .show-older-row:hover {
   color: var(--text);
 }
+.hide-dead-row {
+  padding: 6px 10px 6px 22px;
+  border-top: 1px dashed var(--border);
+}
 .empty-groups-note {
   padding: 14px 12px;
   color: var(--text-faint);

@@ -12,10 +12,10 @@ interface UiStore {
 }
 
 const initialUiState: UiState = {
-  hideDead: false,
   groupOrder: [],
   pinnedRepos: [],
   collapsedRepos: [],
+  hideDeadRepos: [],
   preset: 'single',
   slots: [],
   focusedSlot: 0,

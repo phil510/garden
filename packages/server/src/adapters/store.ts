@@ -6,7 +6,6 @@ import type { OverlayStage, OverlayState } from '../domain/overlay.js';
 export const DEFAULT_OVERLAY_STATE: OverlayState = {
   version: 1,
   tmuxNames: {},
-  hideDead: false,
   groups: {},
   stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
 };
@@ -49,7 +48,6 @@ function isOverlayState(value: unknown): value is OverlayState {
   return (
     value['version'] === 1 &&
     isRecord(value['tmuxNames']) &&
-    typeof value['hideDead'] === 'boolean' &&
     isRecord(value['groups']) &&
     isOverlayStage(value['stage'])
   );
