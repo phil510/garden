@@ -5,7 +5,6 @@ export type { HookPayload };
 export interface TranscriptRecord {
   sessionId: string | null;
   cwd: string | null;
-  gitBranch: string | null;
   title: string | null;
   lastPrompt: string | null;
   recap: string | null;
@@ -30,6 +29,7 @@ export type GardenEvent =
   | { type: 'session-registered'; id: string; tmuxName: string; cwd: string }
   | { type: 'transcript-changed'; path: string; record: TranscriptRecord }
   | { type: 'repo-root-resolved'; cwd: string; repoRoot: string }
+  | { type: 'branch-resolved'; cwd: string; branch: string | null }
   | { type: 'hook'; payload: HookPayload }
   | { type: 'tmux-snapshot'; sessions: TmuxSessionFact[] }
   | { type: 'claude-session-names-loaded'; names: Record<string, string> };
@@ -43,6 +43,10 @@ export interface GardenState {
    *  what the root is a function of: sessions sharing a cwd share one answer, and an answer
    *  that lands before the session it describes is still waiting when the session appears. */
   repoRoots: Record<string, string>;
+  /** Resolved branch by cwd, keyed the same way as `repoRoots`. Unlike a repo root, a branch
+   *  can stop being current for a cwd that stays a valid git directory, so a failed lookup is
+   *  recorded as `null` here rather than left unresolved — see `app/branches.ts`. */
+  branches: Record<string, string | null>;
   ended: Record<string, boolean>;
   /** The latest status-bearing hook per session, by session id. */
   reported: Record<string, ReportedStatus>;
