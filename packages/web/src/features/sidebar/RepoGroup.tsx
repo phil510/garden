@@ -101,15 +101,12 @@ export function RepoGroup({
             Show {hiddenCount} older dead session{hiddenCount === 1 ? '' : 's'}…
           </div>
         )}
-        <div className="hide-dead-row">
-          <button
-            className={`toggle-pill${group.hideDead ? ' on' : ''}`}
-            title="Hide dead sessions"
-            onClick={() => onToggleHideDead(group.repoRoot)}
-          >
-            <span className="dot" />
-            <span>Hide dead</span>
-          </button>
+        <div
+          className={`hide-dead-row${group.hideDead ? ' on' : ''}`}
+          title="Hide dead sessions"
+          onClick={() => onToggleHideDead(group.repoRoot)}
+        >
+          Hide dead
         </div>
       </div>
     </div>
