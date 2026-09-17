@@ -57,6 +57,8 @@ const sequences: GardenEvent[][] = [
   [transcript({}, now), transcript({ sessionId: 'sid-2', title: 'Another' }, now)],
   [rootResolved, transcript({}, now)],
   [transcript({}, now), rootResolved],
+  [branchResolved, transcript({}, now)],
+  [transcript({}, now), branchResolved],
   [
     transcript({}, now),
     {
@@ -91,6 +93,7 @@ const boot: GardenEvent[] = [
   transcript({}, now),
   transcript({ sessionId: 'sid-2', title: 'Another' }, now),
   rootResolved,
+  branchResolved,
 ];
 
 describe('boot replay equals steady state', () => {

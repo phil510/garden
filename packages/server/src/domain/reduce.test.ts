@@ -163,6 +163,23 @@ describe('reduce', () => {
     expect(Object.keys(fold([transcript({ sessionId: null })]).sessions)).toEqual([]);
   });
 
+  it('keeps the previous cwd when a slice carries none of its own', () => {
+    const state = fold([transcript({ cwd: '/Users/dev/repo' }), transcript({ cwd: null })]);
+    expect(state.sessions['sid-1']?.cwd).toBe('/Users/dev/repo');
+  });
+
+  it('moves a session to its new cwd, losing the branch resolved for the old one', () => {
+    const state = fold([
+      transcript({ cwd: '/Users/dev/repo' }),
+      resolvedBranch('/Users/dev/repo', 'main'),
+      transcript({ cwd: '/Users/dev/repo/.worktrees/feat-x' }),
+    ]);
+    expect(state.sessions['sid-1']).toMatchObject({
+      cwd: '/Users/dev/repo/.worktrees/feat-x',
+      branch: null,
+    });
+  });
+
   it('takes a session branch from the resolution for its cwd', () => {
     const state = fold([transcript(), resolvedBranch('/Users/dev/repo', 'main')]);
     expect(state.sessions['sid-1']?.branch).toBe('main');
@@ -186,8 +203,12 @@ describe('reduce', () => {
     expect(sweptAndFailed).toBeNull();
   });
 
-  it('does not throw on a branch resolution for a cwd no current session has', () => {
-    expect(() => fold([resolvedBranch('/nobody/here', 'main')])).not.toThrow();
+  it('holds a branch resolution for a cwd no session has yet until one appears there', () => {
+    const state = fold([
+      resolvedBranch('/Users/dev/repo', 'main'),
+      transcript({ cwd: '/Users/dev/repo' }),
+    ]);
+    expect(state.sessions['sid-1']?.branch).toBe('main');
   });
 
   it('brings a session back to live when a genuine SessionStart follows SessionEnd on the same pane', () => {
