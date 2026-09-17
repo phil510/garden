@@ -80,7 +80,7 @@ shopt -s nullglob
 rounds=("$PLANTDIR"/review-round-*.md)
 review_rounds=${#rounds[@]}
 
-decisions_entries=$(grep -c '^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T' "$PLANTDIR/decisions.md" 2>/dev/null || true)
+decisions_entries=$(grep -cE '^[[:space:]]*([-*][[:space:]]+)?[0-9]{4}-[0-9]{2}-[0-9]{2}T' "$PLANTDIR/decisions.md" 2>/dev/null || true)
 : "${decisions_entries:=0}"
 
 # Scoped to the ## Annotations section for the same reason pipeline-status.sh
