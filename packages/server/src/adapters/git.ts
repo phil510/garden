@@ -4,6 +4,12 @@ import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
 
+/** Every call in this file runs against a local working tree and normally finishes in
+ *  milliseconds. This bounds the pathological case — a stalled network mount, an ejected
+ *  volume, a lock some other process is holding — so one unresponsive `cwd` fails instead of
+ *  leaving the calling `Promise` unsettled forever. */
+const GIT_TIMEOUT_MS = 5_000;
+
 export interface GitStatusEntry {
   readonly path: string;
   readonly status: string;
@@ -21,18 +27,19 @@ export class GitError extends Error {
   }
 }
 
-/** stderr is empty when git never ran at all — the binary missing is the common
- *  case, and its errno is the only thing that says so. */
+/** stderr is empty when git never ran at all, or when it was killed for running past
+ *  `GIT_TIMEOUT_MS` — the errno and the kill signal are the only things that say why. */
 function describeFailure(stderr: string, cause: unknown): string {
   const trimmed = stderr.trim();
   if (trimmed !== '') return trimmed;
-  const code = (cause as NodeJS.ErrnoException | undefined)?.code;
+  const { code, signal } = (cause as NodeJS.ErrnoException & { signal?: string }) ?? {};
+  if (signal !== undefined) return `killed after ${String(GIT_TIMEOUT_MS)}ms (${signal})`;
   return code ?? '(no stderr)';
 }
 
 async function run(cwd: string, args: readonly string[]): Promise<string> {
   try {
-    const { stdout } = await execFileAsync('git', args, { cwd });
+    const { stdout } = await execFileAsync('git', args, { cwd, timeout: GIT_TIMEOUT_MS });
     return stdout;
   } catch (error) {
     throw new GitError(args, (error as { stderr?: string }).stderr ?? '', error);

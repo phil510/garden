@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -123,5 +123,25 @@ describe('the git adapter', () => {
     dir = mkdtempSync(join(tmpdir(), 'garden-git-'));
     await expect(repoRoot(dir)).rejects.toBeInstanceOf(GitError);
     await expect(repoRoot(dir)).rejects.toThrow(/not a git repository/);
+  });
+
+  it('kills a git call that never exits instead of hanging forever', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'garden-git-'));
+    // A `git` on PATH that never returns, standing in for a stalled network mount or an
+    // ejected volume: the real binary would otherwise be indistinguishable from one that is
+    // just slow, so this has to hang for real rather than mock the timeout away.
+    const fakeBinDir = join(dir, 'fake-bin');
+    mkdirSync(fakeBinDir);
+    const fakeGit = join(fakeBinDir, 'git');
+    writeFileSync(fakeGit, '#!/bin/sh\nsleep 30\n');
+    chmodSync(fakeGit, 0o755);
+
+    const originalPath = process.env.PATH;
+    process.env.PATH = `${fakeBinDir}:${originalPath ?? ''}`;
+    try {
+      await expect(branch(dir)).rejects.toBeInstanceOf(GitError);
+    } finally {
+      process.env.PATH = originalPath;
+    }
   });
 });

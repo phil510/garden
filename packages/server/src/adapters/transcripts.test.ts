@@ -93,7 +93,6 @@ const HEAD_LINE = (sessionId: string) =>
     type: 'user',
     sessionId,
     cwd: '/Users/phil/Desktop/Extend/garden',
-    gitBranch: 'main',
     timestamp: '2026-01-01T00:00:00.000Z',
     message: { content: 'hello' },
   });
@@ -132,7 +131,7 @@ describe('readTranscriptRecord', () => {
     });
   });
 
-  it('reads cwd and gitBranch from a conversation-bearing line in the tail window, not the head', async () => {
+  it('reads cwd from a conversation-bearing line in the tail window, not the head', async () => {
     await withTempHome(async (home) => {
       const path = join(home, 'large-moved.jsonl');
       const fillerLine = JSON.stringify({
@@ -142,7 +141,6 @@ describe('readTranscriptRecord', () => {
       const movedLine = JSON.stringify({
         type: 'user',
         cwd: '/Users/phil/Desktop/Extend/garden/.worktrees/feat-x',
-        gitBranch: 'feat/x',
         message: { content: 'moved into a worktree' },
       });
       const text =
@@ -153,7 +151,6 @@ describe('readTranscriptRecord', () => {
       const { record } = await readTranscriptRecord(path, 300);
       expect(record.sessionId).toBe('session-b');
       expect(record.cwd).toBe('/Users/phil/Desktop/Extend/garden/.worktrees/feat-x');
-      expect(record.gitBranch).toBe('feat/x');
     });
   });
 
@@ -166,7 +163,6 @@ describe('readTranscriptRecord', () => {
       expect(record).toEqual({
         sessionId: null,
         cwd: null,
-        gitBranch: null,
         title: null,
         lastPrompt: null,
         recap: null,

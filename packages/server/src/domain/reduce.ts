@@ -8,6 +8,7 @@ export const initialState: GardenState = {
   tmuxNames: {},
   tmux: {},
   repoRoots: {},
+  branches: {},
   ended: {},
   reported: {},
   claudeSessionNames: {},
@@ -31,8 +32,8 @@ function blank(id: string): SessionState {
   };
 }
 
-/** Projects the raw tmux, hook and repo-root facts onto every session, so the order events
- *  arrive in cannot change the outcome. */
+/** Projects the raw tmux, hook, repo-root and branch facts onto every session, so the order
+ *  events arrive in cannot change the outcome. */
 function rederive(state: GardenState): GardenState {
   const sessions: SessionMap = {};
   for (const [id, session] of Object.entries(state.sessions)) {
@@ -46,6 +47,9 @@ function rederive(state: GardenState): GardenState {
       tmuxName,
       // Null covers both a cwd nothing has resolved yet and one that is not in a repo.
       repoRoot: state.repoRoots[session.cwd] ?? null,
+      // `?? null` here covers only "never swept yet" — a swept-and-failed cwd is already
+      // `null` in the map, not absent from it. See `branches`' own doc comment.
+      branch: state.branches[session.cwd] ?? null,
       claudeSessionName: state.claudeSessionNames[id] ?? null,
       liveness,
       exitCode,
@@ -80,10 +84,6 @@ export function reduce(state: GardenState, event: GardenEvent): GardenState {
       const session: SessionState = {
         ...prev,
         cwd: record.cwd ?? prev.cwd,
-        // gitBranch must come from the same line as cwd (transcript.ts's `lastCwd`), so a new
-        // cwd takes its branch as-is, including null for a non-git directory, rather than
-        // falling back to the previous branch and re-pairing it with the new cwd.
-        branch: record.cwd === null ? prev.branch : record.gitBranch,
         title: record.title ?? record.lastPrompt ?? prev.title,
         recap: record.recap ?? prev.recap,
         // A transcript with no timestamped line reports no activity, so the previous stands.
@@ -96,6 +96,15 @@ export function reduce(state: GardenState, event: GardenEvent): GardenState {
         ...state,
         repoRoots: { ...state.repoRoots, [event.cwd]: event.repoRoot },
       });
+    case 'branch-resolved': {
+      // `in`, not `??`: a cwd's first-ever resolution to `null` must still land, since that is
+      // what tells `rederive` the cwd has been swept rather than never asked about.
+      if (event.cwd in state.branches && state.branches[event.cwd] === event.branch) return state;
+      return rederive({
+        ...state,
+        branches: { ...state.branches, [event.cwd]: event.branch },
+      });
+    }
     case 'hook': {
       const id = event.payload.session_id;
       if (id === '') return state;

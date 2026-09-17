@@ -10,7 +10,6 @@ const now = 1_700_000_000_000;
 const record = (o: Partial<TranscriptRecord> = {}): TranscriptRecord => ({
   sessionId: 'sid-1',
   cwd: '/Users/dev/repo',
-  gitBranch: 'main',
   title: 'A session',
   lastPrompt: 'do the thing',
   recap: 'Done.',
@@ -37,6 +36,12 @@ const rootResolved: GardenEvent = {
   repoRoot: '/Users/dev/repo',
 };
 
+const branchResolved: GardenEvent = {
+  type: 'branch-resolved',
+  cwd: '/Users/dev/repo',
+  branch: 'main',
+};
+
 const sequences: GardenEvent[][] = [
   [],
   [storeLoaded],
@@ -52,6 +57,8 @@ const sequences: GardenEvent[][] = [
   [transcript({}, now), transcript({ sessionId: 'sid-2', title: 'Another' }, now)],
   [rootResolved, transcript({}, now)],
   [transcript({}, now), rootResolved],
+  [branchResolved, transcript({}, now)],
+  [transcript({}, now), branchResolved],
   [
     transcript({}, now),
     {
@@ -86,6 +93,7 @@ const boot: GardenEvent[] = [
   transcript({}, now),
   transcript({ sessionId: 'sid-2', title: 'Another' }, now),
   rootResolved,
+  branchResolved,
 ];
 
 describe('boot replay equals steady state', () => {
@@ -126,6 +134,7 @@ const everyVariant: Record<GardenEvent['type'], GardenEvent> = {
   },
   'transcript-changed': transcript({}, now),
   'repo-root-resolved': rootResolved,
+  'branch-resolved': branchResolved,
   hook: { type: 'hook', payload: aHookEvent({ session_id: 'sid-1' }) },
   'tmux-snapshot': snapshot(false),
   'claude-session-names-loaded': {

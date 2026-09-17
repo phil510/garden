@@ -15,7 +15,6 @@ const transcript = (o: Partial<TranscriptRecord> = {}): GardenEvent => ({
   record: {
     sessionId: 'sid-1',
     cwd: '/Users/dev/repo',
-    gitBranch: 'main',
     title: 'Wire up the fold',
     lastPrompt: 'wire up the fold please',
     recap: 'Done.',
@@ -33,6 +32,12 @@ const resolvedRoot = (cwd: string, repoRoot: string): GardenEvent => ({
   type: 'repo-root-resolved',
   cwd,
   repoRoot,
+});
+
+const resolvedBranch = (cwd: string, branch: string | null): GardenEvent => ({
+  type: 'branch-resolved',
+  cwd,
+  branch,
 });
 
 const hook = (name: string, id = 'sid-1', source?: HookPayload['source']): GardenEvent => ({
@@ -56,7 +61,13 @@ describe('reduce', () => {
   });
 
   it('keeps the status of a hook that arrived before the tmux snapshot confirmed the pane', () => {
-    const state = fold([mapped, transcript(), hook('UserPromptSubmit'), snapshot(false)]);
+    const state = fold([
+      mapped,
+      transcript(),
+      resolvedBranch('/Users/dev/repo', 'main'),
+      hook('UserPromptSubmit'),
+      snapshot(false),
+    ]);
     expect(state.sessions['sid-1']).toMatchObject({
       liveness: 'live',
       status: 'working',
@@ -152,20 +163,65 @@ describe('reduce', () => {
     expect(Object.keys(fold([transcript({ sessionId: null })]).sessions)).toEqual([]);
   });
 
-  it('clears the branch rather than keeping the previous one when a new cwd carries no branch', () => {
-    const state = fold([
-      transcript({ cwd: '/Users/dev/repo', gitBranch: 'main' }),
-      transcript({ cwd: '/tmp/scratch', gitBranch: null }),
-    ]);
-    expect(state.sessions['sid-1']).toMatchObject({ cwd: '/tmp/scratch', branch: null });
+  it('keeps the previous cwd when a slice carries none of its own', () => {
+    const state = fold([transcript({ cwd: '/Users/dev/repo' }), transcript({ cwd: null })]);
+    expect(state.sessions['sid-1']?.cwd).toBe('/Users/dev/repo');
   });
 
-  it('keeps the previous cwd and branch together when a slice carries neither', () => {
+  it('moves a session to its new cwd, losing the branch resolved for the old one', () => {
     const state = fold([
-      transcript({ cwd: '/Users/dev/repo', gitBranch: 'main' }),
-      transcript({ cwd: null, gitBranch: null }),
+      transcript({ cwd: '/Users/dev/repo' }),
+      resolvedBranch('/Users/dev/repo', 'main'),
+      transcript({ cwd: '/Users/dev/repo/.worktrees/feat-x' }),
     ]);
-    expect(state.sessions['sid-1']).toMatchObject({ cwd: '/Users/dev/repo', branch: 'main' });
+    expect(state.sessions['sid-1']).toMatchObject({
+      cwd: '/Users/dev/repo/.worktrees/feat-x',
+      branch: null,
+    });
+  });
+
+  it('takes a session branch from the resolution for its cwd', () => {
+    const state = fold([transcript(), resolvedBranch('/Users/dev/repo', 'main')]);
+    expect(state.sessions['sid-1']?.branch).toBe('main');
+  });
+
+  it('gives every session sharing one cwd the same resolved branch', () => {
+    const second = transcript({ sessionId: 'sid-2' });
+    const state = fold([transcript(), second, resolvedBranch('/Users/dev/repo', 'main')]);
+    expect(state.sessions['sid-1']?.branch).toBe('main');
+    expect(state.sessions['sid-2']?.branch).toBe('main');
+  });
+
+  it('reads a resolution of null the same as a cwd nothing has resolved yet, both as null', () => {
+    const neverSwept = fold([transcript()]).sessions['sid-1']?.branch;
+    const sweptAndFailed = fold([
+      transcript(),
+      resolvedBranch('/Users/dev/repo', 'main'),
+      resolvedBranch('/Users/dev/repo', null),
+    ]).sessions['sid-1']?.branch;
+    expect(neverSwept).toBeNull();
+    expect(sweptAndFailed).toBeNull();
+  });
+
+  it('holds a branch resolution for a cwd no session has yet until one appears there', () => {
+    const state = fold([
+      resolvedBranch('/Users/dev/repo', 'main'),
+      transcript({ cwd: '/Users/dev/repo' }),
+    ]);
+    expect(state.sessions['sid-1']?.branch).toBe('main');
+  });
+
+  it('short-circuits a resolution that repeats the current branch for a cwd, without rederiving', () => {
+    const before = fold([transcript(), resolvedBranch('/Users/dev/repo', 'main')]);
+    const after = reduce(before, resolvedBranch('/Users/dev/repo', 'main'));
+    expect(after).toBe(before);
+  });
+
+  it('still lands the first resolution for a cwd even when it resolves to null', () => {
+    const before = fold([transcript()]);
+    const after = reduce(before, resolvedBranch('/Users/dev/repo', null));
+    expect(after).not.toBe(before);
+    expect(after.branches['/Users/dev/repo']).toBeNull();
   });
 
   it('brings a session back to live when a genuine SessionStart follows SessionEnd on the same pane', () => {
