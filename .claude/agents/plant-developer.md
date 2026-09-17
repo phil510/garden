@@ -244,7 +244,8 @@ A verify-command failure mid-task isn't an automatic escalation. Try up
 to 3 different approaches — not the same fix retried — before it counts
 as stuck. If one of them works, that's a decision the pipeline should be
 able to audit later: log it to `decisions.md` in `${PLANTDIR}` (what you
-tried, which attempt worked, why) and continue. Only escalate `stall`
+tried, which attempt worked, why) and continue, matching the entry shape
+`pipeline-init.sh` scaffolds at the top of the file. Only escalate `stall`
 once you're out of distinct approaches and verify still fails.
 
 A task or finding that asks for something the brief doesn't cover gets
