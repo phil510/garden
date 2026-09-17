@@ -139,8 +139,9 @@ recompute: the session id to tmux name map, group order, and per-project pins, c
 and hide-dead toggle, plus stage preset and slot assignments and focused slot. It does **not**
 hold a
 `SessionState` snapshot. Every session fact is derived on every boot — liveness, exit code and
-tmux name from tmux, cwd, branch, title and recap from the transcripts, status from hooks —
-because those are the sources of truth and a persisted copy of them can only be wrong.
+tmux name from tmux, cwd, title and recap from the transcripts, branch from a live git lookup
+keyed by cwd, status from hooks — because those are the sources of truth and a persisted copy
+of them can only be wrong.
 
 So the startup sequence is a replay, not a restore:
 
@@ -149,7 +150,9 @@ So the startup sequence is a replay, not a restore:
    UI preferences, and nothing else.
 3. Dispatch a full `tmux-snapshot`.
 4. Scan `<transcriptsDir>/**` and dispatch a `transcript-changed` per file.
-5. Start the watcher and the tmux poll; serve HTTP.
+5. Sweep every session's cwd for its current branch, once every distinct cwd from step 4 exists
+   in state, and dispatch a `branch-resolved` per cwd.
+6. Start the watcher and the tmux poll (which repeats step 5 on every tick); serve HTTP.
 
 Nothing is reconciled by hand, because steps 3 and 4 are the same events the adapters emit
 during normal operation — boot is just the first batch of them. A live session recovered this
