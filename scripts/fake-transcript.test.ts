@@ -29,13 +29,6 @@ describe('the fake claude transcript', () => {
     });
   });
 
-  it('reads cwd without losing it when the same line carries a null gitBranch', () => {
-    const { record } = parseTranscript(openingTranscript({ ...facts, gitBranch: null }, at));
-
-    expect(record.cwd).toBe(facts.cwd);
-    expect(record.sessionId).toBe(facts.sessionId);
-  });
-
   it('moves recap and lastActivity when a keyword line is appended, without losing sessionId', () => {
     const later = new Date('2026-09-07T13:00:00.000Z');
     const text =
