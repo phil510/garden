@@ -6,10 +6,10 @@ import { uiStateRoutes } from './ui-state.js';
 import type { UiStateDeps } from './ui-state.js';
 
 const baseUiState: UiState = {
-  hideDead: false,
   groupOrder: [],
   pinnedRepos: [],
   collapsedRepos: [],
+  hideDeadRepos: [],
   preset: 'single',
   slots: [null],
   focusedSlot: 0,
@@ -48,7 +48,7 @@ describe('PUT /ui-state', () => {
     const response = await app.inject({
       method: 'PUT',
       url: '/ui-state',
-      payload: { hideDead: 'yes' },
+      payload: { hideDeadRepos: 'yes' },
     });
 
     expect(response.statusCode).toBe(400);
@@ -101,12 +101,12 @@ describe('PUT /ui-state', () => {
     const response = await app.inject({
       method: 'PUT',
       url: '/ui-state',
-      payload: { hideDead: true, focusedSlot: 1 },
+      payload: { hideDeadRepos: ['/repo'], focusedSlot: 1 },
     });
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ ok: true });
-    expect(calls).toEqual([{ hideDead: true, focusedSlot: 1 }]);
+    expect(calls).toEqual([{ hideDeadRepos: ['/repo'], focusedSlot: 1 }]);
   });
 
   it('maps a failing store write to a 500', async () => {
@@ -121,7 +121,7 @@ describe('PUT /ui-state', () => {
     const response = await app.inject({
       method: 'PUT',
       url: '/ui-state',
-      payload: { hideDead: true },
+      payload: { hideDeadRepos: ['/repo'] },
     });
 
     expect(response.statusCode).toBe(500);
