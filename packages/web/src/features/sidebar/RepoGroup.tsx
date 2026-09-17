@@ -14,22 +14,22 @@ import {
 interface RepoGroupProps {
   group: SidebarGroup;
   sessions: SessionMap;
-  hideDead: boolean;
   now: number;
   onStageIds: ReadonlySet<string>;
   focusedSessionId: string | null;
   onToggleCollapse: (repoRoot: string) => void;
+  onToggleHideDead: (repoRoot: string) => void;
   onSelectSession: (id: string) => void;
 }
 
 export function RepoGroup({
   group,
   sessions,
-  hideDead,
   now,
   onStageIds,
   focusedSessionId,
   onToggleCollapse,
+  onToggleHideDead,
   onSelectSession,
 }: RepoGroupProps) {
   const [showOlder, setShowOlder] = useState(false);
@@ -51,8 +51,8 @@ export function RepoGroup({
   const members = group.sessionIds
     .map((id) => sessions[id])
     .filter((s): s is NonNullable<typeof s> => s !== undefined);
-  const visible = visibleSessions(members, { hideDead, showOlder }, now);
-  const hiddenCount = hiddenOldDeadCount(members, hideDead, now);
+  const visible = visibleSessions(members, { hideDead: group.hideDead, showOlder }, now);
+  const hiddenCount = hiddenOldDeadCount(members, group.hideDead, now);
   const capped = capDeadSessions(visible, expanded);
   const hiddenCappedCount = hiddenCappedDeadCount(visible);
 
@@ -101,6 +101,16 @@ export function RepoGroup({
             Show {hiddenCount} older dead session{hiddenCount === 1 ? '' : 's'}…
           </div>
         )}
+        <div className="hide-dead-row">
+          <button
+            className={`toggle-pill${group.hideDead ? ' on' : ''}`}
+            title="Hide dead sessions"
+            onClick={() => onToggleHideDead(group.repoRoot)}
+          >
+            <span className="dot" />
+            <span>Hide dead</span>
+          </button>
+        </div>
       </div>
     </div>
   );
