@@ -73,6 +73,19 @@ describe('hookOutcome', () => {
     expect(hookOutcome(aHookEvent({ hook_event_name: 'SessionStart' })).ended).toBe(false);
   });
 
+  it('does not report working for a resume-source SessionStart', () => {
+    const outcome = hookOutcome(aHookEvent({ hook_event_name: 'SessionStart', source: 'resume' }));
+    expect(outcome.status).toBe('waiting');
+    expect(outcome.ended).toBe(false);
+  });
+
+  it('still reports working for a genuine SessionStart', () => {
+    expect(
+      hookOutcome(aHookEvent({ hook_event_name: 'SessionStart', source: 'startup' })).status,
+    ).toBe('working');
+    expect(hookOutcome(aHookEvent({ hook_event_name: 'SessionStart' })).status).toBe('working');
+  });
+
   it('returns no status for an unrecognised event name rather than throwing', () => {
     const outcome = hookOutcome(aHookEvent({ hook_event_name: 'SomeFutureHook' }));
     expect(outcome).toEqual({ status: null, reason: null, ended: null });
