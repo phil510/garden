@@ -22,11 +22,14 @@ export function hookOutcome(payload: HookPayload): HookOutcome {
   const name = payload.hook_event_name;
   const isPermissionPromptNotification =
     name === 'Notification' && payload.notification_type === 'permission_prompt';
-  const isResumeBoot = name === 'SessionStart' && payload.source === 'resume';
+  // Neither a resumed session nor a freshly booted one has a prompt in flight yet —
+  // both sit at `waiting` until the first UserPromptSubmit moves them to `working`.
+  const isBootWithoutPrompt =
+    name === 'SessionStart' && (payload.source === 'resume' || payload.source === 'startup');
   return {
     status: isPermissionPromptNotification
       ? 'needs-approval'
-      : isResumeBoot
+      : isBootWithoutPrompt
         ? 'waiting'
         : (HOOK_STATUS[name] ?? null),
     reason: name === 'Notification' ? (payload.message ?? null) : null,
