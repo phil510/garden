@@ -45,6 +45,12 @@ your own name out, because the peer cannot derive it. Write the rest of the brie
 the peer shares none of your context, and `message-session` covers what a note needs to survive
 the trip.
 
+**Settle merge/approval policy in the brief.** Naming the approver and the merge policy before
+the peer starts is what keeps an `ask`-style gate from stalling later. Relaying an
+approval only sequences the decision; it doesn't authorize it, because the gate isn't yours to
+close by relay. A peer that refuses a relayed approval is the anti-laundering boundary working as
+intended, not a bug to route around.
+
 ## Two naming systems
 
 A session has a garden/tmux name (`79-bounded-session-list`) and a Claude Code name that
@@ -54,6 +60,10 @@ resolve the address with `message-session`'s `resolve_session.sh`, every time. T
 belongs to one process: resume or restart a session and it comes back under a different one, so a
 name quoted from memory is stale the moment its process is — and a misdelivered note fails
 silently in both directions.
+
+When you report to your user, use the Claude Code name — that's what renders in the web console
+alongside the id, not the garden/tmux name. The tmux name still answers a different question and
+stays in the vocabulary for it: which pane to attach a terminal to.
 
 ## Wait by subscribing, never by polling
 
@@ -69,7 +79,9 @@ delivering anything; include one to do both at once. Three properties decide how
   it is still `working`. It fires on the _next_ idle transition, so a peer already `waiting` is
   one you read, not one you wait on.
 - **It is one-shot.** A session that goes idle, receives another message, and works again will
-  not notify you a second time. Re-subscribe if you still care.
+  not notify you a second time. Re-subscribe if you still care — though if the brief already
+  mandates a report on completion, the peer's own message is the signal and re-subscribing adds
+  nothing; it still covers a silent death.
 - **It can expire**, and says so when it does. That means "no news", not "still working" —
   re-subscribe, or read `recap`, before concluding anything.
 
