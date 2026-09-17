@@ -211,6 +211,19 @@ describe('reduce', () => {
     expect(state.sessions['sid-1']?.branch).toBe('main');
   });
 
+  it('short-circuits a resolution that repeats the current branch for a cwd, without rederiving', () => {
+    const before = fold([transcript(), resolvedBranch('/Users/dev/repo', 'main')]);
+    const after = reduce(before, resolvedBranch('/Users/dev/repo', 'main'));
+    expect(after).toBe(before);
+  });
+
+  it('still lands the first resolution for a cwd even when it resolves to null', () => {
+    const before = fold([transcript()]);
+    const after = reduce(before, resolvedBranch('/Users/dev/repo', null));
+    expect(after).not.toBe(before);
+    expect(after.branches['/Users/dev/repo']).toBeNull();
+  });
+
   it('brings a session back to live when a genuine SessionStart follows SessionEnd on the same pane', () => {
     const ended = [mapped, snapshot(false), hook('SessionEnd')];
     expect(fold(ended).sessions['sid-1']?.liveness).toBe('dead');

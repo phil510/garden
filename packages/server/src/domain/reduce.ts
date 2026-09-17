@@ -96,11 +96,15 @@ export function reduce(state: GardenState, event: GardenEvent): GardenState {
         ...state,
         repoRoots: { ...state.repoRoots, [event.cwd]: event.repoRoot },
       });
-    case 'branch-resolved':
+    case 'branch-resolved': {
+      // `in`, not `??`: a cwd's first-ever resolution to `null` must still land, since that is
+      // what tells `rederive` the cwd has been swept rather than never asked about.
+      if (event.cwd in state.branches && state.branches[event.cwd] === event.branch) return state;
       return rederive({
         ...state,
         branches: { ...state.branches, [event.cwd]: event.branch },
       });
+    }
     case 'hook': {
       const id = event.payload.session_id;
       if (id === '') return state;
