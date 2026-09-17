@@ -22,9 +22,6 @@ export function SessionRow({ session, onStage, focused, now, onSelect }: Session
   const [rowEl, setRowEl] = useState<HTMLDivElement | null>(null);
   const [hovered, setHovered] = useState(false);
   const [confirmingKill, setConfirmingKill] = useState(false);
-  // Two independent hook instances, since the attach command and the session id are two
-  // independent "just copied" flashes and must not flip each other's label.
-  const attachCopy = useCopyFlash();
   const idCopy = useCopyFlash();
   const dead = session.liveness === 'dead';
   const title = session.title ?? lastPathSegment(session.cwd);
@@ -48,12 +45,6 @@ export function SessionRow({ session, onStage, focused, now, onSelect }: Session
   function handleResume(event: MouseEvent) {
     event.stopPropagation();
     resumeSession(session.id).catch(reportCommandFailure);
-  }
-
-  function handleCopyAttach(event: MouseEvent) {
-    event.stopPropagation();
-    if (session.tmuxName === null) return;
-    attachCopy.copy(`tmux -L garden attach -t ${session.tmuxName}`);
   }
 
   function handleCopyId(event: MouseEvent) {
@@ -101,11 +92,6 @@ export function SessionRow({ session, onStage, focused, now, onSelect }: Session
           {!dead && (
             <button className="danger" onClick={handleKill}>
               Kill
-            </button>
-          )}
-          {session.tmuxName !== null && (
-            <button onClick={handleCopyAttach}>
-              {attachCopy.copied ? 'Copied' : 'Copy attach'}
             </button>
           )}
         </div>
