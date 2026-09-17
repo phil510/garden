@@ -3,7 +3,6 @@ import { useState, type MouseEvent } from 'react';
 import { killSession, resumeSession } from '../../api/client';
 import { reportCommandFailure } from '../../api/reportCommandFailure';
 import { StatusPill } from '../../components/StatusPill';
-import { useCopyFlash } from '../../hooks/useCopyFlash';
 import { HoverCard } from './HoverCard';
 import { lastPathSegment } from './lastPathSegment';
 import { formatRelativeTime } from './relativeTime';
@@ -22,7 +21,6 @@ export function SessionRow({ session, onStage, focused, now, onSelect }: Session
   const [rowEl, setRowEl] = useState<HTMLDivElement | null>(null);
   const [hovered, setHovered] = useState(false);
   const [confirmingKill, setConfirmingKill] = useState(false);
-  const idCopy = useCopyFlash();
   const dead = session.liveness === 'dead';
   const title = session.title ?? lastPathSegment(session.cwd);
 
@@ -47,11 +45,6 @@ export function SessionRow({ session, onStage, focused, now, onSelect }: Session
     resumeSession(session.id).catch(reportCommandFailure);
   }
 
-  function handleCopyId(event: MouseEvent) {
-    event.stopPropagation();
-    idCopy.copy(session.id);
-  }
-
   return (
     <div
       ref={setRowEl}
@@ -63,15 +56,13 @@ export function SessionRow({ session, onStage, focused, now, onSelect }: Session
     >
       {focused && <span className="focused-mark" title="Focused" />}
       <div className="row-top">
-        <span className="row-title">{title}</span>
-        <span className="row-id mono" title={session.id} onClick={handleCopyId}>
-          {idCopy.copied ? 'Copied' : session.id.slice(0, 8)}
-        </span>
         {session.liveness === 'live' && session.status !== null && (
           <StatusPill status={session.status} />
         )}
       </div>
       <div className="row-meta">
+        <span className="row-name">{title}</span>
+        <span className="row-dot-sep faint">·</span>
         {session.branch !== null && <span className="row-branch mono">{session.branch}</span>}
         {session.branch !== null && <span className="row-dot-sep faint">·</span>}
         <span className="row-time">{formatRelativeTime(session.lastActivity, now)}</span>
