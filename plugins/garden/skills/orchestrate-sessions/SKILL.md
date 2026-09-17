@@ -80,9 +80,9 @@ delivering anything; include one to do both at once. Three properties decide how
   one you read, not one you wait on.
 - **It is one-shot.** A session that goes idle, receives another message, and works again will
   not notify you a second time — that notice fired and is spent, so a later round needs its own
-  subscription. Re-subscribing is free, so do it every round: where the brief mandates a report,
-  the notice lands beside a report you already have and adds nothing; where the peer might go
-  silent instead of reporting, that notice is the only signal you'll get.
+  subscription — spend it again only where a report won't already cover it: where the brief
+  mandates a report, the notice lands beside a report you already have and adds nothing; where
+  the peer might go silent instead of reporting, that notice is the only signal you'll get.
 - **It can expire**, and says so when it does. That means "no news", not "still working" —
   re-subscribe, or read `recap`, before concluding anything.
 
