@@ -1,4 +1,5 @@
 import { aHookEvent } from '@garden/shared/fixtures';
+import type { HookPayload } from '@garden/shared';
 import { describe, expect, it } from 'vitest';
 import { initialState, reduce } from './reduce.js';
 import type { GardenEvent, TranscriptRecord } from './types.js';
@@ -34,9 +35,13 @@ const resolvedRoot = (cwd: string, repoRoot: string): GardenEvent => ({
   repoRoot,
 });
 
-const hook = (name: string, id = 'sid-1'): GardenEvent => ({
+const hook = (name: string, id = 'sid-1', source?: HookPayload['source']): GardenEvent => ({
   type: 'hook',
-  payload: aHookEvent({ session_id: id, hook_event_name: name }),
+  payload: aHookEvent({
+    session_id: id,
+    hook_event_name: name,
+    ...(source !== undefined ? { source } : {}),
+  }),
 });
 
 describe('reduce', () => {
@@ -158,13 +163,22 @@ describe('reduce', () => {
     expect(state.sessions['sid-1']).toMatchObject({ cwd: '/Users/dev/repo', branch: 'main' });
   });
 
-  it('brings a session back to live when SessionStart follows SessionEnd on the same pane', () => {
+  it('brings a session back to live when a genuine SessionStart follows SessionEnd on the same pane', () => {
     const ended = [mapped, snapshot(false), hook('SessionEnd')];
     expect(fold(ended).sessions['sid-1']?.liveness).toBe('dead');
     expect(fold([...ended, hook('SessionStart')]).sessions['sid-1']).toMatchObject({
       liveness: 'live',
       status: 'working',
     });
+  });
+
+  it('leaves a resumed session waiting until a prompt is submitted', () => {
+    const resumed = [mapped, snapshot(false), hook('SessionStart', 'sid-1', 'resume')];
+    expect(fold(resumed).sessions['sid-1']).toMatchObject({
+      liveness: 'live',
+      status: 'waiting',
+    });
+    expect(fold([...resumed, hook('UserPromptSubmit')]).sessions['sid-1']?.status).toBe('working');
   });
 
   it('records a tmux name for a session created before its transcript exists', () => {
