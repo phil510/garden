@@ -19,6 +19,7 @@ import {
 } from './adapters/tmux.js';
 import type { TmuxTarget } from './adapters/tmux.js';
 import { createAttachRegistry, type AttachRegistry } from './app/attach.js';
+import { createBranchSweeper, type BranchSweeper } from './app/branches.js';
 import type {
   GitPort,
   PtyPort,
@@ -116,6 +117,7 @@ async function replay(
   store: StorePort,
   tmux: TmuxPort,
   transcripts: TranscriptPort,
+  branches: BranchSweeper,
   logger: Logger,
   claudeSessionsDir: string,
 ): Promise<void> {
@@ -139,6 +141,13 @@ async function replay(
       // One unreadable transcript is a session garden cannot describe, not a failed boot.
       logger.error(`failed to read transcript ${path}: ${(error as Error).message}`);
     }
+  }
+  // After the transcript loop, not alongside the dispatches above: sessions' cwds don't exist
+  // in state until that loop has run.
+  try {
+    await branches.tick();
+  } catch (error) {
+    logger.error(`branch sweep failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -164,8 +173,9 @@ export async function main(): Promise<void> {
 
   // Subscribed before the replay so boot's own dispatches are what drive the first resolutions.
   const stopRepoRoots = watchRepoRoots({ git, projection });
+  const branches = createBranchSweeper({ git, projection });
 
-  await replay(projection, store, tmux, transcripts, logger, config.claudeSessionsDir);
+  await replay(projection, store, tmux, transcripts, branches, logger, config.claudeSessionsDir);
 
   const watcher = transcripts.watch((event) => {
     projection.dispatch(event);
@@ -184,6 +194,12 @@ export async function main(): Promise<void> {
         );
       },
     );
+    // Its own try/catch too: a branch sweep failure must not swallow this tick's other dispatches.
+    branches.tick().catch((error: unknown) => {
+      logger.error(
+        `branch sweep failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    });
   }, TMUX_POLL_INTERVAL_MS);
 
   const app = createServer({
@@ -201,6 +217,7 @@ export async function main(): Promise<void> {
   app.addHook('onClose', () => {
     clearInterval(poll);
     stopRepoRoots();
+    branches.stop();
     return watcher.close();
   });
   for (const signal of ['SIGINT', 'SIGTERM'] as const) {
