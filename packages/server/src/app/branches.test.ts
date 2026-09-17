@@ -198,4 +198,16 @@ describe('createBranchSweeper', () => {
     expect(peak).toBeLessThanOrEqual(8);
     expect(peak).toBeGreaterThan(0);
   });
+
+  it('rejects instead of swallowing a listener that throws during the dispatch it triggers', async () => {
+    const { projection, sweeper } = harness(() => Promise.resolve('main'));
+    projection.dispatch(transcript('/Users/dev/repo'));
+    projection.subscribe(() => {
+      throw new Error('listener boom');
+    });
+
+    await expect(sweeper.tick()).rejects.toMatchObject({
+      errors: [expect.objectContaining({ message: 'listener boom' })],
+    });
+  });
 });

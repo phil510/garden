@@ -86,6 +86,7 @@ export function createBranchSweeper(deps: BranchSweeperDeps): BranchSweeper {
     async tick() {
       if (inFlight || stopped) return;
       inFlight = true;
+      let results: PromiseSettledResult<void>[];
       try {
         const sessions = deps.projection.sessions();
         const live = new Set(
@@ -99,9 +100,20 @@ export function createBranchSweeper(deps: BranchSweeperDeps): BranchSweeper {
         );
         for (const cwd of uncachedDead) settled.add(cwd);
         const cwds = new Set([...live, ...uncachedDead]);
-        await Promise.allSettled([...cwds].map(resolve));
+        results = await Promise.allSettled([...cwds].map(resolve));
       } finally {
         inFlight = false;
+      }
+      // resolve() only rejects if a projection listener throws synchronously during dispatch —
+      // deps.git.branch()'s own failures are already caught above and turned into a `null`
+      // dispatch. allSettled swallows a rejection like that by design, so it has to be
+      // re-raised here or it vanishes with no log and no sign the sweep hit a problem.
+      const rejected = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+      if (rejected.length > 0) {
+        throw new AggregateError(
+          rejected.map((r: PromiseRejectedResult) => r.reason as unknown),
+          `branch sweep: ${String(rejected.length)} dispatch(es) failed unexpectedly`,
+        );
       }
     },
     stop() {
