@@ -10,7 +10,6 @@ import { sessionRoutes } from './sessions.js';
 const emptyOverlay: OverlayState = {
   version: 1,
   tmuxNames: {},
-  hideDead: false,
   groups: {},
   stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
 };
@@ -451,7 +450,6 @@ describe('POST /sessions/:id/kill', () => {
       store: fakeStore({
         version: 1,
         tmuxNames: { 'sid-1': 'garden' },
-        hideDead: false,
         groups: {},
         stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
       }),

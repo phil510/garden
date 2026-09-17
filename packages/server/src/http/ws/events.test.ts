@@ -28,10 +28,10 @@ async function until<T>(
 }
 
 const UI_STATE: UiState = {
-  hideDead: false,
   groupOrder: [],
   pinnedRepos: [],
   collapsedRepos: [],
+  hideDeadRepos: [],
   preset: 'single',
   slots: [null],
   focusedSlot: 0,
