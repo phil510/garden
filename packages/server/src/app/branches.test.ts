@@ -43,6 +43,16 @@ const transcript = (cwd: string, sessionId = 'sid-1'): GardenEvent => ({
   },
 });
 
+/** Registers a session under a tmux name and reports that pane as running, the two facts
+ *  `deriveLiveness` needs to call a session live. `transcript()` alone never does — a session
+ *  with only a transcript slice and no tmux fact is dead, which is what most of these tests
+ *  want: the dead-cwd, cache-and-stop-asking path is the common case a real garden instance
+ *  hits, since most cwds it has ever seen belong to sessions that ended long ago. */
+const live = (id: string, cwd: string): GardenEvent[] => [
+  { type: 'session-registered', id, tmuxName: id, cwd },
+  { type: 'tmux-snapshot', sessions: [{ name: id, paneDead: false, exitCode: null }] },
+];
+
 const sessionOf = (projection: Projection, id: string) =>
   projection.sessions().find((session) => session.id === id);
 
@@ -90,10 +100,10 @@ describe('createBranchSweeper', () => {
     expect(sessionOf(projection, 'sid-2')?.branch).toBe('main');
   });
 
-  it('lands a branch that changed between two ticks, not a one-shot cached answer', async () => {
+  it('lands a branch that changed between two ticks for a live session, not a one-shot cached answer', async () => {
     let current = 'main';
     const { projection, sweeper } = harness(() => Promise.resolve(current));
-    projection.dispatch(transcript('/Users/dev/repo'));
+    for (const event of live('sid-1', '/Users/dev/repo')) projection.dispatch(event);
 
     await sweeper.tick();
     expect(sessionOf(projection, 'sid-1')?.branch).toBe('main');
@@ -101,6 +111,40 @@ describe('createBranchSweeper', () => {
     current = 'feat/x';
     await sweeper.tick();
     expect(sessionOf(projection, 'sid-1')?.branch).toBe('feat/x');
+  });
+
+  it('resolves a dead session once and then reuses that answer, without asking git again', async () => {
+    let current = 'main';
+    const { projection, asked, sweeper } = harness(() => Promise.resolve(current));
+    projection.dispatch(transcript('/Users/dev/repo'));
+
+    await sweeper.tick();
+    expect(asked).toEqual(['/Users/dev/repo']);
+    expect(sessionOf(projection, 'sid-1')?.branch).toBe('main');
+
+    // Nothing but a live process moves a checked-out branch, so a dead cwd's answer is final —
+    // this change must never be seen.
+    current = 'feat/x';
+    await sweeper.tick();
+    await sweeper.tick();
+
+    expect(asked).toEqual(['/Users/dev/repo']);
+    expect(sessionOf(projection, 'sid-1')?.branch).toBe('main');
+  });
+
+  it('resumes re-resolving a cwd once a new session goes live there, after an earlier dead one cached it', async () => {
+    let current = 'main';
+    const { projection, asked, sweeper } = harness(() => Promise.resolve(current));
+    projection.dispatch(transcript('/Users/dev/repo', 'sid-1'));
+    await sweeper.tick();
+    expect(asked).toEqual(['/Users/dev/repo']);
+
+    current = 'feat/x';
+    for (const event of live('sid-2', '/Users/dev/repo')) projection.dispatch(event);
+    await sweeper.tick();
+
+    expect(asked).toEqual(['/Users/dev/repo', '/Users/dev/repo']);
+    expect(sessionOf(projection, 'sid-2')?.branch).toBe('feat/x');
   });
 
   it('no-ops a tick that overlaps one still in flight, rather than double-spawning git', async () => {
