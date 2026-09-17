@@ -79,9 +79,10 @@ delivering anything; include one to do both at once. Three properties decide how
   it is still `working`. It fires on the _next_ idle transition, so a peer already `waiting` is
   one you read, not one you wait on.
 - **It is one-shot.** A session that goes idle, receives another message, and works again will
-  not notify you a second time. Re-subscribe if you still care — though if the brief already
-  mandates a report on completion, the peer's own message is the signal and re-subscribing adds
-  nothing; it still covers a silent death.
+  not notify you a second time. Re-subscribing on each follow-up is worth it when the peer might
+  die silently instead of finishing. It stops being worth it once the brief already mandates a
+  report: the peer's own message is the signal there, and the subscription from dispatch is
+  already the death backstop.
 - **It can expire**, and says so when it does. That means "no news", not "still working" —
   re-subscribe, or read `recap`, before concluding anything.
 
