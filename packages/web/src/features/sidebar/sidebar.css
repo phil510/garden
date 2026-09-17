@@ -86,6 +86,9 @@
   gap: 6px;
   min-width: 0;
 }
+.row-top:empty {
+  display: none;
+}
 .status-pill {
   display: inline-flex;
   align-items: center;

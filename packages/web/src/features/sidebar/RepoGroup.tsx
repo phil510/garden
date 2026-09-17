@@ -48,6 +48,12 @@ export function RepoGroup({
     toggle();
   }
 
+  function onHideDeadKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    onToggleHideDead(group.repoRoot);
+  }
+
   const members = group.sessionIds
     .map((id) => sessions[id])
     .filter((s): s is NonNullable<typeof s> => s !== undefined);
@@ -104,7 +110,10 @@ export function RepoGroup({
         <div
           className={`hide-dead-row${group.hideDead ? ' on' : ''}`}
           title="Hide dead sessions"
+          role="button"
+          tabIndex={0}
           onClick={() => onToggleHideDead(group.repoRoot)}
+          onKeyDown={onHideDeadKeyDown}
         >
           Hide dead
         </div>
