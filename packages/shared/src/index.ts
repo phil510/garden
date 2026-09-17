@@ -63,6 +63,8 @@ export interface HookPayload {
   last_assistant_message?: string;
   message?: string;
   notification_type?: string;
+  /** Present only on SessionStart payloads: how the session came to start. */
+  source?: 'startup' | 'resume' | 'clear' | 'compact' | 'fork';
 }
 
 export interface SessionsResponse {
