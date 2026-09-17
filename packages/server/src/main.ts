@@ -143,7 +143,9 @@ async function replay(
     }
   }
   // After the transcript loop, not alongside the dispatches above: sessions' cwds don't exist
-  // in state until that loop has run.
+  // in state until that loop has run. tick() resolves per-cwd git failures to null rather than
+  // rejecting; this guards boot itself against an unexpected throw, matching the sibling calls'
+  // isolation above rather than catching a failure mode tick() is actually expected to produce.
   try {
     await branches.tick();
   } catch (error) {
@@ -194,7 +196,8 @@ export async function main(): Promise<void> {
         );
       },
     );
-    // Its own try/catch too: a branch sweep failure must not swallow this tick's other dispatches.
+    // Its own catch too, for the same reason as above — see replay()'s comment on what this
+    // actually guards, since tick() resolves per-cwd git failures internally rather than rejecting.
     branches.tick().catch((error: unknown) => {
       logger.error(
         `branch sweep failed: ${error instanceof Error ? error.message : String(error)}`,
