@@ -133,4 +133,25 @@ describe('createBranchSweeper', () => {
 
     expect(sessionOf(projection, 'sid-1')?.branch).toBeNull();
   });
+
+  it('never runs more than the concurrency cap worth of git calls at once', async () => {
+    const cwdCount = 20;
+    let concurrent = 0;
+    let peak = 0;
+    const { projection, sweeper } = harness(async () => {
+      concurrent += 1;
+      peak = Math.max(peak, concurrent);
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      concurrent -= 1;
+      return 'main';
+    });
+    for (let i = 0; i < cwdCount; i += 1) {
+      projection.dispatch(transcript(`/Users/dev/repo-${String(i)}`, `sid-${String(i)}`));
+    }
+
+    await sweeper.tick();
+
+    expect(peak).toBeLessThanOrEqual(8);
+    expect(peak).toBeGreaterThan(0);
+  });
 });

@@ -7,9 +7,9 @@ import type { GardenEvent } from '../domain/types.js';
 import type { OverlayGroup, OverlayState, StorePort } from './ports.js';
 
 export interface Projection {
-  /** No argument: today's exact unfiltered behavior, for the four internal call sites that
-   *  must keep seeing true state (repo-root sweep, name-dedup, the WS snapshot). A filter
-   *  bounds the result for the HTTP route and the CLI. */
+  /** No argument: today's exact unfiltered behavior, for internal call sites that must keep
+   *  seeing true state (the repo-root and branch sweeps, name-dedup, the WS snapshot, lookup
+   *  by id). A filter bounds the result for the HTTP route and the CLI. */
   sessions(filter?: SessionsFilter): SessionState[];
   uiState(): UiState;
   dispatch(event: GardenEvent): void;
