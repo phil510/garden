@@ -4,10 +4,11 @@ import { describe, expect, it } from 'vitest';
 import { groupSessions } from './groupSessions';
 import { toggleRepoCollapse } from './toggleRepoCollapse';
 
-const uiState: Pick<UiState, 'groupOrder' | 'pinnedRepos' | 'collapsedRepos'> = {
+const uiState: Pick<UiState, 'groupOrder' | 'pinnedRepos' | 'collapsedRepos' | 'hideDeadRepos'> = {
   groupOrder: [],
   pinnedRepos: [],
   collapsedRepos: [],
+  hideDeadRepos: [],
 };
 
 const asMap = (...sessions: ReturnType<typeof aSession>[]): SessionMap =>

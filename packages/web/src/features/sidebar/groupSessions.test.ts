@@ -3,10 +3,11 @@ import type { SessionMap, UiState } from '@garden/shared';
 import { describe, expect, it } from 'vitest';
 import { groupSessions } from './groupSessions';
 
-const uiState: Pick<UiState, 'groupOrder' | 'pinnedRepos' | 'collapsedRepos'> = {
+const uiState: Pick<UiState, 'groupOrder' | 'pinnedRepos' | 'collapsedRepos' | 'hideDeadRepos'> = {
   groupOrder: [],
   pinnedRepos: [],
   collapsedRepos: [],
+  hideDeadRepos: [],
 };
 
 const asMap = (...sessions: ReturnType<typeof aSession>[]): SessionMap =>
@@ -60,6 +61,17 @@ describe('groupSessions', () => {
     const session = aSession({ id: 'sid-1', repoRoot: '/repo' });
     const [group] = groupSessions(asMap(session), uiState);
     expect(group?.collapsed).toBe(true);
+  });
+
+  it('flags hideDead only for a repo listed in hideDeadRepos, independent of others', () => {
+    const hidden = aSession({ id: 'sid-1', repoRoot: '/hidden' });
+    const shown = aSession({ id: 'sid-2', repoRoot: '/shown' });
+    const groups = groupSessions(asMap(hidden, shown), {
+      ...uiState,
+      hideDeadRepos: ['/hidden'],
+    });
+    expect(groups.find((g) => g.repoRoot === '/hidden')?.hideDead).toBe(true);
+    expect(groups.find((g) => g.repoRoot === '/shown')?.hideDead).toBe(false);
   });
 
   it('orders unpinned groups by most recent activity, newest first', () => {

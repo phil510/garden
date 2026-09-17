@@ -9,6 +9,7 @@ export interface SidebarGroup {
   attention: boolean;
   pinned: boolean;
   collapsed: boolean;
+  hideDead: boolean;
 }
 
 /**
@@ -18,7 +19,7 @@ export interface SidebarGroup {
  */
 export function groupSessions(
   sessions: SessionMap,
-  uiState: Pick<UiState, 'groupOrder' | 'pinnedRepos' | 'collapsedRepos'>,
+  uiState: Pick<UiState, 'groupOrder' | 'pinnedRepos' | 'collapsedRepos' | 'hideDeadRepos'>,
 ): SidebarGroup[] {
   const byRoot = new Map<string, SessionState[]>();
   for (const session of Object.values(sessions)) {
@@ -31,6 +32,7 @@ export function groupSessions(
   const pinned = new Set(uiState.pinnedRepos);
   // Membership marks a repo as expanded; a repo absent from the list (the default) is collapsed.
   const expandedRepoRoots = new Set(uiState.collapsedRepos);
+  const hideDeadRepos = new Set(uiState.hideDeadRepos);
   const order = new Map(uiState.groupOrder.map((repoRoot, index) => [repoRoot, index]));
 
   const mostRecentActivity = new Map(
@@ -52,6 +54,7 @@ export function groupSessions(
     ),
     pinned: pinned.has(repoRoot),
     collapsed: !expandedRepoRoots.has(repoRoot),
+    hideDead: hideDeadRepos.has(repoRoot),
   }));
 
   groups.sort((a, b) => {
