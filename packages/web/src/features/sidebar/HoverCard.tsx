@@ -37,10 +37,6 @@ export function HoverCard({ title, session, anchor, now }: HoverCardProps) {
       <div className="hc-title">{title}</div>
       <div className="hc-recap">{session.recap ?? 'No recap yet.'}</div>
       <div className="hc-row">
-        <span className="hc-k">session</span>
-        <span className="hc-v">{session.id}</span>
-      </div>
-      <div className="hc-row">
         <span className="hc-k">cwd</span>
         <span className="hc-v">{session.cwd}</span>
       </div>

@@ -73,16 +73,8 @@
 /* A dead session carries no status, so its row recedes to keep live work legible at a glance.
    De-emphasis only — text drops a step in contrast, and hover or stage presence brings the
    row back to full strength. */
-.session-row.dead .row-title {
-  font-weight: 400;
-  color: var(--text-muted);
-}
 .session-row.dead .row-meta {
   color: var(--text-faint);
-}
-.session-row.dead:hover .row-title,
-.session-row.dead.on-stage .row-title {
-  color: var(--text);
 }
 .session-row.dead:hover .row-meta,
 .session-row.dead.on-stage .row-meta {
@@ -94,20 +86,8 @@
   gap: 6px;
   min-width: 0;
 }
-.row-title {
-  font-size: 12.5px;
-  font-weight: 500;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex: 1;
-  min-width: 0;
-}
-.row-id {
-  flex: 0 0 auto;
-  font-size: 10px;
-  color: var(--text-faint);
-  cursor: pointer;
+.row-top:empty {
+  display: none;
 }
 .status-pill {
   display: inline-flex;
@@ -134,6 +114,13 @@
   font-size: 11px;
   color: var(--text-muted);
   min-width: 0;
+}
+.row-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .row-branch {
   font-family: var(--font-mono);
@@ -225,14 +212,24 @@
   font-size: 11.5px;
   color: var(--text-muted);
   cursor: pointer;
-  border-top: 1px dashed var(--border);
 }
 .show-older-row:hover {
   color: var(--text);
 }
 .hide-dead-row {
   padding: 6px 10px 6px 22px;
-  border-top: 1px dashed var(--border);
+  font-size: 11.5px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.hide-dead-row:hover {
+  color: var(--text);
+}
+.hide-dead-row.on {
+  color: var(--accent);
+}
+.hide-dead-row.on:hover {
+  color: var(--accent);
 }
 .empty-groups-note {
   padding: 14px 12px;
