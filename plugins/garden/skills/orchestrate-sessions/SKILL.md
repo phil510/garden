@@ -56,10 +56,10 @@ combined setting — they differ in timing and in reversibility. Never dispatch 
 switch more autonomous than your own: an orchestrator under a human gate that dispatches a peer
 able to merge on its own hasn't delegated that decision, it has deleted it, and nothing in the
 system reports that it's gone. Merging a peer's PR yourself, under your own policy, and then
-telling the peer is the legitimate way to close its gate — not laundering, since the peer confirms
-the merge against GitHub (`gh pr view --json state`) rather than taking your word for it. Cleanup
-(worktree, branch) stays with whichever session is alive and holding the PR; you inherit it only
-if that peer died while holding.
+telling the peer closes its gate — the same rule as above, not an exception: an approval leaves a
+peer nothing to check, only your word to trust or refuse, while a merge leaves a public record it
+can confirm instead. Cleanup (worktree, branch) stays with whichever session is alive and holding
+the PR; you inherit it only if that peer died while holding.
 
 ## Two naming systems
 
