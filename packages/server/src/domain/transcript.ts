@@ -87,21 +87,19 @@ function lastTimestamp(lines: Line[]): number | null {
   return null;
 }
 
-/** Unlike `sessionId`, which is fixed for the file's lifetime, `cwd` and `gitBranch` move
- *  when a session changes directory mid-conversation (e.g. into a worktree) — so they're
- *  read from the last conversation-bearing line rather than the first. Both come from that
- *  same line, never from two different ones, so a move into a non-git directory reads as
- *  no branch instead of pairing a new `cwd` with a stale `gitBranch`. */
-function lastCwd(lines: Line[]): { cwd: string | null; gitBranch: string | null } {
+/** Unlike `sessionId`, which is fixed for the file's lifetime, `cwd` moves when a session
+ *  changes directory mid-conversation (e.g. into a worktree) — so it's read from the last
+ *  conversation-bearing line rather than the first. */
+function lastCwd(lines: Line[]): string | null {
   for (let i = lines.length - 1; i >= 0; i -= 1) {
     const line = lines[i];
     if (line === undefined) continue;
     if (line['type'] !== 'user' && line['type'] !== 'assistant') continue;
     const cwd = asText(line['cwd']);
     if (cwd === null) continue;
-    return { cwd, gitBranch: asText(line['gitBranch']) };
+    return cwd;
   }
-  return { cwd: null, gitBranch: null };
+  return null;
 }
 
 export function parseTranscript(text: string): TranscriptParse {
@@ -131,13 +129,12 @@ export function parseTranscript(text: string): TranscriptParse {
     break;
   }
 
-  const { cwd, gitBranch } = lastCwd(lines);
+  const cwd = lastCwd(lines);
 
   return {
     record: {
       sessionId,
       cwd,
-      gitBranch,
       // Older transcripts carry the title as a `summary` line instead.
       title: lastField(lines, 'ai-title', 'aiTitle') ?? lastField(lines, 'summary', 'summary'),
       lastPrompt: lastField(lines, 'last-prompt', 'lastPrompt') ?? firstUserPrompt(lines),

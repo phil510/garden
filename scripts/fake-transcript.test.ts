@@ -22,7 +22,6 @@ describe('the fake claude transcript', () => {
     expect(record).toEqual({
       sessionId: facts.sessionId,
       cwd: facts.cwd,
-      gitBranch: facts.gitBranch,
       title: facts.title,
       lastPrompt: facts.prompt,
       recap: facts.recap,
@@ -30,10 +29,9 @@ describe('the fake claude transcript', () => {
     });
   });
 
-  it('reports no branch without losing the facts that share its line', () => {
+  it('reads cwd without losing it when the same line carries a null gitBranch', () => {
     const { record } = parseTranscript(openingTranscript({ ...facts, gitBranch: null }, at));
 
-    expect(record.gitBranch).toBeNull();
     expect(record.cwd).toBe(facts.cwd);
     expect(record.sessionId).toBe(facts.sessionId);
   });

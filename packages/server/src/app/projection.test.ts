@@ -33,7 +33,6 @@ const transcript = (): GardenEvent => ({
   record: {
     sessionId: 'sid-1',
     cwd: '/Users/dev/repo',
-    gitBranch: 'main',
     title: 'Wire the fold',
     lastPrompt: null,
     recap: null,
@@ -54,7 +53,6 @@ const staleTranscript = (id: string): GardenEvent => ({
   record: {
     sessionId: id,
     cwd: '/Users/dev/repo',
-    gitBranch: 'main',
     title: null,
     lastPrompt: null,
     recap: null,
@@ -101,7 +99,7 @@ describe('dispatch', () => {
         {
           type: 'session-changed',
           id: 'sid-1',
-          changes: { branch: 'main', title: 'Wire the fold', lastActivity: now },
+          changes: { title: 'Wire the fold', lastActivity: now },
         },
       ],
     ]);

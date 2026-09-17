@@ -38,7 +38,6 @@ const transcript = (cwd: string, sessionId = 'sid-1'): GardenEvent => ({
   record: {
     sessionId,
     cwd,
-    gitBranch: 'feat/x',
     title: 'A session',
     lastPrompt: null,
     recap: null,
