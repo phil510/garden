@@ -37,7 +37,7 @@ export type Delta =
   | { type: 'session-changed'; id: string; changes: Partial<SessionState> };
 
 export interface UiState {
-  hideDead: boolean;
+  hideDeadRepos: string[];
   groupOrder: string[];
   pinnedRepos: string[];
   collapsedRepos: string[];

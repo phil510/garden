@@ -43,7 +43,7 @@ describe('readOverlayState', () => {
         mkdirSync(appDir, { recursive: true });
         writeFileSync(
           join(appDir, 'state.json'),
-          `{"version":1,"tmuxNames":{},"hideDead":false,"groups":{},"stage":${stage}}`,
+          `{"version":1,"tmuxNames":{},"groups":{},"stage":${stage}}`,
         );
         const logger = collectingLogger();
         expect(readOverlayState(appDir, logger)).toEqual(DEFAULT_OVERLAY_STATE);
@@ -75,8 +75,7 @@ describe('writeOverlayState', () => {
       const state: OverlayState = {
         version: 1,
         tmuxNames: { 'session-1': 'garden-project' },
-        hideDead: true,
-        groups: { '/repo': { pinned: true, order: 0, collapsed: false } },
+        groups: { '/repo': { pinned: true, order: 0, collapsed: false, hideDead: true } },
         stage: { preset: 'two-across', slots: ['session-1', null], focusedSlot: 0, layout: {} },
       };
       writeOverlayState(appDir, state);
@@ -93,7 +92,10 @@ describe('writeOverlayState', () => {
 
   it('overwrites a previous write rather than merging with it', () => {
     withTempAppDir((appDir) => {
-      writeOverlayState(appDir, { ...DEFAULT_OVERLAY_STATE, hideDead: true });
+      writeOverlayState(appDir, {
+        ...DEFAULT_OVERLAY_STATE,
+        groups: { '/repo': { pinned: false, order: 0, collapsed: false, hideDead: true } },
+      });
       writeOverlayState(appDir, DEFAULT_OVERLAY_STATE);
       expect(readOverlayState(appDir, collectingLogger())).toEqual(DEFAULT_OVERLAY_STATE);
     });
