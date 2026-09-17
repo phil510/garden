@@ -58,7 +58,8 @@ support, or an AC you can't cover), work through it in this order:
    anything downstream would have to assume a guessed answer.
 
 Log each decide-and-log outcome to `decisions.md` as it happens, one line:
-what was decided, and what settled it (doc, or intact objective).
+what was decided, and what settled it (doc, or intact objective). Match the
+entry shape `pipeline-init.sh` scaffolds at the top of the file.
 
 See `references/autonomy.md` for the full ladder shared across pipeline
 stages.
