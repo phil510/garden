@@ -122,9 +122,9 @@ DTMP="$DECISIONS.tmp.$$"
   printf '# Decisions — %s\n\n' "$BRANCH"
   printf 'Append-only log of gates a worker auto-resolved instead of escalating:\n'
   printf 'what was decided, what settled it, and which doc or finding backs it.\n\n'
-  printf '<!-- Entries go below, one per auto-resolved gate. Each starts at column 0 with a bare\n'
-  printf 'ISO timestamp, then " — <actor>: <decision>" — e.g. 2026-09-12T14:03:00Z — planner:\n'
-  printf 'interpreted "the settings panel" as the existing web/settings route, not a new one. -->\n'
+  printf '<!-- Entries go below, one per auto-resolved gate. Each starts at column 0\n'
+  printf 'with a bare ISO timestamp, then " — <actor>: <decision>". For example:\n'
+  printf 'e.g. 2026-09-12T14:03:00Z — planner: interpreted "the settings panel" as the existing web/settings route, not a new one. -->\n'
 } > "$DTMP"
 mv -- "$DTMP" "$DECISIONS"
 
