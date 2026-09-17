@@ -316,8 +316,8 @@ small); developer works from brief ACs`, then go to step 6. The box
     `> RESOLVED` annotation, then fresh-spawn under the next name with the
     decision in the opener.
 12. **Completion or abort — the shared convergence point for however the
-    pipeline ends**, reached from step 10(d) once `gh pr view --json
-state` confirms `MERGED`, under every merge policy — neither of the
+    pipeline ends**, reached from step 10(d) once `gh pr view --json state`
+    confirms `MERGED`, under every merge policy — neither of the
     two things that might otherwise stand in for that confirmation can
     be trusted. `gh pr merge --delete-branch`'s exit code lies when run
     from inside the worktree: its local post-merge step tries to switch
