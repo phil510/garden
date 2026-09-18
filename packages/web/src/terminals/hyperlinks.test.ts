@@ -117,6 +117,14 @@ describe('normalizeLinkUrl', () => {
     },
   );
 
+  it('rejects text that spells the internal sentinel scheme rather than rescuing it', () => {
+    // The classifier's own default-protocol sentinel is itself a syntactically valid custom
+    // scheme, so text that already starts with it must not be misread as "normalize-url
+    // prepended this" — it is `text`'s own (unsupported) scheme and gets rejected on that basis.
+    expect(normalizeLinkUrl('garden-schemeless-marker://evil.example/x')).toBeUndefined();
+    expect(normalizeLinkUrl('garden-schemeless-marker:80')).toBeUndefined();
+  });
+
   it('rejects a URL carrying userinfo, even though its protocol is http(s)', () => {
     // OSC 8 already lets display text and target differ; userinfo compounds that by making the
     // *URL itself* show a familiar host before the real one. `https://trusted.example@evil.example`

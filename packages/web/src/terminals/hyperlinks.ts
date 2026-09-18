@@ -40,9 +40,10 @@ const KNOWN_SCHEME_PREFIX = /^(?:https?|file):/i;
  *  `https://example.com/`, not an error). */
 const KNOWN_SCHEME_AUTHORITY = /^(?:https?|file):\/\//i;
 
-/** Never a real scheme prefix: no URI scheme this module cares about could legitimately start
- *  with it, so its presence at the front of `normalize-url`'s output unambiguously means `text`
- *  was schemeless and got this prefix assumed for it. */
+/** No URI scheme this module cares about could legitimately start with this exact string. Once
+ *  `isSchemelessHost` has ruled out `text` itself starting with it, the sentinel's presence at
+ *  the front of `normalize-url`'s output unambiguously means `text` was schemeless and got this
+ *  prefix assumed for it. */
 const SCHEMELESS_SENTINEL = 'garden-schemeless-marker:';
 
 /** Asks `normalize-url` the one question it is uniquely good at: would `text` be assumed
@@ -50,6 +51,12 @@ const SCHEMELESS_SENTINEL = 'garden-schemeless-marker:';
  *  answer readable without inspecting anything else about the returned string, which is
  *  discarded immediately after. */
 function isSchemelessHost(text: string): boolean {
+  // `text` that already begins with the sentinel's own scheme carries an explicit (if
+  // nonsensical) scheme of its own — normalize-url's classifier recognizes that and returns
+  // `text` unchanged, which would otherwise be indistinguishable from "got prefixed" once this
+  // function checks whether the output starts with the sentinel.
+  if (text.toLowerCase().startsWith(SCHEMELESS_SENTINEL)) return false;
+
   try {
     return normalizeUrl(text, {
       ...NORMALIZE_OPTIONS,
