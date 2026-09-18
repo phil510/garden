@@ -243,15 +243,10 @@ title,body,comments,labels,url`. Derive the 7 fields per
    comment thread, §4 from the repo (`pnpm validate` is the gate unless
    the issue says otherwise), §5 from `references/autonomy.md`'s
    defaults, §6 always `PR merged`, §7 `auto | ask` defaulting to `ask`.
-   Read the full comment thread before drafting §1–3, not after — a
-   thread skimmed for an obvious override once a draft is already in
-   hand is how the triage gate misses a stale one. Then apply the
-   triage gate exactly as `references/brief.md` § Stage 0 defines it:
-   proceed straight to step 2 if §1–3 came off the issue cleanly;
-   otherwise — invented, guessed, or drafted from a part of the issue a
-   later comment overrode — ask the user about exactly that part, once,
-   then proceed. Don't re-litigate §4–7, which never come from the
-   user.
+   Before treating §1–3 as settled, read `references/brief.md` § Stage 0
+   and apply the triage gate exactly as it defines there — its
+   instructions and branches live only in that section, not here. Don't
+   re-litigate §4–7, which never come from the user.
 2. **Branch + worktree.** Build `<type>/<issue-number>-<slug>` — `type` is
    `feat|fix|chore|docs` chosen from the nature of the change, the number is
    the GitHub issue, the slug comes from its title — then

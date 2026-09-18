@@ -253,8 +253,7 @@ Reconstruct state from ${WORKFLOW} + the escalation event file.
 Only the orchestrator talks to the user. Workers never do.
 
 - **Triage gate.** Apply the gate exactly as `brief.md` § Stage 0
-  defines it: proceed if §1–3 came off the issue cleanly, otherwise ask
-  about exactly the part that was invented or overridden.
+  defines it — its branches live only there, not here.
 - **Escalation pages.** Render the escalation event's one-liner +
   options + artifact pointer; wait for user input; translate the
   response into a fresh-spawn decision block (see `escalate-resume.md`).
