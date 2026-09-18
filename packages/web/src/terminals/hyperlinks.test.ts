@@ -31,6 +31,31 @@ describe('normalizeLinkUrl', () => {
     );
   });
 
+  it('preserves a duplicate slash in the path rather than collapsing it', () => {
+    // An S3 object key genuinely differs with and without the second slash. normalize-url
+    // collapses this unconditionally, with no disabling option — this pins that the final URL
+    // is built from the original text, never from normalize-url's own rewritten output.
+    expect(normalizeLinkUrl('https://s3.example.com/bucket//key.txt')?.href).toBe(
+      'https://s3.example.com/bucket//key.txt',
+    );
+  });
+
+  it('preserves a trailing dot on the host rather than stripping it', () => {
+    // A trailing dot changes DNS resolution (it forces an absolute lookup), so it is part of
+    // the host the terminal printed, not noise. normalize-url strips it unconditionally.
+    expect(normalizeLinkUrl('https://example.com./x')?.href).toBe('https://example.com./x');
+  });
+
+  it('preserves percent-encoding in the path rather than decoding it', () => {
+    // normalize-url runs `decodeURI` on the path with no disabling option. `%7E` decoding to
+    // `~` happens to be spec-equivalent (tilde is unreserved under RFC 3986), but this pins the
+    // property generally: the path opened is the exact bytes the terminal printed, not a
+    // percent-decoded version of them where a genuinely encoded character (`%2F`, `%25`) would
+    // silently change meaning.
+    expect(normalizeLinkUrl('https://example.com/a%7Eb')?.href).toBe('https://example.com/a%7Eb');
+    expect(normalizeLinkUrl('https://example.com/a%25b')?.href).toBe('https://example.com/a%25b');
+  });
+
   it('passes an already-qualified https URL through unchanged', () => {
     expect(normalizeLinkUrl('https://foo.com')?.href).toBe('https://foo.com/');
   });
@@ -72,10 +97,22 @@ describe('normalizeLinkUrl', () => {
     'rejects a malformed explicit scheme %s rather than rescuing it into an unintended host',
     (text) => {
       // A naive `https://` + text retry rescues `ftp://` into `https://ftp//`, opening a host
-      // (`ftp`) that was never displayed and that no scheme-shaped input named — the retry's
-      // protocol check passes because the result genuinely is `https:`. normalize-url avoids
-      // this because it classifies `text` by its own explicit scheme first and never blindly
-      // re-prefixes a string that already looks scheme-qualified.
+      // (`ftp`) that was never displayed and that no scheme-shaped input named. `https://` and
+      // `http://` are rejected because they already have the `scheme://` authority shape and
+      // `new URL` then fails on the empty host; `ftp://` is rejected because it never reads as
+      // schemeless in the first place (its own scheme is recognized and left alone).
+      expect(normalizeLinkUrl(text)).toBeUndefined();
+    },
+  );
+
+  it.each(['file:/etc/passwd', 'https:/example.com'])(
+    'rejects a single-slash form of a known scheme %s rather than rescuing it into an unintended host',
+    (text) => {
+      // `new URL` is lenient about a missing or single slash after `https:`/`http:`/`file:` and
+      // would otherwise resolve these to a host the text never unambiguously named (`file:/etc/passwd`
+      // resolves to host `file`, not a rejection) — normalize-url's own classifier has this same
+      // blind spot, since it only recognizes these three schemes as "already qualified" when the
+      // full `://` authority marker is present. Only the canonical `scheme://` form is trusted.
       expect(normalizeLinkUrl(text)).toBeUndefined();
     },
   );
