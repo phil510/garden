@@ -238,11 +238,12 @@ function messageContent(line: Record<string, unknown>): unknown {
 }
 
 describe('a real fake-claude process spawned into a tmux pane', () => {
-  it('drives its session through working, needs-approval, waiting and ended', async () => {
+  it('drives its session through waiting, needs-approval, waiting and ended', async () => {
     await withTmuxServer(async (target) => {
       await withFakeClaudeSession(target, async ({ read, send }) => {
-        // SessionStart is awaited before READY prints, so this has already landed.
-        expect((await read())?.status).toBe('working');
+        // SessionStart is awaited before READY prints, so this has already landed: a session
+        // that has only booted is waiting until it does something.
+        expect((await read())?.status).toBe('waiting');
 
         for (const [keyword, status] of [
           ['/approve', 'needs-approval'],

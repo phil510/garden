@@ -229,7 +229,7 @@ describe('reduce', () => {
     expect(fold(ended).sessions['sid-1']?.liveness).toBe('dead');
     expect(fold([...ended, hook('SessionStart')]).sessions['sid-1']).toMatchObject({
       liveness: 'live',
-      status: 'working',
+      status: 'waiting',
     });
   });
 
