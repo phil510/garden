@@ -3,6 +3,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useState, type KeyboardEvent } from 'react';
 import type { SidebarGroup } from './groupSessions';
+import { hideDeadLabel } from './hideDeadLabel';
 import { SessionRow } from './SessionRow';
 import {
   capDeadSessions,
@@ -102,11 +103,11 @@ export function RepoGroup({
           </div>
         )}
         <div
-          className={`hide-dead-row${group.hideDead ? ' on' : ''}`}
+          className="hide-dead-row"
           title="Hide dead sessions"
           onClick={() => onToggleHideDead(group.repoRoot)}
         >
-          Hide dead
+          {hideDeadLabel(group.hideDead)}
         </div>
       </div>
     </div>

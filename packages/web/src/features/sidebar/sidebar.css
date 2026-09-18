@@ -219,16 +219,10 @@
 .hide-dead-row {
   padding: 6px 10px 6px 22px;
   font-size: 11.5px;
-  color: var(--text-muted);
+  color: var(--accent);
   cursor: pointer;
 }
 .hide-dead-row:hover {
-  color: var(--text);
-}
-.hide-dead-row.on {
-  color: var(--accent);
-}
-.hide-dead-row.on:hover {
   color: var(--accent);
 }
 .empty-groups-note {
