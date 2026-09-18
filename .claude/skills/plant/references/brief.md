@@ -110,16 +110,14 @@ A comment is not merely an addendum to the body — it can contradict,
 redraw the boundary of, or supersede what the body says, and the body
 carries no extra authority for having been written first. Read the
 full comment thread before finalizing §1–3, not skimmed after the body
-has already answered the question. A comment that changes the shape of
-the failure or the fix — not one that merely adds detail or trims an
-edge case nobody cared about — is itself a reason to ask the user, not
-something to reconcile silently by picking whichever account seems
-more authoritative.
+has already answered the question. Whether a given comment is one to
+reconcile silently or one to ask the user about is exactly what the
+triage gate below decides.
 
 **The triage gate.** GitHub issues vary as much in quality as any other
 ticket source, so the gate isn't "is this issue good" — it's whether
-§1–3 were read off the issue, invented to fill a gap, or transcribed
-from a part of the issue a later comment superseded:
+§1–3 were read off the issue, invented to fill a gap, or drafted from a
+part of the issue a later comment overrode:
 
 - Read them off the issue, with nothing in the comment thread
   overriding them → write `workflow.md`, print the derived brief, and
@@ -129,12 +127,13 @@ from a part of the issue a later comment superseded:
   that part, once, then proceed. An assumption at stage 0 is the most
   expensive kind — everything downstream inherits it, and by the time
   it surfaces the planner or developer has already built on top of it.
-- Transcribed §1–3 faithfully from one part of the issue while a
-  comment elsewhere changed the shape of the failure or the fix (not
-  merely refined or added detail to it) → this is stale, not settled,
-  and routes to the same question as an invented answer. Reading the
-  body carefully is not the same as reading the issue carefully; a
-  well-written body doesn't excuse skipping the thread beneath it.
+- Drafted §1–3 faithfully from one part of the issue while a comment
+  elsewhere changed the failure it describes, the boundary of the fix,
+  or the acceptance bar — not merely refined or added detail to any of
+  them → this is stale, not settled, and routes to the same question
+  as an invented answer. Reading the body carefully is not the same as
+  reading the issue carefully; a well-written body doesn't excuse
+  skipping the thread beneath it.
 
 Do not re-derive §4–7 from the user; they come from the repo and
 `autonomy.md` regardless of issue quality.
