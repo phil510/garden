@@ -6,11 +6,14 @@ const ALLOWED_PROTOCOLS = new Set(['http:', 'https:']);
  *  prefix, or does it already carry a scheme that must be left alone? Its defaults do far more
  *  than that — sorting query parameters, stripping `utm_*`, dropping trailing slashes, stripping
  *  `www.` — all of which would open a URL other than the one the terminal printed, so every
- *  meaning-rewriting default is turned off below. What can't be turned off — scheme and host
- *  lowercasing — comes from the `URL` object itself, not from this package, and doesn't change
- *  what host a link opens. */
+ *  meaning-rewriting default is turned off below. `stripAuthentication` stays off deliberately:
+ *  silently dropping userinfo would make a `user@evil.example` link open cleanly instead of
+ *  getting caught by the userinfo check in `normalizeLinkUrl`. What can't be turned off — scheme
+ *  and host lowercasing — comes from the `URL` object itself, not from this package, and doesn't
+ *  change what host a link opens. */
 const NORMALIZE_OPTIONS = {
   defaultProtocol: 'https',
+  stripAuthentication: false,
   stripTextFragment: false,
   stripWWW: false,
   removeQueryParameters: false,
@@ -44,15 +47,19 @@ function toUrl(text: string): URL | undefined {
 
 /**
  * Normalizes OSC 8 link text into an openable URL, or `undefined` if it isn't one. This is the
- * single point where the http(s) allowlist is enforced, and it runs on the fully normalized
- * result rather than on `text` itself — a scheme `toUrl` recognized and left alone is never
- * silently reinterpreted as http(s), and nothing else in this module inspects `text` directly.
- * That keeps "did this pass the allowlist" a property of the return value alone, not of which
- * branch produced it.
+ * single point where the http(s) allowlist and the userinfo check are enforced, and it runs on
+ * the fully normalized result rather than on `text` itself — a scheme `toUrl` recognized and
+ * left alone is never silently reinterpreted as http(s), and nothing else in this module
+ * inspects `text` directly. That keeps "did this pass the allowlist" a property of the return
+ * value alone, not of which branch produced it. A URL carrying a `username`/`password` is
+ * rejected even though its protocol is http(s): userinfo is protocol-legal but resolves to
+ * whatever host follows the `@`, which can differ completely from the host a reader sees first
+ * (`https://trusted.example@evil.example` opens `evil.example`).
  */
 export function normalizeLinkUrl(text: string): URL | undefined {
   const url = toUrl(text);
   if (url === undefined || !ALLOWED_PROTOCOLS.has(url.protocol)) return undefined;
+  if (url.username !== '' || url.password !== '') return undefined;
   return url;
 }
 

@@ -80,6 +80,17 @@ describe('normalizeLinkUrl', () => {
     },
   );
 
+  it('rejects a URL carrying userinfo, even though its protocol is http(s)', () => {
+    // OSC 8 already lets display text and target differ; userinfo compounds that by making the
+    // *URL itself* show a familiar host before the real one. `https://trusted.example@evil.example`
+    // is protocol-legal and would pass a bare http(s) allowlist while opening evil.example.
+    expect(normalizeLinkUrl('https://trusted.example@evil.example')).toBeUndefined();
+  });
+
+  it('rejects a URL carrying only a username, with no password', () => {
+    expect(normalizeLinkUrl('https://trusted.example@evil.example/path')).toBeUndefined();
+  });
+
   it('rejects text that fails to parse even after assuming https', () => {
     expect(normalizeLinkUrl('not a url, has spaces')).toBeUndefined();
   });
