@@ -166,7 +166,14 @@ export function StagePane(props: IDockviewPanelProps) {
         <div className="pane-title-wrap">
           <div className="pane-title">{paneTitle(session)}</div>
           <MetaRow label="branch" value={session.branch} />
-          <MetaRow label="session" value={session.claudeSessionName ?? 'No name yet.'} />
+          <MetaRow
+            label="session"
+            value={
+              session.claudeSessionName === null || session.claudeSessionName === ''
+                ? 'No name yet.'
+                : session.claudeSessionName
+            }
+          />
         </div>
         {live && session.status !== null && <StatusPill status={session.status} />}
         <div className="pane-header-actions">
