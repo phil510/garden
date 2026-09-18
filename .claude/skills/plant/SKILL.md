@@ -53,8 +53,8 @@ reason worth understanding, because the failure modes are silent.
   route, so fall back to `scripts/pipeline-status.sh` to classify what (if
   anything) completed, then fresh-spawn. Disk is the always-correct
   fallback; the message is only the optimization.
-- **Resolve ambiguity at stage 0.** An issue read carelessly doesn't fail
-  early — an invented or stale assumption in the brief produces an
+- **Resolve ambiguity at stage 0.** An artifact read carelessly doesn't
+  fail early — an assumption about _what_ to build produces an
   escalation at every stage that inherits it, which costs far more of
   the user's attention than one question up front would have. The
   triage gate (`references/brief.md`) is where this gets caught.
@@ -128,7 +128,7 @@ either merges the PR or hands you the go-ahead to.
 
 | Persona                                   | Lifetime        | Key responsibility                                                                                                                                                                                                                                |
 | ----------------------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Orchestrator** (you)                    | the session     | Derive the brief from the issue, run the triage gate, spawn workers, route signals, page the user, run the finish gate. Never does stage work.                                                                                                    |
+| **Orchestrator** (you)                    | the session     | Derive the brief from the artifact, run the triage gate, spawn workers, route signals, page the user, run the finish gate. Never does stage work.                                                                                                 |
 | **Planner** (stage 1)                     | fresh per spawn | Brief → `plan.md` with a Tasks↔AC coverage table, grounded in 2–3 parallel `Explore` subagents and a named-agent plan reviewer. Skipped entirely on `Size: small`.                                                                                |
 | **Developer** (stage 2 + every fix round) | fresh per round | Self-bootstraps the worktree (`pnpm install`). Initial: implements the plan, self-reviews, opens the draft PR. Fix-round: applies the internal reviewer's `fix` findings, one commit per finding, pushes.                                         |
 | **Reviewer** (stage 3)                    | fresh per round | Internal review via `pr-review-toolkit` agents plus named agents scaled to the diff → `review-round-<k>.md`. Clean → flips stage 3 (PR stays draft). Dirty → annotates, no flip. Cap 3 rounds (1 for `Size: small`), then escalates `review_cap`. |
@@ -233,20 +233,22 @@ scripts/pipeline-finish.sh --worktree <abs> [--branch <name>] --status completed
   user abort or a closed PR.
 
 The scripts own scaffolding only. The brief's _content_ is your judgment —
-you still author that from the issue.
+you still author that from the artifact.
 
 ## Orchestrator workflow
 
 1. **Stage 0 — derive the brief.** `gh issue view <N> --json
 title,body,comments,labels,url`. Derive the 7 fields per
    `references/brief.md`'s table — §1–3 from the issue body and its
-   comment thread, §4 from the repo (`pnpm validate` is the gate unless
-   the issue says otherwise), §5 from `references/autonomy.md`'s
+   full comment thread, §4 from the repo (`pnpm validate` is the gate
+   unless the issue says otherwise), §5 from `references/autonomy.md`'s
    defaults, §6 always `PR merged`, §7 `auto | ask` defaulting to `ask`.
-   Before treating §1–3 as settled, read `references/brief.md` § Stage 0
-   and apply the triage gate exactly as it defines there — its
-   instructions and branches live only in that section, not here. Don't
-   re-litigate §4–7, which never come from the user.
+   Read the whole thread before drafting §1–3 — a later comment can
+   override the body. Then the triage gate: clear on what to build →
+   proceed without waiting; ambiguous or self-contradictory about what
+   to build → ask the user about exactly that, once, then proceed
+   (`references/brief.md` § Stage 0). Don't re-litigate §4–7, which
+   never come from the user.
 2. **Branch + worktree.** Build `<type>/<issue-number>-<slug>` — `type` is
    `feat|fix|chore|docs` chosen from the nature of the change, the number is
    the GitHub issue, the slug comes from its title — then
