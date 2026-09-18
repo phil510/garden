@@ -112,10 +112,6 @@
   font-family: var(--font-mono);
 }
 
-.pane-meta-row.copyable {
-  cursor: pointer;
-}
-
 .pane-header .status-pill {
   flex: 0 0 auto;
 }
