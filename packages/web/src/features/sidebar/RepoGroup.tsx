@@ -104,7 +104,7 @@ export function RepoGroup({
         )}
         <div
           className="hide-dead-row"
-          title="Hide dead sessions"
+          title={`${hideDeadLabel(group.hideDead)} sessions`}
           onClick={() => onToggleHideDead(group.repoRoot)}
         >
           {hideDeadLabel(group.hideDead)}

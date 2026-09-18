@@ -223,7 +223,7 @@
   cursor: pointer;
 }
 .hide-dead-row:hover {
-  color: var(--accent);
+  background: var(--raised);
 }
 .empty-groups-note {
   padding: 14px 12px;
