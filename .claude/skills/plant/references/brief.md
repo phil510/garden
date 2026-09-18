@@ -94,13 +94,13 @@ plan, so they must be concrete. `standard` is the default.
 ## Stage 0 — deriving the brief from the issue
 
 `/plant <issue-number>` starts by reading the issue:
-`gh issue view <n> --json title,body,labels,url`. There is no
+`gh issue view <n> --json title,body,comments,labels,url`. There is no
 interactive negotiation — the brief is derived from the issue plus the
 repo, and only §1–3 come from the issue at all:
 
 | Field                                          | Source                                                                                                                |
 | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| 1. Objective, 2. Scope, 3. Acceptance criteria | the issue body                                                                                                        |
+| 1. Objective, 2. Scope, 3. Acceptance criteria | the issue body and its comment thread                                                                                 |
 | 4. Verify command                              | the repo — `pnpm validate` is the gate (typecheck, lint, format check, unit tests); `pnpm test` is the unit tier only |
 | 5. Autonomy bounds                             | defaults from `autonomy.md`                                                                                           |
 | 6. Stop conditions                             | `PR merged`                                                                                                           |
