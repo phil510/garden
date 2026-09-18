@@ -130,6 +130,16 @@
   white-space: nowrap;
   min-width: 0;
 }
+/* Equal flex-shrink would split the squeeze proportionally to each span's own content width,
+   so the short session name always loses more of itself than the long branch. The branch has
+   a home elsewhere (the pane header once a row is opened); the name has only this row, so it
+   gets first claim on the available width. */
+.row-name {
+  flex-shrink: 1;
+}
+.row-branch {
+  flex-shrink: 4;
+}
 .row-dot-sep {
   flex: 0 0 auto;
 }
