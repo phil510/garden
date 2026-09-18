@@ -8,7 +8,7 @@ export function sessionIdentityLabel(claudeSessionName: string | null): string |
 }
 
 export interface MetaLineSegment {
-  key: 'name' | 'branch' | 'time';
+  key: 'name' | 'time';
   text: string;
 }
 
@@ -16,13 +16,12 @@ export interface MetaLineSegment {
  *  rendered empty — the caller joins what comes back with separators, so an omitted segment
  *  never produces a stray `·`. */
 export function metaLineSegments(
-  session: Pick<SessionState, 'claudeSessionName' | 'branch' | 'lastActivity'>,
+  session: Pick<SessionState, 'claudeSessionName' | 'lastActivity'>,
   now: number,
 ): MetaLineSegment[] {
   const segments: MetaLineSegment[] = [];
   const name = sessionIdentityLabel(session.claudeSessionName);
   if (name !== null) segments.push({ key: 'name', text: name });
-  if (session.branch !== null) segments.push({ key: 'branch', text: session.branch });
   segments.push({ key: 'time', text: formatRelativeTime(session.lastActivity, now) });
   return segments;
 }
@@ -31,7 +30,6 @@ export function metaLineSegments(
  *  than a silent fall-through. */
 const META_LINE_SEGMENT_CLASS_NAME: Record<MetaLineSegment['key'], string> = {
   name: 'row-name',
-  branch: 'row-branch mono',
   time: 'row-time mono',
 };
 

@@ -55,11 +55,13 @@ export function SessionRow({ session, onStage, focused, now, onSelect }: Session
       onMouseLeave={() => setHovered(false)}
     >
       {focused && <span className="focused-mark" title="Focused" />}
-      <div className="row-title">{title}</div>
-      <div className="row-meta">
+      <div className="row-title-line">
+        <div className="row-title">{title}</div>
         {session.liveness === 'live' && session.status !== null && (
           <StatusPill status={session.status} />
         )}
+      </div>
+      <div className="row-meta">
         {metaLineSegments(session, now).map((segment, index) => (
           <Fragment key={segment.key}>
             {index > 0 && <span className="row-dot-sep faint">·</span>}

@@ -107,6 +107,12 @@
   border-radius: 50%;
   flex: 0 0 auto;
 }
+.row-title-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
 .row-meta {
   display: flex;
   align-items: center;
@@ -116,6 +122,7 @@
   min-width: 0;
 }
 .row-title {
+  flex: 1 1 auto;
   font-size: 12.5px;
   font-weight: 500;
   overflow: hidden;
@@ -123,22 +130,11 @@
   white-space: nowrap;
   min-width: 0;
 }
-.row-name,
-.row-branch {
+.row-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
-}
-/* Equal flex-shrink would split the squeeze proportionally to each span's own content width,
-   so the short session name always loses more of itself than the long branch. The branch has
-   a home elsewhere (the pane header once a row is opened); the name has only this row, so it
-   gets first claim on the available width. */
-.row-name {
-  flex-shrink: 1;
-}
-.row-branch {
-  flex-shrink: 4;
 }
 .row-dot-sep {
   flex: 0 0 auto;
