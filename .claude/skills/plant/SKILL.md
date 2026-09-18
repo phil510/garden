@@ -54,10 +54,10 @@ reason worth understanding, because the failure modes are silent.
   anything) completed, then fresh-spawn. Disk is the always-correct
   fallback; the message is only the optimization.
 - **Resolve ambiguity at stage 0.** An issue read carelessly doesn't fail
-  early — an invented assumption in the brief produces an escalation at
-  every stage that inherits it, which costs far more of the user's
-  attention than one question up front would have. The triage gate
-  (`references/brief.md`) is where this gets caught.
+  early — an invented or stale assumption in the brief produces an
+  escalation at every stage that inherits it, which costs far more of
+  the user's attention than one question up front would have. The
+  triage gate (`references/brief.md`) is where this gets caught.
 - **Assume the session has the autonomy the pipeline needs**
   (`bypassPermissions`). Workers inherit the session's permission mode and
   a per-spawn `mode` doesn't override it, so a worker that hits a prompt
@@ -238,14 +238,17 @@ you still author that from the issue.
 ## Orchestrator workflow
 
 1. **Stage 0 — derive the brief.** `gh issue view <N> --json
-title,body,labels,url`. Derive the 7 fields per `references/brief.md`'s
-   table — §1–3 from the issue body, §4 from the repo (`pnpm validate` is
-   the gate unless the issue says otherwise), §5 from
-   `references/autonomy.md`'s defaults, §6 always `PR merged`, §7 `auto |
-ask` defaulting to `ask`. Apply the triage gate: if you read §1–3 off
-   the issue, proceed straight to step 2. If you had to invent or guess
-   any part of them, ask the user about exactly that part, once, then
-   proceed — don't re-litigate §4–7, which never come from the user.
+title,body,comments,labels,url`. Derive the 7 fields per
+   `references/brief.md`'s table — §1–3 from the issue body and its
+   comment thread, §4 from the repo (`pnpm validate` is the gate unless
+   the issue says otherwise), §5 from `references/autonomy.md`'s
+   defaults, §6 always `PR merged`, §7 `auto | ask` defaulting to `ask`.
+   Apply the triage gate (`references/brief.md` has the full version):
+   read §1–3 off the issue with nothing in the comments overriding it →
+   proceed straight to step 2. Invented, guessed, or transcribed from a
+   part of the issue a later comment superseded → ask the user about
+   exactly that part, once, then proceed — don't re-litigate §4–7,
+   which never come from the user.
 2. **Branch + worktree.** Build `<type>/<issue-number>-<slug>` — `type` is
    `feat|fix|chore|docs` chosen from the nature of the change, the number is
    the GitHub issue, the slug comes from its title — then
