@@ -91,35 +91,45 @@ few-line code change, a config value, a dependency bump. It still
 requires §1–7: the ACs are the developer's task list in place of a
 plan, so they must be concrete. `standard` is the default.
 
-## Stage 0 — deriving the brief from the issue
+## Stage 0 — deriving the brief from the artifact
 
-`/plant <issue-number>` starts by reading the issue:
-`gh issue view <n> --json title,body,labels,url`. There is no
-interactive negotiation — the brief is derived from the issue plus the
-repo, and only §1–3 come from the issue at all:
+The brief is derived, not negotiated: §1–3 come from the artifact
+describing the work, §4–7 from the repo and `autonomy.md`. plant's
+entrypoint hands you one artifact kind — a GitHub issue, read with
+`gh issue view <n> --json title,body,comments,labels,url`. Read the
+whole comment thread before drafting §1–3: a later comment can
+contradict, narrow, or supersede the body, and the body carries no
+extra authority for having been written first.
 
 | Field                                          | Source                                                                                                                |
 | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| 1. Objective, 2. Scope, 3. Acceptance criteria | the issue body                                                                                                        |
+| 1. Objective, 2. Scope, 3. Acceptance criteria | the artifact — for an issue, its body and full comment thread                                                         |
 | 4. Verify command                              | the repo — `pnpm validate` is the gate (typecheck, lint, format check, unit tests); `pnpm test` is the unit tier only |
 | 5. Autonomy bounds                             | defaults from `autonomy.md`                                                                                           |
 | 6. Stop conditions                             | `PR merged`                                                                                                           |
 | 7. Merge policy                                | `auto \| ask`, default `ask`                                                                                          |
 
-**The triage gate.** GitHub issues vary as much in quality as any other
-ticket source, so the gate isn't "is this issue good" — it's whether
-§1–3 were read off the issue or invented to fill a gap:
+**The triage gate.** Artifacts vary in quality, so the gate isn't
+whether this one is good — it's whether it answers _what to build_
+without you supplying the answer:
 
-- Read them off the issue → write `workflow.md`, print the derived
-  brief, and proceed without waiting. Ceremonially confirming a brief
-  that merely transcribed a well-written issue buys nothing.
-- Invented or guessed any part of §1–3 → ask the user about exactly
-  that part, once, then proceed. An assumption at stage 0 is the most
-  expensive kind — everything downstream inherits it, and by the time
-  it surfaces the planner or developer has already built on top of it.
+- Clear on what to build → write `workflow.md`, print the derived
+  brief, and proceed without waiting. Confirming a brief that merely
+  transcribed a well-written artifact buys nothing.
+- Ambiguous or self-contradictory about what to build → ask the user
+  about exactly that, once, then proceed. Silence where §1–3 need an
+  answer counts, and so does a comment pulling against the body.
+
+The line is _what_ versus _how_. The user decides what we build, so a
+gap there is theirs to close; how to build it is yours and the
+planner's, and the small decisions that involves don't come back to
+them. Escalate a gap rather than resolving it plausibly: an assumption
+at stage 0 is the most expensive kind, because everything downstream
+inherits it and by the time it surfaces the planner or developer has
+already built on top of it.
 
 Do not re-derive §4–7 from the user; they come from the repo and
-`autonomy.md` regardless of issue quality.
+`autonomy.md` regardless of artifact quality.
 
 ## Write discipline
 
