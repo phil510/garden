@@ -118,15 +118,22 @@ authoritative.
 
 **The triage gate.** GitHub issues vary as much in quality as any other
 ticket source, so the gate isn't "is this issue good" — it's whether
-§1–3 were read off the issue or invented to fill a gap:
+§1–3 were read off the issue, invented to fill a gap, or transcribed
+from a part of the issue a later comment superseded:
 
-- Read them off the issue → write `workflow.md`, print the derived
-  brief, and proceed without waiting. Ceremonially confirming a brief
-  that merely transcribed a well-written issue buys nothing.
+- Read them off the issue, with nothing in the comment thread
+  overriding them → write `workflow.md`, print the derived brief, and
+  proceed without waiting. Ceremonially confirming a brief that merely
+  transcribed a well-written issue buys nothing.
 - Invented or guessed any part of §1–3 → ask the user about exactly
   that part, once, then proceed. An assumption at stage 0 is the most
   expensive kind — everything downstream inherits it, and by the time
   it surfaces the planner or developer has already built on top of it.
+- Transcribed §1–3 faithfully from one part of the issue while a
+  comment elsewhere changed it → this is stale, not settled, and
+  routes to the same question as an invented answer. Reading the body
+  carefully is not the same as reading the issue carefully; a
+  well-written body doesn't excuse skipping the thread beneath it.
 
 Do not re-derive §4–7 from the user; they come from the repo and
 `autonomy.md` regardless of issue quality.
