@@ -106,6 +106,16 @@ repo, and only §1–3 come from the issue at all:
 | 6. Stop conditions                             | `PR merged`                                                                                                           |
 | 7. Merge policy                                | `auto \| ask`, default `ask`                                                                                          |
 
+A comment is not merely an addendum to the body — it can contradict,
+narrow, or supersede what the body says, and the body carries no extra
+authority for having been written first. Read the full comment thread
+before finalizing §1–3, not skimmed after the body has already
+answered the question. A comment that changes the shape of the failure
+or the fix — not one that merely adds detail or trims an edge case
+nobody cared about — is itself a reason to ask the user, not something
+to reconcile silently by picking whichever account seems more
+authoritative.
+
 **The triage gate.** GitHub issues vary as much in quality as any other
 ticket source, so the gate isn't "is this issue good" — it's whether
 §1–3 were read off the issue or invented to fill a gap:
