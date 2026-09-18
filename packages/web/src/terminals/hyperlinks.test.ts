@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { activateOscLink, normalizeLinkUrl, openExternalLink } from './hyperlinks.js';
+import { normalizeLinkUrl, openExternalLink } from './hyperlinks.js';
 
 describe('normalizeLinkUrl', () => {
   it('normalizes a schemeless bare host by assuming https', () => {
@@ -108,36 +108,16 @@ describe('normalizeLinkUrl', () => {
 });
 
 describe('openExternalLink', () => {
-  it('opens the url in a new tab with explicit noopener and noreferrer', () => {
+  // `openExternalLink` is the only function in this module that calls `window.open` — the OSC 8
+  // `linkHandler` and the `WebLinksAddon` handler in registry.ts both hand it their matched text
+  // directly, unnormalized, so it has to normalize internally rather than trust a caller to have
+  // done so. These tests exercise it the way both call sites do: with raw text, not a pre-built
+  // URL.
+  it('normalizes text and opens the result in a new tab with explicit noopener and noreferrer', () => {
     const fakeWindow = {} as Window;
     const openWindow = vi.fn().mockReturnValue(fakeWindow);
 
-    openExternalLink('https://example.com/', openWindow);
-
-    expect(openWindow).toHaveBeenCalledWith(
-      'https://example.com/',
-      '_blank',
-      'noopener,noreferrer',
-    );
-  });
-
-  it('warns instead of throwing when the browser blocks the popup', () => {
-    const openWindow = vi.fn().mockReturnValue(null);
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
-    expect(() => openExternalLink('https://example.com/', openWindow)).not.toThrow();
-    expect(warn).toHaveBeenCalled();
-
-    warn.mockRestore();
-  });
-});
-
-describe('activateOscLink', () => {
-  it('opens a normalized url via the injected openWindow', () => {
-    const fakeWindow = {} as Window;
-    const openWindow = vi.fn().mockReturnValue(fakeWindow);
-
-    activateOscLink('www.here.com', openWindow);
+    openExternalLink('www.here.com', openWindow);
 
     expect(openWindow).toHaveBeenCalledWith(
       'https://www.here.com/',
@@ -146,19 +126,19 @@ describe('activateOscLink', () => {
     );
   });
 
-  it('never calls openWindow for a link that fails normalization', () => {
+  it('never calls openWindow for text that fails normalization', () => {
     const openWindow = vi.fn();
 
-    activateOscLink('javascript:alert(1)', openWindow);
+    openExternalLink('javascript:alert(1)', openWindow);
 
     expect(openWindow).not.toHaveBeenCalled();
   });
 
-  it('does not throw and logs a warning when openWindow returns null', () => {
+  it('warns instead of throwing when the browser blocks the popup', () => {
     const openWindow = vi.fn().mockReturnValue(null);
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-    expect(() => activateOscLink('www.here.com', openWindow)).not.toThrow();
+    expect(() => openExternalLink('https://example.com/', openWindow)).not.toThrow();
     expect(warn).toHaveBeenCalled();
 
     warn.mockRestore();

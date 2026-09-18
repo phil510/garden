@@ -63,29 +63,22 @@ export function normalizeLinkUrl(text: string): URL | undefined {
   return url;
 }
 
-/** Opens `url` the way a link click should: a new tab, explicitly isolated from this page via
- *  `noopener` (the new tab gets no `window.opener` back to us) and `noreferrer` (no Referer
- *  header naming this page) rather than relying on a browser's implicit `noopener` for
- *  `_blank`, which is default behavior in modern browsers but isn't guaranteed the same way an
- *  explicit feature string is. */
+/** Normalizes and validates `text`, then opens it the way a link click should: a new tab,
+ *  explicitly isolated from this page via `noopener` (the new tab gets no `window.opener` back
+ *  to us) and `noreferrer` (no Referer header naming this page) rather than relying on a
+ *  browser's implicit `noopener` for `_blank`. This is the only path to `window.open` in this
+ *  module — both the OSC 8 `linkHandler` and the plain-URL `WebLinksAddon` handler call it
+ *  directly with the matched text, so no caller can reach `window.open` without going through
+ *  `normalizeLinkUrl`'s allowlist first. A `text` that fails normalization does nothing on
+ *  click. */
 export function openExternalLink(
-  url: string,
-  openWindow: typeof window.open = (...args) => window.open(...args),
-): void {
-  const opened = openWindow(url, '_blank', 'noopener,noreferrer');
-  if (opened === null) {
-    console.warn('Opening link blocked by the browser');
-  }
-}
-
-/** The `activate` half of an OSC 8 `linkHandler`: normalizes and validates the link text, then
- *  opens it if it passed. A link that fails normalization — no scheme and no plausible https://
- *  reading, or a scheme outside the http(s) allowlist — does nothing on click. */
-export function activateOscLink(
   text: string,
   openWindow: typeof window.open = (...args) => window.open(...args),
 ): void {
   const url = normalizeLinkUrl(text);
   if (url === undefined) return;
-  openExternalLink(url.toString(), openWindow);
+  const opened = openWindow(url.toString(), '_blank', 'noopener,noreferrer');
+  if (opened === null) {
+    console.warn('Opening link blocked by the browser');
+  }
 }
