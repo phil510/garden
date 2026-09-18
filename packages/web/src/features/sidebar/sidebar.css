@@ -123,8 +123,8 @@
   white-space: nowrap;
   min-width: 0;
 }
+.row-name,
 .row-branch {
-  font-family: var(--font-mono);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

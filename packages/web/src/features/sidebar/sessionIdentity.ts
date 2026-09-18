@@ -10,7 +10,6 @@ export function sessionIdentityLabel(claudeSessionName: string | null): string |
 export interface MetaLineSegment {
   key: 'name' | 'branch' | 'time';
   text: string;
-  mono: boolean;
 }
 
 /** The meta line's segments, in display order, with absent fields dropped rather than
@@ -22,17 +21,20 @@ export function metaLineSegments(
 ): MetaLineSegment[] {
   const segments: MetaLineSegment[] = [];
   const name = sessionIdentityLabel(session.claudeSessionName);
-  if (name !== null) segments.push({ key: 'name', text: name, mono: false });
-  if (session.branch !== null) segments.push({ key: 'branch', text: session.branch, mono: true });
-  segments.push({ key: 'time', text: formatRelativeTime(session.lastActivity, now), mono: true });
+  if (name !== null) segments.push({ key: 'name', text: name });
+  if (session.branch !== null) segments.push({ key: 'branch', text: session.branch });
+  segments.push({ key: 'time', text: formatRelativeTime(session.lastActivity, now) });
   return segments;
 }
 
-/** `branch` and `time` keep the layout classes their standalone spans had before the meta
- *  line was generalized into a segment list; `name` (the Claude session name) is new and
- *  gets no special treatment. */
-export function metaLineSegmentClassName(segment: MetaLineSegment): string | undefined {
-  const layout = segment.key === 'branch' ? 'row-branch' : segment.key === 'time' ? 'row-time' : '';
-  const mono = segment.mono ? 'mono' : '';
-  return [layout, mono].filter((part) => part !== '').join(' ') || undefined;
+/** Every key gets its own layout class, so a key with no arm here is a compile error rather
+ *  than a silent fall-through. */
+const META_LINE_SEGMENT_CLASS_NAME: Record<MetaLineSegment['key'], string> = {
+  name: 'row-name',
+  branch: 'row-branch mono',
+  time: 'row-time mono',
+};
+
+export function metaLineSegmentClassName(segment: MetaLineSegment): string {
+  return META_LINE_SEGMENT_CLASS_NAME[segment.key];
 }
