@@ -8,7 +8,7 @@ export function sessionIdentityLabel(claudeSessionName: string | null): string |
 }
 
 export interface MetaLineSegment {
-  key: string;
+  key: 'name' | 'branch' | 'time';
   text: string;
   mono: boolean;
 }
@@ -26,4 +26,13 @@ export function metaLineSegments(
   if (session.branch !== null) segments.push({ key: 'branch', text: session.branch, mono: true });
   segments.push({ key: 'time', text: formatRelativeTime(session.lastActivity, now), mono: true });
   return segments;
+}
+
+/** `branch` and `time` keep the layout classes their standalone spans had before the meta
+ *  line was generalized into a segment list; `name` (the Claude session name) is new and
+ *  gets no special treatment. */
+export function metaLineSegmentClassName(segment: MetaLineSegment): string | undefined {
+  const layout = segment.key === 'branch' ? 'row-branch' : segment.key === 'time' ? 'row-time' : '';
+  const mono = segment.mono ? 'mono' : '';
+  return [layout, mono].filter((part) => part !== '').join(' ') || undefined;
 }

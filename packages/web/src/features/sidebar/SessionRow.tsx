@@ -5,16 +5,7 @@ import { reportCommandFailure } from '../../api/reportCommandFailure';
 import { StatusPill } from '../../components/StatusPill';
 import { HoverCard } from './HoverCard';
 import { lastPathSegment } from './lastPathSegment';
-import { metaLineSegments, type MetaLineSegment } from './sessionIdentity';
-
-/** `branch` and `time` keep the layout classes their standalone spans had before the meta
- *  line was generalized into a segment list; `name` (the Claude session name) is new and
- *  gets no special treatment. */
-function segmentClassName(segment: MetaLineSegment): string | undefined {
-  const layout = segment.key === 'branch' ? 'row-branch' : segment.key === 'time' ? 'row-time' : '';
-  const mono = segment.mono ? 'mono' : '';
-  return [layout, mono].filter((part) => part !== '').join(' ') || undefined;
-}
+import { metaLineSegmentClassName, metaLineSegments } from './sessionIdentity';
 
 interface SessionRowProps {
   session: SessionState;
@@ -72,7 +63,7 @@ export function SessionRow({ session, onStage, focused, now, onSelect }: Session
         {metaLineSegments(session, now).map((segment, index) => (
           <Fragment key={segment.key}>
             {index > 0 && <span className="row-dot-sep faint">·</span>}
-            <span className={segmentClassName(segment)}>{segment.text}</span>
+            <span className={metaLineSegmentClassName(segment)}>{segment.text}</span>
           </Fragment>
         ))}
       </div>

@@ -1,6 +1,10 @@
 import { aSession } from '@garden/shared/fixtures';
 import { describe, expect, it } from 'vitest';
-import { metaLineSegments, sessionIdentityLabel } from './sessionIdentity';
+import {
+  metaLineSegmentClassName,
+  metaLineSegments,
+  sessionIdentityLabel,
+} from './sessionIdentity';
 
 describe('sessionIdentityLabel', () => {
   it('passes a real name through unchanged', () => {
@@ -47,5 +51,31 @@ describe('metaLineSegments', () => {
   it('leaves only the time segment when name and branch are both unresolved', () => {
     const session = aSession({ claudeSessionName: null, branch: null, lastActivity: now });
     expect(metaLineSegments(session, now)).toEqual([{ key: 'time', text: 'just now', mono: true }]);
+  });
+
+  it('omits the name segment when claudeSessionName is an empty string', () => {
+    const session = aSession({ claudeSessionName: '', branch: 'main', lastActivity: now });
+    expect(metaLineSegments(session, now)).toEqual([
+      { key: 'branch', text: 'main', mono: true },
+      { key: 'time', text: 'just now', mono: true },
+    ]);
+  });
+});
+
+describe('metaLineSegmentClassName', () => {
+  it('gives the name segment no layout class', () => {
+    expect(metaLineSegmentClassName({ key: 'name', text: 'scout', mono: false })).toBe(undefined);
+  });
+
+  it('gives the branch segment its layout class plus mono', () => {
+    expect(metaLineSegmentClassName({ key: 'branch', text: 'main', mono: true })).toBe(
+      'row-branch mono',
+    );
+  });
+
+  it('gives the time segment its layout class plus mono', () => {
+    expect(metaLineSegmentClassName({ key: 'time', text: 'just now', mono: true })).toBe(
+      'row-time mono',
+    );
   });
 });
