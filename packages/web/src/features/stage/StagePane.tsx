@@ -7,9 +7,7 @@ import { StatusPill } from '../../components/StatusPill';
 import { useLocalStore } from '../../state/localStore';
 import { useSessionStore } from '../../state/sessionStore';
 import { useUiStore } from '../../state/uiStore';
-import { useCopyFlash } from '../../hooks/useCopyFlash';
 import { attachPane, detachPane } from '../../terminals/registry';
-import { sessionIdentityLabel } from '../sidebar/sessionIdentity';
 import { deadPaneStatusLine } from './deadPaneStatus';
 import { paneTitle } from './paneTitle';
 import { removeFromStage } from './removeFromStage';
@@ -32,21 +30,14 @@ const DEAD_ICON = (
 interface MetaRowProps {
   label: string;
   value: string | null;
-  /** Set together to make the row a click-to-copy affordance; omitted for a plain row. */
-  onClick?: (event: MouseEvent) => void;
-  title?: string;
 }
 
-function MetaRow({ label, value, onClick, title }: MetaRowProps) {
+function MetaRow({ label, value }: MetaRowProps) {
   // A session momentarily has an empty cwd between creation and its first transcript read
   // (reduce.ts's `blank()`); an empty value reads as absent, the same as null.
   if (value === null || value === '') return null;
   return (
-    <div
-      className={onClick === undefined ? 'pane-meta-row' : 'pane-meta-row copyable'}
-      onClick={onClick}
-      title={title}
-    >
+    <div className="pane-meta-row">
       <span className="pane-meta-k">{label}:</span>
       <span className="pane-meta-v">{value}</span>
     </div>
@@ -63,7 +54,6 @@ export function StagePane(props: IDockviewPanelProps) {
   const connectionEpoch = useLocalStore((state) => state.connectionEpoch);
   const terminalRef = useRef<HTMLDivElement>(null);
   const [confirmingKill, setConfirmingKill] = useState(false);
-  const sessionIdCopy = useCopyFlash();
 
   const {
     setNodeRef: setDraggableRef,
@@ -160,11 +150,6 @@ export function StagePane(props: IDockviewPanelProps) {
       .catch(reportCommandFailure);
   }
 
-  const handleCopySessionId = (event: MouseEvent) => {
-    event.stopPropagation();
-    sessionIdCopy.copy(session.id);
-  };
-
   const classes = ['pane'];
   if (focused) classes.push('focused');
   if (isDragging) classes.push('dragging');
@@ -181,16 +166,7 @@ export function StagePane(props: IDockviewPanelProps) {
         <div className="pane-title-wrap">
           <div className="pane-title">{paneTitle(session)}</div>
           <MetaRow label="branch" value={session.branch} />
-          <MetaRow
-            label="session"
-            value={
-              sessionIdCopy.copied
-                ? 'Copied'
-                : sessionIdentityLabel(session.claudeSessionName, session.id)
-            }
-            onClick={handleCopySessionId}
-            title="Click to copy session id"
-          />
+          <MetaRow label="session" value={session.claudeSessionName ?? 'No name yet.'} />
         </div>
         {live && session.status !== null && <StatusPill status={session.status} />}
         <div className="pane-header-actions">
