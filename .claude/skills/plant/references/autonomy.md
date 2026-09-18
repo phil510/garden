@@ -133,5 +133,4 @@ adding a new production dependency.
 
 **Never:** rewriting git history, any change outside the pipeline's own
 worktree, deleting or force-overwriting anything without a recovery path,
-and touching this repo's own `.claude/` configuration or the user's global
-Claude Code configuration.
+and touching the user's global Claude Code configuration.
