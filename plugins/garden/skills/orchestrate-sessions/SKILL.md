@@ -71,9 +71,10 @@ belongs to one process: resume or restart a session and it comes back under a di
 name quoted from memory is stale the moment its process is — and a misdelivered note fails
 silently in both directions.
 
-When you report to your user, use the Claude Code name — that's what renders in the web console
-alongside the id, not the garden/tmux name. The tmux name still answers a different question and
-stays in the vocabulary for it: which pane to attach a terminal to.
+When you report to your user, use the Claude Code name — that's what renders in the web console's
+pane header, not the garden/tmux name. The web console never shows the id itself; for that, use
+`garden ls` or `message-session`'s `resolve_session.sh`. The tmux name still answers a different
+question and stays in the vocabulary for it: which pane to attach a terminal to.
 
 ## Wait by subscribing, never by polling
 
