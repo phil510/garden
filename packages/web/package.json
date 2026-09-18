@@ -20,6 +20,7 @@
     "@xterm/xterm": "catalog:",
     "dockview-core": "catalog:",
     "dockview-react": "catalog:",
+    "normalize-url": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-markdown": "catalog:",

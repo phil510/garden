@@ -1,17 +1,42 @@
+import normalizeUrl from 'normalize-url';
+
 const ALLOWED_PROTOCOLS = new Set(['http:', 'https:']);
 
-/** Parses `text` as a URL, retrying once with an assumed `https://` scheme when it doesn't parse
- *  on its own — the only reading a bare host/path OSC 8 URI (`www.here.com`) can plausibly have.
- *  Returns `undefined` when neither reading parses. This is normalization only: it does not
- *  judge the result, so a caller cannot mistake "parsed" for "safe to open". */
+/** `normalize-url`'s job here is exactly one decision: does `text` get an assumed `https://`
+ *  prefix, or does it already carry a scheme that must be left alone? Its defaults do far more
+ *  than that — sorting query parameters, stripping `utm_*`, dropping trailing slashes, stripping
+ *  `www.` — all of which would open a URL other than the one the terminal printed, so every
+ *  meaning-rewriting default is turned off below. What can't be turned off — scheme and host
+ *  lowercasing — comes from the `URL` object itself, not from this package, and doesn't change
+ *  what host a link opens. */
+const NORMALIZE_OPTIONS = {
+  defaultProtocol: 'https',
+  stripTextFragment: false,
+  stripWWW: false,
+  removeQueryParameters: false,
+  removeTrailingSlash: false,
+  removeSingleSlash: false,
+  sortQueryParameters: false,
+} as const;
+
+/** Parses `text` as a URL, prefixing an assumed `https://` only when `normalize-url` decides
+ *  `text` has no scheme of its own (a bare host like `www.here.com`, or a `host:port` shape like
+ *  `localhost:3000` that a naive `new URL` would misread as a custom scheme). A `text` that
+ *  already carries an explicit scheme — including a malformed one like `ftp://` or `https://`
+ *  with nothing after it — is never prefix-rescued into a different, unintended host: it is
+ *  returned unchanged (for a recognized non-http(s) scheme) or rejected outright (for a
+ *  malformed one), and either way `normalizeLinkUrl` rejects it below. Returns `undefined` when
+ *  nothing usable comes out. This is normalization only: it does not judge the result, so a
+ *  caller cannot mistake "parsed" for "safe to open". */
 function toUrl(text: string): URL | undefined {
+  let normalized: string;
   try {
-    return new URL(text);
+    normalized = normalizeUrl(text, NORMALIZE_OPTIONS);
   } catch {
-    // not an absolute URL on its own — fall through to the https:// retry below
+    return undefined;
   }
   try {
-    return new URL(`https://${text}`);
+    return new URL(normalized);
   } catch {
     return undefined;
   }
@@ -20,9 +45,10 @@ function toUrl(text: string): URL | undefined {
 /**
  * Normalizes OSC 8 link text into an openable URL, or `undefined` if it isn't one. This is the
  * single point where the http(s) allowlist is enforced, and it runs on the fully normalized
- * result rather than on `text` itself — a scheme rejected here was never given a second look via
- * the https:// retry, and nothing else in this module inspects `text` directly. That keeps "did
- * this pass the allowlist" a property of the return value alone, not of which branch produced it.
+ * result rather than on `text` itself — a scheme `toUrl` recognized and left alone is never
+ * silently reinterpreted as http(s), and nothing else in this module inspects `text` directly.
+ * That keeps "did this pass the allowlist" a property of the return value alone, not of which
+ * branch produced it.
  */
 export function normalizeLinkUrl(text: string): URL | undefined {
   const url = toUrl(text);
