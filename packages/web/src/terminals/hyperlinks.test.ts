@@ -134,12 +134,15 @@ describe('openExternalLink', () => {
     expect(openWindow).not.toHaveBeenCalled();
   });
 
-  it('warns instead of throwing when the browser blocks the popup', () => {
+  it('does not warn when openWindow returns null, since noopener/noreferrer always makes it return null', () => {
+    // window.open has no WindowProxy to hand back whenever `noopener` or `noreferrer` is in the
+    // features string, so it returns null on every successful open, not just a blocked one —
+    // there is no way to tell the two apart from the return value, so this must not try to.
     const openWindow = vi.fn().mockReturnValue(null);
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     expect(() => openExternalLink('https://example.com/', openWindow)).not.toThrow();
-    expect(warn).toHaveBeenCalled();
+    expect(warn).not.toHaveBeenCalled();
 
     warn.mockRestore();
   });

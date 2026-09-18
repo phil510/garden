@@ -70,15 +70,15 @@ export function normalizeLinkUrl(text: string): URL | undefined {
  *  module — both the OSC 8 `linkHandler` and the plain-URL `WebLinksAddon` handler call it
  *  directly with the matched text, so no caller can reach `window.open` without going through
  *  `normalizeLinkUrl`'s allowlist first. A `text` that fails normalization does nothing on
- *  click. */
+ *  click. There's no "was this actually blocked?" check on the result: `window.open` always
+ *  returns `null` when `noopener`/`noreferrer` is present in the features string — there's no
+ *  `WindowProxy` to hand back — so a real block and a normal successful open are indistinguishable
+ *  from here. */
 export function openExternalLink(
   text: string,
   openWindow: typeof window.open = (...args) => window.open(...args),
 ): void {
   const url = normalizeLinkUrl(text);
   if (url === undefined) return;
-  const opened = openWindow(url.toString(), '_blank', 'noopener,noreferrer');
-  if (opened === null) {
-    console.warn('Opening link blocked by the browser');
-  }
+  openWindow(url.toString(), '_blank', 'noopener,noreferrer');
 }
