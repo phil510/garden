@@ -73,20 +73,19 @@ describe('hookOutcome', () => {
     expect(hookOutcome(aHookEvent({ hook_event_name: 'SessionStart' })).ended).toBe(false);
   });
 
-  it('does not report working for a resume-source SessionStart', () => {
-    const outcome = hookOutcome(aHookEvent({ hook_event_name: 'SessionStart', source: 'resume' }));
+  it.each(['startup', 'resume', 'clear', 'compact', 'fork'] as const)(
+    'reports waiting for a %s-source SessionStart, so a fresh session waits for its first prompt',
+    (source) => {
+      const outcome = hookOutcome(aHookEvent({ hook_event_name: 'SessionStart', source }));
+      expect(outcome.status).toBe('waiting');
+      expect(outcome.ended).toBe(false);
+    },
+  );
+
+  it('reports waiting for a SessionStart with no source', () => {
+    const outcome = hookOutcome(aHookEvent({ hook_event_name: 'SessionStart' }));
     expect(outcome.status).toBe('waiting');
     expect(outcome.ended).toBe(false);
-  });
-
-  it('does not report working for a startup-source SessionStart, so a fresh session waits for its first prompt', () => {
-    const outcome = hookOutcome(aHookEvent({ hook_event_name: 'SessionStart', source: 'startup' }));
-    expect(outcome.status).toBe('waiting');
-    expect(outcome.ended).toBe(false);
-  });
-
-  it('still reports working for a SessionStart with no source', () => {
-    expect(hookOutcome(aHookEvent({ hook_event_name: 'SessionStart' })).status).toBe('working');
   });
 
   it('transitions to working on a session’s first UserPromptSubmit', () => {

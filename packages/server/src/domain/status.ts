@@ -9,7 +9,9 @@ export interface HookOutcome {
 }
 
 const HOOK_STATUS: Record<string, Status> = {
-  SessionStart: 'working',
+  // No SessionStart source has a prompt in flight yet — every one sits at `waiting`
+  // until the first UserPromptSubmit moves it to `working`.
+  SessionStart: 'waiting',
   UserPromptSubmit: 'working',
   PreToolUse: 'working',
   PostToolUse: 'working',
@@ -22,16 +24,8 @@ export function hookOutcome(payload: HookPayload): HookOutcome {
   const name = payload.hook_event_name;
   const isPermissionPromptNotification =
     name === 'Notification' && payload.notification_type === 'permission_prompt';
-  // Neither a resumed session nor a freshly booted one has a prompt in flight yet —
-  // both sit at `waiting` until the first UserPromptSubmit moves them to `working`.
-  const isBootWithoutPrompt =
-    name === 'SessionStart' && (payload.source === 'resume' || payload.source === 'startup');
   return {
-    status: isPermissionPromptNotification
-      ? 'needs-approval'
-      : isBootWithoutPrompt
-        ? 'waiting'
-        : (HOOK_STATUS[name] ?? null),
+    status: isPermissionPromptNotification ? 'needs-approval' : (HOOK_STATUS[name] ?? null),
     reason: name === 'Notification' ? (payload.message ?? null) : null,
     ended: name === 'SessionEnd' ? true : name === 'SessionStart' ? false : null,
   };
