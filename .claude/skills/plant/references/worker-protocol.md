@@ -106,7 +106,10 @@ Finish your disk writes first, _then_ send exactly one typed
 `SendMessage`. Write-then-signal: disk is consistent before the
 orchestrator can act on the signal. The message is a routing summary
 _of_ what you wrote, never a substitute for it — the orchestrator reads
-disk on demand, and a fresh worker rebuilds entirely from disk.
+disk on demand, and a fresh worker rebuilds entirely from disk. Keep it
+to a few lines — which stage, the verdict, the file holding the detail —
+because the orchestrator's context is never compacted and every line here
+is re-read on every turn it takes afterwards.
 
 After sending, **stop and go idle.** You will not be messaged again; a
 fresh worker handles the next round, and you may remain idle until the
@@ -148,6 +151,11 @@ decision in its opener. You stay idle; treat yourself as dead.
   their proxy. You annotate; you do not rewrite.
 - **Never write outside the artifacts your role owns.** Every file you
   touch should be one your agent definition names.
+- **Brief your own subagents to return conclusions, not source.** A
+  subagent's return lands whole in your context, so an `Explore` that
+  quotes the files it read hands back the reading you delegated to avoid
+  doing. Ask for the answer and a `file:line` pointer; open the file
+  yourself on the rare occasion the text itself matters.
 - **Never talk to the user.** That belongs to the orchestrator. Workers
   own PR voice only where their role says so.
 - **Never open a peer-worker channel.** The orchestrator dispatches

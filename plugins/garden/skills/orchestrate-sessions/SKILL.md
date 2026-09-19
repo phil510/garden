@@ -9,9 +9,9 @@ description: >-
   `garden kill`, `garden resume`), and for anything spanning several sessions:
   "spin up sessions for these three issues", "check on the sessions I started",
   "is that one done yet", "wind these down". Reach for it before improvising a
-  wait or reading a session's status as done. Not for the garden server itself —
-  "stop the server", "shut garden down", "restart the server", "uninstall
-  garden" (`garden stop`, `garden uninstall`) name the server process, not a
+  wait, sizing a message or a status report, or reading a session's status as
+  done. Not for the garden server itself — "stop the server", "shut garden
+  down", "restart the server", "uninstall garden" (`garden stop`, `garden uninstall`) name the server process, not a
   session. Composing and addressing a note to one named session belongs to
   `message-session`.
 ---
@@ -27,6 +27,12 @@ The one thing to hold onto: **a garden session is a peer, not a subagent.** It h
 context window, its own permission boundary, and its own user. You cannot await it, you do not
 see its transcript by default, and it inherits nothing from you — not your permission mode, not
 your model, both of which are whatever the local `claude` would use alone.
+
+The second thing: **your context only grows.** Every brief you send and every report you receive
+is re-read on each later turn for the rest of the run, and nothing already in the window gets
+smaller. A peer's long report costs that peer once and costs you on every turn that follows. That
+asymmetry is the reason behind most of what is below — detail belongs in the peers, the files and
+the PRs, not in your window.
 
 ## Dispatch
 
@@ -75,6 +81,30 @@ When you report to your user, use the Claude Code name — that's what renders i
 pane header, not the garden/tmux name. The web console never shows the id itself; for that, use
 `garden ls` or `message-session`'s `resolve_session.sh`. The tmux name still answers a different
 question and stays in the vocabulary for it: which pane to attach a terminal to.
+
+## Keep the traffic small
+
+Size every note per `message-session`: one that starts or rescopes work stands alone; everything
+after is a few lines and a pointer.
+
+Reports up to your user follow the same shape for a different reason: they can open any peer's
+pane themselves, and they will ask when they want more. So carry the major issues and decisions —
+blocked, merged, needs you — and leave the rest. Re-narrating a peer's report pays for that report
+a second time and tells your user something they could already see.
+
+## Trust the peer's pipeline
+
+A peer running its own pipeline has already had a review stage, and output it pasted from a
+command in the same checkout you would verify from is evidence: re-running its greps re-proves
+what it proved, and lands the output in your window twice. Verify before a merge or a deletion, on
+a major decision, when your user asks, or when that peer has been wrong more than once — and
+dispatch a subagent (`using-subagents`) so the evidence doesn't land in your window. A
+recommendation out of proportion to the finding behind it is a decision, not a report: put it to
+your user.
+
+You are not the reviewer. Don't add code-shape requirements to a "go" or reopen a pipeline past
+its stop condition; review from here only for a reason you can state, and keep it targeted. The
+gate you hold is merge.
 
 ## Wait by subscribing, never by polling
 

@@ -76,8 +76,13 @@ clear where you are, is unactionable there.
 
 Name the finding with identifiers the recipient can act on (paths, symbols,
 error text, ticket ids), say which repo hit it, and say what you want back — a
-fix, a decision, or nothing. Keep it to a few lines; it is a note between
-working sessions, not a report.
+fix, a decision, or nothing.
+
+Length follows the job: a note that starts or rescopes a session's work carries
+what that direction needs to stand alone, while updates, acks, answers and
+relayed decisions are a few lines, quoting the decision rather than glossing it.
+Where the detail already exists somewhere the recipient can open — a path, a PR
+number, a round file — point at it instead of restating it.
 
 ## 3. Send
 

@@ -61,9 +61,12 @@ decides whether a fix round runs at all.
    one line: what failure it defends against, whether the brief asks
    for it, what deleting it costs. If deletion costs nothing the brief
    cares about, deletion is the finding — write it before any
-   sub-reviewer polishes the mechanism. A mechanism that attracts
-   findings is usually one that shouldn't exist, and every fix round
-   adds more of them.
+   sub-reviewer polishes the mechanism. A mechanism that keeps
+   attracting findings of the same severity, or worsening ones, is
+   usually one that shouldn't exist. When each round's findings are
+   less reachable than the last, the mechanism is converging, and the
+   finding is "note the limitation", never "replace it with code of our
+   own".
 
    A layering violation is not your finding to make: `docs/architecture.md`'s
    dependency rules are enforced by scoped `no-restricted-imports`, so a
@@ -208,8 +211,8 @@ decides whether a fix round runs at all.
    on that pattern usually yields a narrower instance of the same
    defect. The orchestrator can change strategy only if your summary
    names the pattern. The same goes for concentration: when findings
-   cluster in one newly added mechanism, name it and offer deletion as
-   the alternative to another fix round.
+   cluster in one newly added mechanism, name it and say which way
+   their severity is moving across rounds.
 
    Findings prove defects; developers decide fixes. Don't prescribe a
    change — the developer adopts reviewer wording near-verbatim, and a
@@ -218,15 +221,17 @@ decides whether a fix round runs at all.
    about the system, not as an instruction. A finding you cannot write
    a failure scenario for is not a finding.
 
-   **Disposition.** `fix` when merged code would behave wrongly, fail
-   to build, or expose something it shouldn't — with dependencies as
-   pinned. A `fix` buys a full developer round and a fresh reviewer
+   **Disposition.** `fix` when a user of this feature would hit it:
+   merged code fails an acceptance criterion, breaks a real user path,
+   fails to build, or exposes something it shouldn't — with dependencies
+   as pinned. A `fix` buys a full developer round and a fresh reviewer
    round with its own fan-out, the most expensive thing this pipeline
-   does, so spend it only there. Everything else is `advisory`: nits,
-   polish, style, future cleanup; a scenario that needs a future bump
-   or a hypothetical change to trigger; and prose — a comment,
-   docstring, PR body, log wording — however wrong, since fixing it has
-   no runtime or build effect. Two prose refinements: prose someone
+   does; the bar is "worth that", not "true". Everything else is
+   `advisory`: nits, polish, style, future cleanup; a scenario that
+   needs a future bump or a hypothetical change to trigger; an input you
+   cannot name a real producer for — say which producers you checked;
+   and prose — a comment, docstring, PR body, log wording — however
+   wrong, since fixing it has no runtime or build effect. Two prose refinements: prose someone
    acts on without reading the code (a security warning, a runbook
    step) is `fix`; a comment that restates another system's behavior
    gets one advisory saying so, because each claim is unverifiable from
@@ -257,20 +262,19 @@ decides whether a fix round runs at all.
    **Dirty** = at least one `Disposition: fix` finding, or an uncovered
    AC.
 
-   Severity (`blocker | major | minor | nit`) is independent metadata
-   describing how serious an issue is — disposition decides what
-   happens next. A `nit` severity finding can carry `fix` if you truly
-   want it addressed; a `major` severity finding can carry `advisory`
-   if you judge it surface-but-defer. Disposition, not severity, gates
-   the clean/dirty verdict.
+   Disposition, not the `blocker | major | minor | nit` label, gates
+   the verdict, and disposition is a reachability call: a round whose
+   every finding is `advisory` is clean, with those limitations named in
+   `## Summary` for the PR to disclose. Clean with limitations noted is
+   a real outcome; swallowing them is not.
 
-   Two checks on the verdict. A clean round on a substantive change is
-   suspicious: re-read the diff and dispatch one more named agent
-   before you believe it. And on round 2 or later, when the only
-   candidates are hypothetical, clean _is_ the verdict — write
-   "confirmation only" in `## Summary` rather than manufacture a
-   finding. A round with zero findings on a small, correct diff is a
-   legitimate outcome.
+   Two checks on the verdict. A clean round 1 on a substantive change
+   deserves a second read of the diff before you believe it — but step 3
+   already scaled the fan-out to the diff, so a second read is what it
+   gets, not another dispatch. And when the only candidates are
+   hypothetical, clean _is_ the verdict — write "confirmation only" in
+   `## Summary` rather than manufacture a finding; a round with zero
+   findings on a small, correct diff is a legitimate outcome.
 
 7. **If clean:**
    a. Update `${WORKFLOW}` in one atomic rename — flip the stage-3
