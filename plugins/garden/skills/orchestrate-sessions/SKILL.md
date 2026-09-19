@@ -9,9 +9,9 @@ description: >-
   `garden kill`, `garden resume`), and for anything spanning several sessions:
   "spin up sessions for these three issues", "check on the sessions I started",
   "is that one done yet", "wind these down". Reach for it before improvising a
-  wait or reading a session's status as done. Not for the garden server itself —
-  "stop the server", "shut garden down", "restart the server", "uninstall
-  garden" (`garden stop`, `garden uninstall`) name the server process, not a
+  wait, sizing a message or a status report, or reading a session's status as
+  done. Not for the garden server itself — "stop the server", "shut garden
+  down", "restart the server", "uninstall garden" (`garden stop`, `garden uninstall`) name the server process, not a
   session. Composing and addressing a note to one named session belongs to
   `message-session`.
 ---
@@ -27,6 +27,12 @@ The one thing to hold onto: **a garden session is a peer, not a subagent.** It h
 context window, its own permission boundary, and its own user. You cannot await it, you do not
 see its transcript by default, and it inherits nothing from you — not your permission mode, not
 your model, both of which are whatever the local `claude` would use alone.
+
+The second thing: **your context only grows.** Every brief you send and every report you receive
+is re-read on each later turn for the rest of the run, and nothing already in the window gets
+smaller. A peer's long report costs that peer once and costs you on every turn that follows. That
+asymmetry is the reason behind most of what is below — detail belongs in the peers, the files and
+the PRs, not in your window.
 
 ## Dispatch
 
@@ -75,6 +81,46 @@ When you report to your user, use the Claude Code name — that's what renders i
 pane header, not the garden/tmux name. The web console never shows the id itself; for that, use
 `garden ls` or `message-session`'s `resolve_session.sh`. The tmux name still answers a different
 question and stays in the vocabulary for it: which pane to attach a terminal to.
+
+## Keep the traffic small
+
+Two kinds of message earn length: the one that starts a peer's work, and the one that changes it
+— a rescope, a new approach, a reversal. Those carry whatever the new direction needs to stand
+alone. Everything else is a few lines: updates, acks, answers to a peer's question, relays of a
+decision your user made (quote the decision rather than glossing it). A scope change your user
+made in one sentence is a one-sentence message to the peer; expanding it into a checklist buries
+the change and invents requirements nobody asked for.
+
+When the content already exists somewhere the peer can open — a file path, a PR number, a round
+file — send the pointer. It costs you a line, it stays current as the file moves, and the peer
+reads it only if it needs to.
+
+Reports up to your user follow the same shape for a different reason: they can open any peer's
+pane themselves, and they will ask when they want more. So carry the major issues and decisions —
+blocked, merged, needs you — and leave the rest. Re-narrating a peer's report pays for that report
+a second time and tells your user something they could already see. `message-session` covers what
+a single note needs to be actionable.
+
+## Trust the peer's pipeline
+
+A peer is a full Claude Code session, usually running its own pipeline with its own review stage,
+in the same checkout you would verify from. Output it pasted from a command there is evidence.
+Take reports at their word by default: re-running a peer's greps yourself re-proves what it
+already proved, and lands the output in your window twice.
+
+Verify where being wrong is expensive or hard to undo — before a merge or a deletion, on a major
+decision, when your user asks, or when that particular peer has already been wrong more than once
+in ways a check would have caught. A recommendation out of proportion to the finding behind it
+(retiring a working dependency over a theoretical risk) is a decision, not a report: check it, or
+put it to your user. When you do verify, dispatch a subagent — `using-subagents` — and take back
+the verdict. Transcripts, screenshots and test output read into your own window stay there for the
+rest of the run; a subagent's do not.
+
+And the review has already happened. Adding code-shape requirements to a "go", or reopening a
+pipeline that reached its stop condition, runs a review round the peer's own reviewer just ran —
+and a finding you would not call a failure of the brief is not a reason to reopen. Review from the
+orchestrator when there is a reason you can state, keep it targeted, and otherwise let the gate
+you actually hold be the one you use: merge.
 
 ## Wait by subscribing, never by polling
 

@@ -76,8 +76,16 @@ clear where you are, is unactionable there.
 
 Name the finding with identifiers the recipient can act on (paths, symbols,
 error text, ticket ids), say which repo hit it, and say what you want back — a
-fix, a decision, or nothing. Keep it to a few lines; it is a note between
-working sessions, not a report.
+fix, a decision, or nothing.
+
+Length follows the job. A note that starts a session's work, or changes it — a
+rescope, a different approach — carries as much as that direction needs to
+stand alone. Everything after is a few lines: an update, an ack, an answer, a
+decision relayed from a person. Where the detail already exists somewhere the
+recipient can open — a path, a PR number, a round file — point at it instead of
+restating it; the pointer stays current and a paraphrase doesn't.
+`orchestrate-sessions` has the why, which compounds when one session is running
+several peers.
 
 ## 3. Send
 
