@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ILinkHandler } from '@xterm/xterm';
 import type { PaneSize, PaneSocketHandlers } from '../api/paneSocket.js';
 import { unicodeV11Provider } from './unicodeWidth.js';
 
@@ -28,8 +29,10 @@ class FakeTerminal {
    *  matches by registration order (first registered wins) — this is what a registration-order
    *  regression would get backwards. */
   readonly linkRegistrationOrder: string[] = [];
+  readonly linkHandler: ILinkHandler | undefined;
 
-  constructor() {
+  constructor(options?: { linkHandler?: ILinkHandler }) {
+    this.linkHandler = options?.linkHandler;
     FakeTerminal.instances.push(this);
   }
   loadAddon(addon: unknown): void {
@@ -66,7 +69,9 @@ class FakeFitAddon {
   }
 }
 
-class FakeWebLinksAddon {}
+class FakeWebLinksAddon {
+  constructor(readonly handler?: (event: MouseEvent, uri: string) => void) {}
+}
 
 class FakeSocket {
   static instances: FakeSocket[] = [];
@@ -288,6 +293,44 @@ describe('attachPane', () => {
     attachPane('session-a', aContainer({ width: '800px', height: '600px' }), 0);
 
     expect(lastTerminal().linkRegistrationOrder).toEqual(['path-line', 'web-links']);
+  });
+
+  it('opens a plain-URL link from the web links addon with explicit noopener and noreferrer', async () => {
+    const { attachPane } = await loadRegistry();
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
+    attachPane('session-a', aContainer({ width: '800px', height: '600px' }), 0);
+    const webLinksAddon = lastTerminal().loadedAddons.find(
+      (addon): addon is FakeWebLinksAddon => addon instanceof FakeWebLinksAddon,
+    );
+    if (webLinksAddon?.handler === undefined) throw new Error('no web links handler registered');
+
+    webLinksAddon.handler(new MouseEvent('click'), 'https://example.com/');
+
+    expect(openSpy).toHaveBeenCalledWith('https://example.com/', '_blank', 'noopener,noreferrer');
+    openSpy.mockRestore();
+  });
+});
+
+describe('the OSC 8 link handler', () => {
+  // xterm's OscLinkProvider reads `options.linkHandler` in exactly one place, so this is the
+  // only structural path an OSC 8 URI can reach `window.open` through — neither WebLinksAddon
+  // nor the path:line provider (tested above and via pathLineLinks.test.ts) read this option.
+  // The accept/reject matrix for `normalizeLinkUrl` itself lives in hyperlinks.test.ts; this
+  // test only needs to prove the wiring doesn't hand a hostile scheme straight to the browser.
+  it('never opens a hostile javascript: OSC 8 link', async () => {
+    const { attachPane } = await loadRegistry();
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
+    attachPane('session-a', aContainer({ width: '800px', height: '600px' }), 0);
+    const linkHandler = lastTerminal().linkHandler;
+    if (linkHandler === undefined) throw new Error('no linkHandler registered');
+
+    linkHandler.activate(new MouseEvent('click'), 'javascript:alert(1)', {
+      start: { x: 1, y: 1 },
+      end: { x: 1, y: 1 },
+    });
+
+    expect(openSpy).not.toHaveBeenCalled();
+    openSpy.mockRestore();
   });
 });
 

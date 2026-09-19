@@ -4,6 +4,7 @@ import { Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 import { connectPaneSocket, type PaneSize } from '../api/paneSocket.js';
 import { useLocalStore } from '../state/localStore.js';
+import { openExternalLink } from './hyperlinks.js';
 import { findPathLineLinks } from './pathLineLinks.js';
 import { resolvePaneKeydown } from './paneKeydown.js';
 import { shouldReusePane } from './paneReuse.js';
@@ -51,6 +52,18 @@ function createPane(sessionId: string, container: HTMLElement, epoch: number): P
     fontSize: 13,
     theme: terminalTheme(readCssVar),
     allowProposedApi: true,
+    // xterm's own OSC 8 link provider requires a scheme-qualified `http:`/`https:` URL and
+    // silently drops anything else — including a schemeless one like `www.here.com` — before a
+    // `linkHandler` ever sees it. `allowNonHttpProtocols: true` is the only way to bypass that
+    // gate, which hands `activate` every OSC 8 URI unfiltered (`javascript:`, `data:`, ...); it
+    // is `allowNonHttpProtocols` in name only, since `openExternalLink` re-applies an http(s)-only
+    // allowlist itself after normalizing a schemeless URI to `https://`.
+    linkHandler: {
+      allowNonHttpProtocols: true,
+      activate: (_event, text) => {
+        openExternalLink(text);
+      },
+    },
   });
   // xterm.js defaults to its bundled UnicodeV6 table, which tmux's own wide-char width table has
   // moved past — this keeps a partial redraw from stranding characters at a width tmux disagrees
@@ -88,9 +101,11 @@ function createPane(sessionId: string, container: HTMLElement, epoch: number): P
     },
   });
 
-  // No custom handler is passed: WebLinksAddon's default already opens the matched URL in a new
-  // tab, which is the behavior this pane wants.
-  terminal.loadAddon(new WebLinksAddon());
+  // WebLinksAddon's default handler opens a blank window and clears its `opener` by hand, which
+  // isolates the new tab but sends a Referer header naming this page. `openExternalLink` uses an
+  // explicit `noopener,noreferrer` instead, so this custom handler brings plain-URL links up to
+  // the same isolation — and the same allowlist — OSC 8 links get above.
+  terminal.loadAddon(new WebLinksAddon((_event, uri) => openExternalLink(uri)));
 
   // `proposeDimensions` reports "no size to fit to" in two ways for a pane that is hidden or not
   // laid out yet: NaN, or its own clamped minimum. Either would size the pty to garbage, so

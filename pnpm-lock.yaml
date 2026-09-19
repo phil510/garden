@@ -78,6 +78,9 @@ catalogs:
     node-pty:
       specifier: 1.2.0-beta.15
       version: 1.2.0-beta.15
+    normalize-url:
+      specifier: 9.0.1
+      version: 9.0.1
     prettier:
       specifier: 3.9.6
       version: 3.9.6
@@ -237,6 +240,9 @@ importers:
       dockview-react:
         specifier: 'catalog:'
         version: 8.2.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      normalize-url:
+        specifier: 'catalog:'
+        version: 9.0.1
       react:
         specifier: 'catalog:'
         version: 19.2.8
@@ -1695,6 +1701,10 @@ packages:
   node-releases@2.0.54:
     resolution: {integrity: sha512-YHs7BmmcsdAI5Ozuf8JZo6PT0mv2GIWC9vMfvUC3dp65M8hn7Ux8CPL+2oBI7juNuj9d0ndhTcznq2ODBps9cQ==}
     engines: {node: '>=18'}
+
+  normalize-url@9.0.1:
+    resolution: {integrity: sha512-ARftfC5HdUNu9jJeL8pHj8debUIHA2b91FizCoMzY4lG6dDX13jdvTK0TBe24IBDRf2HvJSzzwEPvmbkQWHRSg==}
+    engines: {node: '>=20'}
 
   obug@2.1.4:
     resolution: {integrity: sha512-4a+OsYv9UktOJKE+l1A4OufDgdRF9PifWj+tJnHURo/P+WOxpG4GzUFL9qCalmWauao6ogiG+QvnCovwPoyAWA==}
@@ -3745,6 +3755,8 @@ snapshots:
       node-addon-api: 7.1.1
 
   node-releases@2.0.54: {}
+
+  normalize-url@9.0.1: {}
 
   obug@2.1.4: {}
 
