@@ -117,16 +117,37 @@ round rather than at round 3 — the cap is 1, not 3.
 ## Churn in internal rounds
 
 A round file's `## Summary` diagnoses churn when the findings sit in
-text the previous round's fixes wrote. Another per-finding patch round
-reliably yields a narrower instance of the same defect: each fix is
-locally correct against one finding, and nobody holds the whole region.
-Instead of a fix round, give one author the whole affected region — a
-fresh developer whose opener names the region, hands it the prior round
-files as the test suite its rewrite must pass, and tells it to re-verify
-ground truth from source rather than from the previous fixes. If the
-churn smells premise-level — the fixes contradict each other because
-the brief or plan is ambiguous about what the region is for — page the
-user instead.
+text the previous round's fixes wrote. What to do about it turns on
+severity across the rounds, not on how many rounds there have been:
+repeated findings argue against a mechanism only while their severity
+holds or rises.
+
+**Severity falling** — a real defect, then a rarer input shape, then
+something no realistic input reaches — is convergence. The mechanism is
+doing its job and the rounds are finding progressively less; replacing
+it now buys edge cases the brief's users never hit at the price of a
+rewrite and a fresh set of unknowns. Ship it: one more developer round
+at most — a guard where a guard is cheap, and the remaining limitation
+written into `decisions.md` and the PR body — then re-review, which
+should come back clean with those limitations noted. "Accept the
+limitation and say so" is a real disposition, and it is the one that
+goes unproposed, because each round looks at a finding rather than at
+the trajectory.
+Whether the mechanism should exist at all is a design conversation and
+belongs in its own issue, not in a fix round under review pressure.
+
+**Severity holding or rising** is the churn worth acting on, and another
+per-finding patch round reliably yields a narrower instance of the same
+defect: each fix is locally correct against one finding, and nobody
+holds the whole region. Instead of a fix round, give one author the
+whole affected region — a fresh developer whose opener names the region,
+hands it the prior round files as the test suite its rewrite must pass,
+and tells it to re-verify ground truth from source rather than from the
+previous fixes.
+
+If the churn smells premise-level — the fixes contradict each other
+because the brief or plan is ambiguous about what the region is for —
+page the user instead.
 
 ## Edge cases
 

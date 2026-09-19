@@ -24,7 +24,7 @@ instruction set, and reports back with a typed `SendMessage`.
 
 ## Invariants
 
-Six things the rest of this skill assumes. Each is load-bearing for a
+Seven things the rest of this skill assumes. Each is load-bearing for a
 reason worth understanding, because the failure modes are silent.
 
 - **You never do stage work yourself.** Every plan, commit, and review
@@ -47,7 +47,10 @@ reason worth understanding, because the failure modes are silent.
   only when you need detail you chose not to inline, or when a
   high-stakes hop warrants verification (the finish gate, pipeline
   completion, a contradictory signal) — and prefer `scripts/pipeline-status.sh`
-  over raw reads.
+  over raw reads. When you send a subagent to do that verifying, ask it
+  for the verdict plus a `file:line` pointer, not the evidence itself. A
+  subagent's return lands whole in your context, so a quoted source dump
+  spends there exactly what delegating it was meant to save.
 - **A bare `teammate-terminated` with no preceding result message means the
   worker died mid-stage.** The message-based fast path has nothing to
   route, so fall back to `scripts/pipeline-status.sh` to classify what (if
@@ -58,6 +61,17 @@ reason worth understanding, because the failure modes are silent.
   escalation at every stage that inherits it, which costs far more of
   the user's attention than one question up front would have. The
   triage gate (`references/brief.md`) is where this gets caught.
+- **Reports out of the pipeline are short.** Whoever is waiting on you —
+  the user, or a dispatching peer session — needs the milestone, the
+  decision you need from them if there is one, and a pointer to the
+  round file or the PR. Findings live in the round file, so restating
+  them buys nothing and costs twice: neither your context nor an
+  overseeing session's is ever compacted, so every long message is
+  re-read on every turn either of you takes afterwards, and a finding
+  quoted at each hop gets re-read once per copy. Length is earned by
+  content that has to be read to be acted on — the brief you print at
+  init, an escalation page carrying a real decision. A status update
+  never qualifies.
 - **Assume the session has the autonomy the pipeline needs**
   (`bypassPermissions`). Workers inherit the session's permission mode and
   a per-spawn `mode` doesn't override it, so a worker that hits a prompt
@@ -106,7 +120,7 @@ replacement worker can read.
   <branch>/
     workflow.md               7-field brief + stage checklist + annotations
     plan.md                   planner output (stage 1; absent for Size: small)
-    decisions.md              auto-resolved gates: what was decided, what settled it, which doc or finding
+    decisions.md              auto-resolved gates and accepted limitations: what was decided, what settled it, which doc or finding
     review-round-N.md         reviewer output per round (stage 3)
     events/
       <iso>-<kind>.md         escalation events
@@ -280,17 +294,24 @@ small); developer works from brief ACs`, then go to step 6. The box
    Usually it is: fresh developer in fix-round mode, then a fresh stage-3
    reviewer (max 3 rounds; the reviewer escalates `review_cap` at the
    limit). If the summary diagnoses churn — findings introduced by the
-   previous round's own fixes — another per-finding patch round reliably
-   makes it worse; use the alternative in `references/escalate-resume.md`
-   § Churn in internal rounds instead. Either way, carry the diagnosis
-   into the next worker's opener — information left in the round file
-   steers nobody. On `Size: small` the cap is one round, so a dirty round
+   previous round's own fixes — read the severity trajectory across the
+   rounds before reacting. Repeated findings argue against a mechanism
+   only while their severity holds or rises; a trajectory from real
+   defect to rare shape to something no realistic input reaches means the
+   mechanism is converging, and the proportionate move is to ship it with
+   the limitation noted rather than replace it. Severity that holds or
+   rises is the case `references/escalate-resume.md` § Churn in internal
+   rounds handles. Either way, carry the diagnosis into the next worker's
+   opener — information left in the round file steers nobody. On `Size: small` the cap is one round, so a dirty round
    arrives as a `review_cap` escalation carrying the round file: page the
    user with the findings summary. Typical resolutions are one fix round
    plus a re-review, or accept as is, applied through the normal
    fresh-spawn-with-decision path.
 9. **Reviewer clean** → it has already flipped stage 3. The PR is still a
-   draft. Go to step 10.
+   draft. If the round's `## Summary` names limitations the PR should
+   disclose, add them to the PR body yourself (`gh pr edit`) and record
+   them in `decisions.md` before moving on — an accepted limitation nobody
+   wrote down is a finding the next reader has to rediscover. Go to step 10.
 10. **Stage 4 — the finish gate.**
     a. `gh pr ready <url>` — flip the draft to ready.
     b. Block on CI: `gh pr checks <url> --watch`, with an explicit
