@@ -268,12 +268,13 @@ decides whether a fix round runs at all.
    `## Summary` for the PR to disclose. Clean with limitations noted is
    a real outcome; swallowing them is not.
 
-   Two checks on the verdict. A clean round on a substantive change
-   is suspicious: re-read the diff and dispatch one more named agent
-   before you believe it. When the only candidates are hypothetical,
-   clean _is_ the verdict — write "confirmation only" in `## Summary`
-   rather than manufacture a finding; a round with zero findings on a
-   small, correct diff is a legitimate outcome.
+   Two checks on the verdict. A clean round 1 on a substantive change
+   deserves a second read of the diff before you believe it — but step 3
+   already scaled the fan-out to the diff, so a second read is what it
+   gets, not another dispatch. And when the only candidates are
+   hypothetical, clean _is_ the verdict — write "confirmation only" in
+   `## Summary` rather than manufacture a finding; a round with zero
+   findings on a small, correct diff is a legitimate outcome.
 
 7. **If clean:**
    a. Update `${WORKFLOW}` in one atomic rename — flip the stage-3
