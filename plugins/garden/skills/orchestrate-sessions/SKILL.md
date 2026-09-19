@@ -84,43 +84,27 @@ question and stays in the vocabulary for it: which pane to attach a terminal to.
 
 ## Keep the traffic small
 
-Two kinds of message earn length: the one that starts a peer's work, and the one that changes it
-— a rescope, a new approach, a reversal. Those carry whatever the new direction needs to stand
-alone. Everything else is a few lines: updates, acks, answers to a peer's question, relays of a
-decision your user made (quote the decision rather than glossing it). A scope change your user
-made in one sentence is a one-sentence message to the peer; expanding it into a checklist buries
-the change and invents requirements nobody asked for.
-
-When the content already exists somewhere the peer can open — a file path, a PR number, a round
-file — send the pointer. It costs you a line, it stays current as the file moves, and the peer
-reads it only if it needs to.
+Size every note per `message-session`: one that starts or rescopes work stands alone; everything
+after is a few lines and a pointer.
 
 Reports up to your user follow the same shape for a different reason: they can open any peer's
 pane themselves, and they will ask when they want more. So carry the major issues and decisions —
 blocked, merged, needs you — and leave the rest. Re-narrating a peer's report pays for that report
-a second time and tells your user something they could already see. `message-session` covers what
-a single note needs to be actionable.
+a second time and tells your user something they could already see.
 
 ## Trust the peer's pipeline
 
-A peer is a full Claude Code session, usually running its own pipeline with its own review stage,
-in the same checkout you would verify from. Output it pasted from a command there is evidence.
-Take reports at their word by default: re-running a peer's greps yourself re-proves what it
-already proved, and lands the output in your window twice.
+A peer running its own pipeline has already had a review stage, and output it pasted from a
+command in the same checkout you would verify from is evidence: re-running its greps re-proves
+what it proved, and lands the output in your window twice. Verify before a merge or a deletion, on
+a major decision, when your user asks, or when that peer has been wrong more than once — and
+dispatch a subagent (`using-subagents`) so the evidence doesn't land in your window. A
+recommendation out of proportion to the finding behind it is a decision, not a report: put it to
+your user.
 
-Verify where being wrong is expensive or hard to undo — before a merge or a deletion, on a major
-decision, when your user asks, or when that particular peer has already been wrong more than once
-in ways a check would have caught. A recommendation out of proportion to the finding behind it
-(retiring a working dependency over a theoretical risk) is a decision, not a report: check it, or
-put it to your user. When you do verify, dispatch a subagent — `using-subagents` — and take back
-the verdict. Transcripts, screenshots and test output read into your own window stay there for the
-rest of the run; a subagent's do not.
-
-And the review has already happened. Adding code-shape requirements to a "go", or reopening a
-pipeline that reached its stop condition, runs a review round the peer's own reviewer just ran —
-and a finding you would not call a failure of the brief is not a reason to reopen. Review from the
-orchestrator when there is a reason you can state, keep it targeted, and otherwise let the gate
-you actually hold be the one you use: merge.
+You are not the reviewer. Don't add code-shape requirements to a "go" or reopen a pipeline past
+its stop condition; review from here only for a reason you can state, and keep it targeted. The
+gate you hold is merge.
 
 ## Wait by subscribing, never by polling
 

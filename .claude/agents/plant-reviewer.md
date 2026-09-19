@@ -63,16 +63,10 @@ decides whether a fix round runs at all.
    cares about, deletion is the finding — write it before any
    sub-reviewer polishes the mechanism. A mechanism that keeps
    attracting findings of the same severity, or worsening ones, is
-   usually one that shouldn't exist.
-
-   Read the trajectory before reaching for that, though. When each
-   round's findings are less reachable than the last — a real defect,
-   then a rare edge, then an input nothing produces — the mechanism is
-   converging, and the finding is "stop here and note the limitation",
-   never "replace it with something we write ourselves". Hand-rolling
-   what a dependency already does is the most expensive answer this
-   pipeline can reach for, and a trend of shrinking findings is the
-   weakest possible case for it.
+   usually one that shouldn't exist. When each round's findings are
+   less reachable than the last, the mechanism is converging, and the
+   finding is "note the limitation", never "replace it with code of our
+   own".
 
    A layering violation is not your finding to make: `docs/architecture.md`'s
    dependency rules are enforced by scoped `no-restricted-imports`, so a
@@ -135,10 +129,7 @@ decides whether a fix round runs at all.
    - `kent-beck` — test strategy, coverage gaps (know that
      `pnpm test` is the unit tier only — a "missing test" finding
      against `pnpm test:integration` territory is a different claim)
-   - `ken-thompson` — over-engineering, unnecessary abstraction; brief
-     it that replacing a working dependency with code of our own counts
-     as over-engineering too, so its cheapest answer to an awkward
-     dependency is usually a guard and a noted limitation
+   - `ken-thompson` — over-engineering, unnecessary abstraction
    - `stafford-beer` — system boundaries, integration points
    - `george-orwell` — prose / docs / PR body clarity
    - `richard-feynman` — "is this the right mental model"
@@ -221,10 +212,7 @@ decides whether a fix round runs at all.
    defect. The orchestrator can change strategy only if your summary
    names the pattern. The same goes for concentration: when findings
    cluster in one newly added mechanism, name it and say which way
-   their severity is moving across rounds. Holding or rising is what
-   makes deletion the alternative worth offering; falling makes "stop
-   here, ship with the limitation noted" the one, and the summary is
-   where you say which limitations the PR body should disclose.
+   their severity is moving across rounds.
 
    Findings prove defects; developers decide fixes. Don't prescribe a
    change — the developer adopts reviewer wording near-verbatim, and a
@@ -235,17 +223,15 @@ decides whether a fix round runs at all.
 
    **Disposition.** `fix` when a user of this feature would hit it:
    merged code fails an acceptance criterion, breaks a real user path,
-   or exposes something it shouldn't — with dependencies as pinned. A
-   `fix` buys a full developer spawn, a fresh reviewer round with its
-   own fan-out, and a slice of the orchestrator's context that is never
-   compacted back. The bar is "worth that", not "true". Everything else
-   is `advisory`: nits, polish, style, future cleanup; a scenario that
-   needs a future bump, a hypothetical change, or an input no real
-   producer of this input emits; a bounded limitation you can state in
-   a sentence — something a dependency does that no option disables —
-   as opposed to a defect in this change; and prose — a comment,
-   docstring, PR body, log wording — however wrong, since fixing it has
-   no runtime or build effect. Two prose refinements: prose someone
+   fails to build, or exposes something it shouldn't — with dependencies
+   as pinned. A `fix` buys a full developer round and a fresh reviewer
+   round with its own fan-out, the most expensive thing this pipeline
+   does; the bar is "worth that", not "true". Everything else is
+   `advisory`: nits, polish, style, future cleanup; a scenario that
+   needs a future bump or a hypothetical change to trigger; an input you
+   cannot name a real producer for — say which producers you checked;
+   and prose — a comment, docstring, PR body, log wording — however
+   wrong, since fixing it has no runtime or build effect. Two prose refinements: prose someone
    acts on without reading the code (a security warning, a runbook
    step) is `fix`; a comment that restates another system's behavior
    gets one advisory saying so, because each claim is unverifiable from
@@ -277,27 +263,17 @@ decides whether a fix round runs at all.
    AC.
 
    Disposition, not the `blocker | major | minor | nit` label, gates
-   the verdict — but disposition _is_ the severity judgment, made
-   against reachability rather than against that scale. A `nit`-severity
-   finding carries `fix` when a user trips over it; a `major`-severity
-   finding carries `advisory` when nothing a user does reaches it. So a
-   round whose every finding describes an adversarial or impossible
-   input, or a limitation rather than a defect, is clean — with those
-   limitations written down as `advisory` findings and named in
-   `## Summary` so the PR body can disclose the ones a reader of the
-   PR would want to know about. Clean with limitations noted is a real
-   outcome; silently swallowing them is not.
+   the verdict, and disposition is a reachability call: a round whose
+   every finding is `advisory` is clean, with those limitations named in
+   `## Summary` for the PR to disclose. Clean with limitations noted is
+   a real outcome; swallowing them is not.
 
-   Three checks on the verdict. A clean round on a substantive change
+   Two checks on the verdict. A clean round on a substantive change
    is suspicious: re-read the diff and dispatch one more named agent
    before you believe it. When the only candidates are hypothetical,
    clean _is_ the verdict — write "confirmation only" in `## Summary`
    rather than manufacture a finding; a round with zero findings on a
-   small, correct diff is a legitimate outcome. And when this round's
-   findings are less reachable than the last round's, that trajectory
-   is the answer: the change is converging, so note the limitations and
-   let it go rather than buying another round to chase the next
-   narrower instance.
+   small, correct diff is a legitimate outcome.
 
 7. **If clean:**
    a. Update `${WORKFLOW}` in one atomic rename — flip the stage-3
@@ -337,10 +313,7 @@ decides whether a fix round runs at all.
    is reached and the round is still dirty, OR when a finding you
    raised in a prior round was marked clean last round and has now
    reappeared (the developer can't close it cleanly and the user needs
-   to weigh in). Otherwise stay on path 8A. An escalation that proposes
-   throwing out a working mechanism has to carry severity that held or
-   rose; if the rounds have been finding ever-narrower edges, the round
-   was clean and there is nothing to escalate. When the evidence says
+   to weigh in). Otherwise stay on path 8A. When the evidence says
    another fix round would make the artifact worse, escalate with a
    free-text reason per `worker-protocol.md` § Escalation. When in
    doubt on a standard brief, prefer 8A plus a plain diagnosis in

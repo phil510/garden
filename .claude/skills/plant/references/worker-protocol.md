@@ -106,14 +106,10 @@ Finish your disk writes first, _then_ send exactly one typed
 `SendMessage`. Write-then-signal: disk is consistent before the
 orchestrator can act on the signal. The message is a routing summary
 _of_ what you wrote, never a substitute for it — the orchestrator reads
-disk on demand, and a fresh worker rebuilds entirely from disk.
-
-Keep it to a few lines: which stage, the verdict, and the file holding
-the detail. The orchestrator's context is never compacted, so every line
-you send it is re-read on every turn it takes for the rest of the
-pipeline — and a finding you restate here gets copied onward into its
-own reports, multiplying once per hop. Say enough to route, and let the
-file carry the rest.
+disk on demand, and a fresh worker rebuilds entirely from disk. Keep it
+to a few lines — which stage, the verdict, the file holding the detail —
+because the orchestrator's context is never compacted and every line here
+is re-read on every turn it takes afterwards.
 
 After sending, **stop and go idle.** You will not be messaged again; a
 fresh worker handles the next round, and you may remain idle until the
