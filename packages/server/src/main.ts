@@ -216,6 +216,8 @@ export async function main(): Promise<void> {
     settingsPath,
     claudeCommand: config.claudeCommand,
     permissionMode: config.permissionMode,
+    deadSessionCap: config.deadSessionCap,
+    terminalFontSize: config.terminalFontSize,
   });
   app.addHook('onClose', () => {
     clearInterval(poll);

@@ -118,6 +118,8 @@ describe('a real Claude Code hook command against the real /hooks route', () => 
       serverPort: 4310,
       settingsPath: '/home/.garden/claude-settings.json',
       claudeCommand: ['claude'],
+      deadSessionCap: 10,
+      terminalFontSize: 13,
     });
     try {
       await app.listen({ port: 0, host: '127.0.0.1' });

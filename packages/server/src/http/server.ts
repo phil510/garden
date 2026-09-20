@@ -10,12 +10,18 @@ import { healthRoutes } from './routes/health.js';
 import { hookRoutes } from './routes/hooks.js';
 import { repoRoutes } from './routes/repos.js';
 import { sessionRoutes } from './routes/sessions.js';
+import { settingsRoutes } from './routes/settings.js';
+import type { SettingsDeps } from './routes/settings.js';
 import { uiStateRoutes } from './routes/ui-state.js';
 import { registerStaticRoutes, resolveClientDir } from './static.js';
 import { registerAttachSocket } from './ws/attach.js';
 import { registerEventsSocket } from './ws/events.js';
 
-export type ServerDeps = SessionsDeps & ReposDeps & FilesystemDeps & AttachSocketDeps;
+export type ServerDeps = SessionsDeps &
+  ReposDeps &
+  FilesystemDeps &
+  AttachSocketDeps &
+  SettingsDeps;
 
 /** Builds the Fastify instance and mounts the routes. Listening is main.ts's job. */
 export function createServer(deps: ServerDeps): FastifyInstance {
@@ -24,6 +30,7 @@ export function createServer(deps: ServerDeps): FastifyInstance {
   app.register((instance) => hookRoutes(instance, deps));
   app.register((instance) => sessionRoutes(instance, deps));
   app.register((instance) => repoRoutes(instance, deps));
+  app.register((instance) => settingsRoutes(instance, deps));
   app.register((instance) => uiStateRoutes(instance, deps));
   app.register((instance) => fsRoutes(instance, deps));
 
