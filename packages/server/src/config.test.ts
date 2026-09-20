@@ -29,24 +29,19 @@ describe('loadConfig', () => {
 describe('loadConfig precedence and root expansion', () => {
   it('prefers GARDEN_PORT over the port in the config file', () => {
     expect(
-      loadConfig(
-        { GARDEN_PORT: '5000' },
-        { port: 4400, roots: [], permissionMode: 'default' },
-        '/h',
-      ).port,
+      loadConfig({ GARDEN_PORT: '5000' }, { ...DEFAULT_CONFIG_FILE, port: 4400, roots: [] }, '/h')
+        .port,
     ).toBe(5000);
   });
 
   it('falls back to the config file port when GARDEN_PORT is unset', () => {
-    expect(loadConfig({}, { port: 4400, roots: [], permissionMode: 'default' }, '/h').port).toBe(
-      4400,
-    );
+    expect(loadConfig({}, { ...DEFAULT_CONFIG_FILE, port: 4400, roots: [] }, '/h').port).toBe(4400);
   });
 
   it('expands a leading ~ in a root against the given home and leaves absolute roots alone', () => {
     const config = loadConfig(
       {},
-      { port: 4310, roots: ['~/Desktop/Extend', '/srv/code'], permissionMode: 'default' },
+      { ...DEFAULT_CONFIG_FILE, roots: ['~/Desktop/Extend', '/srv/code'] },
       '/h',
     );
     expect(config.roots).toEqual(['/h/Desktop/Extend', '/srv/code']);
@@ -110,8 +105,11 @@ describe('loadConfig precedence and root expansion', () => {
 
   it('passes a file-configured permissionMode through unchanged, with no env override', () => {
     expect(
-      loadConfig({}, { port: 4310, roots: [], permissionMode: 'bypassPermissions' }, '/h')
-        .permissionMode,
+      loadConfig(
+        {},
+        { ...DEFAULT_CONFIG_FILE, roots: [], permissionMode: 'bypassPermissions' },
+        '/h',
+      ).permissionMode,
     ).toBe('bypassPermissions');
   });
 });
