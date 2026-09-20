@@ -338,6 +338,32 @@ describe('readConfigFile', () => {
       expect(readConfigFile(path).claudeCommand).toBe('ec bedrock launch claude --');
     });
   });
+
+  it('recovers a valid claudeCommand even when a sibling field fails validation', () => {
+    withTempAppDir((appDir) => {
+      mkdirSync(appDir, { recursive: true });
+      const path = configFilePath(appDir);
+      writeFileSync(
+        path,
+        JSON.stringify({
+          ...DEFAULT_CONFIG_FILE,
+          port: 99999,
+          claudeCommand: 'ec bedrock launch claude --',
+        }),
+        'utf8',
+      );
+      expect(readConfigFile(path).claudeCommand).toBe('ec bedrock launch claude --');
+    });
+  });
+
+  it('falls back to the default claudeCommand when the field itself is invalid, sibling errors aside', () => {
+    withTempAppDir((appDir) => {
+      mkdirSync(appDir, { recursive: true });
+      const path = configFilePath(appDir);
+      writeFileSync(path, JSON.stringify({ port: 99999, claudeCommand: '' }), 'utf8');
+      expect(readConfigFile(path).claudeCommand).toBe(DEFAULT_CONFIG_FILE.claudeCommand);
+    });
+  });
 });
 
 describe('patchConfigFile', () => {

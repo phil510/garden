@@ -225,7 +225,12 @@ export function writeConfigFile(path: string, contents: Record<string, unknown>)
 
 /** Live, tolerant read of `config.json` at `path` for display purposes: a missing or
  *  unusable file resolves to `DEFAULT_CONFIG_FILE`, same as `ensureConfigFile`, but without
- *  writing anything or logging — a `GET /settings` re-read isn't the boot-time warning path. */
+ *  writing anything or logging — a `GET /settings` re-read isn't the boot-time warning path.
+ *
+ *  A file that parses as JSON but fails `parseConfigFile`'s validation on some *other* field
+ *  (e.g. a hand-edited `"port"`) still recovers its own `claudeCommand`, rather than reporting
+ *  the default for a value that's actually sitting on disk: `getSettings` reads only this one
+ *  field off the result, and an unrelated field's invalidity shouldn't make it lie about it. */
 export function readConfigFile(path: string): ConfigFile {
   let text: string;
   try {
@@ -236,8 +241,23 @@ export function readConfigFile(path: string): ConfigFile {
   try {
     return parseConfigFile(text, path);
   } catch {
-    return DEFAULT_CONFIG_FILE;
+    return { ...DEFAULT_CONFIG_FILE, claudeCommand: recoverClaudeCommand(text) };
   }
+}
+
+/** Best-effort extraction of `claudeCommand` from JSON text that failed whole-object
+ *  validation. Falls back to the default when the text isn't even a JSON object or the
+ *  field itself is missing or invalid — there's nothing to recover in that case. */
+function recoverClaudeCommand(text: string): string {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    return DEFAULT_CONFIG_FILE.claudeCommand;
+  }
+  if (typeof raw !== 'object' || raw === null) return DEFAULT_CONFIG_FILE.claudeCommand;
+  const claudeCommand = (raw as { claudeCommand?: unknown }).claudeCommand;
+  return isClaudeCommand(claudeCommand) ? claudeCommand : DEFAULT_CONFIG_FILE.claudeCommand;
 }
 
 /** Thrown by `patchConfigFile` when the on-disk file fails to parse or validate: writing the
