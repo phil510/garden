@@ -119,6 +119,12 @@ export interface ReposResponse {
 export interface SettingsResponse {
   deadSessionCap: number;
   terminalFontSize: number;
+  claudeCommand: string;
+}
+/** Body of `PUT /settings`. A flat interface rather than `Partial<SettingsResponse>` —
+ *  `claudeCommand` is the only field this route accepts writes for. */
+export interface SettingsRequest {
+  claudeCommand: string;
 }
 export interface TreeEntry {
   name: string;
