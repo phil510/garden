@@ -178,7 +178,9 @@ export function ensureConfigFile(
     return parseConfigFile(readFileSync(path, 'utf8'), path);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-      logger.warn(`ignoring ${path}: ${(error as Error).message}`);
+      // parseConfigFile's thrown message already names `path` (it's the `source` argument), so
+      // this doesn't repeat it — the message alone carries which file and why.
+      logger.warn(`ignoring malformed config: ${(error as Error).message}`);
       return DEFAULT_CONFIG_FILE;
     }
     writeFileSync(path, `${JSON.stringify(DEFAULT_CONFIG_FILE, null, 2)}\n`, 'utf8');
