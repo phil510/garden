@@ -1,13 +1,17 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   appDirPath,
+  configFilePath,
+  ConfigWriteRefusedError,
   DEFAULT_CONFIG_FILE,
   ensureConfigFile,
   loadConfig,
   parseConfigFile,
+  patchConfigFile,
+  readConfigFile,
   TMUX_SOCKET,
 } from './config.js';
 
@@ -106,6 +110,30 @@ describe('loadConfig precedence and root expansion', () => {
     }
   });
 
+  it('prefers GARDEN_CLAUDE_COMMAND over the claudeCommand in the config file', () => {
+    expect(
+      loadConfig(
+        { GARDEN_CLAUDE_COMMAND: 'tsx scripts/fake-claude.ts' },
+        { ...DEFAULT_CONFIG_FILE, roots: [], claudeCommand: 'ec bedrock launch claude --' },
+        '/h',
+      ).claudeCommand,
+    ).toEqual(['tsx', 'scripts/fake-claude.ts']);
+  });
+
+  it('splits the file-configured claudeCommand on whitespace when GARDEN_CLAUDE_COMMAND is unset', () => {
+    expect(
+      loadConfig(
+        {},
+        { ...DEFAULT_CONFIG_FILE, roots: [], claudeCommand: 'ec  bedrock launch claude --' },
+        '/h',
+      ).claudeCommand,
+    ).toEqual(['ec', 'bedrock', 'launch', 'claude', '--']);
+  });
+
+  it('falls back to ["claude"] when neither GARDEN_CLAUDE_COMMAND nor the file names a command', () => {
+    expect(loadConfig({}, DEFAULT_CONFIG_FILE, '/h').claudeCommand).toEqual(['claude']);
+  });
+
   it('passes a file-configured permissionMode through unchanged, with no env override', () => {
     expect(
       loadConfig(
@@ -189,6 +217,28 @@ describe('parseConfigFile', () => {
   it('resolves a valid terminalFontSize', () => {
     expect(parseConfigFile('{"terminalFontSize": 18}', '/c.json').terminalFontSize).toBe(18);
   });
+
+  it.each([1, '', '   '])('rejects a claudeCommand of the wrong type or blank (%j)', (value) => {
+    expect(() => parseConfigFile(`{"claudeCommand": ${JSON.stringify(value)}}`, '/c.json')).toThrow(
+      /"claudeCommand"/,
+    );
+  });
+
+  it('names the source path in the claudeCommand rejection message', () => {
+    expect(() => parseConfigFile('{"claudeCommand": ""}', '/h/.garden/config.json')).toThrow(
+      /^\/h\/\.garden\/config\.json: "claudeCommand"/,
+    );
+  });
+
+  it('resolves a valid claudeCommand', () => {
+    expect(
+      parseConfigFile('{"claudeCommand": "ec bedrock launch claude --"}', '/c.json').claudeCommand,
+    ).toBe('ec bedrock launch claude --');
+  });
+
+  it('defaults claudeCommand to "claude" when the file omits it', () => {
+    expect(parseConfigFile('{}', '/c.json').claudeCommand).toBe('claude');
+  });
 });
 
 describe('ensureConfigFile', () => {
@@ -247,5 +297,107 @@ describe('ensureConfigFile', () => {
 
     expect(ensureConfigFile(home, logger)).toEqual(file);
     expect(logger.warn).not.toHaveBeenCalled();
+  });
+});
+
+function withTempAppDir(fn: (appDir: string) => void): void {
+  const home = mkdtempSync(join(tmpdir(), 'garden-config-write-'));
+  try {
+    fn(join(home, '.garden'));
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+}
+
+describe('readConfigFile', () => {
+  it('resolves the defaults when no file is present', () => {
+    withTempAppDir((appDir) => {
+      expect(readConfigFile(configFilePath(appDir))).toEqual(DEFAULT_CONFIG_FILE);
+    });
+  });
+
+  it('resolves the defaults when the file is unusable, without writing or throwing', () => {
+    withTempAppDir((appDir) => {
+      mkdirSync(appDir, { recursive: true });
+      const path = configFilePath(appDir);
+      writeFileSync(path, '{ not valid json', 'utf8');
+      expect(readConfigFile(path)).toEqual(DEFAULT_CONFIG_FILE);
+      expect(readFileSync(path, 'utf8')).toBe('{ not valid json');
+    });
+  });
+
+  it("resolves a valid file's claudeCommand verbatim, not the default", () => {
+    withTempAppDir((appDir) => {
+      mkdirSync(appDir, { recursive: true });
+      const path = configFilePath(appDir);
+      writeFileSync(
+        path,
+        JSON.stringify({ ...DEFAULT_CONFIG_FILE, claudeCommand: 'ec bedrock launch claude --' }),
+        'utf8',
+      );
+      expect(readConfigFile(path).claudeCommand).toBe('ec bedrock launch claude --');
+    });
+  });
+});
+
+describe('patchConfigFile', () => {
+  it('round-trips a patch against a missing file, merged over the defaults, with no stray .tmp', () => {
+    withTempAppDir((appDir) => {
+      mkdirSync(appDir, { recursive: true });
+      const path = configFilePath(appDir);
+
+      patchConfigFile(path, { claudeCommand: 'ec bedrock launch claude --' });
+
+      expect(JSON.parse(readFileSync(path, 'utf8'))).toEqual({
+        ...DEFAULT_CONFIG_FILE,
+        claudeCommand: 'ec bedrock launch claude --',
+      });
+      expect(existsSync(`${path}.tmp`)).toBe(false);
+    });
+  });
+
+  it('throws and leaves the file untouched when the existing file is invalid JSON', () => {
+    withTempAppDir((appDir) => {
+      mkdirSync(appDir, { recursive: true });
+      const path = configFilePath(appDir);
+      writeFileSync(path, '{ not valid json', 'utf8');
+
+      expect(() => patchConfigFile(path, { claudeCommand: 'claude' })).toThrow(
+        ConfigWriteRefusedError,
+      );
+      expect(readFileSync(path, 'utf8')).toBe('{ not valid json');
+      expect(existsSync(`${path}.tmp`)).toBe(false);
+    });
+  });
+
+  it('throws and leaves the file untouched when an existing field fails validation', () => {
+    withTempAppDir((appDir) => {
+      mkdirSync(appDir, { recursive: true });
+      const path = configFilePath(appDir);
+      const original = JSON.stringify({ port: 0 });
+      writeFileSync(path, original, 'utf8');
+
+      expect(() => patchConfigFile(path, { claudeCommand: 'claude' })).toThrow(
+        ConfigWriteRefusedError,
+      );
+      expect(readFileSync(path, 'utf8')).toBe(original);
+    });
+  });
+
+  it('merges the patch over the raw file, not over every ConfigFile default', () => {
+    // The case a round-trip test alone can't catch: a sparse file that only ever set one key
+    // must stay sparse plus the patch, not gain the other four ConfigFile fields' defaults.
+    withTempAppDir((appDir) => {
+      mkdirSync(appDir, { recursive: true });
+      const path = configFilePath(appDir);
+      writeFileSync(path, JSON.stringify({ port: 5000 }), 'utf8');
+
+      patchConfigFile(path, { claudeCommand: 'claude' });
+
+      expect(JSON.parse(readFileSync(path, 'utf8'))).toEqual({
+        port: 5000,
+        claudeCommand: 'claude',
+      });
+    });
   });
 });

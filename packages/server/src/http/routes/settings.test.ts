@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { Projection } from '../../app/projection.js';
+import type { ConfigPort } from '../../app/ports.js';
+import { ConfigWriteRefusedError } from '../../app/ports.js';
+import { DEFAULT_CONFIG_FILE } from '../../config.js';
 import type { ServerDeps } from '../server.js';
 import { createServer } from '../server.js';
 
@@ -18,7 +21,17 @@ function fakeProjection(): Projection {
   };
 }
 
-function fakeDeps(): ServerDeps {
+function fakeConfigPort(overrides: Partial<ConfigPort> = {}): ConfigPort {
+  return {
+    read: () => ({ ...DEFAULT_CONFIG_FILE, claudeCommand: 'claude' }),
+    write: () => {
+      throw new Error('not used by this test');
+    },
+    ...overrides,
+  };
+}
+
+function fakeDeps(overrides: Partial<ServerDeps> = {}): ServerDeps {
   return {
     projection: fakeProjection(),
     tmux: {
@@ -35,6 +48,7 @@ function fakeDeps(): ServerDeps {
         throw new Error('not used by this test');
       },
     },
+    configPort: fakeConfigPort(),
     git: {
       repoRoot: () => Promise.reject(new Error('not used by this test')),
       branch: () => Promise.reject(new Error('not used by this test')),
@@ -52,17 +66,108 @@ function fakeDeps(): ServerDeps {
     claudeCommand: ['claude'],
     deadSessionCap: 25,
     terminalFontSize: 18,
+    ...overrides,
   };
 }
 
 describe('GET /settings', () => {
-  it('is mounted and answers 200 with the injected settings', async () => {
-    const app = createServer(fakeDeps());
+  it('is mounted and answers 200 with the injected settings, including the live claudeCommand', async () => {
+    const app = createServer(
+      fakeDeps({
+        configPort: fakeConfigPort({
+          read: () => ({ ...DEFAULT_CONFIG_FILE, claudeCommand: 'ec bedrock launch claude --' }),
+        }),
+      }),
+    );
     try {
       const response = await app.inject({ method: 'GET', url: '/settings' });
 
       expect(response.statusCode).toBe(200);
-      expect(response.json()).toEqual({ deadSessionCap: 25, terminalFontSize: 18 });
+      expect(response.json()).toEqual({
+        deadSessionCap: 25,
+        terminalFontSize: 18,
+        claudeCommand: 'ec bedrock launch claude --',
+      });
+    } finally {
+      await app.close();
+    }
+  });
+});
+
+describe('PUT /settings', () => {
+  it('answers 400 on a body without a string claudeCommand', async () => {
+    const app = createServer(fakeDeps());
+    try {
+      const response = await app.inject({
+        method: 'PUT',
+        url: '/settings',
+        payload: { claudeCommand: 42 },
+      });
+      expect(response.statusCode).toBe(400);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('answers 400, not 500, on a blank claudeCommand', async () => {
+    const app = createServer(fakeDeps());
+    try {
+      const response = await app.inject({
+        method: 'PUT',
+        url: '/settings',
+        payload: { claudeCommand: '   ' },
+      });
+      expect(response.statusCode).toBe(400);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('answers 200 and writes the patch through the config port on success', async () => {
+    const written: unknown[] = [];
+    const app = createServer(
+      fakeDeps({
+        configPort: fakeConfigPort({
+          write: (patch) => {
+            written.push(patch);
+          },
+        }),
+      }),
+    );
+    try {
+      const response = await app.inject({
+        method: 'PUT',
+        url: '/settings',
+        payload: { claudeCommand: 'tsx scripts/fake-claude.ts' },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({ ok: true });
+      expect(written).toEqual([{ claudeCommand: 'tsx scripts/fake-claude.ts' }]);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('answers 409 when the config port refuses the write', async () => {
+    const app = createServer(
+      fakeDeps({
+        configPort: fakeConfigPort({
+          write: () => {
+            throw new ConfigWriteRefusedError('existing file is invalid');
+          },
+        }),
+      }),
+    );
+    try {
+      const response = await app.inject({
+        method: 'PUT',
+        url: '/settings',
+        payload: { claudeCommand: 'claude' },
+      });
+
+      expect(response.statusCode).toBe(409);
+      expect(response.json()).toEqual({ error: 'existing file is invalid' });
     } finally {
       await app.close();
     }
