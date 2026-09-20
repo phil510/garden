@@ -21,6 +21,7 @@ import type { TmuxTarget } from './adapters/tmux.js';
 import { createAttachRegistry, type AttachRegistry } from './app/attach.js';
 import { createBranchSweeper, type BranchSweeper } from './app/branches.js';
 import type {
+  ConfigPort,
   GitPort,
   PtyPort,
   StorePort,
@@ -31,7 +32,15 @@ import type {
 import { createProjection, type Projection } from './app/projection.js';
 import { watchRepoRoots } from './app/repoRoots.js';
 import { writeClaudeSettings, writeTmuxConf } from './appdir.js';
-import { ensureConfigFile, loadConfig, type Config } from './config.js';
+import {
+  appDirPath,
+  configFilePath,
+  ensureConfigFile,
+  loadConfig,
+  patchConfigFile,
+  readConfigFile,
+  type Config,
+} from './config.js';
 import type { TmuxSessionFact } from './domain/types.js';
 import { createServer } from './http/server.js';
 
@@ -52,6 +61,18 @@ function storePort(appDir: string, logger: Logger): StorePort {
     read: () => readOverlayState(appDir, logger),
     write: (state) => {
       writeOverlayState(appDir, state);
+    },
+  };
+}
+
+/** Binds `config.ts`'s read/write logic to this run's config file path, next to the other
+ *  factories that turn a target into a port. */
+function configPort(home: string): ConfigPort {
+  const path = configFilePath(appDirPath(home, process.env));
+  return {
+    read: () => readConfigFile(path),
+    write: (patch) => {
+      patchConfigFile(path, patch);
     },
   };
 }
@@ -164,6 +185,7 @@ export async function main(): Promise<void> {
   const settingsPath = writeClaudeSettings(config.appDir);
 
   const store = storePort(config.appDir, logger);
+  const configAdapter = configPort(home);
   const tmux = tmuxPort({ socket: config.tmuxSocket, confPath });
   const transcripts = transcriptPort(config, logger);
   const git = gitPort();
@@ -218,6 +240,7 @@ export async function main(): Promise<void> {
     permissionMode: config.permissionMode,
     deadSessionCap: config.deadSessionCap,
     terminalFontSize: config.terminalFontSize,
+    configPort: configAdapter,
   });
   app.addHook('onClose', () => {
     clearInterval(poll);
