@@ -5,6 +5,7 @@ import type {
   FileResponse,
   OkResponse,
   ReposResponse,
+  SettingsResponse,
   TreeResponse,
   UiStateRequest,
 } from '@garden/shared';
@@ -44,6 +45,10 @@ export function killSession(id: string): Promise<OkResponse> {
 
 export function listRepos(): Promise<ReposResponse> {
   return request('/repos');
+}
+
+export function getSettings(): Promise<SettingsResponse> {
+  return request('/settings');
 }
 
 export function getFileTree(sessionId: string, path: string): Promise<TreeResponse> {

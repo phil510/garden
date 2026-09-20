@@ -1,8 +1,11 @@
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   appDirPath,
   DEFAULT_CONFIG_FILE,
+  ensureConfigFile,
   loadConfig,
   parseConfigFile,
   TMUX_SOCKET,
@@ -29,24 +32,19 @@ describe('loadConfig', () => {
 describe('loadConfig precedence and root expansion', () => {
   it('prefers GARDEN_PORT over the port in the config file', () => {
     expect(
-      loadConfig(
-        { GARDEN_PORT: '5000' },
-        { port: 4400, roots: [], permissionMode: 'default' },
-        '/h',
-      ).port,
+      loadConfig({ GARDEN_PORT: '5000' }, { ...DEFAULT_CONFIG_FILE, port: 4400, roots: [] }, '/h')
+        .port,
     ).toBe(5000);
   });
 
   it('falls back to the config file port when GARDEN_PORT is unset', () => {
-    expect(loadConfig({}, { port: 4400, roots: [], permissionMode: 'default' }, '/h').port).toBe(
-      4400,
-    );
+    expect(loadConfig({}, { ...DEFAULT_CONFIG_FILE, port: 4400, roots: [] }, '/h').port).toBe(4400);
   });
 
   it('expands a leading ~ in a root against the given home and leaves absolute roots alone', () => {
     const config = loadConfig(
       {},
-      { port: 4310, roots: ['~/Desktop/Extend', '/srv/code'], permissionMode: 'default' },
+      { ...DEFAULT_CONFIG_FILE, roots: ['~/Desktop/Extend', '/srv/code'] },
       '/h',
     );
     expect(config.roots).toEqual(['/h/Desktop/Extend', '/srv/code']);
@@ -110,8 +108,11 @@ describe('loadConfig precedence and root expansion', () => {
 
   it('passes a file-configured permissionMode through unchanged, with no env override', () => {
     expect(
-      loadConfig({}, { port: 4310, roots: [], permissionMode: 'bypassPermissions' }, '/h')
-        .permissionMode,
+      loadConfig(
+        {},
+        { ...DEFAULT_CONFIG_FILE, roots: [], permissionMode: 'bypassPermissions' },
+        '/h',
+      ).permissionMode,
     ).toBe('bypassPermissions');
   });
 });
@@ -155,5 +156,96 @@ describe('parseConfigFile', () => {
 
   it('supplies defaults for keys the file omits', () => {
     expect(parseConfigFile('{}', '/c.json')).toEqual(DEFAULT_CONFIG_FILE);
+  });
+
+  it('rejects a deadSessionCap of the wrong type', () => {
+    expect(() => parseConfigFile('{"deadSessionCap": "10"}', '/c.json')).toThrow(
+      /"deadSessionCap"/,
+    );
+  });
+
+  it.each([0, 1001])('rejects a deadSessionCap outside the valid range (%d)', (value) => {
+    expect(() => parseConfigFile(`{"deadSessionCap": ${String(value)}}`, '/c.json')).toThrow(
+      /"deadSessionCap"/,
+    );
+  });
+
+  it('resolves a valid deadSessionCap', () => {
+    expect(parseConfigFile('{"deadSessionCap": 25}', '/c.json').deadSessionCap).toBe(25);
+  });
+
+  it('rejects a terminalFontSize of the wrong type', () => {
+    expect(() => parseConfigFile('{"terminalFontSize": "13"}', '/c.json')).toThrow(
+      /"terminalFontSize"/,
+    );
+  });
+
+  it.each([5, 73])('rejects a terminalFontSize outside the valid range (%d)', (value) => {
+    expect(() => parseConfigFile(`{"terminalFontSize": ${String(value)}}`, '/c.json')).toThrow(
+      /"terminalFontSize"/,
+    );
+  });
+
+  it('resolves a valid terminalFontSize', () => {
+    expect(parseConfigFile('{"terminalFontSize": 18}', '/c.json').terminalFontSize).toBe(18);
+  });
+});
+
+describe('ensureConfigFile', () => {
+  let home: string;
+  let configPath: string;
+
+  beforeEach(() => {
+    home = mkdtempSync(join(tmpdir(), 'garden-config-'));
+    configPath = join(home, '.garden', 'config.json');
+    mkdirSync(join(home, '.garden'), { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(home, { recursive: true, force: true });
+  });
+
+  it('writes and returns the default config when no file is present', () => {
+    const logger = { warn: vi.fn() };
+    expect(ensureConfigFile(home, logger)).toEqual(DEFAULT_CONFIG_FILE);
+    expect(JSON.parse(readFileSync(configPath, 'utf8'))).toEqual(DEFAULT_CONFIG_FILE);
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  it('falls back to defaults, warns, and leaves the file untouched on malformed JSON', () => {
+    writeFileSync(configPath, '{ not valid json', 'utf8');
+    const logger = { warn: vi.fn() };
+
+    expect(ensureConfigFile(home, logger)).toEqual(DEFAULT_CONFIG_FILE);
+
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+    const message = logger.warn.mock.calls[0]?.[0] as string;
+    expect(message).toContain('not valid JSON');
+    // The path must appear so the operator knows which file to fix, but only once —
+    // parseConfigFile's error message already names it, so the warning must not repeat it.
+    expect(message.split(configPath)).toHaveLength(2);
+    expect(readFileSync(configPath, 'utf8')).toBe('{ not valid json');
+  });
+
+  it('falls back to defaults, warns, and leaves the file untouched when one field is invalid', () => {
+    writeFileSync(configPath, JSON.stringify({ port: 0 }), 'utf8');
+    const logger = { warn: vi.fn() };
+
+    expect(ensureConfigFile(home, logger)).toEqual(DEFAULT_CONFIG_FILE);
+
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+    const message = logger.warn.mock.calls[0]?.[0] as string;
+    expect(message).toContain('"port" must be an integer between 1 and 65535');
+    expect(message.split(configPath)).toHaveLength(2);
+    expect(readFileSync(configPath, 'utf8')).toBe(JSON.stringify({ port: 0 }));
+  });
+
+  it('round-trips a valid file unchanged, without warning', () => {
+    const file = { ...DEFAULT_CONFIG_FILE, port: 5000 };
+    writeFileSync(configPath, JSON.stringify(file), 'utf8');
+    const logger = { warn: vi.fn() };
+
+    expect(ensureConfigFile(home, logger)).toEqual(file);
+    expect(logger.warn).not.toHaveBeenCalled();
   });
 });

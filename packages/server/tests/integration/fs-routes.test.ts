@@ -63,6 +63,8 @@ describe('/fs routes against a real temp repo', () => {
       serverPort: 4310,
       settingsPath: '/home/.garden/claude-settings.json',
       claudeCommand: ['claude'],
+      deadSessionCap: 10,
+      terminalFontSize: 13,
     });
     return app;
   }

@@ -158,11 +158,11 @@ export async function main(): Promise<void> {
   await checkTmuxVersion();
 
   const home = homedir();
-  const config = loadConfig(process.env, ensureConfigFile(home), home);
+  const logger = createLogger();
+  const config = loadConfig(process.env, ensureConfigFile(home, logger), home);
   const confPath = writeTmuxConf(config.appDir);
   const settingsPath = writeClaudeSettings(config.appDir);
 
-  const logger = createLogger();
   const store = storePort(config.appDir, logger);
   const tmux = tmuxPort({ socket: config.tmuxSocket, confPath });
   const transcripts = transcriptPort(config, logger);
@@ -216,6 +216,8 @@ export async function main(): Promise<void> {
     settingsPath,
     claudeCommand: config.claudeCommand,
     permissionMode: config.permissionMode,
+    deadSessionCap: config.deadSessionCap,
+    terminalFontSize: config.terminalFontSize,
   });
   app.addHook('onClose', () => {
     clearInterval(poll);

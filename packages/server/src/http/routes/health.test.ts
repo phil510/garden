@@ -50,6 +50,8 @@ function fakeDeps(): ServerDeps {
     serverPort: 4310,
     settingsPath: '/home/.garden/claude-settings.json',
     claudeCommand: ['claude'],
+    deadSessionCap: 10,
+    terminalFontSize: 13,
   };
 }
 

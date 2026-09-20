@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { createLogger, type Logger } from './adapters/logger.js';
 
 /** The permission mode garden passes to a spawned or resumed Claude Code process.
  *  `'bypassPermissions'` skips its permission prompts; `'default'` passes no flag. */
@@ -15,6 +16,8 @@ export interface ConfigFile {
   readonly port: number;
   readonly roots: readonly string[];
   readonly permissionMode: PermissionMode;
+  readonly deadSessionCap: number;
+  readonly terminalFontSize: number;
 }
 export interface Config {
   readonly port: number;
@@ -26,12 +29,16 @@ export interface Config {
   readonly claudeSessionsDir: string;
   readonly claudeCommand: readonly string[];
   readonly permissionMode: PermissionMode;
+  readonly deadSessionCap: number;
+  readonly terminalFontSize: number;
 }
 
 export const DEFAULT_CONFIG_FILE: ConfigFile = {
   port: 4310,
   roots: ['~/Desktop/Extend'],
   permissionMode: 'default',
+  deadSessionCap: 10,
+  terminalFontSize: 13,
 };
 
 /** Loopback-only, and deliberately not configurable: garden is not a remote-access tool. */
@@ -43,6 +50,14 @@ export const TMUX_SOCKET = 'garden';
 
 function isPort(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 65535;
+}
+
+function isDeadSessionCap(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 1000;
+}
+
+function isTerminalFontSize(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 6 && value <= 72;
 }
 
 function envPort(env: Record<string, string | undefined>): number | undefined {
@@ -86,10 +101,12 @@ export function parseConfigFile(text: string, source: string): ConfigFile {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
     throw new Error(`${source} must contain a JSON object`);
   }
-  const { port, roots, permissionMode } = raw as {
+  const { port, roots, permissionMode, deadSessionCap, terminalFontSize } = raw as {
     port?: unknown;
     roots?: unknown;
     permissionMode?: unknown;
+    deadSessionCap?: unknown;
+    terminalFontSize?: unknown;
   };
   if (port !== undefined && !isPort(port)) {
     throw new Error(`${source}: "port" must be an integer between 1 and 65535`);
@@ -103,10 +120,18 @@ export function parseConfigFile(text: string, source: string): ConfigFile {
   if (permissionMode !== undefined && !isPermissionMode(permissionMode)) {
     throw new Error(`${source}: "permissionMode" must be "default" or "bypassPermissions"`);
   }
+  if (deadSessionCap !== undefined && !isDeadSessionCap(deadSessionCap)) {
+    throw new Error(`${source}: "deadSessionCap" must be an integer between 1 and 1000`);
+  }
+  if (terminalFontSize !== undefined && !isTerminalFontSize(terminalFontSize)) {
+    throw new Error(`${source}: "terminalFontSize" must be an integer between 6 and 72`);
+  }
   return {
     port: port ?? DEFAULT_CONFIG_FILE.port,
     roots: (roots as readonly string[] | undefined) ?? DEFAULT_CONFIG_FILE.roots,
     permissionMode: permissionMode ?? DEFAULT_CONFIG_FILE.permissionMode,
+    deadSessionCap: deadSessionCap ?? DEFAULT_CONFIG_FILE.deadSessionCap,
+    terminalFontSize: terminalFontSize ?? DEFAULT_CONFIG_FILE.terminalFontSize,
   };
 }
 
@@ -130,18 +155,34 @@ export function loadConfig(
     claudeSessionsDir: join(home, '.claude', 'sessions'),
     claudeCommand: envClaudeCommand(env) ?? ['claude'],
     permissionMode: file.permissionMode,
+    deadSessionCap: file.deadSessionCap,
+    terminalFontSize: file.terminalFontSize,
   };
 }
 
-/** Creates the app directory and writes `config.json` on first run, then reads it back. */
-export function ensureConfigFile(home: string): ConfigFile {
+/**
+ * Creates the app directory and writes `config.json` on first run, then reads it back.
+ * A missing file is created from the defaults, same as always. Any other read failure —
+ * malformed JSON, or a field failing `parseConfigFile`'s validation — logs a warning and
+ * falls back to `DEFAULT_CONFIG_FILE` without touching the file on disk, so the user's file
+ * survives for them to fix rather than being silently overwritten.
+ */
+export function ensureConfigFile(
+  home: string,
+  logger: Pick<Logger, 'warn'> = createLogger(),
+): ConfigFile {
   const dir = appDirPath(home, process.env);
   mkdirSync(dir, { recursive: true });
   const path = join(dir, 'config.json');
   try {
     return parseConfigFile(readFileSync(path, 'utf8'), path);
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      // parseConfigFile's thrown message already names `path` (it's the `source` argument), so
+      // this doesn't repeat it — the message alone carries which file and why.
+      logger.warn(`config unusable, falling back to defaults: ${(error as Error).message}`);
+      return DEFAULT_CONFIG_FILE;
+    }
     writeFileSync(path, `${JSON.stringify(DEFAULT_CONFIG_FILE, null, 2)}\n`, 'utf8');
     return DEFAULT_CONFIG_FILE;
   }
