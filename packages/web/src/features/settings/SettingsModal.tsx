@@ -56,15 +56,23 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   }
 
   // No optimistic update: the server is the writer, so the input is reset from a fresh
-  // getSettings() call rather than trusting the value just typed to have stuck.
+  // getSettings() call rather than trusting the value just typed to have stuck. The
+  // re-read's failure is caught separately from the write's: a failed PUT means the save
+  // failed, but a PUT that succeeds followed by a GET that fails is a stale display, not a
+  // failed save, and must not tell the user their change didn't land when it did.
   function save() {
     setSaving(true);
     setSaveFailed(false);
     updateSettings({ claudeCommand })
-      .then(() => getSettings())
-      .then((settings) => {
-        if (mountedRef.current) setClaudeCommand(settings.claudeCommand);
-      })
+      .then(() =>
+        getSettings()
+          .then((settings) => {
+            if (mountedRef.current) setClaudeCommand(settings.claudeCommand);
+          })
+          .catch((err: unknown) => {
+            reportCommandFailure(err);
+          }),
+      )
       .catch((err: unknown) => {
         reportCommandFailure(err);
         if (mountedRef.current) setSaveFailed(true);
