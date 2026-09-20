@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { createLogger, type Logger } from './adapters/logger.js';
 
 /** The permission mode garden passes to a spawned or resumed Claude Code process.
  *  `'bypassPermissions'` skips its permission prompts; `'default'` passes no flag. */
@@ -159,15 +160,27 @@ export function loadConfig(
   };
 }
 
-/** Creates the app directory and writes `config.json` on first run, then reads it back. */
-export function ensureConfigFile(home: string): ConfigFile {
+/**
+ * Creates the app directory and writes `config.json` on first run, then reads it back.
+ * A missing file is created from the defaults, same as always. Any other read failure —
+ * malformed JSON, or a field failing `parseConfigFile`'s validation — logs a warning and
+ * falls back to `DEFAULT_CONFIG_FILE` without touching the file on disk, so the user's file
+ * survives for them to fix rather than being silently overwritten.
+ */
+export function ensureConfigFile(
+  home: string,
+  logger: Pick<Logger, 'warn'> = createLogger(),
+): ConfigFile {
   const dir = appDirPath(home, process.env);
   mkdirSync(dir, { recursive: true });
   const path = join(dir, 'config.json');
   try {
     return parseConfigFile(readFileSync(path, 'utf8'), path);
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      logger.warn(`ignoring ${path}: ${(error as Error).message}`);
+      return DEFAULT_CONFIG_FILE;
+    }
     writeFileSync(path, `${JSON.stringify(DEFAULT_CONFIG_FILE, null, 2)}\n`, 'utf8');
     return DEFAULT_CONFIG_FILE;
   }
