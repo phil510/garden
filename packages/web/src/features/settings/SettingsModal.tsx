@@ -83,7 +83,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   }
 
   return (
-    <div className="modal-overlay" onClick={onOverlayClick}>
+    <div className="modal-overlay settings-overlay" onClick={onOverlayClick}>
       <div
         className="modal-box settings-box"
         role="dialog"
