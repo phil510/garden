@@ -222,7 +222,7 @@ describe('ensureConfigFile', () => {
     const message = logger.warn.mock.calls[0]?.[0] as string;
     expect(message).toContain('not valid JSON');
     // The path must appear so the operator knows which file to fix, but only once —
-    // parseConfigFile's error already names it, and a doubled path is what Finding 2 fixed.
+    // parseConfigFile's error message already names it, so the warning must not repeat it.
     expect(message.split(configPath)).toHaveLength(2);
     expect(readFileSync(configPath, 'utf8')).toBe('{ not valid json');
   });
