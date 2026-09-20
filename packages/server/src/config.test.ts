@@ -164,8 +164,10 @@ describe('parseConfigFile', () => {
     );
   });
 
-  it('rejects a deadSessionCap outside the valid range', () => {
-    expect(() => parseConfigFile('{"deadSessionCap": 0}', '/c.json')).toThrow(/"deadSessionCap"/);
+  it.each([0, 1001])('rejects a deadSessionCap outside the valid range (%d)', (value) => {
+    expect(() => parseConfigFile(`{"deadSessionCap": ${String(value)}}`, '/c.json')).toThrow(
+      /"deadSessionCap"/,
+    );
   });
 
   it('resolves a valid deadSessionCap', () => {
@@ -178,8 +180,8 @@ describe('parseConfigFile', () => {
     );
   });
 
-  it('rejects a terminalFontSize outside the valid range', () => {
-    expect(() => parseConfigFile('{"terminalFontSize": 5}', '/c.json')).toThrow(
+  it.each([5, 73])('rejects a terminalFontSize outside the valid range (%d)', (value) => {
+    expect(() => parseConfigFile(`{"terminalFontSize": ${String(value)}}`, '/c.json')).toThrow(
       /"terminalFontSize"/,
     );
   });
