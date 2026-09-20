@@ -38,6 +38,12 @@ garden reads `~/.garden/config.json` on startup, writing a default one on first 
 - `roots` — the repo roots garden scans for sessions. Default `["~/Desktop/Extend"]`.
 - `permissionMode` — `"default"` or `"bypassPermissions"`. Default `"default"`. `"bypassPermissions"`
   skips Claude Code's permission prompts for every session garden spawns or resumes.
+- `claudeCommand` — the command used to launch Claude Code. Default `"claude"`. Split on
+  whitespace into argv with no shell-style quoting or escaping, so a wrapper like
+  `"ec bedrock launch claude --"` works but a quoted argument does not. Editable from the
+  settings panel in the app (the gear icon in the topbar); `GARDEN_CLAUDE_COMMAND` still takes
+  precedence when set. A server restart is required for a saved change to take effect —
+  `loadConfig()` only runs at startup.
 
 ## Dev loop
 
