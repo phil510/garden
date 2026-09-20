@@ -219,7 +219,11 @@ describe('ensureConfigFile', () => {
     expect(ensureConfigFile(home, logger)).toEqual(DEFAULT_CONFIG_FILE);
 
     expect(logger.warn).toHaveBeenCalledTimes(1);
-    expect(logger.warn.mock.calls[0]?.[0]).toContain(configPath);
+    const message = logger.warn.mock.calls[0]?.[0] as string;
+    expect(message).toContain('not valid JSON');
+    // The path must appear so the operator knows which file to fix, but only once —
+    // parseConfigFile's error already names it, and a doubled path is what Finding 2 fixed.
+    expect(message.split(configPath)).toHaveLength(2);
     expect(readFileSync(configPath, 'utf8')).toBe('{ not valid json');
   });
 
@@ -230,7 +234,9 @@ describe('ensureConfigFile', () => {
     expect(ensureConfigFile(home, logger)).toEqual(DEFAULT_CONFIG_FILE);
 
     expect(logger.warn).toHaveBeenCalledTimes(1);
-    expect(logger.warn.mock.calls[0]?.[0]).toContain(configPath);
+    const message = logger.warn.mock.calls[0]?.[0] as string;
+    expect(message).toContain('"port" must be an integer between 1 and 65535');
+    expect(message.split(configPath)).toHaveLength(2);
     expect(readFileSync(configPath, 'utf8')).toBe(JSON.stringify({ port: 0 }));
   });
 
