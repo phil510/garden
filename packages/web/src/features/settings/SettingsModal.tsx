@@ -84,7 +84,15 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
 
   return (
     <div className="modal-overlay" onClick={onOverlayClick}>
-      <div className="modal-box settings-box">
+      <div
+        className="modal-box settings-box"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="settings-title"
+      >
+        <h2 id="settings-title" className="settings-title">
+          Settings
+        </h2>
         <div className="settings-field">
           <label htmlFor="settings-claude-command">Claude Code launch command</label>
           <input

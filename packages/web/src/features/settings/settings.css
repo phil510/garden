@@ -2,6 +2,11 @@
   padding: 14px;
   gap: 10px;
 }
+.settings-title {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text);
+}
 .settings-field {
   display: flex;
   flex-direction: column;
