@@ -44,12 +44,12 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
 
   // Closing (or Escape) while a save is in flight must not set state on an unmounted modal.
   const mountedRef = useRef(true);
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
       mountedRef.current = false;
-    },
-    [],
-  );
+    };
+  }, []);
 
   function onOverlayClick(event: MouseEvent<HTMLDivElement>) {
     if (event.target === event.currentTarget) onClose();
