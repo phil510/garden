@@ -115,6 +115,11 @@ export interface RepoEntry {
 export interface ReposResponse {
   repos: RepoEntry[];
 }
+/** Body of the server's `GET /settings` response — the client-side settings from `config.json`. */
+export interface SettingsResponse {
+  deadSessionCap: number;
+  terminalFontSize: number;
+}
 export interface TreeEntry {
   name: string;
   path: string;
