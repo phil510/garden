@@ -180,7 +180,7 @@ export function ensureConfigFile(
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
       // parseConfigFile's thrown message already names `path` (it's the `source` argument), so
       // this doesn't repeat it — the message alone carries which file and why.
-      logger.warn(`ignoring malformed config: ${(error as Error).message}`);
+      logger.warn(`config unusable, falling back to defaults: ${(error as Error).message}`);
       return DEFAULT_CONFIG_FILE;
     }
     writeFileSync(path, `${JSON.stringify(DEFAULT_CONFIG_FILE, null, 2)}\n`, 'utf8');
