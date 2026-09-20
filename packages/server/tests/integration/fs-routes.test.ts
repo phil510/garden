@@ -53,6 +53,14 @@ describe('/fs routes against a real temp repo', () => {
         killSession: () => Promise.reject(new Error('not used by this test')),
       },
       store: fakeStore(),
+      configPort: {
+        read: () => {
+          throw new Error('not used by this test');
+        },
+        write: () => {
+          throw new Error('not used by this test');
+        },
+      },
       git: { repoRoot, branch, status, workTreePrefix },
       attach: {
         attach: () => {
