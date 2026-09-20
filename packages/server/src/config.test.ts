@@ -1,8 +1,11 @@
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   appDirPath,
   DEFAULT_CONFIG_FILE,
+  ensureConfigFile,
   loadConfig,
   parseConfigFile,
   TMUX_SOCKET,
@@ -153,5 +156,88 @@ describe('parseConfigFile', () => {
 
   it('supplies defaults for keys the file omits', () => {
     expect(parseConfigFile('{}', '/c.json')).toEqual(DEFAULT_CONFIG_FILE);
+  });
+
+  it('rejects a deadSessionCap of the wrong type', () => {
+    expect(() => parseConfigFile('{"deadSessionCap": "10"}', '/c.json')).toThrow(
+      /"deadSessionCap"/,
+    );
+  });
+
+  it('rejects a deadSessionCap outside the valid range', () => {
+    expect(() => parseConfigFile('{"deadSessionCap": 0}', '/c.json')).toThrow(/"deadSessionCap"/);
+  });
+
+  it('resolves a valid deadSessionCap', () => {
+    expect(parseConfigFile('{"deadSessionCap": 25}', '/c.json').deadSessionCap).toBe(25);
+  });
+
+  it('rejects a terminalFontSize of the wrong type', () => {
+    expect(() => parseConfigFile('{"terminalFontSize": "13"}', '/c.json')).toThrow(
+      /"terminalFontSize"/,
+    );
+  });
+
+  it('rejects a terminalFontSize outside the valid range', () => {
+    expect(() => parseConfigFile('{"terminalFontSize": 5}', '/c.json')).toThrow(
+      /"terminalFontSize"/,
+    );
+  });
+
+  it('resolves a valid terminalFontSize', () => {
+    expect(parseConfigFile('{"terminalFontSize": 18}', '/c.json').terminalFontSize).toBe(18);
+  });
+});
+
+describe('ensureConfigFile', () => {
+  let home: string;
+  let configPath: string;
+
+  beforeEach(() => {
+    home = mkdtempSync(join(tmpdir(), 'garden-config-'));
+    configPath = join(home, '.garden', 'config.json');
+    mkdirSync(join(home, '.garden'), { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(home, { recursive: true, force: true });
+  });
+
+  it('writes and returns the default config when no file is present', () => {
+    const logger = { warn: vi.fn() };
+    expect(ensureConfigFile(home, logger)).toEqual(DEFAULT_CONFIG_FILE);
+    expect(JSON.parse(readFileSync(configPath, 'utf8'))).toEqual(DEFAULT_CONFIG_FILE);
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  it('falls back to defaults, warns, and leaves the file untouched on malformed JSON', () => {
+    writeFileSync(configPath, '{ not valid json', 'utf8');
+    const logger = { warn: vi.fn() };
+
+    expect(ensureConfigFile(home, logger)).toEqual(DEFAULT_CONFIG_FILE);
+
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+    expect(logger.warn.mock.calls[0]?.[0]).toContain(configPath);
+    expect(readFileSync(configPath, 'utf8')).toBe('{ not valid json');
+  });
+
+  it('falls back to defaults, warns, and leaves the file untouched when one field is invalid', () => {
+    writeFileSync(configPath, JSON.stringify({ port: 0 }), 'utf8');
+    const logger = { warn: vi.fn() };
+
+    expect(ensureConfigFile(home, logger)).toEqual(DEFAULT_CONFIG_FILE);
+
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+    expect(logger.warn.mock.calls[0]?.[0]).toContain(configPath);
+    expect(readFileSync(configPath, 'utf8')).toBe(JSON.stringify({ port: 0 }));
+  });
+
+  it('round-trips a valid file unchanged, without warning', () => {
+    const file = { ...DEFAULT_CONFIG_FILE, port: 5000 };
+    writeFileSync(configPath, JSON.stringify(file), 'utf8');
+    const logger = { warn: vi.fn() };
+
+    expect(ensureConfigFile(home, logger)).toEqual(file);
+    expect(logger.warn).not.toHaveBeenCalled();
   });
 });
