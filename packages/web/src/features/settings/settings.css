@@ -1,0 +1,42 @@
+.modal-overlay.settings-overlay {
+  align-items: center;
+  padding-top: 0;
+}
+.settings-box {
+  padding: 14px;
+  gap: 10px;
+}
+.settings-title {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text);
+}
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.settings-field label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.settings-field input {
+  width: 100%;
+  background: var(--raised);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px 10px;
+  color: var(--text);
+  font-family: var(--font-mono);
+}
+.settings-note {
+  font-size: 11px;
+}
+.settings-error {
+  color: var(--danger);
+}
+.settings-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}

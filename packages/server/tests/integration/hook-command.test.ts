@@ -103,6 +103,14 @@ describe('a real Claude Code hook command against the real /hooks route', () => 
         killSession: () => Promise.reject(new Error('not used by this test')),
       },
       store: fakeStore(),
+      configPort: {
+        read: () => {
+          throw new Error('not used by this test');
+        },
+        write: () => {
+          throw new Error('not used by this test');
+        },
+      },
       git: {
         repoRoot: () => Promise.reject(new Error('not used by this test')),
         branch: () => Promise.reject(new Error('not used by this test')),

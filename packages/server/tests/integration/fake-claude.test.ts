@@ -149,6 +149,7 @@ async function withFakeClaudeSession(
     projection,
     tmux: tmuxPort(target),
     store,
+    configPort: { read: unused, write: unused },
     git: { repoRoot: unused, branch: unused, status: unused, workTreePrefix: unused },
     attach: { attach: unused },
     roots,

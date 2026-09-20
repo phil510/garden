@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { createLogger, type Logger } from './adapters/logger.js';
@@ -18,6 +18,7 @@ export interface ConfigFile {
   readonly permissionMode: PermissionMode;
   readonly deadSessionCap: number;
   readonly terminalFontSize: number;
+  readonly claudeCommand: string;
 }
 export interface Config {
   readonly port: number;
@@ -39,6 +40,7 @@ export const DEFAULT_CONFIG_FILE: ConfigFile = {
   permissionMode: 'default',
   deadSessionCap: 10,
   terminalFontSize: 13,
+  claudeCommand: 'claude',
 };
 
 /** Loopback-only, and deliberately not configurable: garden is not a remote-access tool. */
@@ -58,6 +60,20 @@ function isDeadSessionCap(value: unknown): value is number {
 
 function isTerminalFontSize(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value >= 6 && value <= 72;
+}
+
+export function isClaudeCommand(value: unknown): value is string {
+  return typeof value === 'string' && value.trim() !== '';
+}
+
+/** Splits a raw command string on whitespace into argv, collapsing to `undefined` when
+ *  nothing survives — a value of only whitespace names no command. Shared by the env var
+ *  and the config-file field, which resolve to the same argv shape but validate differently:
+ *  the env var falls back silently (see `envClaudeCommand`), the file field rejects loudly
+ *  (see `isClaudeCommand`). */
+function splitCommand(raw: string): readonly string[] | undefined {
+  const parts = raw.split(/\s+/).filter(Boolean);
+  return parts.length === 0 ? undefined : parts;
 }
 
 function envPort(env: Record<string, string | undefined>): number | undefined {
@@ -80,10 +96,9 @@ function envString(env: Record<string, string | undefined>, key: string): string
 function envClaudeCommand(env: Record<string, string | undefined>): readonly string[] | undefined {
   const raw = envString(env, 'GARDEN_CLAUDE_COMMAND');
   if (raw === undefined) return undefined;
-  const parts = raw.split(/\s+/).filter(Boolean);
   // A value of only whitespace names no command, so it falls back rather than
   // spawning an argv whose first element is the session flag.
-  return parts.length === 0 ? undefined : parts;
+  return splitCommand(raw);
 }
 
 function expandHome(path: string, home: string): string {
@@ -101,12 +116,13 @@ export function parseConfigFile(text: string, source: string): ConfigFile {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
     throw new Error(`${source} must contain a JSON object`);
   }
-  const { port, roots, permissionMode, deadSessionCap, terminalFontSize } = raw as {
+  const { port, roots, permissionMode, deadSessionCap, terminalFontSize, claudeCommand } = raw as {
     port?: unknown;
     roots?: unknown;
     permissionMode?: unknown;
     deadSessionCap?: unknown;
     terminalFontSize?: unknown;
+    claudeCommand?: unknown;
   };
   if (port !== undefined && !isPort(port)) {
     throw new Error(`${source}: "port" must be an integer between 1 and 65535`);
@@ -126,17 +142,25 @@ export function parseConfigFile(text: string, source: string): ConfigFile {
   if (terminalFontSize !== undefined && !isTerminalFontSize(terminalFontSize)) {
     throw new Error(`${source}: "terminalFontSize" must be an integer between 6 and 72`);
   }
+  if (claudeCommand !== undefined && !isClaudeCommand(claudeCommand)) {
+    throw new Error(`${source}: "claudeCommand" must be a non-empty string`);
+  }
   return {
     port: port ?? DEFAULT_CONFIG_FILE.port,
     roots: (roots as readonly string[] | undefined) ?? DEFAULT_CONFIG_FILE.roots,
     permissionMode: permissionMode ?? DEFAULT_CONFIG_FILE.permissionMode,
     deadSessionCap: deadSessionCap ?? DEFAULT_CONFIG_FILE.deadSessionCap,
     terminalFontSize: terminalFontSize ?? DEFAULT_CONFIG_FILE.terminalFontSize,
+    claudeCommand: claudeCommand ?? DEFAULT_CONFIG_FILE.claudeCommand,
   };
 }
 
 export function appDirPath(home: string, env: Record<string, string | undefined>): string {
   return envString(env, 'GARDEN_APP_DIR') ?? join(home, '.garden');
+}
+
+export function configFilePath(appDir: string): string {
+  return join(appDir, 'config.json');
 }
 
 /** Resolves the effective config. `GARDEN_PORT` outranks the file; roots come back absolute. */
@@ -153,7 +177,7 @@ export function loadConfig(
     tmuxSocket: envString(env, 'GARDEN_TMUX_SOCKET') ?? TMUX_SOCKET,
     transcriptsDir: envString(env, 'GARDEN_TRANSCRIPTS_DIR') ?? join(home, '.claude', 'projects'),
     claudeSessionsDir: join(home, '.claude', 'sessions'),
-    claudeCommand: envClaudeCommand(env) ?? ['claude'],
+    claudeCommand: envClaudeCommand(env) ?? splitCommand(file.claudeCommand) ?? ['claude'],
     permissionMode: file.permissionMode,
     deadSessionCap: file.deadSessionCap,
     terminalFontSize: file.terminalFontSize,
@@ -173,7 +197,7 @@ export function ensureConfigFile(
 ): ConfigFile {
   const dir = appDirPath(home, process.env);
   mkdirSync(dir, { recursive: true });
-  const path = join(dir, 'config.json');
+  const path = configFilePath(dir);
   try {
     return parseConfigFile(readFileSync(path, 'utf8'), path);
   } catch (error) {
@@ -186,4 +210,87 @@ export function ensureConfigFile(
     writeFileSync(path, `${JSON.stringify(DEFAULT_CONFIG_FILE, null, 2)}\n`, 'utf8');
     return DEFAULT_CONFIG_FILE;
   }
+}
+
+/** Writes `contents` to `path` via a temp-file-then-rename, matching `writeOverlayState`'s
+ *  atomic pattern in `adapters/store.ts` — a concurrent reader sees either the previous file
+ *  or the new one, never a half-written one. Takes a plain object rather than `ConfigFile`:
+ *  the caller may be persisting a raw parsed file merged with a patch, which need not carry
+ *  every `ConfigFile` field. */
+export function writeConfigFile(path: string, contents: Record<string, unknown>): void {
+  const tmpPath = `${path}.tmp`;
+  writeFileSync(tmpPath, `${JSON.stringify(contents, null, 2)}\n`, 'utf8');
+  renameSync(tmpPath, path);
+}
+
+/** Live, tolerant read of `config.json` at `path` for display purposes: a missing or
+ *  unusable file resolves to `DEFAULT_CONFIG_FILE`, same as `ensureConfigFile`, but without
+ *  writing anything or logging — a `GET /settings` re-read isn't the boot-time warning path.
+ *
+ *  A file that parses as JSON but fails `parseConfigFile`'s validation on some *other* field
+ *  (e.g. a hand-edited `"port"`) still recovers its own `claudeCommand`, rather than reporting
+ *  the default for a value that's actually sitting on disk: `getSettings` reads only this one
+ *  field off the result, and an unrelated field's invalidity shouldn't make it lie about it. */
+export function readConfigFile(path: string): ConfigFile {
+  let text: string;
+  try {
+    text = readFileSync(path, 'utf8');
+  } catch {
+    return DEFAULT_CONFIG_FILE;
+  }
+  try {
+    return parseConfigFile(text, path);
+  } catch {
+    return { ...DEFAULT_CONFIG_FILE, claudeCommand: recoverClaudeCommand(text) };
+  }
+}
+
+/** Best-effort extraction of `claudeCommand` from JSON text that failed whole-object
+ *  validation. Falls back to the default when the text isn't even a JSON object or the
+ *  field itself is missing or invalid — there's nothing to recover in that case. */
+function recoverClaudeCommand(text: string): string {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    return DEFAULT_CONFIG_FILE.claudeCommand;
+  }
+  if (typeof raw !== 'object' || raw === null) return DEFAULT_CONFIG_FILE.claudeCommand;
+  const claudeCommand = (raw as { claudeCommand?: unknown }).claudeCommand;
+  return isClaudeCommand(claudeCommand) ? claudeCommand : DEFAULT_CONFIG_FILE.claudeCommand;
+}
+
+/** Thrown by `patchConfigFile` when the on-disk file fails to parse or validate: writing the
+ *  patch would otherwise serialize resolved defaults over a file the user can still fix by
+ *  hand. */
+export class ConfigWriteRefusedError extends Error {}
+
+/**
+ * Merges `patch` over `path`'s on-disk file and writes it back atomically. ENOENT is fine —
+ * there is nothing to clobber, so the patch merges over `DEFAULT_CONFIG_FILE` instead. An
+ * existing file that fails to parse or validate throws `ConfigWriteRefusedError` rather than
+ * writing anything. On success, the patch merges over the *raw* parsed object, not
+ * `parseConfigFile`'s defaulted return — merging onto the defaulted return would inject every
+ * `ConfigFile` field's default into a file that only ever set one key.
+ */
+export function patchConfigFile(path: string, patch: Partial<ConfigFile>): void {
+  let text: string;
+  try {
+    text = readFileSync(path, 'utf8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    writeConfigFile(path, { ...DEFAULT_CONFIG_FILE, ...patch });
+    return;
+  }
+  try {
+    parseConfigFile(text, path); // validates; its defaulted return is not the merge base
+  } catch (error) {
+    throw new ConfigWriteRefusedError(
+      `refusing to write ${path}: existing file is invalid (${(error as Error).message})`,
+    );
+  }
+  // parseConfigFile above already guarantees text parses as a JSON object, so this reparse
+  // (for the raw, non-defaulted merge base) cannot fail.
+  const raw = JSON.parse(text) as Record<string, unknown>;
+  writeConfigFile(path, { ...raw, ...patch });
 }

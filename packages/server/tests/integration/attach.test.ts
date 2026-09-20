@@ -18,7 +18,14 @@ import {
   type TmuxTarget,
 } from '../../src/adapters/tmux.js';
 import { createAttachRegistry } from '../../src/app/attach.js';
-import type { GitPort, OverlayState, PtyPort, StorePort, TmuxPort } from '../../src/app/ports.js';
+import type {
+  ConfigPort,
+  GitPort,
+  OverlayState,
+  PtyPort,
+  StorePort,
+  TmuxPort,
+} from '../../src/app/ports.js';
 import { createProjection } from '../../src/app/projection.js';
 import { createServer } from '../../src/http/server.js';
 import { until } from './support/poll.js';
@@ -57,6 +64,17 @@ function unusedGitPort(): GitPort {
     branch: () => Promise.reject(new Error('not used by this test')),
     status: () => Promise.reject(new Error('not used by this test')),
     workTreePrefix: () => Promise.reject(new Error('not used by this test')),
+  };
+}
+
+function unusedConfigPort(): ConfigPort {
+  return {
+    read: () => {
+      throw new Error('not used by this test');
+    },
+    write: () => {
+      throw new Error('not used by this test');
+    },
   };
 }
 
@@ -145,6 +163,7 @@ describe('WS /attach/:id against a real tmux pane and a real pty', () => {
         deadSessionCap: 10,
         terminalFontSize: 13,
         git: unusedGitPort(),
+        configPort: unusedConfigPort(),
         roots: [],
         attach: createAttachRegistry({ pty: ptyPort(target), projection }),
       });
@@ -230,6 +249,7 @@ describe('WS /attach/:id against a real tmux pane and a real pty', () => {
         deadSessionCap: 10,
         terminalFontSize: 13,
         git: unusedGitPort(),
+        configPort: unusedConfigPort(),
         roots: [],
         attach: createAttachRegistry({ pty: ptyPort(target), projection }),
       });

@@ -31,6 +31,14 @@ function unusedPorts() {
       status: () => Promise.reject(new Error('not used by this test')),
       workTreePrefix: () => Promise.reject(new Error('not used by this test')),
     },
+    configPort: {
+      read: () => {
+        throw new Error('not used by this test');
+      },
+      write: () => {
+        throw new Error('not used by this test');
+      },
+    },
     attach: {
       attach: () => {
         throw new Error('not used by this test');

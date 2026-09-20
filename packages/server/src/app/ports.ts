@@ -1,3 +1,4 @@
+import type { ConfigFile } from '../config.js';
 import type { TranscriptParse } from '../domain/transcript.js';
 import type { GardenEvent } from '../domain/types.js';
 import type { OverlayGroup, OverlayStage, OverlayState } from '../domain/overlay.js';
@@ -34,6 +35,17 @@ export interface TmuxPort {
 export interface StorePort {
   read(): OverlayState;
   write(state: OverlayState): void;
+}
+
+export { ConfigWriteRefusedError } from '../config.js';
+
+/** `read` is tolerant, like `ensureConfigFile`: a missing or unusable file resolves to
+ *  something usable, for live display. `write` is the strict half — it re-validates the
+ *  on-disk file itself and refuses (throws `ConfigWriteRefusedError`) rather than
+ *  serializing defaults over a file that failed to parse or validate. */
+export interface ConfigPort {
+  read(): ConfigFile;
+  write(patch: Partial<ConfigFile>): void;
 }
 
 export interface TranscriptWatcher {

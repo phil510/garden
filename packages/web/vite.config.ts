@@ -14,6 +14,7 @@ export default defineConfig({
       '/hooks': target,
       '/sessions': target,
       '/repos': target,
+      '/settings': target,
       '/ui-state': target,
       '/fs': target,
       '/events': { target, ws: true },

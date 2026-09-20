@@ -5,6 +5,7 @@ import type {
   FileResponse,
   OkResponse,
   ReposResponse,
+  SettingsRequest,
   SettingsResponse,
   TreeResponse,
   UiStateRequest,
@@ -49,6 +50,14 @@ export function listRepos(): Promise<ReposResponse> {
 
 export function getSettings(): Promise<SettingsResponse> {
   return request('/settings');
+}
+
+export function updateSettings(patch: SettingsRequest): Promise<OkResponse> {
+  return request('/settings', {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
 }
 
 export function getFileTree(sessionId: string, path: string): Promise<TreeResponse> {

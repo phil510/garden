@@ -35,6 +35,14 @@ function fakeDeps(): ServerDeps {
         throw new Error('not used by this test');
       },
     },
+    configPort: {
+      read: () => {
+        throw new Error('not used by this test');
+      },
+      write: () => {
+        throw new Error('not used by this test');
+      },
+    },
     git: {
       repoRoot: () => Promise.reject(new Error('not used by this test')),
       branch: () => Promise.reject(new Error('not used by this test')),
