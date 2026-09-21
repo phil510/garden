@@ -11,10 +11,10 @@ export interface SettingsDeps {
 }
 
 /**
- * Reads `configPort.read()`'s raw `ConfigFile.claudeCommand` string — never the env-resolved
- * `Config.claudeCommand: readonly string[]` that session spawning uses. Displaying (and, on
- * save, round-tripping) the resolved value would leak an active `GARDEN_CLAUDE_COMMAND`
- * override into `config.json`.
+ * Reads `configPort.read()`'s raw `ConfigFile.claudeCommand` string — never the value resolved
+ * through `GARDEN_CLAUDE_COMMAND` that `readClaudeCommand()` gives session spawning. Displaying
+ * (and, on save, round-tripping) the resolved value would leak an active override into
+ * `config.json`.
  */
 export function getSettings(deps: SettingsDeps): SettingsResponse {
   return {
