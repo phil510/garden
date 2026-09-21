@@ -87,54 +87,6 @@ describe('loadConfig precedence and root expansion', () => {
     expect(config.transcriptsDir).toBe(join('/h', '.claude', 'projects'));
   });
 
-  it('splits GARDEN_CLAUDE_COMMAND on whitespace', () => {
-    expect(
-      loadConfig(
-        { GARDEN_CLAUDE_COMMAND: 'tsx  scripts/fake-claude.ts' },
-        DEFAULT_CONFIG_FILE,
-        '/h',
-      ).claudeCommand,
-    ).toEqual(['tsx', 'scripts/fake-claude.ts']);
-  });
-
-  it('defaults claudeCommand to ["claude"] when GARDEN_CLAUDE_COMMAND is unset', () => {
-    expect(loadConfig({}, DEFAULT_CONFIG_FILE, '/h').claudeCommand).toEqual(['claude']);
-  });
-
-  it('falls back when GARDEN_CLAUDE_COMMAND names no command', () => {
-    // An empty argv would put the session flag in argv[0] at spawn time, which
-    // fails far from here; a value that splits to nothing is treated as unset.
-    for (const raw of ['', '   ', '\t\n']) {
-      expect(
-        loadConfig({ GARDEN_CLAUDE_COMMAND: raw }, DEFAULT_CONFIG_FILE, '/h').claudeCommand,
-      ).toEqual(['claude']);
-    }
-  });
-
-  it('prefers GARDEN_CLAUDE_COMMAND over the claudeCommand in the config file', () => {
-    expect(
-      loadConfig(
-        { GARDEN_CLAUDE_COMMAND: 'tsx scripts/fake-claude.ts' },
-        { ...DEFAULT_CONFIG_FILE, roots: [], claudeCommand: 'ec bedrock launch claude --' },
-        '/h',
-      ).claudeCommand,
-    ).toEqual(['tsx', 'scripts/fake-claude.ts']);
-  });
-
-  it('splits the file-configured claudeCommand on whitespace when GARDEN_CLAUDE_COMMAND is unset', () => {
-    expect(
-      loadConfig(
-        {},
-        { ...DEFAULT_CONFIG_FILE, roots: [], claudeCommand: 'ec  bedrock launch claude --' },
-        '/h',
-      ).claudeCommand,
-    ).toEqual(['ec', 'bedrock', 'launch', 'claude', '--']);
-  });
-
-  it('falls back to ["claude"] when neither GARDEN_CLAUDE_COMMAND nor the file names a command', () => {
-    expect(loadConfig({}, DEFAULT_CONFIG_FILE, '/h').claudeCommand).toEqual(['claude']);
-  });
-
   it('passes a file-configured permissionMode through unchanged, with no env override', () => {
     expect(
       loadConfig(
@@ -159,6 +111,48 @@ describe('resolveClaudeCommand', () => {
       '--',
     ]);
     expect(resolveClaudeCommand(env, { claudeCommand: 'tsx scripts/fake-claude.ts' })).toEqual([
+      'ec',
+      'bedrock',
+      'launch',
+      'claude',
+      '--',
+    ]);
+  });
+
+  it('splits GARDEN_CLAUDE_COMMAND on whitespace', () => {
+    expect(
+      resolveClaudeCommand(
+        { GARDEN_CLAUDE_COMMAND: 'tsx  scripts/fake-claude.ts' },
+        DEFAULT_CONFIG_FILE,
+      ),
+    ).toEqual(['tsx', 'scripts/fake-claude.ts']);
+  });
+
+  it('defaults to ["claude"] when GARDEN_CLAUDE_COMMAND is unset and the file names no command', () => {
+    expect(resolveClaudeCommand({}, DEFAULT_CONFIG_FILE)).toEqual(['claude']);
+  });
+
+  it('falls back when GARDEN_CLAUDE_COMMAND names no command', () => {
+    // An empty argv would put the session flag in argv[0] at spawn time, which
+    // fails far from here; a value that splits to nothing is treated as unset.
+    for (const raw of ['', '   ', '\t\n']) {
+      expect(resolveClaudeCommand({ GARDEN_CLAUDE_COMMAND: raw }, DEFAULT_CONFIG_FILE)).toEqual([
+        'claude',
+      ]);
+    }
+  });
+
+  it('prefers GARDEN_CLAUDE_COMMAND over the claudeCommand in the config file', () => {
+    expect(
+      resolveClaudeCommand(
+        { GARDEN_CLAUDE_COMMAND: 'tsx scripts/fake-claude.ts' },
+        { claudeCommand: 'ec bedrock launch claude --' },
+      ),
+    ).toEqual(['tsx', 'scripts/fake-claude.ts']);
+  });
+
+  it('splits the file-configured claudeCommand on whitespace when GARDEN_CLAUDE_COMMAND is unset', () => {
+    expect(resolveClaudeCommand({}, { claudeCommand: 'ec  bedrock launch claude --' })).toEqual([
       'ec',
       'bedrock',
       'launch',

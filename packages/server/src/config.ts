@@ -28,7 +28,6 @@ export interface Config {
   readonly tmuxSocket: string;
   readonly transcriptsDir: string;
   readonly claudeSessionsDir: string;
-  readonly claudeCommand: readonly string[];
   readonly permissionMode: PermissionMode;
   readonly deadSessionCap: number;
   readonly terminalFontSize: number;
@@ -102,9 +101,9 @@ function envClaudeCommand(env: Record<string, string | undefined>): readonly str
 }
 
 /** The `claudeCommand` precedence: `GARDEN_CLAUDE_COMMAND` outranks the file, which outranks
- *  the single-element default. Shared by `loadConfig`'s boot-time snapshot and `main.ts`'s
- *  `readClaudeCommand` binding, which re-applies it against a fresh `configPort.read()` on
- *  every session spawn so a saved change takes effect without a restart. */
+ *  the single-element default. `main.ts`'s `readClaudeCommand` binding re-applies this against
+ *  a fresh `configPort.read()` on every session spawn so a saved change takes effect without a
+ *  restart. */
 export function resolveClaudeCommand(
   env: Record<string, string | undefined>,
   file: Pick<ConfigFile, 'claudeCommand'>,
@@ -188,7 +187,6 @@ export function loadConfig(
     tmuxSocket: envString(env, 'GARDEN_TMUX_SOCKET') ?? TMUX_SOCKET,
     transcriptsDir: envString(env, 'GARDEN_TRANSCRIPTS_DIR') ?? join(home, '.claude', 'projects'),
     claudeSessionsDir: join(home, '.claude', 'sessions'),
-    claudeCommand: resolveClaudeCommand(env, file),
     permissionMode: file.permissionMode,
     deadSessionCap: file.deadSessionCap,
     terminalFontSize: file.terminalFontSize,
