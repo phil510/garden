@@ -28,14 +28,19 @@ export interface KillSessionRequest {
 }
 
 /** The pieces `main.ts` binds once: the tmux target, the local server's own port, and
- *  the settings file every spawned Claude Code process is told to load. */
+ *  the settings file every spawned Claude Code process is told to load.
+ *
+ *  `readClaudeCommand` is a function, not a value, because it must reflect a `claudeCommand`
+ *  saved to `config.json` after boot without restarting garden — `main.ts` binds it to a
+ *  fresh `configPort.read()` on every call, unlike `permissionMode`, which stays a boot-time
+ *  snapshot. */
 export interface SessionsDeps {
   readonly tmux: TmuxPort;
   readonly store: StorePort;
   readonly projection: Projection;
   readonly serverPort: number;
   readonly settingsPath: string;
-  readonly claudeCommand: readonly string[];
+  readonly readClaudeCommand: () => readonly string[];
   readonly permissionMode?: PermissionMode;
 }
 
@@ -72,13 +77,15 @@ export async function createSession(
   deps: SessionsDeps,
   request: CreateSessionRequest,
 ): Promise<CreateSessionResult> {
-  const { tmux, store, projection, serverPort, settingsPath, claudeCommand, permissionMode } = deps;
+  const { tmux, store, projection, serverPort, settingsPath, readClaudeCommand, permissionMode } =
+    deps;
   const takenNames = projection
     .sessions()
     .map((session) => session.tmuxName)
     .filter((name): name is string => name !== null);
   const id = randomUUID();
   const tmuxName = deriveTmuxName(request.cwd, takenNames);
+  const claudeCommand = readClaudeCommand();
 
   await tmux.newSession({
     name: tmuxName,
@@ -108,8 +115,10 @@ export async function resumeSession(
   deps: SessionsDeps,
   request: ResumeSessionRequest,
 ): Promise<ResumeSessionResult> {
-  const { tmux, store, projection, serverPort, settingsPath, claudeCommand, permissionMode } = deps;
+  const { tmux, store, projection, serverPort, settingsPath, readClaudeCommand, permissionMode } =
+    deps;
   const session = findSession(projection, request.id);
+  const claudeCommand = readClaudeCommand();
   const command = [
     ...claudeCommand,
     '--resume',

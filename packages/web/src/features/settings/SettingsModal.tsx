@@ -106,7 +106,8 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           />
         </div>
         <div className="settings-note faint">
-          Restarting the garden server is required for a saved change to take effect.
+          A saved command applies to the next new or resumed session, no restart required.
+          GARDEN_CLAUDE_COMMAND still overrides a saved value when set.
         </div>
         {loadFailed && <div className="settings-note settings-error">Could not load settings.</div>}
         {saveFailed && <div className="settings-note settings-error">Could not save settings.</div>}

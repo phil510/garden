@@ -39,6 +39,7 @@ import {
   loadConfig,
   patchConfigFile,
   readConfigFile,
+  resolveClaudeCommand,
   type Config,
 } from './config.js';
 import type { TmuxSessionFact } from './domain/types.js';
@@ -75,6 +76,13 @@ function configPort(home: string): ConfigPort {
       patchConfigFile(path, patch);
     },
   };
+}
+
+/** Resolves `claudeCommand` fresh from `configPort.read()` on every call, so a command saved
+ *  through the settings panel reaches the next spawned or resumed session without a restart —
+ *  unlike `permissionMode`, which `main` still reads once from `config` at boot. */
+function readClaudeCommand(configPort: ConfigPort): () => readonly string[] {
+  return () => resolveClaudeCommand(process.env, configPort.read());
 }
 
 function transcriptPort(config: Config, logger: Logger): TranscriptPort {
@@ -236,7 +244,7 @@ export async function main(): Promise<void> {
     roots: config.roots,
     serverPort: config.port,
     settingsPath,
-    claudeCommand: config.claudeCommand,
+    readClaudeCommand: readClaudeCommand(configAdapter),
     permissionMode: config.permissionMode,
     deadSessionCap: config.deadSessionCap,
     terminalFontSize: config.terminalFontSize,
