@@ -125,7 +125,7 @@ describe('a real Claude Code hook command against the real /hooks route', () => 
       roots: [],
       serverPort: 4310,
       settingsPath: '/home/.garden/claude-settings.json',
-      claudeCommand: ['claude'],
+      readClaudeCommand: () => ['claude'],
       deadSessionCap: 10,
       terminalFontSize: 13,
     });

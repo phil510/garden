@@ -12,6 +12,7 @@ import {
   parseConfigFile,
   patchConfigFile,
   readConfigFile,
+  resolveClaudeCommand,
   TMUX_SOCKET,
 } from './config.js';
 
@@ -142,6 +143,28 @@ describe('loadConfig precedence and root expansion', () => {
         '/h',
       ).permissionMode,
     ).toBe('bypassPermissions');
+  });
+});
+
+describe('resolveClaudeCommand', () => {
+  // main.ts's readClaudeCommand binding calls this against a fresh configPort.read() on every
+  // session spawn; the override must keep winning across those changing reads, not just once.
+  it('keeps GARDEN_CLAUDE_COMMAND winning as the file value changes between calls', () => {
+    const env = { GARDEN_CLAUDE_COMMAND: 'ec bedrock launch claude --' };
+    expect(resolveClaudeCommand(env, { claudeCommand: 'claude' })).toEqual([
+      'ec',
+      'bedrock',
+      'launch',
+      'claude',
+      '--',
+    ]);
+    expect(resolveClaudeCommand(env, { claudeCommand: 'tsx scripts/fake-claude.ts' })).toEqual([
+      'ec',
+      'bedrock',
+      'launch',
+      'claude',
+      '--',
+    ]);
   });
 });
 

@@ -155,7 +155,7 @@ async function withFakeClaudeSession(
     roots,
     serverPort: 0,
     settingsPath: SETTINGS_PATH,
-    claudeCommand,
+    readClaudeCommand: () => claudeCommand,
     deadSessionCap: 10,
     terminalFontSize: 13,
   });
@@ -175,7 +175,7 @@ async function withFakeClaudeSession(
         projection,
         serverPort: port,
         settingsPath: SETTINGS_PATH,
-        claudeCommand,
+        readClaudeCommand: () => claudeCommand,
       },
       { cwd },
     );

@@ -72,7 +72,7 @@ describe('createSession', () => {
         projection,
         serverPort: 4310,
         settingsPath: '/home/.garden/claude-settings.json',
-        claudeCommand: ['claude'],
+        readClaudeCommand: () => ['claude'],
       },
       { cwd: '/Users/dev/garden' },
     );
@@ -117,7 +117,7 @@ describe('createSession', () => {
         projection,
         serverPort: 4310,
         settingsPath: '/home/.garden/claude-settings.json',
-        claudeCommand: ['tsx', 'scripts/fake-claude.ts'],
+        readClaudeCommand: () => ['tsx', 'scripts/fake-claude.ts'],
       },
       { cwd: '/Users/dev/garden' },
     );
@@ -130,6 +130,39 @@ describe('createSession', () => {
       '--settings',
       '/home/.garden/claude-settings.json',
     ]);
+  });
+
+  it('calls readClaudeCommand fresh on every invocation rather than caching its first result', async () => {
+    const calls: TmuxNewSessionRequest[] = [];
+    const tmux = fakeTmux({
+      newSession: (request) => {
+        calls.push(request);
+        return Promise.resolve();
+      },
+    });
+    const { projection } = fakeProjection();
+    const { store } = fakeStore();
+    const results: readonly (readonly string[])[] = [
+      ['claude'],
+      ['ec', 'bedrock', 'launch', 'claude', '--'],
+    ];
+    let readCount = 0;
+    const readClaudeCommand = () => results[readCount++] ?? ['claude'];
+    const deps = {
+      tmux,
+      store,
+      projection,
+      serverPort: 4310,
+      settingsPath: '/home/.garden/claude-settings.json',
+      readClaudeCommand,
+    };
+
+    await createSession(deps, { cwd: '/Users/dev/garden' });
+    await createSession(deps, { cwd: '/Users/dev/garden' });
+
+    expect(readCount).toBe(2);
+    expect(calls[0]?.command.slice(0, 1)).toEqual(['claude']);
+    expect(calls[1]?.command.slice(0, 5)).toEqual(['ec', 'bedrock', 'launch', 'claude', '--']);
   });
 
   it('adds --permission-mode bypassPermissions ahead of --settings when configured', async () => {
@@ -150,7 +183,7 @@ describe('createSession', () => {
         projection,
         serverPort: 4310,
         settingsPath: '/home/.garden/claude-settings.json',
-        claudeCommand: ['claude'],
+        readClaudeCommand: () => ['claude'],
         permissionMode: 'bypassPermissions',
       },
       { cwd: '/Users/dev/garden' },
@@ -179,7 +212,7 @@ describe('createSession', () => {
         projection,
         serverPort: 4310,
         settingsPath: '/home/.garden/claude-settings.json',
-        claudeCommand: ['claude'],
+        readClaudeCommand: () => ['claude'],
       },
       { cwd: '/Users/dev/garden' },
     );
@@ -200,7 +233,7 @@ describe('createSession', () => {
           projection,
           serverPort: 4310,
           settingsPath: '/home/.garden/claude-settings.json',
-          claudeCommand: ['claude'],
+          readClaudeCommand: () => ['claude'],
         },
         { cwd: '/Users/dev/garden' },
       ),
@@ -227,7 +260,14 @@ describe('resumeSession', () => {
     const { store, written } = fakeStore();
 
     const result = await resumeSession(
-      { tmux, store, projection, serverPort: 4310, settingsPath, claudeCommand: ['claude'] },
+      {
+        tmux,
+        store,
+        projection,
+        serverPort: 4310,
+        settingsPath,
+        readClaudeCommand: () => ['claude'],
+      },
       { id: 'sid-1' },
     );
 
@@ -260,7 +300,7 @@ describe('resumeSession', () => {
         projection,
         serverPort: 4310,
         settingsPath,
-        claudeCommand: ['claude'],
+        readClaudeCommand: () => ['claude'],
         permissionMode: 'bypassPermissions',
       },
       { id: 'sid-1' },
@@ -301,7 +341,7 @@ describe('resumeSession', () => {
         projection,
         serverPort: 4310,
         settingsPath,
-        claudeCommand: ['tsx', 'scripts/fake-claude.ts'],
+        readClaudeCommand: () => ['tsx', 'scripts/fake-claude.ts'],
       },
       { id: 'sid-1' },
     );
@@ -333,7 +373,7 @@ describe('resumeSession', () => {
         projection,
         serverPort: 4310,
         settingsPath,
-        claudeCommand: ['claude'],
+        readClaudeCommand: () => ['claude'],
         permissionMode: 'bypassPermissions',
       },
       { id: 'sid-1' },
@@ -370,7 +410,14 @@ describe('resumeSession', () => {
     const { store, written } = fakeStore();
 
     const result = await resumeSession(
-      { tmux, store, projection, serverPort: 4310, settingsPath, claudeCommand: ['claude'] },
+      {
+        tmux,
+        store,
+        projection,
+        serverPort: 4310,
+        settingsPath,
+        readClaudeCommand: () => ['claude'],
+      },
       { id: 'sid-1' },
     );
 
@@ -399,7 +446,14 @@ describe('resumeSession', () => {
 
     await expect(
       resumeSession(
-        { tmux, store, projection, serverPort: 4310, settingsPath, claudeCommand: ['claude'] },
+        {
+          tmux,
+          store,
+          projection,
+          serverPort: 4310,
+          settingsPath,
+          readClaudeCommand: () => ['claude'],
+        },
         { id: 'sid-1' },
       ),
     ).rejects.toThrow('tmux is not installed');
@@ -416,7 +470,14 @@ describe('resumeSession', () => {
 
     await expect(
       resumeSession(
-        { tmux, store, projection, serverPort: 4310, settingsPath, claudeCommand: ['claude'] },
+        {
+          tmux,
+          store,
+          projection,
+          serverPort: 4310,
+          settingsPath,
+          readClaudeCommand: () => ['claude'],
+        },
         { id: 'sid-1' },
       ),
     ).rejects.toThrow('tmux is not installed');
@@ -430,7 +491,14 @@ describe('resumeSession', () => {
 
     await expect(
       resumeSession(
-        { tmux, store, projection, serverPort: 4310, settingsPath, claudeCommand: ['claude'] },
+        {
+          tmux,
+          store,
+          projection,
+          serverPort: 4310,
+          settingsPath,
+          readClaudeCommand: () => ['claude'],
+        },
         { id: 'nope' },
       ),
     ).rejects.toThrow('no such session: nope');
@@ -455,7 +523,14 @@ describe('killSession', () => {
     });
 
     await killSession(
-      { tmux, store, projection, serverPort: 4310, settingsPath: '/x', claudeCommand: ['claude'] },
+      {
+        tmux,
+        store,
+        projection,
+        serverPort: 4310,
+        settingsPath: '/x',
+        readClaudeCommand: () => ['claude'],
+      },
       { id: 'sid-1' },
     );
 
@@ -476,7 +551,7 @@ describe('killSession', () => {
           projection,
           serverPort: 4310,
           settingsPath: '/x',
-          claudeCommand: ['claude'],
+          readClaudeCommand: () => ['claude'],
         },
         { id: 'sid-1' },
       ),
@@ -496,7 +571,7 @@ describe('killSession', () => {
           projection,
           serverPort: 4310,
           settingsPath: '/x',
-          claudeCommand: ['claude'],
+          readClaudeCommand: () => ['claude'],
         },
         { id: 'nope' },
       ),

@@ -72,7 +72,7 @@ describe('GET /sessions', () => {
       projection: fakeProjection([session]),
       serverPort: 4310,
       settingsPath,
-      claudeCommand: ['claude'],
+      readClaudeCommand: () => ['claude'],
     });
 
     const response = await app.inject({ method: 'GET', url: '/sessions' });
@@ -89,7 +89,7 @@ describe('GET /sessions', () => {
       projection: fakeProjection([], (filter) => (seenFilter = filter)),
       serverPort: 4310,
       settingsPath,
-      claudeCommand: ['claude'],
+      readClaudeCommand: () => ['claude'],
     });
 
     const response = await app.inject({ method: 'GET', url: '/sessions' });
@@ -106,7 +106,7 @@ describe('GET /sessions', () => {
       projection: fakeProjection([], (filter) => (seenFilter = filter)),
       serverPort: 4310,
       settingsPath,
-      claudeCommand: ['claude'],
+      readClaudeCommand: () => ['claude'],
     });
 
     const response = await app.inject({
@@ -130,7 +130,7 @@ describe('GET /sessions', () => {
       projection: fakeProjection(),
       serverPort: 4310,
       settingsPath,
-      claudeCommand: ['claude'],
+      readClaudeCommand: () => ['claude'],
     });
 
     const response = await app.inject({ method: 'GET', url: '/sessions?sinceDays=nope' });
@@ -145,7 +145,7 @@ describe('GET /sessions', () => {
       projection: fakeProjection(),
       serverPort: 4310,
       settingsPath,
-      claudeCommand: ['claude'],
+      readClaudeCommand: () => ['claude'],
     });
 
     const response = await app.inject({ method: 'GET', url: '/sessions?maxRecapChars=nope' });
@@ -160,7 +160,7 @@ describe('GET /sessions', () => {
       projection: fakeProjection(),
       serverPort: 4310,
       settingsPath,
-      claudeCommand: ['claude'],
+      readClaudeCommand: () => ['claude'],
     });
 
     const response = await app.inject({ method: 'GET', url: '/sessions?sinceDays=-1' });
@@ -175,7 +175,7 @@ describe('GET /sessions', () => {
       projection: fakeProjection(),
       serverPort: 4310,
       settingsPath,
-      claudeCommand: ['claude'],
+      readClaudeCommand: () => ['claude'],
     });
 
     const response = await app.inject({ method: 'GET', url: '/sessions?maxRecapChars=-1' });
@@ -192,7 +192,7 @@ describe('GET /sessions', () => {
       projection: fakeProjection(),
       serverPort: 4310,
       settingsPath,
-      claudeCommand: ['claude'],
+      readClaudeCommand: () => ['claude'],
     });
 
     const response = await app.inject({ method: 'GET', url: '/sessions?sinceDays=' });
@@ -207,7 +207,7 @@ describe('GET /sessions', () => {
       projection: fakeProjection(),
       serverPort: 4310,
       settingsPath,
-      claudeCommand: ['claude'],
+      readClaudeCommand: () => ['claude'],
     });
 
     const response = await app.inject({ method: 'GET', url: '/sessions?maxRecapChars=' });
@@ -224,7 +224,7 @@ describe('GET /sessions', () => {
       projection: fakeProjection(),
       serverPort: 4310,
       settingsPath,
-      claudeCommand: ['claude'],
+      readClaudeCommand: () => ['claude'],
     });
 
     const response = await app.inject({ method: 'GET', url: '/sessions?maxRecapChars=0.5' });
@@ -243,7 +243,7 @@ describe('GET /sessions', () => {
       projection: fakeProjection(),
       serverPort: 4310,
       settingsPath,
-      claudeCommand: ['claude'],
+      readClaudeCommand: () => ['claude'],
     });
 
     const response = await app.inject({ method: 'GET', url: '/sessions?sinceDays=5&sinceDays=7' });
@@ -259,7 +259,7 @@ describe('GET /sessions', () => {
       projection: fakeProjection(),
       serverPort: 4310,
       settingsPath,
-      claudeCommand: ['claude'],
+      readClaudeCommand: () => ['claude'],
     });
 
     const response = await app.inject({
@@ -278,7 +278,7 @@ describe('GET /sessions', () => {
       projection: fakeProjection(),
       serverPort: 4310,
       settingsPath,
-      claudeCommand: ['claude'],
+      readClaudeCommand: () => ['claude'],
     });
 
     const response = await app.inject({ method: 'GET', url: '/sessions?live=true&live=false' });
@@ -294,7 +294,7 @@ describe('GET /sessions', () => {
       projection: fakeProjection(),
       serverPort: 4310,
       settingsPath,
-      claudeCommand: ['claude'],
+      readClaudeCommand: () => ['claude'],
     });
 
     const response = await app.inject({
@@ -313,7 +313,7 @@ describe('GET /sessions', () => {
       projection: fakeProjection(),
       serverPort: 4310,
       settingsPath,
-      claudeCommand: ['claude'],
+      readClaudeCommand: () => ['claude'],
     });
 
     const response = await app.inject({ method: 'GET', url: '/sessions?status=bogus' });
@@ -336,7 +336,7 @@ describe('POST /sessions', () => {
       projection: fakeProjection(),
       serverPort: 4310,
       settingsPath,
-      claudeCommand: ['claude'],
+      readClaudeCommand: () => ['claude'],
     });
 
     const response = await app.inject({ method: 'POST', url: '/sessions', payload: {} });
@@ -352,7 +352,7 @@ describe('POST /sessions', () => {
       projection: fakeProjection(),
       serverPort: 4310,
       settingsPath,
-      claudeCommand: ['claude'],
+      readClaudeCommand: () => ['claude'],
     });
 
     const response = await app.inject({
@@ -374,7 +374,7 @@ describe('POST /sessions', () => {
       projection: fakeProjection(),
       serverPort: 4310,
       settingsPath,
-      claudeCommand: ['claude'],
+      readClaudeCommand: () => ['claude'],
     });
 
     const response = await app.inject({
@@ -396,7 +396,7 @@ describe('POST /sessions/:id/resume', () => {
       projection: fakeProjection([]),
       serverPort: 4310,
       settingsPath,
-      claudeCommand: ['claude'],
+      readClaudeCommand: () => ['claude'],
     });
 
     const response = await app.inject({ method: 'POST', url: '/sessions/nope/resume' });
@@ -416,7 +416,7 @@ describe('POST /sessions/:id/resume', () => {
       projection: fakeProjection([deadSession]),
       serverPort: 4310,
       settingsPath,
-      claudeCommand: ['claude'],
+      readClaudeCommand: () => ['claude'],
     });
 
     const response = await app.inject({ method: 'POST', url: '/sessions/sid-1/resume' });
@@ -434,7 +434,7 @@ describe('POST /sessions/:id/kill', () => {
       projection: fakeProjection([]),
       serverPort: 4310,
       settingsPath,
-      claudeCommand: ['claude'],
+      readClaudeCommand: () => ['claude'],
     });
 
     const response = await app.inject({ method: 'POST', url: '/sessions/nope/kill' });
@@ -456,7 +456,7 @@ describe('POST /sessions/:id/kill', () => {
       projection: fakeProjection([session]),
       serverPort: 4310,
       settingsPath,
-      claudeCommand: ['claude'],
+      readClaudeCommand: () => ['claude'],
     });
 
     const response = await app.inject({ method: 'POST', url: '/sessions/sid-1/kill' });

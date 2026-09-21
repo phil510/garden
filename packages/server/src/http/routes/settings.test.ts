@@ -63,7 +63,7 @@ function fakeDeps(overrides: Partial<ServerDeps> = {}): ServerDeps {
     roots: [],
     serverPort: 4310,
     settingsPath: '/home/.garden/claude-settings.json',
-    claudeCommand: ['claude'],
+    readClaudeCommand: () => ['claude'],
     deadSessionCap: 25,
     terminalFontSize: 18,
     ...overrides,
