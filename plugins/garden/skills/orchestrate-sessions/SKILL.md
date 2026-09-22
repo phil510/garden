@@ -47,7 +47,9 @@ cause of whatever breaks.
 **Ask for a report in the brief.** You can ask later, but only if you know to, and a peer never
 asked goes silent on completion, leaving you to infer it from signals that cannot carry it. Say:
 message `<your session name>` when you finish, and immediately if something blocks you — spell
-your own name out, because the peer cannot derive it. Write the rest of the brief to stand alone;
+your own name out, because the peer cannot derive it — and say what the report holds: a pointer
+to the result, its state, and what it needs from you. A peer left to pick the shape writes the
+whole story. Write the rest of the brief to stand alone;
 the peer shares none of your context, and `message-session` covers what a note needs to survive
 the trip.
 
@@ -80,12 +82,87 @@ silently in both directions.
 When you report to your user, use the Claude Code name — that's what renders in the web console's
 pane header, not the garden/tmux name. The web console never shows the id itself; for that, use
 `garden ls` or `message-session`'s `resolve_session.sh`. The tmux name still answers a different
-question and stays in the vocabulary for it: which pane to attach a terminal to.
+question and stays in the vocabulary for it: which pane to attach a terminal to — and, when two
+live sessions share a messaging name, which `ListAgents` row is yours, since `ListAgents` prints
+the tmux target beside each session running under tmux.
+
+The two also disagree about `status`: the script prints Claude Code's registry word (`idle`,
+`busy`, `shell`), garden's `status` column is derived from hooks (the table below). Neither is
+wrong; they are different sources answering different questions.
+
+## Write the run down
+
+Everything else here travels as prose through context windows, and a window is the one place
+state does not survive: yours fills up, a peer dies, an address changes on resume, and what you
+knew goes with it. So keep the run's state in a file — `.orchestration/<run>.md` in the repo you
+are orchestrating from, named for the run — ignored through `.git/info/exclude` where the repo
+doesn't already ignore it, which keeps the run out of git without dirtying a tracked file. Give
+peers its **absolute** path in the brief: an untracked file exists only in your checkout, and the
+same relative path in a peer's worktree is either missing or a different run's file.
+
+The file holds only what no other system holds, in four parts:
+
+```markdown
+# settings-ui — started 2026-09-21
+
+merge: ask-human (approver: <name>) · create-issue: auto
+
+## Tasks
+
+- 6f1c9e2a-3b7d-4c58-9a0e-2d4f8b1c7e35 — #159 config schema + client read path — plan: /Users/dev/garden/docs/plans/159.md
+- b2d84a17-5e60-4f9b-8c3a-71e5d9f0a246 — #160 settings UI
+
+## Blocked
+
+- #160 — waiting on user: which launch commands to list (asked, unanswered)
+- #159 — user answered "SSM, not env"; peer not yet told
+
+## Decisions
+
+- user: settings read path is client-only, no server proxy
+- user: proxy through the server after all (supersedes client-only — CORS blocked the direct read)
+```
+
+Tasks is which task went to which session and what it is. Blocked is the event that unblocks
+each stalled task, not a status: "waiting on your user", "answered but the peer hasn't been told"
+and "peer has it and is working" look alike in a status field and need three different things
+from you. Decisions are appended, never edited, with who made each and on what — a reversed
+decision and the reason it was reversed are both things nothing else on disk holds, and tidying
+the first deletes the second.
+
+Nearly everything else already has an authoritative home and belongs there. `garden ls` gives
+cwd, branch, liveness and status; git gives commits and worktrees; GitHub gives PR, CI and review
+state. A copy here is a second answer that can only go wrong — a green CI line is about a commit,
+not about a time, so it goes stale the moment a peer pushes no matter how recently you wrote it.
+Point at plans, PRs and commits rather than summarizing them, and when the file disagrees with
+git, GitHub or garden, they win. The file is authoritative only for the intent and the decisions
+nothing else records.
+
+Identify a session by its session id — stable across resume — never by the messaging name, which
+changes every time the session restarts, so a stale one in a file is a misdelivered note later
+with no error in either direction. The task label beside it is what keeps the file scannable,
+and a file nobody scans stops being updated.
+
+Write to it when one of those facts changes — a dispatch, a block or unblock, a decision — and
+not otherwise. That keeps it small enough that updating it never becomes a task of its own, and
+it is what makes the file worth reading: one that changes only on those events says something by
+having changed. You are the only writer. Peers read it and report their deltas to you; several
+sessions editing one file with no locking lose each other's updates silently, and the machinery
+that would fix that costs more than the file is worth. It follows that the file is only as
+current as your last update — a head start for a session picking the run up, not a statement of
+where things stand.
 
 ## Keep the traffic small
 
-Size every note per `message-session`: one that starts or rescopes work stands alone; everything
-after is a few lines and a pointer.
+`message-session` is where note-sizing lives, and it is also the only sound way to resolve a
+peer's address, so load it before your first message of the run — and **put it in every brief**:
+tell the peer to load it before it reports back. Verbosity is symmetric. A peer that sends you a
+five-page report costs you exactly what your five-page brief cost it, and a peer that never read
+the skill has no reason to know that.
+
+The part worth holding here: a note stands alone when the recipient can act without coming back
+to ask you, which is not the same as carrying everything it needs. Detail that already lives in a
+file, a PR, or the run's state file travels as a pointer and a reason to open it.
 
 Reports up to your user follow the same shape for a different reason: they can open any peer's
 pane themselves, and they will ask when they want more. So carry the major issues and decisions —

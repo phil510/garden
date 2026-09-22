@@ -30,6 +30,9 @@ pnpm-debug.log*
 # Pipeline state for /plant runs
 .plant/
 
+# Run state for multi-session orchestration
+.orchestration/
+
 # Local-only implementation plans (never committed)
 docs/plans/
 
