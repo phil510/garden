@@ -1,29 +1,39 @@
 ---
 name: message-session
 description: >
-  Use when sending a message, note, question, or handoff to another Claude Code
-  session — including every case where the recipient was given as a session name
-  or session id rather than confirmed against ListAgents. Triggers include "send
-  a note to the agent in session <uuid>", "message <session-name>", "tell the
-  session working on X", "ask the other session about this", "forward this
-  upstream to that session", "let the CDK session know", and a bare session name
-  or id accompanied by any intent to contact it. Also covers looking up a
-  session's working directory or transcript path. Resolve the address with the
-  bundled script before calling SendMessage rather than reasoning about which
-  session is meant — a name's suffix cannot be derived from the session id, so
-  the alternative is guessing, and a wrong guess delivers to a real but
-  unintended session with no error.
+  Use when sending a message, note, brief, question, report, or handoff to
+  another Claude Code session — any session outside your own process, whether or
+  not you started it. Triggers include "send a note to the agent in session
+  <uuid>", "message <session-name>", "tell the session working on X", "ask the
+  other session about this", "forward this upstream to that session", "let the
+  CDK session know", a bare session name or id accompanied by any intent to
+  contact it, and every case where the recipient was given as a session name or
+  session id rather than confirmed against ListAgents. Also covers dispatching a
+  brief to a session you launched yourself, reporting back to the session that
+  briefed you, and looking up a session's working directory or transcript path.
+  It carries what a note must say to be actionable cold, and what belongs in a
+  file the recipient can open instead. Resolve the address with the bundled
+  script before calling
+  SendMessage rather than reasoning about which session is meant — a name's
+  suffix cannot be derived from the session id, so the alternative is guessing,
+  and a wrong guess delivers to a real but unintended session with no error.
 ---
 
 # Messaging another session
 
-This is for sessions you did not start: other Claude Code windows on this
-machine. Subagents and teammates you spawned already have names you hold, so
-call `SendMessage` directly for those.
+This is for any Claude Code session outside your own process — another window on
+this machine, a peer you launched yourself. Whether you started it makes no
+difference, because the name that addresses it is assigned by that process and
+cannot be derived from anything you hold. Only in-process subagents and
+teammates arrive with names you already have; those you message directly.
 
 Sending has three parts: get a valid address, write a note that stands on its
 own, then call `SendMessage`. The address step is the one that silently goes
 wrong, so it is mechanical here.
+
+Read this once and work from it for the rest of the session. Re-reading it per
+message buys nothing — what has to happen on every send is re-resolving the
+address, and that is a script call, not a re-read.
 
 ## 1. Resolve the address
 
@@ -74,25 +84,64 @@ in front of you, not the reasoning that got here. It reads the note cold,
 mid-task, in another repo. So "let's fix this upstream", which is perfectly
 clear where you are, is unactionable there.
 
-Name the finding with identifiers the recipient can act on (paths, symbols,
-error text, ticket ids), say which repo hit it, and say what you want back — a
-fix, a decision, or nothing.
+But standing alone means the recipient can act without coming back to ask you,
+not that the note carries everything it will need. Reading it as the second
+thing is what turns a note into a pasted file, and a paste is paid three times:
+you write it, the recipient reads it, and the recipient opens the file anyway
+for the part you left out — after which both windows carry it for the rest of
+the run. Point instead, and say why to look. Provenance decides this, not
+length:
 
-Length follows the job: a note that starts or rescopes a session's work carries
-what that direction needs to stand alone, while updates, acks, answers and
-relayed decisions are a few lines, quoting the decision rather than glossing it.
-Where the detail already exists somewhere the recipient can open — a path, a PR
-number, a round file — point at it instead of restating it.
+- **It already exists somewhere the recipient can open** — a file, a PR, an
+  issue, a commit, a run's state file. Point at it however big or small: three
+  lines pasted out of a file you could have named cost the same as thirty, and
+  the recipient still can't see what surrounds them. A summary is the same
+  case in your own words: the reason to look is one line —
+  "`/Users/dev/api/docs/plans/x.md` §3 — its retry budget contradicts your
+  task 4" — and anything past that the recipient reads, then opens the
+  original to check. File paths absolute, PRs, issues and commits
+  repo-qualified: the recipient is in another worktree, often another repo,
+  where your relative path resolves to nothing or to the wrong file.
+- **It doesn't exist yet and it's substantial** — write it down, then point.
+  Having nothing to cite is where pasting starts. What earns a file is what the
+  recipient can't regenerate; output it could get by running the command itself
+  is a command, not an artifact.
+- **It doesn't exist yet and it's small** — just say it. A file for three
+  original lines is its own overhead.
+
+A brief is where this bites hardest, because nearly everything a brief wants to
+say already exists: the issue, the plan, the acceptance criteria, the repo's
+own docs. What is new in a brief is the direction — what to do, where, under
+what policy, and what to report to whom — and that is what it carries. The
+rest is pointers.
+
+Everything after the brief — updates, acks, answers, relayed decisions,
+completion reports — is a few lines: what happened, where to look, and what you
+need back (a fix, a decision, or nothing). Quote a decision rather than
+glossing it, and name a finding with identifiers the recipient can act on —
+paths, symbols, error text, ticket ids, which repo hit it. A completion report,
+in full:
+
+> #142 done — PR helloextend/garden#170, CI green, ready to merge. Nothing
+> needed from you.
+
+Both shapes are shorter than they feel while writing, because you hold the
+whole picture and the recipient needs only the part that changes what it does
+next.
 
 ## 3. Send
 
 Send only on exit `0`, passing the resolved `name` to
-`SendMessage({to: "<name>"})`. `status` sets expectations rather than gating the
-send: `idle` means the note lands on the peer's next turn, `busy` means it is
-mid-task.
+`SendMessage({to: "<name>"})`. `status` is the registry's word for what the
+peer is doing right now (`idle`, `busy`, `shell`, or `?` when unset) and sets
+expectations rather than gating the send: `idle` means the note lands on the
+peer's next turn, anything else means it waits for one.
 
 Report to the user what you sent and to which name — routing is exactly the part
-they cannot see, and they may know the recipient is wrong.
+they cannot see, and they may know the recipient is wrong — so keep reporting
+the routing even when sends are the mechanics of a larger job you are already
+describing. What drops in that case is restating what the note said, which
+rebuilds in your report the volume the note itself avoided.
 
 ## When resolution fails
 
@@ -110,5 +159,9 @@ they cannot see, and they may know the recipient is wrong.
 
 Two live sessions can share a name, since the suffix is random; exit `2` on an
 exact name is that case. `SendMessage` then needs the `[ref]` from
-`ListAgents`, which the registry does not record. Match the script's start age
-against the `started … ago` column in `ListAgents` to pick the right ref.
+`ListAgents`, which the registry does not record and which is not a slice of
+the session id. The candidate set is now known, so joining on a column both
+sides show is sound where inferring a name from recency was not: the tmux
+target `ListAgents` prints beside sessions running under tmux, if you know
+which one is yours, or the start age against the script's. Two ages within a
+minute of each other are the ambiguity restated, not resolved — ask.
