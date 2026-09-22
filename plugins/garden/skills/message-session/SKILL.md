@@ -31,10 +31,6 @@ Sending has three parts: get a valid address, write a note that stands on its
 own, then call `SendMessage`. The address step is the one that silently goes
 wrong, so it is mechanical here.
 
-Read this once and work from it for the rest of the session. Re-reading it per
-message buys nothing — what has to happen on every send is re-resolving the
-address, and that is a script call, not a re-read.
-
 ## 1. Resolve the address
 
 `SendMessage` addresses a peer by **name** (`extend-cdk-14`), but people refer to
@@ -63,19 +59,12 @@ sending on one.
 ### Never infer the mapping
 
 The derived name's suffix (`-14`, `-c3`) is a random disambiguator — no hash or
-slice of the session id, pid, or start time reproduces it. So every shortcut is
-unsound:
-
-- Ranking transcript mtimes or start times against session recency is
-  circumstantial. Two sessions started minutes apart in one repo — routine when
-  several run at once — make it a coin flip.
-- Filtering by cwd yields a candidate set, not an answer. Several live sessions
-  usually share a repo.
-
-A misrouted note is worse than an undelivered one: the session that needed the
-information never gets it, and an uninvolved session acts on instructions meant
-for someone else. When the registry has no answer, report that instead of
-nominating the closest match.
+slice of the session id, pid, or start time reproduces it. Cwd and recency only
+narrow the candidates: several live sessions usually share a repo, and two
+started minutes apart make recency a coin flip. A misrouted note is worse than
+an undelivered one — the session that needed the information never gets it, and
+a bystander acts on instructions meant for someone else — so when the registry
+has no answer, report that instead of nominating the closest match.
 
 ## 2. Write the note so it survives the trip
 
@@ -86,20 +75,16 @@ clear where you are, is unactionable there.
 
 But standing alone means the recipient can act without coming back to ask you,
 not that the note carries everything it will need. Reading it as the second
-thing is what turns a note into a pasted file, and a paste is paid three times:
-you write it, the recipient reads it, and the recipient opens the file anyway
-for the part you left out — after which both windows carry it for the rest of
-the run. Point instead, and say why to look. Provenance decides this, not
-length:
+thing turns a note into a pasted file, which both windows then carry for the
+rest of the run — and the recipient opens the file anyway for the part you left
+out. Point instead, and say why to look. Provenance decides this, not length:
 
 - **It already exists somewhere the recipient can open** — a file, a PR, an
-  issue, a commit, a run's state file. Point at it however big or small: three
-  lines pasted out of a file you could have named cost the same as thirty, and
-  the recipient still can't see what surrounds them. A summary is the same
-  case in your own words: the reason to look is one line —
-  "`/Users/dev/api/docs/plans/x.md` §3 — its retry budget contradicts your
-  task 4" — and anything past that the recipient reads, then opens the
-  original to check. File paths absolute, PRs, issues and commits
+  issue, a commit, a run's state file. Point at it however small the excerpt
+  would be, and don't summarize it either: a summary is the file in your words,
+  which the recipient reads and then opens the original to check. The reason to
+  look is one line — "`/Users/dev/api/docs/plans/x.md` §3 — its retry budget
+  contradicts your task 4". File paths absolute, PRs, issues and commits
   repo-qualified: the recipient is in another worktree, often another repo,
   where your relative path resolves to nothing or to the wrong file.
 - **It doesn't exist yet and it's substantial** — write it down, then point.
@@ -133,15 +118,13 @@ next.
 
 Send only on exit `0`, passing the resolved `name` to
 `SendMessage({to: "<name>"})`. `status` is the registry's word for what the
-peer is doing right now (`idle`, `busy`, `shell`, or `?` when unset) and sets
-expectations rather than gating the send: `idle` means the note lands on the
-peer's next turn, anything else means it waits for one.
+peer is doing (`idle`, `busy`, `shell`, or `?` when unset) and predicts timing,
+not permission: `idle` lands on the peer's next turn, the rest wait for one.
 
-Report to the user what you sent and to which name — routing is exactly the part
-they cannot see, and they may know the recipient is wrong — so keep reporting
-the routing even when sends are the mechanics of a larger job you are already
-describing. What drops in that case is restating what the note said, which
-rebuilds in your report the volume the note itself avoided.
+Report to the user what you sent and to which name — routing is the part they
+cannot see, and they may know the recipient is wrong. When sends are the
+mechanics of a larger job you are already describing, still name the route;
+what drops is restating the note's body.
 
 ## When resolution fails
 
@@ -160,8 +143,7 @@ rebuilds in your report the volume the note itself avoided.
 Two live sessions can share a name, since the suffix is random; exit `2` on an
 exact name is that case. `SendMessage` then needs the `[ref]` from
 `ListAgents`, which the registry does not record and which is not a slice of
-the session id. The candidate set is now known, so joining on a column both
-sides show is sound where inferring a name from recency was not: the tmux
-target `ListAgents` prints beside sessions running under tmux, if you know
-which one is yours, or the start age against the script's. Two ages within a
-minute of each other are the ambiguity restated, not resolved — ask.
+the session id. Once the exact name has narrowed the candidates, joining on a
+column both tools show is sound where inferring a name from recency was not: a
+tmux target you know is yours, or a clearly distinct start age. Two ages within
+a minute of each other remain ambiguous — ask.
