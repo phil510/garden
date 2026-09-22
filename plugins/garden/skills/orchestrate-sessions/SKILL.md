@@ -44,12 +44,10 @@ Give a peer somewhere of its own to work: a worktree per task, not a shared chec
 in one working directory fight over the index and the branch, and neither will report that as the
 cause of whatever breaks.
 
-**Ask for a report in the brief.** You can ask later, but only if you know to, and a peer never
-asked goes silent on completion, leaving you to infer it from signals that cannot carry it. Say:
-message `<your session name>` when you finish, and immediately if something blocks you — spell
-your own name out, because the peer cannot derive it. Write the rest of the brief to stand alone;
-the peer shares none of your context, and `message-session` covers what a note needs to survive
-the trip.
+**Ask for a report in the brief.** Tell the peer to message `<your session name>` when it
+finishes, and immediately if blocked, with a pointer to the result, its state, and what it needs
+from you. Spell your own name out; the peer cannot derive it. Without that contract a peer goes
+silent on completion or returns the whole story. `message-session` covers the rest of the brief.
 
 **Settle merge/approval policy in the brief.** Naming the approver and the merge policy before
 the peer starts is what keeps an `ask`-style gate from stalling later. Relaying an
@@ -80,12 +78,71 @@ silently in both directions.
 When you report to your user, use the Claude Code name — that's what renders in the web console's
 pane header, not the garden/tmux name. The web console never shows the id itself; for that, use
 `garden ls` or `message-session`'s `resolve_session.sh`. The tmux name still answers a different
-question and stays in the vocabulary for it: which pane to attach a terminal to.
+question: which pane to attach a terminal to, and — since `ListAgents` prints it beside each
+session — which row is yours when two live sessions share a messaging name.
+
+`status` is also two words: the script prints Claude Code's registry status (`idle`, `busy`,
+`shell`), garden's column is derived from hooks (the table below). Different sources, different
+questions.
+
+## Write the run down
+
+Context windows are the one place run state does not survive: yours fills up, a peer dies, an
+address changes on resume, and what you knew goes with it. So keep it in a file —
+`.orchestration/<run>.md` in the repo you are orchestrating from, added to `.git/info/exclude`
+where the repo doesn't already ignore it. Give peers its **absolute** path in the brief: the same
+relative path in a peer's worktree is missing or a different run's file.
+
+It holds only what no other system holds — a policy header and three sections:
+
+```markdown
+# settings-ui — started 2026-09-21
+
+merge: ask-human (approver: <name>) · create-issue: auto
+
+## Tasks
+
+- 6f1c9e2a-3b7d-4c58-9a0e-2d4f8b1c7e35 — #160 settings UI — plan: /Users/dev/garden/docs/plans/160.md
+
+## Blocked
+
+- #160 — waiting on user: which launch commands to list (asked, unanswered)
+- #159 — user answered "SSM, not env"; peer not yet told
+
+## Decisions
+
+- user: settings read path is client-only, no server proxy
+- user: proxy through the server after all (supersedes client-only — CORS blocked the direct read)
+```
+
+Tasks is which task went to which session. Blocked records the event that unblocks, not a status
+— "waiting on your user", "answered but the peer hasn't been told" and "peer has it and is
+working" look alike in a status field and need three different things from you — and the entry
+goes when the event fires. Decisions are appended with who made them and on what, never edited:
+a reversed decision and the reason it was reversed are both things nothing else on disk holds.
+
+Everything else has an authoritative home: `garden ls` owns cwd, branch, liveness and status; git
+owns commits and worktrees; GitHub owns PR, CI and review state. A copy here can only go wrong —
+a green CI line is about a commit, not a time, so it is stale the moment a peer pushes however
+recently you wrote it. Point at plans, PRs and commits, and when the file disagrees with those
+sources, they win. It is authoritative only for intent and decisions.
+
+Identify a session by its session id, which survives resume — never by the messaging name, which
+changes on every restart and so misroutes a later note with no error. The task label beside the
+id is what keeps the file scannable, and a file nobody scans stops being updated.
+
+Write to it on a dispatch, a block or unblock, or a decision, and not otherwise: that keeps it
+small enough that updating it never becomes a task of its own, and means a change to it says
+something. You are the only writer; peers read it and report their deltas to you, since
+concurrent edits with no locking lose updates silently. It follows that the file is only as
+current as your last write — a head start for a session picking the run up, not live status.
 
 ## Keep the traffic small
 
-Size every note per `message-session`: one that starts or rescopes work stands alone; everything
-after is a few lines and a pointer.
+`message-session` owns address resolution and note sizing. Load it before your first message of
+the run, and **put it in every brief**: tell the peer to load it before it reports back, because a
+peer's five-page report costs you what your five-page brief cost it, and a peer that never read
+the skill has no reason to know that.
 
 Reports up to your user follow the same shape for a different reason: they can open any peer's
 pane themselves, and they will ask when they want more. So carry the major issues and decisions —
