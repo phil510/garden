@@ -91,14 +91,16 @@ function parseSessionsFilter(query: SessionsQuerystring): ParsedFilter {
 /** `SessionNotFoundError` is the one case a client can act on (the id is stale) — logged at
  *  `warn`, since a stale id is an expected condition, not the failure this route guards
  *  against. Every other failure is an opaque tmux or store error, logged at `error` with its
- *  message so it's greppable server-side, and the client can only surface it. */
+ *  stack (when it has one) rather than only its message, so root-causing from logs doesn't
+ *  need to reproduce the failure to find where it came from; the response body still carries
+ *  only the message. */
 function sendError(logger: Logger, reply: FastifyReply, error: unknown): FastifyReply {
   if (error instanceof SessionNotFoundError) {
     logger.warn(error.message);
     return reply.code(404).send({ error: error.message } satisfies ErrorResponse);
   }
   const message = error instanceof Error ? error.message : String(error);
-  logger.error(message);
+  logger.error(error instanceof Error ? (error.stack ?? message) : message);
   return reply.code(500).send({ error: message } satisfies ErrorResponse);
 }
 

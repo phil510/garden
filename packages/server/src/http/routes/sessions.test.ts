@@ -424,7 +424,8 @@ describe('POST /sessions', () => {
 
     await app.inject({ method: 'POST', url: '/sessions', payload: { cwd: '/Users/dev/garden' } });
 
-    expect(errors).toEqual(['tmux is not installed']);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toMatch(/^Error: tmux is not installed\n/);
   });
 });
 
@@ -485,7 +486,8 @@ describe('POST /sessions/:id/resume', () => {
 
     await app.inject({ method: 'POST', url: '/sessions/sid-1/resume' });
 
-    expect(errors).toEqual(['tmux is not installed']);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toMatch(/^Error: tmux is not installed\n/);
   });
 });
 
@@ -550,6 +552,7 @@ describe('POST /sessions/:id/kill', () => {
 
     await app.inject({ method: 'POST', url: '/sessions/sid-1/kill' });
 
-    expect(errors).toEqual(['tmux is not installed']);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toMatch(/^Error: tmux is not installed\n/);
   });
 });
