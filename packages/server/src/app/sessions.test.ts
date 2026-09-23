@@ -243,6 +243,31 @@ describe('createSession', () => {
     expect(result.tmuxName).toBe('garden-2');
   });
 
+  it('derives a name unique against both the projection and a live pane it does not know about', async () => {
+    // Distinguishes the two taken-name sources: the projection knows 'garden', the live
+    // pane list knows 'garden-2'. Dropping either source would let the other name collide.
+    const tmux = fakeTmux({
+      listPanes: () => Promise.resolve([{ session: 'garden-2', dead: false, exitCode: undefined }]),
+      newSession: () => Promise.resolve(),
+    });
+    const { projection } = fakeProjection([aSession({ tmuxName: 'garden' })]);
+    const { store } = fakeStore();
+
+    const result = await createSession(
+      {
+        tmux,
+        store,
+        projection,
+        serverPort: 4310,
+        settingsPath: '/home/.garden/claude-settings.json',
+        readClaudeCommand: () => ['claude'],
+      },
+      { cwd: '/Users/dev/garden' },
+    );
+
+    expect(result.tmuxName).toBe('garden-3');
+  });
+
   it('does not dispatch session-registered when the tmux port throws', async () => {
     const tmux = fakeTmux({ newSession: () => Promise.reject(new Error('tmux is not installed')) });
     const { projection, dispatched } = fakeProjection();
