@@ -15,6 +15,19 @@ import { sessionRoutes } from './sessions.js';
 
 const noopLogger: Logger = { warn: () => undefined, error: () => undefined };
 
+function spyLogger(): { logger: Logger; warnings: string[]; errors: string[] } {
+  const warnings: string[] = [];
+  const errors: string[] = [];
+  return {
+    logger: {
+      warn: (message) => warnings.push(message),
+      error: (message) => errors.push(message),
+    },
+    warnings,
+    errors,
+  };
+}
+
 const emptyOverlay: OverlayState = {
   version: 1,
   tmuxNames: {},
@@ -394,6 +407,25 @@ describe('POST /sessions', () => {
     expect(response.statusCode).toBe(500);
     expect(response.json()).toEqual({ error: 'tmux is not installed' });
   });
+
+  it('logs a failed create through the given logger', async () => {
+    const { logger, errors } = spyLogger();
+    const app = buildApp(
+      {
+        tmux: fakeTmux({ newSession: () => Promise.reject(new Error('tmux is not installed')) }),
+        store: fakeStore(),
+        projection: fakeProjection(),
+        serverPort: 4310,
+        settingsPath,
+        readClaudeCommand: () => ['claude'],
+      },
+      logger,
+    );
+
+    await app.inject({ method: 'POST', url: '/sessions', payload: { cwd: '/Users/dev/garden' } });
+
+    expect(errors).toEqual(['tmux is not installed']);
+  });
 });
 
 describe('POST /sessions/:id/resume', () => {
@@ -431,6 +463,29 @@ describe('POST /sessions/:id/resume', () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ id: 'sid-1', tmuxName: 'garden' });
+  });
+
+  it('logs a failed resume through the given logger', async () => {
+    const deadSession = aSession({ id: 'sid-1', cwd: '/Users/dev/garden', tmuxName: 'garden' });
+    const { logger, errors } = spyLogger();
+    const app = buildApp(
+      {
+        tmux: fakeTmux({
+          listPanes: () => Promise.resolve([{ session: 'garden', dead: true, exitCode: 1 }]),
+          respawnPane: () => Promise.reject(new Error('tmux is not installed')),
+        }),
+        store: fakeStore(),
+        projection: fakeProjection([deadSession]),
+        serverPort: 4310,
+        settingsPath,
+        readClaudeCommand: () => ['claude'],
+      },
+      logger,
+    );
+
+    await app.inject({ method: 'POST', url: '/sessions/sid-1/resume' });
+
+    expect(errors).toEqual(['tmux is not installed']);
   });
 });
 
@@ -471,5 +526,30 @@ describe('POST /sessions/:id/kill', () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ ok: true });
+  });
+
+  it('logs a failed kill through the given logger', async () => {
+    const session = aSession({ id: 'sid-1', tmuxName: 'garden' });
+    const { logger, errors } = spyLogger();
+    const app = buildApp(
+      {
+        tmux: fakeTmux({ killSession: () => Promise.reject(new Error('tmux is not installed')) }),
+        store: fakeStore({
+          version: 1,
+          tmuxNames: { 'sid-1': 'garden' },
+          groups: {},
+          stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
+        }),
+        projection: fakeProjection([session]),
+        serverPort: 4310,
+        settingsPath,
+        readClaudeCommand: () => ['claude'],
+      },
+      logger,
+    );
+
+    await app.inject({ method: 'POST', url: '/sessions/sid-1/kill' });
+
+    expect(errors).toEqual(['tmux is not installed']);
   });
 });
