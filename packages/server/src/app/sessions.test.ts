@@ -492,7 +492,9 @@ describe('resumeSession', () => {
     });
     const created: unknown[] = [];
     const tmux = fakeTmux({
-      listPanes: () => Promise.resolve([{ session: 'garden', dead: false, exitCode: undefined }]),
+      // Matches the issue's exact repro: a dead pane kept alive by remain-on-exit still
+      // holds the name. Filtering dead panes out of the taken set must not resurface it.
+      listPanes: () => Promise.resolve([{ session: 'garden', dead: true, exitCode: 1 }]),
       newSession: (request) => {
         created.push(request);
         return Promise.resolve();
