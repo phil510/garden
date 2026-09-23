@@ -79,10 +79,14 @@ export async function createSession(
 ): Promise<CreateSessionResult> {
   const { tmux, store, projection, serverPort, settingsPath, readClaudeCommand, permissionMode } =
     deps;
-  const takenNames = projection
-    .sessions()
-    .map((session) => session.tmuxName)
-    .filter((name): name is string => name !== null);
+  const panes = await tmux.listPanes();
+  const takenNames = [
+    ...projection
+      .sessions()
+      .map((session) => session.tmuxName)
+      .filter((name): name is string => name !== null),
+    ...panes.map((pane) => pane.session),
+  ];
   const id = randomUUID();
   const tmuxName = deriveTmuxName(request.cwd, takenNames);
   const claudeCommand = readClaudeCommand();
@@ -144,11 +148,14 @@ export async function resumeSession(
 
   // The session being resumed may still carry its own stale name — tmux no longer
   // holds it, so it must not block reusing it.
-  const takenNames = projection
-    .sessions()
-    .filter((s) => s.id !== request.id)
-    .map((s) => s.tmuxName)
-    .filter((name): name is string => name !== null);
+  const takenNames = [
+    ...projection
+      .sessions()
+      .filter((s) => s.id !== request.id)
+      .map((s) => s.tmuxName)
+      .filter((name): name is string => name !== null),
+    ...panes.map((pane) => pane.session),
+  ];
   const tmuxName = deriveTmuxName(session.cwd, takenNames);
   await tmux.newSession({ name: tmuxName, cwd: session.cwd, port: serverPort, command });
   writeTmuxName(store, request.id, tmuxName);
