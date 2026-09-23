@@ -10,13 +10,16 @@ const AUTO_DISMISS_MS = 6000;
  *  console. */
 export function Toast() {
   const message = useToastStore((state) => state.message);
+  const token = useToastStore((state) => state.token);
   const clearToast = useToastStore((state) => state.clearToast);
 
   useEffect(() => {
     if (message === null) return;
     const timeout = setTimeout(clearToast, AUTO_DISMISS_MS);
     return () => clearTimeout(timeout);
-  }, [message, clearToast]);
+    // `token` is in the deps so a repeat of the same message (unchanged `message` string)
+    // still restarts the timer, rather than inheriting the first call's deadline.
+  }, [message, token, clearToast]);
 
   if (message === null) return null;
 

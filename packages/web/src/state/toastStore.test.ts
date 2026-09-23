@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { useToastStore } from './toastStore';
 
 beforeEach(() => {
-  useToastStore.setState({ message: null });
+  useToastStore.setState({ message: null, token: 0 });
 });
 
 describe('toastStore', () => {
@@ -25,5 +25,12 @@ describe('toastStore', () => {
     useToastStore.getState().showToast('create failed');
     useToastStore.getState().clearToast();
     expect(useToastStore.getState().message).toBeNull();
+  });
+
+  it('bumps the token on a repeat of the same message, so a consumer keyed on it can tell two calls apart', () => {
+    useToastStore.getState().showToast('create failed');
+    const firstToken = useToastStore.getState().token;
+    useToastStore.getState().showToast('create failed');
+    expect(useToastStore.getState().token).toBe(firstToken + 1);
   });
 });
