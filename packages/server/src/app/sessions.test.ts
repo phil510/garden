@@ -220,6 +220,54 @@ describe('createSession', () => {
     expect(result.tmuxName).toBe('garden-2');
   });
 
+  it('derives a name unique against a live tmux session the projection has lost track of', async () => {
+    const tmux = fakeTmux({
+      listPanes: () => Promise.resolve([{ session: 'garden', dead: false, exitCode: undefined }]),
+      newSession: () => Promise.resolve(),
+    });
+    const { projection } = fakeProjection([]);
+    const { store } = fakeStore();
+
+    const result = await createSession(
+      {
+        tmux,
+        store,
+        projection,
+        serverPort: 4310,
+        settingsPath: '/home/.garden/claude-settings.json',
+        readClaudeCommand: () => ['claude'],
+      },
+      { cwd: '/Users/dev/garden' },
+    );
+
+    expect(result.tmuxName).toBe('garden-2');
+  });
+
+  it('derives a name unique against both the projection and a live pane it does not know about', async () => {
+    // Distinguishes the two taken-name sources: the projection knows 'garden', the live
+    // pane list knows 'garden-2'. Dropping either source would let the other name collide.
+    const tmux = fakeTmux({
+      listPanes: () => Promise.resolve([{ session: 'garden-2', dead: false, exitCode: undefined }]),
+      newSession: () => Promise.resolve(),
+    });
+    const { projection } = fakeProjection([aSession({ tmuxName: 'garden' })]);
+    const { store } = fakeStore();
+
+    const result = await createSession(
+      {
+        tmux,
+        store,
+        projection,
+        serverPort: 4310,
+        settingsPath: '/home/.garden/claude-settings.json',
+        readClaudeCommand: () => ['claude'],
+      },
+      { cwd: '/Users/dev/garden' },
+    );
+
+    expect(result.tmuxName).toBe('garden-3');
+  });
+
   it('does not dispatch session-registered when the tmux port throws', async () => {
     const tmux = fakeTmux({ newSession: () => Promise.reject(new Error('tmux is not installed')) });
     const { projection, dispatched } = fakeProjection();
@@ -434,6 +482,48 @@ describe('resumeSession', () => {
       { type: 'session-registered', id: 'sid-1', tmuxName: 'garden', cwd: '/Users/dev/garden' },
     ]);
     expect(written().tmuxNames).toEqual({ 'sid-1': 'garden' });
+  });
+
+  it('derives a fresh name unique against a live tmux session the projection has lost track of', async () => {
+    const staleSession = aSession({
+      id: 'sid-1',
+      cwd: '/Users/dev/garden',
+      tmuxName: 'garden-old',
+    });
+    const created: unknown[] = [];
+    const tmux = fakeTmux({
+      // Matches the issue's exact repro: a dead pane kept alive by remain-on-exit still
+      // holds the name. Filtering dead panes out of the taken set must not resurface it.
+      listPanes: () => Promise.resolve([{ session: 'garden', dead: true, exitCode: 1 }]),
+      newSession: (request) => {
+        created.push(request);
+        return Promise.resolve();
+      },
+    });
+    const { projection } = fakeProjection([staleSession]);
+    const { store } = fakeStore();
+
+    const result = await resumeSession(
+      {
+        tmux,
+        store,
+        projection,
+        serverPort: 4310,
+        settingsPath,
+        readClaudeCommand: () => ['claude'],
+      },
+      { id: 'sid-1' },
+    );
+
+    expect(result.tmuxName).toBe('garden-2');
+    expect(created).toEqual([
+      {
+        name: 'garden-2',
+        cwd: '/Users/dev/garden',
+        port: 4310,
+        command: ['claude', '--resume', 'sid-1', '--settings', settingsPath],
+      },
+    ]);
   });
 
   it('does not dispatch when the in-place mechanism throws', async () => {

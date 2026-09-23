@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { connectEventSocket } from './api/eventSocket';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ResizeHandle } from './components/ResizeHandle';
+import { Toast } from './components/Toast';
 import { FilePanel } from './features/filetree/FilePanel';
 import { Sidebar } from './features/sidebar/Sidebar';
 import { SettingsModal } from './features/settings/SettingsModal';
@@ -107,6 +108,7 @@ export function App() {
           </div>
         </div>
       </div>
+      <Toast />
     </ErrorBoundary>
   );
 }

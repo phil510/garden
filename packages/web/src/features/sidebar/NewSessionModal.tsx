@@ -1,7 +1,8 @@
 import { useEffect, useState, type MouseEvent } from 'react';
 import type { RepoEntry } from '@garden/shared';
 import { createSession, listRepos } from '../../api/client';
-import { reportCommandFailure } from '../../api/reportCommandFailure';
+import { commandFailureMessage, reportCommandFailure } from '../../api/reportCommandFailure';
+import { useToastStore } from '../../state/toastStore';
 import { buildPickerGroups } from './pickerItems';
 import { getCachedRepoList, setCachedRepoList } from './repoListCache';
 
@@ -51,7 +52,10 @@ export function NewSessionModal({ onClose, onCreated }: NewSessionModalProps) {
   function pick(path: string) {
     createSession(path)
       .then((result) => onCreated(result.id))
-      .catch(reportCommandFailure);
+      .catch((error: unknown) => {
+        reportCommandFailure(error);
+        useToastStore.getState().showToast(commandFailureMessage(error));
+      });
   }
 
   // A failed refetch must not leave a previously-cached, now-unverified list on screen and
