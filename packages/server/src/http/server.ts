@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { AttachSocketDeps } from './ws/attach.js';
 import type { FilesystemDeps } from '../app/filesystem.js';
+import type { Logger } from '../app/ports.js';
 import type { ReposDeps } from '../app/repos.js';
 import type { SessionsDeps } from '../app/sessions.js';
 import { fsRoutes } from './routes/fs.js';
@@ -23,12 +24,16 @@ export type ServerDeps = SessionsDeps &
   AttachSocketDeps &
   SettingsDeps;
 
+/** Keeps every other `createServer(...)` call site (tests that don't care about logging)
+ *  working unchanged — only `main.ts` and tests that assert logging behavior pass a real one. */
+const noopLogger: Logger = { warn: () => undefined, error: () => undefined };
+
 /** Builds the Fastify instance and mounts the routes. Listening is main.ts's job. */
-export function createServer(deps: ServerDeps): FastifyInstance {
+export function createServer(deps: ServerDeps, logger: Logger = noopLogger): FastifyInstance {
   const app = Fastify();
   app.register(healthRoutes);
   app.register((instance) => hookRoutes(instance, deps));
-  app.register((instance) => sessionRoutes(instance, deps));
+  app.register((instance) => sessionRoutes(instance, deps, logger));
   app.register((instance) => repoRoutes(instance, deps));
   app.register((instance) => settingsRoutes(instance, deps));
   app.register((instance) => uiStateRoutes(instance, deps));

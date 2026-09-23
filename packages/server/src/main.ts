@@ -235,21 +235,24 @@ export async function main(): Promise<void> {
     });
   }, TMUX_POLL_INTERVAL_MS);
 
-  const app = createServer({
-    projection,
-    tmux,
-    store,
-    git,
-    attach,
-    roots: config.roots,
-    serverPort: config.port,
-    settingsPath,
-    readClaudeCommand: readClaudeCommand(configAdapter),
-    permissionMode: config.permissionMode,
-    deadSessionCap: config.deadSessionCap,
-    terminalFontSize: config.terminalFontSize,
-    configPort: configAdapter,
-  });
+  const app = createServer(
+    {
+      projection,
+      tmux,
+      store,
+      git,
+      attach,
+      roots: config.roots,
+      serverPort: config.port,
+      settingsPath,
+      readClaudeCommand: readClaudeCommand(configAdapter),
+      permissionMode: config.permissionMode,
+      deadSessionCap: config.deadSessionCap,
+      terminalFontSize: config.terminalFontSize,
+      configPort: configAdapter,
+    },
+    logger,
+  );
   app.addHook('onClose', () => {
     clearInterval(poll);
     stopRepoRoots();

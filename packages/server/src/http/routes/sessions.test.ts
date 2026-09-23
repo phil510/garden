@@ -2,10 +2,18 @@ import { aSession } from '@garden/shared/fixtures';
 import type { SessionsFilter, SessionState } from '@garden/shared';
 import Fastify from 'fastify';
 import { describe, expect, it } from 'vitest';
-import type { OverlayState, StorePort, TmuxNewSessionRequest, TmuxPort } from '../../app/ports.js';
+import type {
+  Logger,
+  OverlayState,
+  StorePort,
+  TmuxNewSessionRequest,
+  TmuxPort,
+} from '../../app/ports.js';
 import type { Projection } from '../../app/projection.js';
 import type { SessionsDeps } from '../../app/sessions.js';
 import { sessionRoutes } from './sessions.js';
+
+const noopLogger: Logger = { warn: () => undefined, error: () => undefined };
 
 const emptyOverlay: OverlayState = {
   version: 1,
@@ -55,9 +63,9 @@ function fakeProjection(
   };
 }
 
-function buildApp(deps: SessionsDeps) {
+function buildApp(deps: SessionsDeps, logger: Logger = noopLogger) {
   const app = Fastify();
-  app.register((instance) => sessionRoutes(instance, deps));
+  app.register((instance) => sessionRoutes(instance, deps, logger));
   return app;
 }
 

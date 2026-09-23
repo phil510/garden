@@ -15,6 +15,7 @@ import {
   SessionNotFoundError,
 } from '../../app/sessions.js';
 import type { SessionsDeps } from '../../app/sessions.js';
+import type { Logger } from '../../app/ports.js';
 
 function isCreateSessionRequest(body: unknown): body is CreateSessionRequest {
   if (typeof body !== 'object' || body === null) return false;
@@ -87,17 +88,21 @@ function parseSessionsFilter(query: SessionsQuerystring): ParsedFilter {
   return { ok: true, filter };
 }
 
-/** `SessionNotFoundError` is the one case a client can act on (the id is stale); every
- *  other failure is an opaque tmux or store error the client can only surface. */
-function sendError(reply: FastifyReply, error: unknown): FastifyReply {
-  if (error instanceof SessionNotFoundError)
+/** `SessionNotFoundError` is the one case a client can act on (the id is stale) — logged at
+ *  `warn`, since a stale id is an expected condition, not the failure this route guards
+ *  against. Every other failure is an opaque tmux or store error, logged at `error` with its
+ *  message so it's greppable server-side, and the client can only surface it. */
+function sendError(logger: Logger, reply: FastifyReply, error: unknown): FastifyReply {
+  if (error instanceof SessionNotFoundError) {
+    logger.warn(error.message);
     return reply.code(404).send({ error: error.message } satisfies ErrorResponse);
-  return reply.code(500).send({
-    error: error instanceof Error ? error.message : String(error),
-  } satisfies ErrorResponse);
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  logger.error(message);
+  return reply.code(500).send({ error: message } satisfies ErrorResponse);
 }
 
-export function sessionRoutes(app: FastifyInstance, deps: SessionsDeps) {
+export function sessionRoutes(app: FastifyInstance, deps: SessionsDeps, logger: Logger) {
   app.get<{ Querystring: SessionsQuerystring }>('/sessions', (request, reply) => {
     const parsed = parseSessionsFilter(request.query);
     if (!parsed.ok) return reply.code(400).send({ error: parsed.error } satisfies ErrorResponse);
@@ -115,7 +120,7 @@ export function sessionRoutes(app: FastifyInstance, deps: SessionsDeps) {
       const result: CreateSessionResponse = await createSession(deps, request.body);
       return reply.send(result);
     } catch (error) {
-      return sendError(reply, error);
+      return sendError(logger, reply, error);
     }
   });
 
@@ -124,7 +129,7 @@ export function sessionRoutes(app: FastifyInstance, deps: SessionsDeps) {
       const result: CreateSessionResponse = await resumeSession(deps, { id: request.params.id });
       return reply.send(result);
     } catch (error) {
-      return sendError(reply, error);
+      return sendError(logger, reply, error);
     }
   });
 
@@ -133,7 +138,7 @@ export function sessionRoutes(app: FastifyInstance, deps: SessionsDeps) {
       await killSession(deps, { id: request.params.id });
       return reply.send({ ok: true } satisfies OkResponse);
     } catch (error) {
-      return sendError(reply, error);
+      return sendError(logger, reply, error);
     }
   });
 }

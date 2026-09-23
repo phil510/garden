@@ -93,3 +93,11 @@ export interface GitPort {
   branch(cwd: string): Promise<string>;
   status(cwd: string): Promise<GitStatusEntry[]>;
 }
+
+/** The slice of `adapters/logger.ts`'s `Logger` that `http/routes/sessions.ts` needs, declared
+ *  locally rather than imported — `docs/architecture.md` §6 forbids `http/` importing
+ *  `adapters/`, and `adapters/store.ts`'s `StoreLogger` is the existing precedent for this. */
+export interface Logger {
+  warn(message: string): void;
+  error(message: string): void;
+}
