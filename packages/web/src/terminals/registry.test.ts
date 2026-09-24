@@ -17,15 +17,12 @@ class FakeUnicodeHandling {
   register(): void {}
 }
 
-/** Minimal stand-in for xterm's `IBufferLine`, backed by settable per-row text. Only
- *  `translateToString` is exercised by the registry, so that's all this needs. */
+/** Minimal stand-in for xterm's `IBufferLine`. Only `translateToString` is exercised by the
+ *  registry, so that's all this needs. */
 class FakeBufferLine {
-  constructor(private text: string) {}
+  constructor(private readonly text: string) {}
   translateToString(): string {
     return this.text;
-  }
-  setText(text: string): void {
-    this.text = text;
   }
 }
 
