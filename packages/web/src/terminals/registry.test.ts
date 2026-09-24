@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ILinkHandler } from '@xterm/xterm';
+import type { ILink, ILinkHandler, ILinkProvider } from '@xterm/xterm';
 import type { PaneSize, PaneSocketHandlers } from '../api/paneSocket.js';
 import { unicodeV11Provider } from './unicodeWidth.js';
 
@@ -17,6 +17,15 @@ class FakeUnicodeHandling {
   register(): void {}
 }
 
+/** Minimal stand-in for xterm's `IBufferLine`. Only `translateToString` is exercised by the
+ *  registry, so that's all this needs. */
+class FakeBufferLine {
+  constructor(private readonly text: string) {}
+  translateToString(): string {
+    return this.text;
+  }
+}
+
 class FakeTerminal {
   static instances: FakeTerminal[] = [];
   element: HTMLElement | undefined;
@@ -25,11 +34,16 @@ class FakeTerminal {
   customKeyEventHandler: ((event: KeyboardEvent) => boolean) | undefined;
   readonly unicode = new FakeUnicodeHandling();
   readonly loadedAddons: unknown[] = [];
-  /** Registration order of the two link providers. xterm's Linkifier resolves overlapping
+  /** Registration order of the three link providers. xterm's Linkifier resolves overlapping
    *  matches by registration order (first registered wins) — this is what a registration-order
    *  regression would get backwards. */
   readonly linkRegistrationOrder: string[] = [];
+  /** The providers registered via `registerLinkProvider`, in registration order, so a test can
+   *  call `provideLinks` on one of them directly instead of only observing registration order. */
+  readonly linkProviders: ILinkProvider[] = [];
   readonly linkHandler: ILinkHandler | undefined;
+  private readonly bufferLines = new Map<number, FakeBufferLine>();
+  readonly buffer = { active: { getLine: (n: number) => this.bufferLines.get(n) } };
 
   constructor(options?: { linkHandler?: ILinkHandler }) {
     this.linkHandler = options?.linkHandler;
@@ -43,8 +57,16 @@ class FakeTerminal {
     this.element = document.createElement('div');
     container.appendChild(this.element);
   }
-  registerLinkProvider(): void {
-    this.linkRegistrationOrder.push('path-line');
+  registerLinkProvider(provider: ILinkProvider): void {
+    this.linkProviders.push(provider);
+    this.linkRegistrationOrder.push(
+      this.linkProviders.length === 1 ? 'markdown-link' : 'path-line',
+    );
+  }
+  /** Sets the text of a 0-based buffer row, as `provideLinks` (1-based line numbers) will read it
+   *  back via `getLine(lineNumber - 1)`. */
+  setLine(lineNumber0Based: number, text: string): void {
+    this.bufferLines.set(lineNumber0Based, new FakeBufferLine(text));
   }
   onData(): void {}
   write(): void {}
@@ -152,6 +174,24 @@ function lastSocket(): FakeSocket {
   const socket = FakeSocket.instances.at(-1);
   if (socket === undefined) throw new Error('no socket was opened');
   return socket;
+}
+
+/** The markdown-link provider is always the first one `createPane` registers (see the
+ *  registration-order test below), so index 0 is stable rather than a magic number. */
+function markdownLinkProvider(terminal: FakeTerminal): ILinkProvider {
+  const provider = terminal.linkProviders[0];
+  if (provider === undefined) throw new Error('no link provider was registered');
+  return provider;
+}
+
+/** `provideLinks` resolves its callback synchronously in this registry, so this just captures
+ *  that callback's argument instead of needing to await anything. */
+function provideLinks(provider: ILinkProvider, lineNumber: number): ILink[] | undefined {
+  let result: ILink[] | undefined;
+  provider.provideLinks(lineNumber, (links) => {
+    result = links;
+  });
+  return result;
 }
 
 /** Every observer the registry is currently holding open. */
@@ -287,12 +327,44 @@ describe('attachPane', () => {
     expect(lastTerminal().loadedAddons).toContainEqual(expect.any(FakeWebLinksAddon));
   });
 
-  it('registers the path:line link provider before the web links addon, so an overlapping match still opens in the editor', async () => {
+  it('registers the markdown-link provider, then path:line, then the web links addon, so an overlapping match resolves to the most specific provider', async () => {
     const { attachPane } = await loadRegistry();
 
     attachPane('session-a', aContainer({ width: '800px', height: '600px' }), 0);
 
-    expect(lastTerminal().linkRegistrationOrder).toEqual(['path-line', 'web-links']);
+    expect(lastTerminal().linkRegistrationOrder).toEqual([
+      'markdown-link',
+      'path-line',
+      'web-links',
+    ]);
+  });
+
+  it("opens a markdown link's url through openExternalLink when its label is activated", async () => {
+    const { attachPane } = await loadRegistry();
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
+    attachPane('session-a', aContainer({ width: '800px', height: '600px' }), 0);
+    const terminal = lastTerminal();
+    terminal.setLine(0, 'see [the docs](https://example.com/) now');
+
+    const links = provideLinks(markdownLinkProvider(terminal), 1);
+    links?.[0]?.activate(new MouseEvent('click'), links[0].text);
+
+    expect(openSpy).toHaveBeenCalledWith('https://example.com/', '_blank', 'noopener,noreferrer');
+    openSpy.mockRestore();
+  });
+
+  it('never opens a markdown link whose url has a rejected scheme', async () => {
+    const { attachPane } = await loadRegistry();
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
+    attachPane('session-a', aContainer({ width: '800px', height: '600px' }), 0);
+    const terminal = lastTerminal();
+    terminal.setLine(0, '[go](javascript:evil)');
+
+    const links = provideLinks(markdownLinkProvider(terminal), 1);
+    links?.[0]?.activate(new MouseEvent('click'), links[0].text);
+
+    expect(openSpy).not.toHaveBeenCalled();
+    openSpy.mockRestore();
   });
 
   it('opens a plain-URL link from the web links addon with explicit noopener and noreferrer', async () => {
