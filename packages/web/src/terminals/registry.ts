@@ -5,6 +5,7 @@ import '@xterm/xterm/css/xterm.css';
 import { connectPaneSocket, type PaneSize } from '../api/paneSocket.js';
 import { useLocalStore } from '../state/localStore.js';
 import { openExternalLink } from './hyperlinks.js';
+import { findMarkdownLinks } from './markdownLinks.js';
 import { findPathLineLinks } from './pathLineLinks.js';
 import { resolvePaneKeydown } from './paneKeydown.js';
 import { shouldReusePane } from './paneReuse.js';
@@ -75,10 +76,36 @@ function createPane(sessionId: string, container: HTMLElement, epoch: number): P
   terminal.open(container);
 
   // xterm's Linkifier resolves overlapping link matches by registration order, first registered
-  // wins: this provider is registered before WebLinksAddon below so a path:line link (e.g.
-  // inside a dev-server URL like `http://localhost:5173/src/App.tsx:120`) keeps opening in
-  // garden's own editor instead of being shadowed by the addon's plain URL match over the same
-  // buffer columns.
+  // wins. Three providers are registered below, in this order: markdown-link, path:line, then
+  // WebLinksAddon. A markdown link's label text can itself look like a path:line reference or a
+  // bare URL (e.g. `[src/foo.ts:42](https://example.com)`), so markdown-link goes first — it's
+  // the only ordering where clicking the label always opens the parenthesized url rather than
+  // being shadowed by a more generic matcher over the same buffer columns. path:line goes next,
+  // still ahead of WebLinksAddon, so a path:line link (e.g. inside a dev-server URL like
+  // `http://localhost:5173/src/App.tsx:120`) keeps opening in garden's own editor instead of
+  // being shadowed by the addon's plain URL match over the same buffer columns.
+  terminal.registerLinkProvider({
+    provideLinks(bufferLineNumber, callback) {
+      const line = terminal.buffer.active.getLine(bufferLineNumber - 1);
+      if (line === undefined) {
+        callback(undefined);
+        return;
+      }
+      const text = line.translateToString(true);
+      const links = findMarkdownLinks(text).map((link) => ({
+        text: text.slice(link.index, link.index + link.length),
+        range: {
+          start: { x: link.index + 1, y: bufferLineNumber },
+          end: { x: link.index + link.length + 1, y: bufferLineNumber },
+        },
+        activate: () => {
+          openExternalLink(link.url);
+        },
+      }));
+      callback(links.length > 0 ? links : undefined);
+    },
+  });
+
   terminal.registerLinkProvider({
     provideLinks(bufferLineNumber, callback) {
       const line = terminal.buffer.active.getLine(bufferLineNumber - 1);
