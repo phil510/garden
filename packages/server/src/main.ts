@@ -1,7 +1,8 @@
 import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { readClaudeSessionNames } from './adapters/claudeSessions.js';
 import { branch, repoRoot, status, workTreePrefix } from './adapters/git.js';
-import { createLogger, type Logger } from './adapters/logger.js';
+import { createLogger, guardStderr, type Logger } from './adapters/logger.js';
 import { attachPty } from './adapters/pty.js';
 import type { PtyTarget } from './adapters/pty.js';
 import { readOverlayState, writeOverlayState } from './adapters/store.js';
@@ -188,6 +189,9 @@ export async function main(): Promise<void> {
 
   const home = homedir();
   const logger = createLogger();
+  // Armed before anything can log: it backstops the whole process lifetime, including the
+  // pre-redirect window below, in case that pipe closes early too.
+  guardStderr();
   const config = loadConfig(process.env, ensureConfigFile(home, logger), home);
   const confPath = writeTmuxConf(config.appDir);
   const settingsPath = writeClaudeSettings(config.appDir);
@@ -264,5 +268,9 @@ export async function main(): Promise<void> {
   }
 
   await app.listen({ port: config.port, host: config.host });
+  // Earliest the health endpoint can answer 'ok' — the earliest spawnServer's poll loop can
+  // observe readiness and exit, closing its end of the stderr pipe. Nothing should log through
+  // the console sink after this point.
+  logger.redirectToFile(join(config.appDir, 'server.log'));
   logger.info(`garden listening on http://${config.host}:${String(config.port)}`);
 }
