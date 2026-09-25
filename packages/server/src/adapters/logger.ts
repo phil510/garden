@@ -58,14 +58,9 @@ export function createLogger(): Logger & { redirectToFile(path: string): void } 
  *  after the reading end has closed (e.g. the CLI that spawned this detached server
  *  has exited) surfaces as a dropped write instead of an uncaught exception.
  *  Server-only — call once from main()'s composition root. Do not call this from
- *  `config.ts`'s `ensureConfigFile` default or from anything on the `cli/` side:
- *  those run as the user's own foreground process, and `ensureConfigFile(home)` with
- *  no logger argument constructs a fresh `createLogger()` on every `garden` CLI
- *  invocation (`cli/start.ts`, `cli/http.ts`, `cli/stop.ts` and their unit tests all
- *  hit that default) — attaching the guard inside `createLogger()` itself would
- *  reach every one of those and silently change their stderr behaviour, which is out
- *  of the brief's scope, and would stack a listener per `createLogger()` call across
- *  a test run. */
+ *  `createLogger()` itself: every CLI-side caller builds its own logger via the
+ *  default construction path, which runs as the user's own foreground process and
+ *  would pick up a stray listener per call across a test run. */
 export function guardStderr(): void {
   process.stderr.on('error', () => {});
 }
