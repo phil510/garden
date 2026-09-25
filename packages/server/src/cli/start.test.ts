@@ -7,6 +7,7 @@ import {
   decideStartupAction,
   describeStartupFailure,
   runStart,
+  SERVER_DETACHED_FLAG,
   SERVER_PROCESS_ENV,
   type StartDeps,
 } from './start.js';
@@ -131,11 +132,13 @@ describe('runStart', () => {
     ]);
   });
 
-  it('passes the server-process marker in the spawned environment', async () => {
+  it('passes the server-process marker in the spawned environment and the detached flag as argv', async () => {
     const { io } = collectingIo();
+    let seenArgs: readonly string[] | undefined;
     let seenEnv: NodeJS.ProcessEnv | undefined;
     const { deps } = baseDeps({
-      spawnServer: (_scriptPath, env) => {
+      spawnServer: (_scriptPath, args, env) => {
+        seenArgs = args;
         seenEnv = env;
         return Promise.resolve({ kind: 'ready', pid: 1 });
       },
@@ -144,6 +147,11 @@ describe('runStart', () => {
     await runStart(io, deps);
 
     expect(seenEnv?.[SERVER_PROCESS_ENV]).toBe('1');
+    expect(seenArgs).toEqual([SERVER_DETACHED_FLAG]);
+    // The detached signal must never ride in env under any name — that's exactly the channel
+    // a garden-managed tmux pane inherits from, which is the bug an argv flag exists to avoid
+    // by construction.
+    expect(Object.keys(seenEnv ?? {}).some((key) => /detached/i.test(key))).toBe(false);
   });
 
   it('reuses a server a running pid names instead of spawning a new one', async () => {

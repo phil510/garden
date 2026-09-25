@@ -140,9 +140,11 @@ export default tseslint.config(
   // self-import is justified — a test reaching into a different adapter's
   // module is the same composition-outside-main.ts problem production code
   // has, so the same-directory ban stays for everything except each test's
-  // own module.
+  // own module. A `.fixture.ts` file is the same case one level removed: it's
+  // a child-process entry point a test spawns, importing the one adapter it
+  // exercises directly rather than through a temp-dir script.
   {
-    files: ['packages/server/src/adapters/*.test.ts'],
+    files: ['packages/server/src/adapters/*.test.ts', 'packages/server/src/adapters/*.fixture.ts'],
     rules: {
       'no-restricted-imports': [
         'error',
@@ -158,6 +160,7 @@ export default tseslint.config(
                 '!./transcripts.js',
                 '!./tmux.js',
                 '!./claudeSessions.js',
+                '!./logger.js',
               ],
               message:
                 'adapters/ must not import another adapter. One adapter per external system; compose them in main.ts. An adapter that needs several files becomes a directory, whose files may import each other.',

@@ -46,6 +46,7 @@ describe('spawnServer', () => {
 
     const result = await spawnServer(
       script,
+      [],
       process.env,
       `http://127.0.0.1:${String(port)}/health`,
       3000,
@@ -64,12 +65,31 @@ describe('spawnServer', () => {
 
     const result = await spawnServer(
       script,
+      [],
       process.env,
       `http://127.0.0.1:${String(port)}/health`,
       3000,
     );
 
     expect(result).toEqual({ kind: 'exited', code: 7, stderr: 'boom\n' });
+  });
+
+  it('appends args to the spawned process argv, after scriptPath', async () => {
+    const port = await reservePort();
+    const script = writeScript(
+      'echoArgv.mjs',
+      "process.stderr.write(process.argv.slice(2).join(','));\nprocess.exit(7);\n",
+    );
+
+    const result = await spawnServer(
+      script,
+      ['--detached'],
+      process.env,
+      `http://127.0.0.1:${String(port)}/health`,
+      3000,
+    );
+
+    expect(result).toEqual({ kind: 'exited', code: 7, stderr: '--detached' });
   });
 
   it('kills and reports timed-out when the health url never answers', async () => {
@@ -79,6 +99,7 @@ describe('spawnServer', () => {
     const before = Date.now();
     const result = await spawnServer(
       script,
+      [],
       process.env,
       `http://127.0.0.1:${String(port)}/health`,
       300,
