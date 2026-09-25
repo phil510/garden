@@ -267,9 +267,9 @@ with no title, an empty tree. The event socket reconnects with backoff and reatt
 
 `adapters/logger.ts` writes to the console until `main()` redirects it to `<appDir>/server.log`
 right after the server starts listening — the point past which the CLI that spawned a detached
-server may already have exited and closed its end of the stderr pipe. A `process.stderr` write
-failing after that can no longer crash the server; `guardStderr()` turns it into a dropped write
-instead of an uncaught exception.
+server may already have exited and closed its end of the stderr pipe. `main()` also arms a
+`process.stderr` write guard at boot, before the redirect and before anything can log, so a write
+failure at any point in the server's lifetime is a dropped write instead of an uncaught exception.
 
 ## 8. Testing boundaries
 
