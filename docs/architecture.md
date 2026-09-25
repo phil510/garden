@@ -265,6 +265,12 @@ rules that keep one malformed file from taking the whole console down.
 The client renders degraded state rather than error dialogs — `unknown` status, a session
 with no title, an empty tree. The event socket reconnects with backoff and reattaches on-stage panes.
 
+`adapters/logger.ts` writes to the console until `main()` redirects it to `<appDir>/server.log`
+right after the server starts listening — the point past which the CLI that spawned a detached
+server may already have exited and closed its end of the stderr pipe. A `process.stderr` write
+failing after that can no longer crash the server; `guardStderr()` turns it into a dropped write
+instead of an uncaught exception.
+
 ## 8. Testing boundaries
 
 Detailed patterns live in the testing doc; what matters architecturally is which layer gets
