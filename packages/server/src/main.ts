@@ -185,7 +185,8 @@ async function replay(
 
 /** The composition root: the one place that reads config and wires the parts together.
  *  `detached` distinguishes `garden`'s own detached background server from `main()` running
- *  attached to a developer's terminal (`pnpm dev` / `pnpm dev:sandbox`) — see `bin/garden.ts`. */
+ *  attached to a developer's terminal (`pnpm dev` / `pnpm dev:sandbox`) — see
+ *  `SERVER_DETACHED_FLAG` in `cli/start.ts`. */
 export async function main(detached: boolean): Promise<void> {
   await checkTmuxVersion();
 
@@ -273,8 +274,8 @@ export async function main(detached: boolean): Promise<void> {
   if (detached) {
     // Earliest the health endpoint can answer 'ok' — the earliest spawnServer's poll loop can
     // observe readiness and exit, closing its end of the stderr pipe. Nothing should log through
-    // the console sink after this point. Skipped when running attached to a developer's own
-    // terminal (`pnpm dev` / `pnpm dev:sandbox`), where the console is exactly where this should go.
+    // the console sink after this point. Skipped when running attached (`pnpm dev` /
+    // `pnpm dev:sandbox`), where the console is exactly where this should go.
     logger.redirectToFile(join(config.appDir, 'server.log'));
   }
   logger.info(`garden listening on http://${config.host}:${String(config.port)}`);

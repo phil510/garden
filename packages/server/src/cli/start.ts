@@ -37,10 +37,15 @@ export function describeStartupFailure(input: {
 /** The spawned re-invocation reads this to know to run `main()` instead of the CLI dispatch. */
 export const SERVER_PROCESS_ENV = 'GARDEN_SERVER_PROCESS';
 
-/** Set only on the detached spawn below — never by `pnpm dev` / `pnpm dev:sandbox`, which set
- *  `SERVER_PROCESS_ENV` directly while running attached to a developer's own terminal. This is
- *  what lets `main()` tell the two apart, since `SERVER_PROCESS_ENV` alone does not. */
-export const SERVER_DETACHED_ENV = 'GARDEN_SERVER_DETACHED';
+/** Passed as an argv flag on the detached spawn below — deliberately not an env var, unlike
+ *  `SERVER_PROCESS_ENV`. An env var set here would sit in this server's own `process.env` for
+ *  its whole life, and every tmux command it issues afterward inherits that env, seeding it
+ *  into the global environment of every session tmux starts from then on — which is exactly
+ *  how a garden-managed pane ends up with `main()`'s own markers. Argv doesn't have that
+ *  problem: it's read once by `bin/garden.ts` and never copied into a spawned child's own
+ *  argv. `pnpm dev` / `pnpm dev:sandbox` never pass this flag, so they run `main()` attached to
+ *  the developer's own terminal. */
+export const SERVER_DETACHED_FLAG = '--detached';
 
 export interface StartDeps {
   readonly readPid: (path: string) => number | null;
@@ -48,6 +53,7 @@ export interface StartDeps {
   readonly isProcessRunning: (pid: number) => boolean;
   readonly spawnServer: (
     scriptPath: string,
+    args: readonly string[],
     env: NodeJS.ProcessEnv,
     healthUrl: string,
   ) => Promise<SpawnResult>;
@@ -80,7 +86,8 @@ export async function runStart(io: Io, deps: StartDeps = defaultStartDeps): Prom
     const healthUrl = `http://${config.host}:${String(config.port)}/health`;
     const result = await deps.spawnServer(
       deps.scriptPath,
-      { ...process.env, [SERVER_PROCESS_ENV]: '1', [SERVER_DETACHED_ENV]: '1' },
+      [SERVER_DETACHED_FLAG],
+      { ...process.env, [SERVER_PROCESS_ENV]: '1' },
       healthUrl,
     );
     if (result.kind !== 'ready') {

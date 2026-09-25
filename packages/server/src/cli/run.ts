@@ -5,6 +5,7 @@ import { isStatus, parseNonNegativeInt } from '@garden/shared';
 import type { CliClient, Io } from './commands.js';
 import { defaultClient, runKill, runLs, runNew, runResume } from './commands.js';
 import { writeAll } from './io.js';
+import { SERVER_DETACHED_FLAG } from './start.js';
 import { defaultStopAllDeps, runStop, runStopAll, type StopAllDeps } from './stop.js';
 import { runUninstall } from './uninstall.js';
 
@@ -19,8 +20,24 @@ export function usageLines(): string {
   return 'usage: garden [new <dir> | ls | kill <id> | resume <id> | stop [--all] | uninstall]\n';
 }
 
+/**
+ * Splits `SERVER_DETACHED_FLAG` off the front of `argv`, when it's there. Only a leading
+ * position counts — `spawnServer` always puts it right after `scriptPath`, so a real
+ * subcommand argument that happens to share the same literal string (e.g. `garden new
+ * --detached`, naming a directory) is left in `rest` untouched rather than silently dropped.
+ */
+export function parseEntrypointArgv(argv: readonly string[]): {
+  readonly command: string | undefined;
+  readonly rest: readonly string[];
+  readonly isDetached: boolean;
+} {
+  const isDetached = argv[0] === SERVER_DETACHED_FLAG;
+  const [command, ...rest] = isDetached ? argv.slice(1) : argv;
+  return { command, rest, isDetached };
+}
+
 export type EntrypointAction =
-  | { readonly kind: 'server'; readonly detached: boolean }
+  | { readonly kind: 'server' }
   | { readonly kind: 'cli'; readonly command: CliCommand }
   | { readonly kind: 'start' }
   | { readonly kind: 'unknown'; readonly command: string };
@@ -31,21 +48,20 @@ export type EntrypointAction =
  * matters when there's no subcommand at all, to tell apart `garden`'s detached
  * re-invocation (marker set) from a bare `garden` typed at a shell (marker unset).
  *
- * `isDetached` rides along separately from `isServerProcess`: both `garden`'s detached
- * re-invocation and `pnpm dev`/`pnpm dev:sandbox` set `isServerProcess`, but only the
- * detached re-invocation also sets `isDetached` — `main()` uses it to decide whether it
- * may take away console-visible logging.
+ * Whether that re-invocation is detached or attached (`pnpm dev` / `pnpm dev:sandbox`) never
+ * changes which case below applies, so it isn't a parameter here — `bin/garden.ts` reads it
+ * straight off argv (see `SERVER_DETACHED_FLAG` in `cli/start.ts`) and passes it directly to
+ * `runServer`.
  */
 export function decideEntrypointAction(
   command: string | undefined,
   isServerProcess: boolean,
-  isDetached: boolean,
 ): EntrypointAction {
   if (isCliCommand(command)) {
     return { kind: 'cli', command };
   }
   if (command === undefined) {
-    return isServerProcess ? { kind: 'server', detached: isDetached } : { kind: 'start' };
+    return isServerProcess ? { kind: 'server' } : { kind: 'start' };
   }
   return { kind: 'unknown', command };
 }

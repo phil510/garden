@@ -19,17 +19,19 @@ async function probeHealth(url: string): Promise<boolean> {
 /**
  * Spawns `scriptPath` as a detached background process — this is how `garden` daemonises
  * itself, re-invoking its own entry point with `env` carrying the marker that routes it to
- * `main()` instead of back through the CLI dispatch — and polls `healthUrl` until it answers
- * or `timeoutMs` passes. The child is left running only in the "ready" case; every other
- * outcome kills it rather than leaking an unmanaged process.
+ * `main()` instead of back through the CLI dispatch, plus `args` (e.g. `SERVER_DETACHED_FLAG`)
+ * appended to its argv — and polls `healthUrl` until it answers or `timeoutMs` passes. The
+ * child is left running only in the "ready" case; every other outcome kills it rather than
+ * leaking an unmanaged process.
  */
 export async function spawnServer(
   scriptPath: string,
+  args: readonly string[],
   env: NodeJS.ProcessEnv,
   healthUrl: string,
   timeoutMs = 5000,
 ): Promise<SpawnResult> {
-  const child = spawn(process.execPath, [scriptPath], {
+  const child = spawn(process.execPath, [scriptPath, ...args], {
     detached: true,
     stdio: ['ignore', 'ignore', 'pipe'],
     env,
