@@ -7,6 +7,7 @@ import {
   decideStartupAction,
   describeStartupFailure,
   runStart,
+  SERVER_DETACHED_ENV,
   SERVER_PROCESS_ENV,
   type StartDeps,
 } from './start.js';
@@ -131,7 +132,7 @@ describe('runStart', () => {
     ]);
   });
 
-  it('passes the server-process marker in the spawned environment', async () => {
+  it('passes the server-process and detached markers in the spawned environment', async () => {
     const { io } = collectingIo();
     let seenEnv: NodeJS.ProcessEnv | undefined;
     const { deps } = baseDeps({
@@ -144,6 +145,7 @@ describe('runStart', () => {
     await runStart(io, deps);
 
     expect(seenEnv?.[SERVER_PROCESS_ENV]).toBe('1');
+    expect(seenEnv?.[SERVER_DETACHED_ENV]).toBe('1');
   });
 
   it('reuses a server a running pid names instead of spawning a new one', async () => {

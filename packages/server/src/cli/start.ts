@@ -37,6 +37,11 @@ export function describeStartupFailure(input: {
 /** The spawned re-invocation reads this to know to run `main()` instead of the CLI dispatch. */
 export const SERVER_PROCESS_ENV = 'GARDEN_SERVER_PROCESS';
 
+/** Set only on the detached spawn below — never by `pnpm dev` / `pnpm dev:sandbox`, which set
+ *  `SERVER_PROCESS_ENV` directly while running attached to a developer's own terminal. This is
+ *  what lets `main()` tell the two apart, since `SERVER_PROCESS_ENV` alone does not. */
+export const SERVER_DETACHED_ENV = 'GARDEN_SERVER_DETACHED';
+
 export interface StartDeps {
   readonly readPid: (path: string) => number | null;
   readonly writePid: (path: string, pid: number) => void;
@@ -75,7 +80,7 @@ export async function runStart(io: Io, deps: StartDeps = defaultStartDeps): Prom
     const healthUrl = `http://${config.host}:${String(config.port)}/health`;
     const result = await deps.spawnServer(
       deps.scriptPath,
-      { ...process.env, [SERVER_PROCESS_ENV]: '1' },
+      { ...process.env, [SERVER_PROCESS_ENV]: '1', [SERVER_DETACHED_ENV]: '1' },
       healthUrl,
     );
     if (result.kind !== 'ready') {

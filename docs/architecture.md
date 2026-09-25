@@ -267,9 +267,12 @@ with no title, an empty tree. The event socket reconnects with backoff and reatt
 
 `adapters/logger.ts` writes to the console until `main()` redirects it to `<appDir>/server.log`
 right after the server starts listening — the point past which the CLI that spawned a detached
-server may already have exited and closed its end of the stderr pipe. `main()` also arms a
-`process.stderr` write guard at boot, before the redirect and before anything can log, so a write
-failure at any point in the server's lifetime is a dropped write instead of an uncaught exception.
+server may already have exited and closed its end of the stderr pipe. The redirect only happens
+when `main()` is running as that detached server; `pnpm dev` / `pnpm dev:sandbox` run the same
+`main()` attached to a developer's own terminal and keep their console-visible logging. `main()`
+also arms a `process.stderr` write guard at boot, before the redirect and before anything can log,
+so a write failure at any point in the server's lifetime is a dropped write instead of an
+uncaught exception.
 
 ## 8. Testing boundaries
 

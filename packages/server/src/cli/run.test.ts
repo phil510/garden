@@ -67,29 +67,46 @@ describe('decideEntrypointAction', () => {
   it('dispatches a known subcommand even with the server-process marker set', () => {
     // The inherited-marker regression case: a subcommand typed inside a garden-managed
     // pane must dispatch, not recurse into the server.
-    expect(decideEntrypointAction('ls', true)).toEqual({ kind: 'cli', command: 'ls' });
+    expect(decideEntrypointAction('ls', true, false)).toEqual({ kind: 'cli', command: 'ls' });
   });
 
   it('dispatches a known subcommand with the marker unset', () => {
-    expect(decideEntrypointAction('ls', false)).toEqual({ kind: 'cli', command: 'ls' });
+    expect(decideEntrypointAction('ls', false, false)).toEqual({ kind: 'cli', command: 'ls' });
   });
 
-  it('runs the server when no command is given and the marker is set', () => {
+  it('runs the server as detached when no command is given and both markers are set', () => {
     // The detached re-invocation that `garden` performs to start the server.
-    expect(decideEntrypointAction(undefined, true)).toEqual({ kind: 'server' });
+    expect(decideEntrypointAction(undefined, true, true)).toEqual({
+      kind: 'server',
+      detached: true,
+    });
   });
 
-  it('starts the CLI-driven startup flow when no command is given and the marker is unset', () => {
+  it('runs the server as attached when the process marker is set but the detached marker is not', () => {
+    // `pnpm dev` / `pnpm dev:sandbox`: attached to a developer's own terminal.
+    expect(decideEntrypointAction(undefined, true, false)).toEqual({
+      kind: 'server',
+      detached: false,
+    });
+  });
+
+  it('starts the CLI-driven startup flow when no command is given and the process marker is unset', () => {
     // Bare `garden` typed at a shell.
-    expect(decideEntrypointAction(undefined, false)).toEqual({ kind: 'start' });
+    expect(decideEntrypointAction(undefined, false, false)).toEqual({ kind: 'start' });
   });
 
   it('reports an unknown command with the marker set', () => {
-    expect(decideEntrypointAction('bogus', true)).toEqual({ kind: 'unknown', command: 'bogus' });
+    expect(decideEntrypointAction('bogus', true, false)).toEqual({
+      kind: 'unknown',
+      command: 'bogus',
+    });
   });
 
   it('reports an unknown command with the marker unset', () => {
-    expect(decideEntrypointAction('bogus', false)).toEqual({ kind: 'unknown', command: 'bogus' });
+    expect(decideEntrypointAction('bogus', false, false)).toEqual({
+      kind: 'unknown',
+      command: 'bogus',
+    });
   });
 });
 

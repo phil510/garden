@@ -20,7 +20,7 @@ export function usageLines(): string {
 }
 
 export type EntrypointAction =
-  | { readonly kind: 'server' }
+  | { readonly kind: 'server'; readonly detached: boolean }
   | { readonly kind: 'cli'; readonly command: CliCommand }
   | { readonly kind: 'start' }
   | { readonly kind: 'unknown'; readonly command: string };
@@ -30,16 +30,22 @@ export type EntrypointAction =
  * dispatches, independent of whatever the process's environment claims. The marker only
  * matters when there's no subcommand at all, to tell apart `garden`'s detached
  * re-invocation (marker set) from a bare `garden` typed at a shell (marker unset).
+ *
+ * `isDetached` rides along separately from `isServerProcess`: both `garden`'s detached
+ * re-invocation and `pnpm dev`/`pnpm dev:sandbox` set `isServerProcess`, but only the
+ * detached re-invocation also sets `isDetached` — `main()` uses it to decide whether it
+ * may take away console-visible logging.
  */
 export function decideEntrypointAction(
   command: string | undefined,
   isServerProcess: boolean,
+  isDetached: boolean,
 ): EntrypointAction {
   if (isCliCommand(command)) {
     return { kind: 'cli', command };
   }
   if (command === undefined) {
-    return isServerProcess ? { kind: 'server' } : { kind: 'start' };
+    return isServerProcess ? { kind: 'server', detached: isDetached } : { kind: 'start' };
   }
   return { kind: 'unknown', command };
 }
