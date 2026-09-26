@@ -104,6 +104,7 @@ export function Sidebar() {
           onSelectSession={selectSession}
           finishedOpen={finishedOpen}
           onToggleFinishedOpen={() => setFinishedOpen((open) => !open)}
+          onOpenFinished={() => setFinishedOpen(true)}
         />
       )}
       {pickerOpen && (
@@ -187,6 +188,7 @@ function RepoSidebar({
 interface SwarmSidebarProps extends SharedSidebarProps {
   finishedOpen: boolean;
   onToggleFinishedOpen: () => void;
+  onOpenFinished: () => void;
 }
 
 function SwarmSidebar({
@@ -199,6 +201,7 @@ function SwarmSidebar({
   onSelectSession,
   finishedOpen,
   onToggleFinishedOpen,
+  onOpenFinished,
 }: SwarmSidebarProps) {
   const { swarms, solo, soloTotal, soloHideDead } = groupSwarms(sessions, uiState);
   const active = swarms.filter((swarm) => !swarm.finished);
@@ -223,7 +226,7 @@ function SwarmSidebar({
     );
     if (action === 'idle') return;
     if (action === 'expand-finished') {
-      onToggleFinishedOpen();
+      onOpenFinished();
       return;
     }
     const target = document.querySelector(`[data-swarm-id="${selectedSwarmId}"]`);
@@ -234,7 +237,7 @@ function SwarmSidebar({
     target.addEventListener('animationend', () => target.classList.remove('flash'), {
       once: true,
     });
-  }, [selectedSwarmId, setSelectedSwarmId, finished, finishedOpen, onToggleFinishedOpen]);
+  }, [selectedSwarmId, setSelectedSwarmId, finished, finishedOpen, onOpenFinished]);
   const visibleOrder = active.map((swarm) => swarm.swarmId);
   // The base a drag reorders within has to carry every swarm, not just the active ones
   // `SortableContext` renders — `updateUiState` replaces `swarmOrder` wholesale rather than
