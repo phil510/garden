@@ -45,7 +45,7 @@ does, so a resolve that misses right after `new` means not-yet-started: retry be
 anything.
 
 Check `GARDEN_SESSION_ID` is set in your own environment before that first spawn — a session
-started before #172, or never started by garden at all, has it unset. `garden new` still exits 0
+started by an older garden, or never started by garden at all, has it unset. `garden new` still exits 0
 and returns a normal `{id, tmuxName}` in that case, but records no parent: the peer lands in Solo,
 untracked, and `garden adopt`/`garden handoff --to` on it exit 1 (`GARDEN_SESSION_ID is not set`),
 since those verbs read the same variable from the caller. If it's unset, say so before dispatching
