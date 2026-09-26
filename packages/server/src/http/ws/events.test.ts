@@ -36,6 +36,8 @@ const UI_STATE: UiState = {
   slots: [null],
   focusedSlot: 0,
   layout: null,
+  swarms: [],
+  placements: {},
 };
 
 function fakeProjection() {
@@ -53,6 +55,12 @@ function fakeProjection() {
     subscribeUiState: (listener) => {
       uiListeners.add(listener);
       return () => uiListeners.delete(listener);
+    },
+    updateOverlay: () => {
+      throw new Error('not used by this test');
+    },
+    placementOf: () => {
+      throw new Error('not used by this test');
     },
   };
   return { projection, listeners, uiListeners };

@@ -2,9 +2,20 @@ import type { Delta, SessionsFilter, SessionState, UiState, UiStateRequest } fro
 import { diff } from '../domain/diff.js';
 import { initialState, reduce } from '../domain/reduce.js';
 import { filterSessions } from '../domain/sessionsFilter.js';
+import { resolveSwarmId } from '../domain/swarms.js';
 import { switchPreset } from '../domain/stage.js';
 import type { GardenEvent } from '../domain/types.js';
 import type { OverlayGroup, OverlayState, StorePort } from './ports.js';
+
+/** A resolved single-session placement lookup for server-internal, non-UI callers (e.g. the
+ *  CLI) that want the swarm walk already done rather than re-implementing `resolveSwarmId`
+ *  themselves, the way the web sidebar does over the raw `UiState.placements` map. */
+export interface ResolvedPlacement {
+  parent?: string;
+  swarmId?: string;
+  successor?: string;
+  topLevelSwarmId?: string;
+}
 
 export interface Projection {
   /** No argument: today's exact unfiltered behavior, for internal call sites that must keep
@@ -16,6 +27,13 @@ export interface Projection {
   updateUiState(patch: UiStateRequest): void;
   subscribe(listener: (deltas: Delta[]) => void): () => void;
   subscribeUiState(listener: (uiState: UiState) => void): () => void;
+  /** Reads the store fresh, applies `mutate`, writes the result, refreshes the cached
+   *  `uiState()` slice and notifies its subscribers — the one primitive swarm/placement
+   *  writes go through, so a write here always reaches `uiState()` the same way a
+   *  `updateUiState` write does. Swarm and placement mutations never go through
+   *  `updateUiState`, which stays UI-patch-only. */
+  updateOverlay(mutate: (base: OverlayState) => OverlayState): OverlayState;
+  placementOf(sessionId: string): ResolvedPlacement | undefined;
 }
 
 /** The store keys groups by repo root; the client works in three flat lists. */
@@ -30,6 +48,8 @@ function toUiState(overlay: OverlayState): UiState {
     slots: [...overlay.stage.slots],
     focusedSlot: overlay.stage.focusedSlot,
     layout: overlay.stage.layout,
+    swarms: [...overlay.swarms],
+    placements: { ...overlay.placements },
   };
 }
 
@@ -108,6 +128,32 @@ export function createProjection(store: StorePort): Projection {
     subscribeUiState(listener) {
       uiListeners.add(listener);
       return () => uiListeners.delete(listener);
+    },
+
+    updateOverlay(mutate) {
+      // Same ordering as updateUiState: the store write is what makes the change real, so
+      // it lands before the in-memory ui slice moves. A `mutate` that decides there is
+      // nothing to do (e.g. pruning with nothing stale) returns its own `base` back
+      // unchanged; that exact reference is the signal to skip the write and the
+      // notification rather than persist and broadcast a no-op.
+      const base = store.read();
+      const next = mutate(base);
+      if (next === base) return next;
+      store.write(next);
+      ui = toUiState(next);
+      for (const listener of [...uiListeners]) listener(ui);
+      return next;
+    },
+
+    placementOf(sessionId) {
+      const { placements } = store.read();
+      const entry = placements[sessionId];
+      if (entry === undefined) return undefined;
+      const topLevelSwarmId = resolveSwarmId(placements, sessionId);
+      return {
+        ...entry,
+        ...(topLevelSwarmId === undefined ? {} : { topLevelSwarmId }),
+      };
     },
   };
 }

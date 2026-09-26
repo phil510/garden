@@ -14,6 +14,8 @@ const baseUiState: UiState = {
   slots: [null],
   focusedSlot: 0,
   layout: null,
+  swarms: [],
+  placements: {},
 };
 
 function fakeProjection(overrides: Partial<Projection> = {}): Projection {
@@ -24,6 +26,12 @@ function fakeProjection(overrides: Partial<Projection> = {}): Projection {
     updateUiState: () => undefined,
     subscribe: () => () => undefined,
     subscribeUiState: () => () => undefined,
+    updateOverlay: () => {
+      throw new Error('not used by this test');
+    },
+    placementOf: () => {
+      throw new Error('not used by this test');
+    },
     ...overrides,
   };
 }
@@ -52,6 +60,32 @@ describe('PUT /ui-state', () => {
     });
 
     expect(response.statusCode).toBe(400);
+    expect(calls).toEqual([]);
+  });
+
+  it('rejects a body carrying a swarms or placements key', async () => {
+    const calls: UiStateRequest[] = [];
+    const app = buildApp({
+      projection: fakeProjection({
+        updateUiState: (patch) => {
+          calls.push(patch);
+        },
+      }),
+    });
+
+    const swarmsResponse = await app.inject({
+      method: 'PUT',
+      url: '/ui-state',
+      payload: { swarms: [] },
+    });
+    const placementsResponse = await app.inject({
+      method: 'PUT',
+      url: '/ui-state',
+      payload: { placements: {} },
+    });
+
+    expect(swarmsResponse.statusCode).toBe(400);
+    expect(placementsResponse.statusCode).toBe(400);
     expect(calls).toEqual([]);
   });
 

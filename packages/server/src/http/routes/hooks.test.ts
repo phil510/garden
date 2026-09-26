@@ -19,6 +19,12 @@ function fakeProjection() {
     },
     subscribe: () => () => undefined,
     subscribeUiState: () => () => undefined,
+    updateOverlay: () => {
+      throw new Error('not used by this test');
+    },
+    placementOf: () => {
+      throw new Error('not used by this test');
+    },
   };
   return { projection, dispatched };
 }
