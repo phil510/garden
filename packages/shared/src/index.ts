@@ -155,6 +155,9 @@ export interface CreateSessionRequest {
   /** When true and `callerSessionId` is set, the caller's placement moves to the new
    *  session (a handoff) instead of the new session spawning as the caller's child. */
   handoff?: boolean;
+  /** Path to a handoff file the new session's first prompt should point at. Only
+   *  meaningful alongside `handoff: true`; ignored otherwise. */
+  handoffFilePath?: string;
 }
 export interface CreateSessionResponse {
   id: string;
