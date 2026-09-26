@@ -14,7 +14,7 @@ import { useLocalStore, type SidebarMode } from '../../state/localStore';
 import { useSessionStore } from '../../state/sessionStore';
 import { useUiStore } from '../../state/uiStore';
 import { groupSessions } from './groupSessions';
-import { groupSwarms } from './groupSwarms';
+import { groupSwarms, SOLO_BUCKET_ID } from './groupSwarms';
 import { hideDeadLabel } from './hideDeadLabel';
 import { NewSessionModal } from './NewSessionModal';
 import { placeOnStage } from './placeOnStage';
@@ -199,7 +199,7 @@ function SwarmSidebar({
   finishedOpen,
   onToggleFinishedOpen,
 }: SwarmSidebarProps) {
-  const { swarms, solo } = groupSwarms(sessions, uiState);
+  const { swarms, solo, soloTotal, soloHideDead } = groupSwarms(sessions, uiState);
   const active = swarms.filter((swarm) => !swarm.finished);
   const finished = swarms.filter((swarm) => swarm.finished);
   const visibleOrder = active.map((swarm) => swarm.swarmId);
@@ -250,21 +250,34 @@ function SwarmSidebar({
           ))}
         </SortableContext>
       </DndContext>
-      {solo.length > 0 && (
+      {soloTotal > 0 && (
         <div className="solo-group">
           <div className="solo-header">
             <span className="solo-label upper faint">Solo</span>
-            <span className="repo-count mono">{solo.length}</span>
+            <span className="repo-count mono">{soloTotal}</span>
           </div>
-          <SwarmTree
-            nodes={solo}
-            sessions={sessions}
-            placements={uiState.placements}
-            now={now}
-            onStageIds={onStageIds}
-            focusedSessionId={focusedId}
-            onSelectSession={onSelectSession}
-          />
+          <div className="solo-rows">
+            {solo.length === 0 ? (
+              <div className="empty-groups-note">Nothing to show.</div>
+            ) : (
+              <SwarmTree
+                nodes={solo}
+                sessions={sessions}
+                placements={uiState.placements}
+                now={now}
+                onStageIds={onStageIds}
+                focusedSessionId={focusedId}
+                onSelectSession={onSelectSession}
+              />
+            )}
+            <div
+              className="hide-dead-row"
+              title={`${hideDeadLabel(soloHideDead)} sessions`}
+              onClick={() => toggleHideDead(SOLO_BUCKET_ID)}
+            >
+              {hideDeadLabel(soloHideDead)}
+            </div>
+          </div>
         </div>
       )}
       {finished.length > 0 && (

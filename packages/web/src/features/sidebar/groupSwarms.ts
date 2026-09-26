@@ -20,6 +20,12 @@ export interface SwarmGroup {
 export interface GroupedSwarms {
   swarms: SwarmGroup[];
   solo: SwarmTreeNode[];
+  /** Root-level Solo member count before hide-dead filtering, so the Solo section (and its
+   *  hide-dead toggle) stays visible even when filtering empties the visible list — same as
+   *  a swarm group's "Nothing to show" state, rather than the toggle vanishing with nothing
+   *  left to un-hide. */
+  soloTotal: number;
+  soloHideDead: boolean;
 }
 
 type SwarmsUiState = Pick<
@@ -53,7 +59,7 @@ function resolveTopLevelSwarmId(
   return undefined;
 }
 
-const SOLO = 'solo';
+export const SOLO_BUCKET_ID = 'solo';
 
 /** Removes dead leaves bottom-up: a node survives if it has any surviving child (a live
  *  descendant of a hidden dead predecessor must still show, so the predecessor stays too —
@@ -92,7 +98,10 @@ export function groupSwarms(sessions: SessionMap, uiState: SwarmsUiState): Group
   const bucketOf = new Map<string, string>();
   for (const session of allSessions) {
     const resolved = resolveTopLevelSwarmId(uiState.placements, session.id);
-    bucketOf.set(session.id, resolved !== undefined && knownSwarms.has(resolved) ? resolved : SOLO);
+    bucketOf.set(
+      session.id,
+      resolved !== undefined && knownSwarms.has(resolved) ? resolved : SOLO_BUCKET_ID,
+    );
   }
 
   // A session's visual parent is its raw `parent` pointer, but only when that id names a
@@ -105,7 +114,7 @@ export function groupSwarms(sessions: SessionMap, uiState: SwarmsUiState): Group
     const parent = uiState.placements[session.id]?.parent;
     const visualParent = parent !== undefined && knownSessionIds.has(parent) ? parent : undefined;
     if (visualParent === undefined) {
-      const bucket = bucketOf.get(session.id) ?? SOLO;
+      const bucket = bucketOf.get(session.id) ?? SOLO_BUCKET_ID;
       const roots = rootIdsByBucket.get(bucket);
       if (roots === undefined) rootIdsByBucket.set(bucket, [session.id]);
       else roots.push(session.id);
@@ -191,7 +200,11 @@ export function groupSwarms(sessions: SessionMap, uiState: SwarmsUiState): Group
     return (recencyBySwarmId.get(b.swarmId) ?? 0) - (recencyBySwarmId.get(a.swarmId) ?? 0);
   });
 
-  const solo = sortedRoots(SOLO).map((session) => buildNode(session.id));
+  const soloRoots = sortedRoots(SOLO_BUCKET_ID).map((session) => buildNode(session.id));
+  const soloHideDead = hideDeadSwarms.has(SOLO_BUCKET_ID);
+  const solo = soloRoots
+    .map((node) => filterDeadLeaves(node, sessions, uiState.placements, soloHideDead))
+    .filter((node): node is SwarmTreeNode => node !== null);
 
-  return { swarms, solo };
+  return { swarms, solo, soloTotal: soloRoots.length, soloHideDead };
 }

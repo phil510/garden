@@ -338,5 +338,44 @@ describe('groupSwarms', () => {
 
       expect(ids(swarms[0]!.roots[0]!)).toEqual({ id: 'root', children: ['dead-leaf'] });
     });
+
+    it('removes a dead solo leaf when the Solo bucket is toggled hidden', () => {
+      const root = aSession({ id: 'root', liveness: 'live' });
+      const deadLeaf = aSession({ id: 'dead-leaf', liveness: 'dead' });
+      const sessions = asMap(root, deadLeaf);
+      const placements: Record<string, SessionPlacement> = { 'dead-leaf': { parent: 'root' } };
+      const uiState = anUiState({ placements, hideDeadSwarms: ['solo'] });
+
+      const { solo, soloTotal, soloHideDead } = groupSwarms(sessions, uiState);
+
+      expect(soloHideDead).toBe(true);
+      expect(soloTotal).toBe(1);
+      expect(ids(solo[0]!)).toBe('root');
+    });
+
+    it('keeps a dead solo session with a successor visible even when the Solo bucket is hidden', () => {
+      const root = aSession({ id: 'root', liveness: 'live' });
+      const deadWithSuccessor = aSession({ id: 'dead-handed-off', liveness: 'dead' });
+      const sessions = asMap(root, deadWithSuccessor);
+      const placements: Record<string, SessionPlacement> = {
+        'dead-handed-off': { parent: 'root', successor: 'somewhere-else' },
+      };
+      const uiState = anUiState({ placements, hideDeadSwarms: ['solo'] });
+
+      const { solo } = groupSwarms(sessions, uiState);
+
+      expect(ids(solo[0]!)).toEqual({ id: 'root', children: ['dead-handed-off'] });
+    });
+
+    it('keeps the Solo bucket total stable when filtering empties the visible list', () => {
+      const deadLeaf = aSession({ id: 'dead-leaf', liveness: 'dead' });
+      const sessions = asMap(deadLeaf);
+      const uiState = anUiState({ hideDeadSwarms: ['solo'] });
+
+      const { solo, soloTotal } = groupSwarms(sessions, uiState);
+
+      expect(solo).toEqual([]);
+      expect(soloTotal).toBe(1);
+    });
   });
 });
