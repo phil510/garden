@@ -140,6 +140,7 @@ export function parseNonNegativeInt(raw: string): number | undefined {
 }
 export interface CreateSessionRequest {
   cwd: string;
+  callerSessionId?: string;
 }
 export interface CreateSessionResponse {
   id: string;

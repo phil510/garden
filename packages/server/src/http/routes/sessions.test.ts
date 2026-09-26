@@ -401,6 +401,35 @@ describe('POST /sessions', () => {
     expect(body.id).not.toBe('');
   });
 
+  it('warns and strips unknownCaller from the wire response when callerSessionId does not resolve', async () => {
+    const { logger, warnings } = spyLogger();
+    const app = buildApp(
+      {
+        tmux: fakeTmux({ newSession: () => Promise.resolve() }),
+        store: fakeStore(),
+        projection: {
+          ...fakeProjection(),
+          updateOverlay: (mutate) => mutate(emptyOverlay),
+        },
+        serverPort: 4310,
+        settingsPath,
+        readClaudeCommand: () => ['claude'],
+      },
+      logger,
+    );
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/sessions',
+      payload: { cwd: '/Users/dev/garden', callerSessionId: 'ghost' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(Object.keys(response.json<object>())).toEqual(['id', 'tmuxName']);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatch(/unknown caller/);
+  });
+
   it('maps a tmux failure to a 500 rather than a 404', async () => {
     const app = buildApp({
       tmux: fakeTmux({ newSession: () => Promise.reject(new Error('tmux is not installed')) }),

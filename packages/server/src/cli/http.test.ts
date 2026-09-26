@@ -106,6 +106,22 @@ describe('createSession', () => {
     });
     await expect(createSession('/repo')).resolves.toEqual({ id: 'abc', tmuxName: 'repo' });
   });
+
+  it('includes callerSessionId in the body when provided', async () => {
+    await startServer((request, response) => {
+      void (async () => {
+        expect(JSON.parse(await readBody(request))).toEqual({
+          cwd: '/repo',
+          callerSessionId: 'caller-1',
+        });
+        sendJson(response, 200, { id: 'abc', tmuxName: 'repo' });
+      })();
+    });
+    await expect(createSession('/repo', 'caller-1')).resolves.toEqual({
+      id: 'abc',
+      tmuxName: 'repo',
+    });
+  });
 });
 
 describe('resumeSession', () => {

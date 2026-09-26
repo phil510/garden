@@ -16,6 +16,7 @@ describe('a session whose command exits', () => {
         name: 'ephemeral',
         cwd: tmpdir(),
         port: 4310,
+        sessionId: 'ephemeral-id',
         command: ['sh', '-c', script],
       });
 

@@ -52,11 +52,16 @@ export function listSessions(filter?: SessionsFilter): Promise<SessionsResponse>
   return request(`/sessions${filter === undefined ? '' : sessionsQuery(filter)}`);
 }
 
-export function createSession(cwd: string): Promise<CreateSessionResponse> {
+export function createSession(
+  cwd: string,
+  callerSessionId?: string,
+): Promise<CreateSessionResponse> {
+  const body: CreateSessionRequest =
+    callerSessionId === undefined ? { cwd } : { cwd, callerSessionId };
   return request('/sessions', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ cwd } satisfies CreateSessionRequest),
+    body: JSON.stringify(body),
   });
 }
 

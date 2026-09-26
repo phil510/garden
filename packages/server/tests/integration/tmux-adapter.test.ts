@@ -24,6 +24,7 @@ describe('the tmux adapter', () => {
           name: 'alpha',
           cwd,
           port: 4310,
+          sessionId: 'alpha-id',
           command: ['sh', '-c', 'printenv GARDEN_PORT > port.txt; sleep 30'],
         });
         const panes = await until(
@@ -57,8 +58,20 @@ describe('the tmux adapter', () => {
 
   it('kills a session by name and fails with a TmuxError on an unknown name', async () => {
     await withTmuxServer(async (target) => {
-      await newSession(target, { name: 'alpha', cwd: tmpdir(), port: 4310, command: sleeper });
-      await newSession(target, { name: 'gamma', cwd: tmpdir(), port: 4310, command: sleeper });
+      await newSession(target, {
+        name: 'alpha',
+        cwd: tmpdir(),
+        port: 4310,
+        sessionId: 'alpha-id',
+        command: sleeper,
+      });
+      await newSession(target, {
+        name: 'gamma',
+        cwd: tmpdir(),
+        port: 4310,
+        sessionId: 'gamma-id',
+        command: sleeper,
+      });
 
       await killSession(target, 'alpha');
       const remaining = await until(
@@ -87,6 +100,7 @@ describe('the tmux adapter', () => {
         name: 'beta',
         cwd: tmpdir(),
         port: 4310,
+        sessionId: 'beta-id',
         command: ['sh', '-c', 'exit 4'],
       });
       await until(
@@ -116,7 +130,13 @@ describe('the tmux adapter', () => {
 
     it('reports true once a session has put a live pane on the socket', async () => {
       await withTmuxServer(async (target) => {
-        await newSession(target, { name: 'alpha', cwd: tmpdir(), port: 4310, command: sleeper });
+        await newSession(target, {
+          name: 'alpha',
+          cwd: tmpdir(),
+          port: 4310,
+          sessionId: 'alpha-id',
+          command: sleeper,
+        });
         await until(
           'the new session to be listed',
           () => listPanes(target),
@@ -132,6 +152,7 @@ describe('the tmux adapter', () => {
           name: 'ephemeral',
           cwd: tmpdir(),
           port: 4310,
+          sessionId: 'ephemeral-id',
           command: ['sh', '-c', 'exit 0'],
         });
         await until(

@@ -2,17 +2,25 @@ import { randomUUID } from 'node:crypto';
 import type { SessionState } from '@garden/shared';
 import type { PermissionMode } from '../config.js';
 import { deriveTmuxName } from '../domain/tmuxName.js';
+import { SessionNotFoundError } from './errors.js';
 import type { StorePort, TmuxPaneFact, TmuxPort } from './ports.js';
 import type { Projection } from './projection.js';
-import { setArchived } from './swarms.js';
+import { recordSpawn, setArchived } from './swarms.js';
+
+export { SessionNotFoundError } from './errors.js';
 
 export interface CreateSessionRequest {
   readonly cwd: string;
+  readonly callerSessionId?: string;
 }
 
 export interface CreateSessionResult {
   readonly id: string;
   readonly tmuxName: string;
+  /** Set when `callerSessionId` was forwarded but doesn't name a session garden knows
+   *  about. Never sent on the wire — `http/routes/sessions.ts` turns it into a stderr
+   *  warning instead. */
+  readonly unknownCaller?: boolean;
 }
 
 export interface ResumeSessionRequest {
@@ -49,8 +57,6 @@ export interface SessionsDeps {
 function permissionFlags(mode: PermissionMode | undefined): readonly string[] {
   return mode === 'bypassPermissions' ? ['--permission-mode', 'bypassPermissions'] : [];
 }
-
-export class SessionNotFoundError extends Error {}
 
 export function findSession(projection: Projection, id: string): SessionState {
   const session = projection.sessions().find((candidate) => candidate.id === id);
@@ -110,6 +116,7 @@ export async function createSession(
     name: tmuxName,
     cwd: request.cwd,
     port: serverPort,
+    sessionId: id,
     command: [
       ...claudeCommand,
       '--session-id',
@@ -122,6 +129,17 @@ export async function createSession(
 
   writeTmuxName(store, id, tmuxName);
   projection.dispatch({ type: 'session-registered', id, tmuxName, cwd: request.cwd });
+
+  if (request.callerSessionId === undefined) return { id, tmuxName };
+
+  const callerTitle =
+    projection.sessions().find((session) => session.id === request.callerSessionId)?.title ?? null;
+  try {
+    recordSpawn({ projection }, { callerId: request.callerSessionId, childId: id, callerTitle });
+  } catch (error) {
+    if (!(error instanceof SessionNotFoundError)) throw error;
+    return { id, tmuxName, unknownCaller: true };
+  }
   return { id, tmuxName };
 }
 
@@ -176,7 +194,13 @@ export async function resumeSession(
   } else {
     const takenNames = takenTmuxNames(projection, panes, request.id);
     const tmuxName = deriveTmuxName(session.cwd, takenNames);
-    await tmux.newSession({ name: tmuxName, cwd: session.cwd, port: serverPort, command });
+    await tmux.newSession({
+      name: tmuxName,
+      cwd: session.cwd,
+      port: serverPort,
+      sessionId: session.id,
+      command,
+    });
     writeTmuxName(store, request.id, tmuxName);
     projection.dispatch({ type: 'session-registered', id: request.id, tmuxName, cwd: session.cwd });
     result = { id: request.id, tmuxName };
