@@ -15,7 +15,7 @@ export interface Io {
 /** The four calls a subcommand needs. `./http.ts`'s exports satisfy this by shape. */
 export interface CliClient {
   listSessions(filter?: SessionsFilter): Promise<SessionsResponse>;
-  createSession(cwd: string): Promise<CreateSessionResponse>;
+  createSession(cwd: string, callerSessionId?: string): Promise<CreateSessionResponse>;
   resumeSession(id: string): Promise<CreateSessionResponse>;
   killSession(id: string): Promise<OkResponse>;
 }
@@ -53,10 +53,11 @@ export function runNew(
   json: boolean,
   client: CliClient = defaultClient,
 ): Promise<0 | 1> {
+  const callerSessionId = process.env.GARDEN_SESSION_ID;
   return runCommand(
     io,
     json,
-    () => client.createSession(dir),
+    () => client.createSession(dir, callerSessionId),
     (result) => `${result.id}\t${result.tmuxName}`,
   );
 }

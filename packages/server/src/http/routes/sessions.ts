@@ -19,7 +19,9 @@ import type { Logger } from '../../app/ports.js';
 
 function isCreateSessionRequest(body: unknown): body is CreateSessionRequest {
   if (typeof body !== 'object' || body === null) return false;
-  return typeof (body as Record<string, unknown>).cwd === 'string';
+  const record = body as Record<string, unknown>;
+  if (typeof record.cwd !== 'string') return false;
+  return record.callerSessionId === undefined || typeof record.callerSessionId === 'string';
 }
 
 interface SessionsQuerystring {
@@ -119,8 +121,13 @@ export function sessionRoutes(app: FastifyInstance, deps: SessionsDeps, logger: 
         .code(400)
         .send({ error: 'invalid create-session request' } satisfies ErrorResponse);
     try {
-      const result: CreateSessionResponse = await createSession(deps, request.body);
-      return reply.send(result);
+      const result = await createSession(deps, request.body);
+      if (result.unknownCaller === true)
+        logger.warn(`unknown caller session, spawned without placement: ${result.id}`);
+      return reply.send({
+        id: result.id,
+        tmuxName: result.tmuxName,
+      } satisfies CreateSessionResponse);
     } catch (error) {
       return sendError(logger, reply, error);
     }
