@@ -383,6 +383,17 @@ li.tree-node:not(:last-child)::after {
 .swarm-group.finished .swarm-header {
   background: var(--surface);
 }
+.swarm-header.flash {
+  animation: swarm-header-flash 1s ease-out;
+}
+@keyframes swarm-header-flash {
+  0% {
+    background: var(--accent-dim);
+  }
+  100% {
+    background: transparent;
+  }
+}
 
 /* ---- Finished (n) section ---- */
 .finished-section {
