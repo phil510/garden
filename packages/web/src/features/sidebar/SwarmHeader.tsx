@@ -1,4 +1,4 @@
-import type { DraggableAttributes } from '@dnd-kit/core';
+import { useDroppable, type DraggableAttributes } from '@dnd-kit/core';
 import { useSortable } from '@dnd-kit/sortable';
 import {
   useEffect,
@@ -47,6 +47,15 @@ export function SwarmHeader({
   const inputRef = useRef<HTMLInputElement>(null);
   const [contextMenuPoint, setContextMenuPoint] = useState<{ x: number; y: number } | null>(null);
   const [confirming, setConfirming] = useState<SwarmMenuConfirming>(null);
+  // A separate droppable from the group's own header-reorder sortable (which shares the group
+  // div and the plain swarmId as its id) — this is specifically "drop a session onto this
+  // header", targeted at the header alone, not the whole swarm-group. Disabled (never a valid
+  // drop target) for a Finished-section entry, which passes no drag props either.
+  const { setNodeRef: setDropRef, isOver } = useDroppable({
+    id: `swarm-header:${swarm.swarmId}`,
+    disabled: dragAttributes === undefined,
+    data: { type: 'swarm-header', swarmId: swarm.swarmId },
+  });
 
   useEffect(() => {
     if (!renaming) return;
@@ -127,7 +136,8 @@ export function SwarmHeader({
 
   return (
     <div
-      className={`swarm-header${swarm.collapsed ? ' collapsed' : ''}${className ? ` ${className}` : ''}`}
+      ref={setDropRef}
+      className={`swarm-header${swarm.collapsed ? ' collapsed' : ''}${isOver ? ' drop-target' : ''}${className ? ` ${className}` : ''}`}
       data-swarm-id={swarm.swarmId}
       onClick={onHeaderClick}
       onKeyDown={onHeaderKeyDown}

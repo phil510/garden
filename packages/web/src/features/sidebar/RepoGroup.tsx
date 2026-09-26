@@ -44,6 +44,9 @@ export function RepoGroup({
   const [expanded, setExpanded] = useState(false);
   const { setNodeRef, attributes, listeners, transform, transition, isDragging } = useSortable({
     id: group.repoRoot,
+    // Tagged so RepoSidebar's onDragEnd can bail on a foreign active type — defense in depth,
+    // even though nothing else registers as draggable inside this DndContext today.
+    data: { type: 'repo' },
   });
 
   function toggle() {

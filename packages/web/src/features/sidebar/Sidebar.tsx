@@ -2,13 +2,16 @@ import {
   DndContext,
   PointerSensor,
   closestCenter,
+  pointerWithin,
+  useDroppable,
   useSensor,
   useSensors,
+  type CollisionDetection,
   type DragEndEvent,
 } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useEffect, useState } from 'react';
-import { updateUiState } from '../../api/client';
+import { setSessionPlacement, updateUiState } from '../../api/client';
 import { reportCommandFailure } from '../../api/reportCommandFailure';
 import { useLocalStore, type SidebarMode } from '../../state/localStore';
 import { useSessionStore } from '../../state/sessionStore';
@@ -22,6 +25,7 @@ import { placeOnStage } from './placeOnStage';
 import { reorderGroups } from './reorderGroups';
 import { reorderSwarms } from './reorderSwarms';
 import { RepoGroup } from './RepoGroup';
+import { resolveSidebarDrop } from './resolveSidebarDrop';
 import { focusedSessionId } from './stageFocus';
 import { SwarmGroup } from './SwarmGroup';
 import { SwarmHeader } from './SwarmHeader';
@@ -32,6 +36,25 @@ import { toggleHideDeadSwarm } from './toggleHideDeadSwarm';
 import { toggleRepoCollapse } from './toggleRepoCollapse';
 import { toggleSwarmCollapse } from './toggleSwarmCollapse';
 import './sidebar.css';
+
+/**
+ * A session drag resolves only against 'swarm-header'/'solo' droppables, via `pointerWithin`
+ * (able to resolve to nothing, unlike `closestCenter`'s always-nearest) — filtering out every
+ * 'swarm-reorder' droppable (the whole swarm-group, still registered for header-vs-header
+ * reordering) keeps a session dropped anywhere inside its own swarm's rows from resolving to
+ * that swarm through the group's own droppable rather than its header's separate one. A
+ * swarm-header reorder drag keeps `closestCenter`'s nearest-always semantics, matching every
+ * other reorder (repos, session slots) in this codebase.
+ */
+const swarmSidebarCollisionDetection: CollisionDetection = (args) => {
+  const activeType = args.active.data.current?.type as string | undefined;
+  if (activeType !== 'session') return closestCenter(args);
+  const droppableContainers = args.droppableContainers.filter((container) => {
+    const type = container.data.current?.type as string | undefined;
+    return type === 'swarm-header' || type === 'solo';
+  });
+  return pointerWithin({ ...args, droppableContainers });
+};
 
 const SIDEBAR_MODES: readonly { mode: SidebarMode; label: string }[] = [
   { mode: 'repos', label: 'Repos' },
@@ -164,6 +187,9 @@ function RepoSidebar({
   }
 
   function onDragEnd(event: DragEndEvent) {
+    // Defense in depth: nothing else registers as draggable inside this DndContext today, but
+    // a foreign active type should bail rather than be treated as a repo root regardless.
+    if (event.active.data.current?.type !== 'repo') return;
     const activeRepoRoot = event.active.id as string;
     const overRepoRoot = event.over?.id as string | undefined;
     if (overRepoRoot === undefined || overRepoRoot === activeRepoRoot) return;
@@ -219,6 +245,10 @@ function SwarmSidebar({
   const finished = swarms.filter((swarm) => swarm.finished);
   const selectedSwarmId = useLocalStore((state) => state.selectedSwarmId);
   const setSelectedSwarmId = useLocalStore((state) => state.setSelectedSwarmId);
+  const { setNodeRef: setSoloDropRef, isOver: soloIsOver } = useDroppable({
+    id: SOLO_BUCKET_ID,
+    data: { type: 'solo' },
+  });
 
   // Scrolls to and flashes the swarm a pane-header chip click named. A dead pane can stay on
   // stage after its swarm has gone fully dead/finished, and the Finished section only mounts
@@ -269,38 +299,55 @@ function SwarmSidebar({
   }
 
   function onDragEnd(event: DragEndEvent) {
-    const activeSwarmId = event.active.id as string;
-    const overSwarmId = event.over?.id as string | undefined;
-    if (overSwarmId === undefined || overSwarmId === activeSwarmId) return;
-    updateUiState({
-      swarmOrder: reorderSwarms(fullOrder, activeSwarmId, overSwarmId),
-    }).catch(reportCommandFailure);
+    const activeId = event.active.id as string;
+    const activeData = event.active.data.current as { type?: string } | undefined;
+    // Defense in depth against a foreign active type — RepoGroup never registers a session as
+    // draggable, but a mismatched type here should bail rather than be misread as one of this
+    // sidebar's own two drag kinds.
+    if (activeData?.type !== 'swarm-reorder' && activeData?.type !== 'session') return;
+    const overData = event.over?.data.current as { type?: string; swarmId?: string } | undefined;
+    const outcome = resolveSidebarDrop(
+      { type: activeData.type, id: activeId },
+      event.over === null
+        ? null
+        : { type: overData?.type, id: event.over.id as string, swarmId: overData?.swarmId },
+      uiState.placements[activeId],
+    );
+    if (outcome.type === 'reorder') {
+      updateUiState({
+        swarmOrder: reorderSwarms(fullOrder, outcome.activeSwarmId, outcome.overSwarmId),
+      }).catch(reportCommandFailure);
+    } else if (outcome.type === 'place') {
+      setSessionPlacement(outcome.sessionId, outcome.placement).catch(reportCommandFailure);
+    }
   }
 
   return (
-    <>
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-        <SortableContext items={visibleOrder} strategy={verticalListSortingStrategy}>
-          {active.map((swarm) => (
-            <SwarmGroup
-              key={swarm.swarmId}
-              swarm={swarm}
-              sessions={sessions}
-              placements={uiState.placements}
-              activeSwarms={activeSwarms}
-              now={now}
-              onStageIds={onStageIds}
-              focusedSessionId={focusedId}
-              onToggleCollapse={toggleCollapse}
-              onToggleHideDead={toggleHideDead}
-              onSelectSession={onSelectSession}
-            />
-          ))}
-        </SortableContext>
-      </DndContext>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={swarmSidebarCollisionDetection}
+      onDragEnd={onDragEnd}
+    >
+      <SortableContext items={visibleOrder} strategy={verticalListSortingStrategy}>
+        {active.map((swarm) => (
+          <SwarmGroup
+            key={swarm.swarmId}
+            swarm={swarm}
+            sessions={sessions}
+            placements={uiState.placements}
+            activeSwarms={activeSwarms}
+            now={now}
+            onStageIds={onStageIds}
+            focusedSessionId={focusedId}
+            onToggleCollapse={toggleCollapse}
+            onToggleHideDead={toggleHideDead}
+            onSelectSession={onSelectSession}
+          />
+        ))}
+      </SortableContext>
       {soloTotal > 0 && (
         <div className="solo-group">
-          <div className="solo-header">
+          <div ref={setSoloDropRef} className={`solo-header${soloIsOver ? ' drop-target' : ''}`}>
             <span className="solo-label upper faint">Solo</span>
             <span className="repo-count mono">{soloTotal}</span>
           </div>
@@ -381,6 +428,6 @@ function SwarmSidebar({
           )}
         </div>
       )}
-    </>
+    </DndContext>
   );
 }

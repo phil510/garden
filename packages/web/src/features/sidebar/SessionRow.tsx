@@ -1,5 +1,6 @@
 import type { SessionState } from '@garden/shared';
-import { Fragment, useEffect, useRef, useState, type MouseEvent } from 'react';
+import type { DraggableAttributes, DraggableSyntheticListeners } from '@dnd-kit/core';
+import { Fragment, useEffect, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
 import { createSwarm, killSession, resumeSession, setSessionPlacement } from '../../api/client';
 import { reportCommandFailure } from '../../api/reportCommandFailure';
 import { ContextMenu, type ContextMenuItem } from '../../components/ContextMenu';
@@ -36,6 +37,14 @@ interface SessionRowProps {
    *  following it, which drives the parent-side rail corner in CSS
    *  (`.session-row.has-children::after`). Always false in Repos mode. */
   hasChildren?: boolean;
+  /** Swarms-mode tree rows only: `useDraggable`'s wiring for membership drag, supplied by
+   *  SwarmTree.tsx. Omitted in Repos mode — RepoGroup renders this row with no drag props at
+   *  all, so a session is never draggable there. */
+  dragRef?: (node: HTMLElement | null) => void;
+  dragAttributes?: DraggableAttributes;
+  dragListeners?: DraggableSyntheticListeners;
+  dragStyle?: CSSProperties;
+  isDragging?: boolean;
 }
 
 export function SessionRow({
@@ -48,6 +57,11 @@ export function SessionRow({
   currentSwarmId,
   activeSwarms,
   hasChildren = false,
+  dragRef,
+  dragAttributes,
+  dragListeners,
+  dragStyle,
+  isDragging = false,
 }: SessionRowProps) {
   // A callback ref feeding state, not a plain ref, so the hover card's anchor is safe to
   // read during render — a raw ref's `.current` is not.
@@ -60,6 +74,11 @@ export function SessionRow({
   const crashed = dead && session.exitCode !== null && session.exitCode !== 0;
   const title = session.title ?? lastPathSegment(session.cwd);
 
+  function setCombinedRowRef(node: HTMLDivElement | null) {
+    setRowEl(node);
+    dragRef?.(node);
+  }
+
   // A press on a menu item that releases on the row body reaches the row as a click without
   // passing through ContextMenu's own guard, since the browser routes a mismatched
   // mousedown/mouseup pair to their common ancestor. Tracked here on the capture phase, ahead
@@ -68,6 +87,14 @@ export function SessionRow({
   useEffect(() => {
     pressStartedInMenuRef.current = false;
   }, [contextMenuPoint]);
+
+  // dnd-kit's pointer sensor releases a completed drag with a native click still following it
+  // when the release lands back on the same row it started from — tracked across the
+  // isDragging true→false transition so that trailing click doesn't also stage the session.
+  const justDraggedRef = useRef(false);
+  useEffect(() => {
+    if (isDragging) justDraggedRef.current = true;
+  }, [isDragging]);
 
   function handleRowMouseDown(event: MouseEvent) {
     pressStartedInMenuRef.current = pressStartedInMenu(
@@ -79,6 +106,10 @@ export function SessionRow({
     const pressStartedInMenu = pressStartedInMenuRef.current;
     pressStartedInMenuRef.current = false;
     if (pressStartedInMenu) return;
+    if (justDraggedRef.current) {
+      justDraggedRef.current = false;
+      return;
+    }
     onSelect(session.id);
   }
 
@@ -157,14 +188,17 @@ export function SessionRow({
 
   return (
     <div
-      ref={setRowEl}
-      className={`session-row${onStage ? ' on-stage' : ''}${dead ? ' dead' : ''}${hasChildren ? ' has-children' : ''}`}
+      ref={setCombinedRowRef}
+      className={`session-row${onStage ? ' on-stage' : ''}${dead ? ' dead' : ''}${hasChildren ? ' has-children' : ''}${isDragging ? ' dragging' : ''}`}
+      style={dragStyle}
       tabIndex={0}
       onClick={handleRowClick}
       onMouseDownCapture={handleRowMouseDown}
       onContextMenu={handleContextMenu}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      {...dragAttributes}
+      {...dragListeners}
     >
       {focused && <span className="focused-mark" title="Focused" />}
       <div className="row-title-line">

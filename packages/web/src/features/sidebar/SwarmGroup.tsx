@@ -33,6 +33,10 @@ export function SwarmGroup({
 }: SwarmGroupProps) {
   const { setNodeRef, attributes, listeners, transform, transition, isDragging } = useSortable({
     id: swarm.swarmId,
+    // Distinguishes "reorder this swarm against another" (this whole group, still the
+    // droppable a header-vs-header drag resolves against) from SwarmHeader's own separate
+    // 'swarm-header' droppable, which is what a session drag targets specifically.
+    data: { type: 'swarm-reorder', swarmId: swarm.swarmId },
   });
 
   const style = {

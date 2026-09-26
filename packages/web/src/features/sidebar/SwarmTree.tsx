@@ -1,4 +1,6 @@
 import type { SessionMap, SessionPlacement } from '@garden/shared';
+import { useDraggable } from '@dnd-kit/core';
+import { CSS } from '@dnd-kit/utilities';
 import type { ActiveSwarmOption, SwarmTreeNode } from './groupSwarms';
 import { resolveTopLevelSwarmId } from './groupSwarms';
 import { SessionRow } from './SessionRow';
@@ -64,6 +66,16 @@ function SwarmTreeRow({
   focusedSessionId,
   onSelectSession,
 }: SwarmTreeRowProps) {
+  // Membership drag lives here, Swarms-mode only — RepoGroup renders SessionRow directly with
+  // no drag props at all, so a session never becomes draggable inside RepoSidebar's separate
+  // DndContext (whose own onDragEnd also bails on a foreign active type, defense in depth).
+  // Keyed on node.sessionId, not session.id below, so this hook call stays unconditional ahead
+  // of the missing-session guard (Rules of Hooks) — they're the same id whenever session exists.
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: node.sessionId,
+    data: { type: 'session', sessionId: node.sessionId },
+  });
+
   const session = sessions[node.sessionId];
   // Every node is built from a live SessionState (groupSwarms.ts only ever nests known
   // sessions), so this is unreachable in practice — guarded rather than asserted, since a
@@ -82,6 +94,11 @@ function SwarmTreeRow({
         currentSwarmId={resolveTopLevelSwarmId(placements, session.id)}
         activeSwarms={activeSwarms}
         hasChildren={node.children.length > 0}
+        dragRef={setNodeRef}
+        dragAttributes={attributes}
+        dragListeners={listeners}
+        dragStyle={{ transform: CSS.Translate.toString(transform) }}
+        isDragging={isDragging}
       />
       {node.children.length > 0 && (
         <ul className="tree-children">
