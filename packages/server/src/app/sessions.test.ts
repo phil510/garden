@@ -1,10 +1,26 @@
 import { aSession } from '@garden/shared/fixtures';
-import type { SessionState } from '@garden/shared';
+import type { SessionState, UiState } from '@garden/shared';
 import { describe, expect, it } from 'vitest';
 import type { GardenEvent } from '../domain/types.js';
 import type { OverlayState, StorePort, TmuxNewSessionRequest, TmuxPort } from './ports.js';
 import type { Projection } from './projection.js';
 import { createSession, killSession, resumeSession } from './sessions.js';
+
+const baseUiState: UiState = {
+  groupOrder: [],
+  pinnedRepos: [],
+  collapsedRepos: [],
+  hideDeadRepos: [],
+  preset: 'single',
+  slots: [null],
+  focusedSlot: 0,
+  layout: null,
+  swarms: [],
+  placements: {},
+  swarmOrder: [],
+  collapsedSwarms: [],
+  hideDeadSwarms: [],
+};
 
 const emptyOverlay: OverlayState = {
   version: 1,
@@ -13,6 +29,9 @@ const emptyOverlay: OverlayState = {
   stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
   swarms: [],
   placements: {},
+  swarmOrder: [],
+  collapsedSwarms: [],
+  hideDeadSwarms: [],
 };
 
 function fakeTmux(overrides: Partial<TmuxPort> = {}): TmuxPort {
@@ -25,9 +44,14 @@ function fakeTmux(overrides: Partial<TmuxPort> = {}): TmuxPort {
   };
 }
 
-function fakeProjection(sessions: SessionState[] = [], overlay: OverlayState = emptyOverlay) {
+/** `placementOf` defaults to "no placement" rather than throwing, since every
+ *  `resumeSession` call reads it to decide whether a swarm needs unarchiving — a test with
+ *  no swarms in play should not have to override it just to reach the tmux/dispatch
+ *  behavior it actually exercises. `current()` exposes the overlay as mutated by the default
+ *  `updateOverlay`, for tests (e.g. spawn recording) that don't override it. */
+function fakeProjection(sessions: SessionState[] = [], overrides: Partial<Projection> = {}) {
   const dispatched: GardenEvent[] = [];
-  let current = overlay;
+  let current = emptyOverlay;
   const projection: Projection = {
     sessions: () => sessions,
     uiState: () => {
@@ -43,9 +67,8 @@ function fakeProjection(sessions: SessionState[] = [], overlay: OverlayState = e
       current = mutate(current);
       return current;
     },
-    placementOf: () => {
-      throw new Error('not used by this test');
-    },
+    placementOf: () => undefined,
+    ...overrides,
   };
   return { projection, dispatched, current: () => current };
 }
@@ -634,6 +657,95 @@ describe('resumeSession', () => {
     expect(dispatched).toEqual([]);
   });
 
+  it("clears archived on the resumed session's top-level swarm", async () => {
+    const tmux = fakeTmux({
+      listPanes: () => Promise.resolve([{ session: 'garden', dead: true, exitCode: 1 }]),
+      respawnPane: () => Promise.resolve(),
+    });
+    let overlay: OverlayState = {
+      ...emptyOverlay,
+      swarms: [{ id: 'swarm-1', name: 'A swarm', archived: true }],
+    };
+    const { projection } = fakeProjection([deadSession], {
+      uiState: () => ({ ...baseUiState, swarms: [...overlay.swarms] }),
+      placementOf: () => ({ swarmId: 'swarm-1', topLevelSwarmId: 'swarm-1' }),
+      updateOverlay: (mutate) => {
+        overlay = mutate(overlay);
+        return overlay;
+      },
+    });
+    const { store } = fakeStore();
+
+    await resumeSession(
+      {
+        tmux,
+        store,
+        projection,
+        serverPort: 4310,
+        settingsPath,
+        readClaudeCommand: () => ['claude'],
+      },
+      { id: 'sid-1' },
+    );
+
+    expect(overlay.swarms).toEqual([{ id: 'swarm-1', name: 'A swarm', archived: false }]);
+  });
+
+  it('leaves archived untouched when resuming a session with no swarm, or in a non-archived swarm', async () => {
+    const tmux = fakeTmux({
+      listPanes: () => Promise.resolve([{ session: 'garden', dead: true, exitCode: 1 }]),
+      respawnPane: () => Promise.resolve(),
+    });
+    const { projection: soloProjection } = fakeProjection([deadSession]);
+    const { store: soloStore } = fakeStore();
+
+    // No swarm at all: placementOf's default ("no placement") short-circuits before
+    // uiState()/updateOverlay are ever called, so nothing needs overriding.
+    await resumeSession(
+      {
+        tmux,
+        store: soloStore,
+        projection: soloProjection,
+        serverPort: 4310,
+        settingsPath,
+        readClaudeCommand: () => ['claude'],
+      },
+      { id: 'sid-1' },
+    );
+
+    let overlay: OverlayState = {
+      ...emptyOverlay,
+      swarms: [{ id: 'swarm-1', name: 'A swarm', archived: false }],
+    };
+    const overlayWrites: OverlayState[] = [];
+    const { projection: memberProjection } = fakeProjection([deadSession], {
+      uiState: () => ({ ...baseUiState, swarms: [...overlay.swarms] }),
+      placementOf: () => ({ swarmId: 'swarm-1', topLevelSwarmId: 'swarm-1' }),
+      updateOverlay: (mutate) => {
+        const next = mutate(overlay);
+        overlayWrites.push(next);
+        overlay = next;
+        return next;
+      },
+    });
+    const { store: memberStore } = fakeStore();
+
+    await resumeSession(
+      {
+        tmux,
+        store: memberStore,
+        projection: memberProjection,
+        serverPort: 4310,
+        settingsPath,
+        readClaudeCommand: () => ['claude'],
+      },
+      { id: 'sid-1' },
+    );
+
+    expect(overlayWrites).toEqual([]);
+    expect(overlay.swarms).toEqual([{ id: 'swarm-1', name: 'A swarm', archived: false }]);
+  });
+
   it('throws for an id the projection does not know', async () => {
     const tmux = fakeTmux();
     const { projection } = fakeProjection([]);
@@ -672,6 +784,9 @@ describe('killSession', () => {
       stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
       swarms: [],
       placements: {},
+      swarmOrder: [],
+      collapsedSwarms: [],
+      hideDeadSwarms: [],
     });
 
     await killSession(

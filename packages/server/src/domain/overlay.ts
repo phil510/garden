@@ -27,4 +27,7 @@ export interface OverlayState {
    *  both set on one entry — that invariant is enforced at the point of writing
    *  (`domain/swarms.ts`'s `validatePlacement`), not by this type. */
   readonly placements: Readonly<Record<string, SessionPlacement>>;
+  readonly swarmOrder: readonly string[];
+  readonly collapsedSwarms: readonly string[];
+  readonly hideDeadSwarms: readonly string[];
 }

@@ -16,6 +16,9 @@ const emptyOverlay: OverlayState = {
   stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
   swarms: [],
   placements: {},
+  swarmOrder: [],
+  collapsedSwarms: [],
+  hideDeadSwarms: [],
 };
 
 function fakeProjection(overrides: Partial<Projection> = {}): Projection {

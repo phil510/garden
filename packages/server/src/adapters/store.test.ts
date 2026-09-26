@@ -68,7 +68,7 @@ describe('readOverlayState', () => {
     });
   });
 
-  it('defaults swarms and placements without discarding the rest of a pre-#170 file', () => {
+  it('defaults swarms, placements, and swarm order/collapse/hide-dead without discarding the rest of a pre-#170 file', () => {
     withTempAppDir((appDir) => {
       mkdirSync(appDir, { recursive: true });
       writeFileSync(
@@ -78,7 +78,8 @@ describe('readOverlayState', () => {
           tmuxNames: { 'session-1': 'garden-project' },
           groups: { '/repo': { pinned: true, order: 0, collapsed: false, hideDead: true } },
           stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
-          // No swarms/placements keys at all — a file written before #170.
+          // No swarms/placements/swarmOrder/collapsedSwarms/hideDeadSwarms keys at all —
+          // a file written before #170/#187.
         }),
       );
       const logger = collectingLogger();
@@ -90,6 +91,9 @@ describe('readOverlayState', () => {
         stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
         swarms: [],
         placements: {},
+        swarmOrder: [],
+        collapsedSwarms: [],
+        hideDeadSwarms: [],
       });
       expect(logger.warnings).toEqual([]);
     });
@@ -124,10 +128,25 @@ describe('readOverlayState', () => {
       });
     }
   });
+
+  it('warns and returns the defaults when swarmOrder, collapsedSwarms or hideDeadSwarms is present but malformed', () => {
+    for (const field of ['swarmOrder', 'collapsedSwarms', 'hideDeadSwarms']) {
+      withTempAppDir((appDir) => {
+        mkdirSync(appDir, { recursive: true });
+        writeFileSync(
+          join(appDir, 'state.json'),
+          `{"version":1,"tmuxNames":{},"groups":{},"stage":{"preset":"single","slots":[null],"focusedSlot":0,"layout":{}},"${field}":[1]}`,
+        );
+        const logger = collectingLogger();
+        expect(readOverlayState(appDir, logger)).toEqual(DEFAULT_OVERLAY_STATE);
+        expect(logger.warnings).toHaveLength(1);
+      });
+    }
+  });
 });
 
 describe('writeOverlayState', () => {
-  it('round-trips a written state, including swarms and placements', () => {
+  it('round-trips a written state, including swarms, placements and swarm order/collapse/hide-dead', () => {
     withTempAppDir((appDir) => {
       const state: OverlayState = {
         version: 1,
@@ -136,6 +155,9 @@ describe('writeOverlayState', () => {
         stage: { preset: 'two-across', slots: ['session-1', null], focusedSlot: 0, layout: {} },
         swarms: [{ id: 'swarm-1', name: 'A swarm', archived: false }],
         placements: { 'session-1': { swarmId: 'swarm-1', successor: 'session-2' } },
+        swarmOrder: ['swarm-1'],
+        collapsedSwarms: ['swarm-1'],
+        hideDeadSwarms: ['swarm-1'],
       };
       writeOverlayState(appDir, state);
       expect(readOverlayState(appDir, collectingLogger())).toEqual(state);

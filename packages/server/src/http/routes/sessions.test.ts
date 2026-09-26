@@ -35,6 +35,9 @@ const emptyOverlay: OverlayState = {
   stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
   swarms: [],
   placements: {},
+  swarmOrder: [],
+  collapsedSwarms: [],
+  hideDeadSwarms: [],
 };
 
 function fakeTmux(overrides: Partial<TmuxPort> = {}): TmuxPort {
@@ -57,6 +60,10 @@ function fakeStore(initial: OverlayState = emptyOverlay): StorePort {
   };
 }
 
+/** `placementOf` defaults to "no placement" rather than throwing, since every
+ *  `resumeSession` call reads it to decide whether a swarm needs unarchiving — a test with
+ *  no swarms in play should not have to override it just to reach the behavior it actually
+ *  exercises. */
 function fakeProjection(
   sessions: SessionState[] = [],
   onSessions?: (filter: SessionsFilter | undefined) => void,
@@ -78,9 +85,7 @@ function fakeProjection(
     updateOverlay: () => {
       throw new Error('not used by this test');
     },
-    placementOf: () => {
-      throw new Error('not used by this test');
-    },
+    placementOf: () => undefined,
   };
 }
 
@@ -556,6 +561,9 @@ describe('POST /sessions/:id/kill', () => {
         stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
         swarms: [],
         placements: {},
+        swarmOrder: [],
+        collapsedSwarms: [],
+        hideDeadSwarms: [],
       }),
       projection: fakeProjection([session]),
       serverPort: 4310,
@@ -582,6 +590,9 @@ describe('POST /sessions/:id/kill', () => {
           stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
           swarms: [],
           placements: {},
+          swarmOrder: [],
+          collapsedSwarms: [],
+          hideDeadSwarms: [],
         }),
         projection: fakeProjection([session]),
         serverPort: 4310,

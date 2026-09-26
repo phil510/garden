@@ -16,6 +16,9 @@ const baseUiState: UiState = {
   layout: null,
   swarms: [],
   placements: {},
+  swarmOrder: [],
+  collapsedSwarms: [],
+  hideDeadSwarms: [],
 };
 
 function fakeProjection(overrides: Partial<Projection> = {}): Projection {
@@ -87,6 +90,57 @@ describe('PUT /ui-state', () => {
     expect(swarmsResponse.statusCode).toBe(400);
     expect(placementsResponse.statusCode).toBe(400);
     expect(calls).toEqual([]);
+  });
+
+  it('rejects a body with a swarm collapse/order/hide-dead field of the wrong type', async () => {
+    const calls: UiStateRequest[] = [];
+    const app = buildApp({
+      projection: fakeProjection({
+        updateUiState: (patch) => {
+          calls.push(patch);
+        },
+      }),
+    });
+
+    for (const payload of [
+      { swarmOrder: 'swarm-1' },
+      { collapsedSwarms: [1] },
+      { hideDeadSwarms: 'yes' },
+    ]) {
+      const response = await app.inject({ method: 'PUT', url: '/ui-state', payload });
+      expect(response.statusCode).toBe(400);
+    }
+    expect(calls).toEqual([]);
+  });
+
+  it('forwards a valid swarm collapse/order/hide-dead patch to the projection', async () => {
+    const calls: UiStateRequest[] = [];
+    const app = buildApp({
+      projection: fakeProjection({
+        updateUiState: (patch) => {
+          calls.push(patch);
+        },
+      }),
+    });
+
+    const response = await app.inject({
+      method: 'PUT',
+      url: '/ui-state',
+      payload: {
+        swarmOrder: ['swarm-1'],
+        collapsedSwarms: ['swarm-1'],
+        hideDeadSwarms: ['swarm-1'],
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(calls).toEqual([
+      {
+        swarmOrder: ['swarm-1'],
+        collapsedSwarms: ['swarm-1'],
+        hideDeadSwarms: ['swarm-1'],
+      },
+    ]);
   });
 
   it('rejects an unknown preset', async () => {

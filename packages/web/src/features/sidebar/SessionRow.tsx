@@ -20,9 +20,24 @@ interface SessionRowProps {
   focused: boolean;
   now: number;
   onSelect: (id: string) => void;
+  /** The successor's `claudeSessionName`, resolved by the caller via `resolveSuccessorName`
+   *  — null when this session has no successor. */
+  successorName: string | null;
+  /** Swarms-mode tree rows only: whether this row has a rendered `<ul class="tree-children">`
+   *  following it, which drives the parent-side rail corner in CSS
+   *  (`.session-row.has-children::after`). Always false in Repos mode. */
+  hasChildren?: boolean;
 }
 
-export function SessionRow({ session, onStage, focused, now, onSelect }: SessionRowProps) {
+export function SessionRow({
+  session,
+  onStage,
+  focused,
+  now,
+  onSelect,
+  successorName,
+  hasChildren = false,
+}: SessionRowProps) {
   // A callback ref feeding state, not a plain ref, so the hover card's anchor is safe to
   // read during render — a raw ref's `.current` is not.
   const [rowEl, setRowEl] = useState<HTMLDivElement | null>(null);
@@ -30,6 +45,7 @@ export function SessionRow({ session, onStage, focused, now, onSelect }: Session
   const [contextMenuPoint, setContextMenuPoint] = useState<{ x: number; y: number } | null>(null);
   const [confirming, setConfirming] = useState<ConfirmingAction>(null);
   const dead = session.liveness === 'dead';
+  const crashed = dead && session.exitCode !== null && session.exitCode !== 0;
   const title = session.title ?? lastPathSegment(session.cwd);
 
   // A press on a menu item that releases on the row body reaches the row as a click without
@@ -80,7 +96,7 @@ export function SessionRow({ session, onStage, focused, now, onSelect }: Session
   return (
     <div
       ref={setRowEl}
-      className={`session-row${onStage ? ' on-stage' : ''}${dead ? ' dead' : ''}`}
+      className={`session-row${onStage ? ' on-stage' : ''}${dead ? ' dead' : ''}${hasChildren ? ' has-children' : ''}`}
       tabIndex={0}
       onClick={handleRowClick}
       onMouseDownCapture={handleRowMouseDown}
@@ -90,6 +106,11 @@ export function SessionRow({ session, onStage, focused, now, onSelect }: Session
     >
       {focused && <span className="focused-mark" title="Focused" />}
       <div className="row-title-line">
+        {crashed && (
+          <span className="crashed-mark" title={`Exited with code ${session.exitCode}`}>
+            !
+          </span>
+        )}
         <div className="row-title">{title}</div>
         {session.liveness === 'live' && session.status !== null && (
           <StatusPill status={session.status} />
@@ -103,6 +124,9 @@ export function SessionRow({ session, onStage, focused, now, onSelect }: Session
           </Fragment>
         ))}
       </div>
+      {successorName !== null && (
+        <div className="handoff-note">handed off &rarr; {successorName}</div>
+      )}
       {hovered && rowEl !== null && contextMenuPoint === null && (
         <HoverCard title={title} session={session} anchor={rowEl} now={now} />
       )}

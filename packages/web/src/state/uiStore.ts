@@ -22,6 +22,9 @@ const initialUiState: UiState = {
   layout: null,
   swarms: [],
   placements: {},
+  swarmOrder: [],
+  collapsedSwarms: [],
+  hideDeadSwarms: [],
 };
 
 export const useUiStore = create<UiStore>((set) => ({

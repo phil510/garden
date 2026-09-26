@@ -11,7 +11,10 @@
   background: var(--surface);
   position: sticky;
   top: 0;
-  z-index: 1;
+  /* Must outrank .session-row.on-stage::before's z-index below — both are real stacking
+     contexts at the same ancestor level, so a tie there would be broken by DOM order (the
+     row comes after the header) and the accent would paint over this sticky header. */
+  z-index: 2;
 }
 .repo-header:hover {
   background: var(--raised);
@@ -67,8 +70,22 @@
 .session-row:hover {
   background: var(--raised);
 }
-.session-row.on-stage {
-  border-left-color: var(--accent);
+/* The on-stage/focus accent is a layered stripe rather than a color on the real
+   border-left above: a pseudo-element only paints above a sibling pseudo (the
+   has-children corner below, or a parent li's rail) once it has its own explicit
+   z-index — the real border can't win that fight, since an element's own border
+   always paints before its own generated content, stacking context or not.
+   left/width/height match the border-left exactly, so this reads as that border,
+   just able to render on top of the tree lines wherever their shared x=0 overlaps. */
+.session-row.on-stage::before {
+  content: '';
+  position: absolute;
+  left: -2px;
+  top: 0;
+  width: 2px;
+  height: 100%;
+  background: var(--accent);
+  z-index: 1;
 }
 /* A dead session carries no status, so its row recedes to keep live work legible at a glance.
    De-emphasis only — text drops a step in contrast, and hover or stage presence brings the
@@ -129,6 +146,85 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
+}
+.crashed-mark {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 20%, transparent);
+}
+.handoff-note {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+/* ---- Swarms-mode tree lines ----
+   Each child draws its own elbow (└-shaped border-left + border-bottom on ::before, down
+   to the elbow height); a non-last child extends the rail past its elbow via ::after so it
+   reaches the next sibling, and the last child simply has no ::after — the rail stops at
+   its own elbow, reading as a closing corner instead of running into nothing. A parent row
+   with children grows the same corner in reverse (border-top + border-left on ::after)
+   starting near its own status dot, so the rail visibly begins at the parent instead of
+   floating below it. Depth is uniform: every level nests the same 18px indent and the same
+   two rules, so the elbow's width matches that indent exactly and lands flush on the child
+   row's own left edge (an on-stage row's accent border included: they're meant to overlap
+   there, not leave a gap to dodge each other).
+
+   Two measured constants keep every corner on one shared line (ported from the linked mock,
+   whose .session-row padding/gap/flex-direction is identical to this file's — re-verified
+   against this component's own markup, not assumed from the mock's DOM):
+   - x: li::before's -18px offset lands its rail at the row's own left edge (x=0). The
+     parent corner's ::after sits on .session-row itself, whose padding edge starts 2px in —
+     past the row's own 2px accent border — so it needs left:-2px, not 0, to land on that
+     same x=0.
+   - y: 17.6px/15.6px center each corner's horizontal stroke on the row's status-dot. */
+ul.tree-children {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 18px;
+}
+li.tree-node {
+  position: relative;
+}
+li.tree-node::before {
+  content: '';
+  position: absolute;
+  left: -18px;
+  top: 0;
+  width: 18px;
+  height: 17.6px;
+  border-left: 2px solid var(--tree-line);
+  border-bottom: 2px solid var(--tree-line);
+}
+li.tree-node:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: -18px;
+  top: 17.6px;
+  bottom: 0;
+  width: 2px;
+  background: var(--tree-line);
+}
+.session-row.has-children {
+  position: relative;
+}
+.session-row.has-children::after {
+  content: '';
+  position: absolute;
+  left: -2px;
+  top: 15.6px;
+  width: 9px;
+  height: calc(100% - 15.6px);
+  border-top: 2px solid var(--tree-line);
+  border-left: 2px solid var(--tree-line);
 }
 .row-name {
   overflow: hidden;
@@ -217,6 +313,130 @@
   font-size: 12px;
 }
 
+/* ---- swarm groups (Swarms mode) ---- */
+.swarm-group {
+  border-bottom: 1px solid var(--border);
+}
+.swarm-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  cursor: pointer;
+  user-select: none;
+  background: var(--surface);
+  position: sticky;
+  top: 0;
+  /* See .repo-header's identical rule: must outrank .session-row.on-stage::before's z-index. */
+  z-index: 2;
+}
+.swarm-header:hover {
+  background: var(--raised);
+}
+.swarm-header .chev {
+  width: 10px;
+  height: 10px;
+  color: var(--text-faint);
+  flex: 0 0 auto;
+}
+.swarm-header.collapsed .chev {
+  transform: rotate(-90deg);
+}
+.swarm-header.dragging {
+  opacity: 0.5;
+}
+.swarm-name {
+  font-weight: 600;
+  font-size: 12.5px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.swarm-repos {
+  font-size: 11px;
+  color: var(--text-muted);
+  flex: 0 0 auto;
+}
+.swarm-attn-badge {
+  flex: 0 0 auto;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 99px;
+  background: var(--st-needs-approval);
+  color: var(--ground);
+  font-size: 10px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+}
+.swarm-rows.collapsed {
+  display: none;
+}
+.swarm-group.finished .swarm-name {
+  color: var(--text-muted);
+}
+.swarm-group.finished .swarm-header {
+  background: var(--surface);
+}
+
+/* ---- Finished (n) section ---- */
+.finished-section {
+  border-bottom: 1px solid var(--border);
+}
+.finished-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  cursor: pointer;
+  user-select: none;
+  background: var(--surface);
+}
+.finished-toggle:hover {
+  background: var(--raised);
+}
+.finished-toggle .chev {
+  width: 10px;
+  height: 10px;
+  color: var(--text-faint);
+  flex: 0 0 auto;
+  transform: rotate(-90deg);
+}
+.finished-toggle.open .chev {
+  transform: none;
+}
+.finished-toggle-label {
+  flex: 1;
+  font-size: 11px;
+}
+.finished-list {
+  padding-bottom: 2px;
+}
+
+.solo-group {
+  border-bottom: 1px solid var(--border);
+}
+.solo-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--surface);
+  position: sticky;
+  top: 0;
+  /* See .repo-header's identical rule: must outrank .session-row.on-stage::before's z-index. */
+  z-index: 2;
+}
+.solo-label {
+  font-size: 11px;
+}
+
+/* ---- sidebar toolbar / mode toggle ---- */
 .sidebar-toolbar {
   flex: 0 0 auto;
   padding: 8px 10px;
@@ -224,6 +444,31 @@
   display: flex;
   align-items: center;
   gap: 8px;
+}
+.mode-toggle {
+  display: flex;
+  background: var(--raised);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px;
+  gap: 2px;
+}
+.mode-btn {
+  border: none;
+  background: transparent;
+  padding: 4px 10px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-muted);
+  border-radius: 3px;
+}
+.mode-btn:hover {
+  border: none;
+  color: var(--text);
+}
+.mode-btn.active {
+  background: var(--accent-dim);
+  color: var(--accent);
 }
 .toggle-pill {
   display: inline-flex;
@@ -250,6 +495,7 @@
 }
 .btn-new {
   border-color: var(--border-strong);
+  margin-left: auto;
 }
 .btn-new:hover {
   border-color: var(--accent);
