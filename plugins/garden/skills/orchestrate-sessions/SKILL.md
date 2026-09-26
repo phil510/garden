@@ -275,3 +275,9 @@ call — your `parent`/`swarmId` moves to the new session, your children move wi
 `successor` set — instead of leaving your children parentless. Both verbs act on the _calling_
 session's own place (they read your own `GARDEN_SESSION_ID`): this is something you do to end
 your own run, never something you do to a peer.
+
+If you've also written a `.handoffs/*.md` file for the successor (`session-handoff`), add
+`--handoff-file <path>` to the same `garden new --handoff` call — the new session's first prompt
+becomes a continue-from-handoff prompt that `session-pickup`'s own trigger picks up automatically,
+no separate invocation needed. `garden handoff --to` has no file-carrying counterpart: it targets a
+session that already exists, so point it at the handoff yourself in the message you send.
