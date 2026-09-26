@@ -29,6 +29,10 @@ function isSlotIndex(value: unknown): value is number {
 function isUiStateRequest(body: unknown): body is UiStateRequest {
   if (typeof body !== 'object' || body === null) return false;
   const patch = body as Record<string, unknown>;
+  // swarms/placements only ever move through the swarm/placement use cases
+  // (`app/swarms.ts`), never this generic UI patch — a client PUTting either directly gets
+  // a 400 instead of a silently-ignored no-op.
+  if ('swarms' in patch || 'placements' in patch) return false;
   if ('groupOrder' in patch && !isStringArray(patch.groupOrder)) return false;
   if ('pinnedRepos' in patch && !isStringArray(patch.pinnedRepos)) return false;
   if ('collapsedRepos' in patch && !isStringArray(patch.collapsedRepos)) return false;

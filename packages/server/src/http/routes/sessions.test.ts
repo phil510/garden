@@ -33,6 +33,8 @@ const emptyOverlay: OverlayState = {
   tmuxNames: {},
   groups: {},
   stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
+  swarms: [],
+  placements: {},
 };
 
 function fakeTmux(overrides: Partial<TmuxPort> = {}): TmuxPort {
@@ -73,6 +75,12 @@ function fakeProjection(
     },
     subscribe: () => () => undefined,
     subscribeUiState: () => () => undefined,
+    updateOverlay: () => {
+      throw new Error('not used by this test');
+    },
+    placementOf: () => {
+      throw new Error('not used by this test');
+    },
   };
 }
 
@@ -517,6 +525,8 @@ describe('POST /sessions/:id/kill', () => {
         tmuxNames: { 'sid-1': 'garden' },
         groups: {},
         stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
+        swarms: [],
+        placements: {},
       }),
       projection: fakeProjection([session]),
       serverPort: 4310,
@@ -541,6 +551,8 @@ describe('POST /sessions/:id/kill', () => {
           tmuxNames: { 'sid-1': 'garden' },
           groups: {},
           stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
+          swarms: [],
+          placements: {},
         }),
         projection: fakeProjection([session]),
         serverPort: 4310,

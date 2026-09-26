@@ -67,16 +67,75 @@ describe('readOverlayState', () => {
       expect(readOverlayState(appDir, collectingLogger())).toEqual(DEFAULT_OVERLAY_STATE);
     });
   });
+
+  it('defaults swarms and placements without discarding the rest of a pre-#170 file', () => {
+    withTempAppDir((appDir) => {
+      mkdirSync(appDir, { recursive: true });
+      writeFileSync(
+        join(appDir, 'state.json'),
+        JSON.stringify({
+          version: 1,
+          tmuxNames: { 'session-1': 'garden-project' },
+          groups: { '/repo': { pinned: true, order: 0, collapsed: false, hideDead: true } },
+          stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
+          // No swarms/placements keys at all — a file written before #170.
+        }),
+      );
+      const logger = collectingLogger();
+
+      expect(readOverlayState(appDir, logger)).toEqual({
+        version: 1,
+        tmuxNames: { 'session-1': 'garden-project' },
+        groups: { '/repo': { pinned: true, order: 0, collapsed: false, hideDead: true } },
+        stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
+        swarms: [],
+        placements: {},
+      });
+      expect(logger.warnings).toEqual([]);
+    });
+  });
+
+  it('warns and returns the defaults when swarms is present but malformed', () => {
+    for (const swarms of ['{}', '[1]', '[{"id":"s1","name":"A"}]']) {
+      withTempAppDir((appDir) => {
+        mkdirSync(appDir, { recursive: true });
+        writeFileSync(
+          join(appDir, 'state.json'),
+          `{"version":1,"tmuxNames":{},"groups":{},"stage":{"preset":"single","slots":[null],"focusedSlot":0,"layout":{}},"swarms":${swarms}}`,
+        );
+        const logger = collectingLogger();
+        expect(readOverlayState(appDir, logger)).toEqual(DEFAULT_OVERLAY_STATE);
+        expect(logger.warnings).toHaveLength(1);
+      });
+    }
+  });
+
+  it('warns and returns the defaults when placements is present but malformed', () => {
+    for (const placements of ['[]', '{"sid-1":"not-an-object"}', '{"sid-1":{"parent":1}}']) {
+      withTempAppDir((appDir) => {
+        mkdirSync(appDir, { recursive: true });
+        writeFileSync(
+          join(appDir, 'state.json'),
+          `{"version":1,"tmuxNames":{},"groups":{},"stage":{"preset":"single","slots":[null],"focusedSlot":0,"layout":{}},"placements":${placements}}`,
+        );
+        const logger = collectingLogger();
+        expect(readOverlayState(appDir, logger)).toEqual(DEFAULT_OVERLAY_STATE);
+        expect(logger.warnings).toHaveLength(1);
+      });
+    }
+  });
 });
 
 describe('writeOverlayState', () => {
-  it('round-trips a written state', () => {
+  it('round-trips a written state, including swarms and placements', () => {
     withTempAppDir((appDir) => {
       const state: OverlayState = {
         version: 1,
         tmuxNames: { 'session-1': 'garden-project' },
         groups: { '/repo': { pinned: true, order: 0, collapsed: false, hideDead: true } },
         stage: { preset: 'two-across', slots: ['session-1', null], focusedSlot: 0, layout: {} },
+        swarms: [{ id: 'swarm-1', name: 'A swarm', archived: false }],
+        placements: { 'session-1': { swarmId: 'swarm-1', successor: 'session-2' } },
       };
       writeOverlayState(appDir, state);
       expect(readOverlayState(appDir, collectingLogger())).toEqual(state);

@@ -50,6 +50,48 @@ export interface UiState {
   /** dockview's own `toJSON()` output, carrying the track sizes the user dragged. Opaque
    *  everywhere but `fromJSON`; null until the stage has been laid out once. */
   layout: unknown;
+  swarms: SwarmRecord[];
+  /** Raw per-session placement, keyed by session id — not a resolved tree. A client walks
+   *  `parent` up to a top-level ancestor itself to find a session's swarm. */
+  placements: Record<string, SessionPlacement>;
+}
+
+export interface SwarmRecord {
+  id: string;
+  name: string;
+  archived: boolean;
+}
+
+/** The per-session placement fields, shared between the server's overlay storage and the
+ *  `UiState` wire shape so the two can't drift into separate shapes for the same three
+ *  fields. `parent` and `swarmId` are never both set — `Placement` below is what enforces
+ *  that at the point of writing one. */
+export interface SessionPlacement {
+  parent?: string;
+  swarmId?: string;
+  successor?: string;
+}
+
+/** The one placement a session can hold: a top-level member of a swarm, a child of another
+ *  session, or neither. Mutually exclusive by construction, so `parent` and `swarmId` set
+ *  together is unrepresentable. */
+export type Placement =
+  { type: 'swarm'; swarmId: string } | { type: 'parent'; parentId: string } | { type: 'none' };
+
+export interface CreateSwarmRequest {
+  name: string;
+}
+export interface CreateSwarmResponse {
+  id: string;
+}
+export interface RenameSwarmRequest {
+  name: string;
+}
+export interface PlacementRequest {
+  placement: Placement;
+}
+export interface HandoffRequest {
+  to: string;
 }
 
 /** Claude Code's hook payload, verbatim snake_case. `permission_mode` is absent on

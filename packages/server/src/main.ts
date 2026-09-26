@@ -32,6 +32,7 @@ import type {
 } from './app/ports.js';
 import { createProjection, type Projection } from './app/projection.js';
 import { watchRepoRoots } from './app/repoRoots.js';
+import { pruneKnownSessions } from './app/swarms.js';
 import { writeClaudeSettings, writeTmuxConf } from './appdir.js';
 import {
   appDirPath,
@@ -215,6 +216,17 @@ export async function main(detached: boolean): Promise<void> {
   const branches = createBranchSweeper({ git, projection });
 
   await replay(projection, store, tmux, transcripts, branches, logger, config.claudeSessionsDir);
+  // Only valid once replay's transcript scan has settled what "known" means — any earlier
+  // (store-loaded, or the first tmux snapshot) would prune a live child whose transcript
+  // just hasn't been read yet. Isolated like every other boot step above: a stale overlay
+  // entry left behind by a failed prune is not a reason to fail boot.
+  try {
+    pruneKnownSessions({ projection });
+  } catch (error) {
+    logger.error(
+      `post-boot pruning failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
 
   const watcher = transcripts.watch((event) => {
     projection.dispatch(event);

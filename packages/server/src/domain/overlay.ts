@@ -1,4 +1,4 @@
-import type { StagePreset } from '@garden/shared';
+import type { SessionPlacement, StagePreset, SwarmRecord } from '@garden/shared';
 
 export interface OverlayGroup {
   readonly pinned: boolean;
@@ -22,4 +22,9 @@ export interface OverlayState {
   readonly tmuxNames: Readonly<Record<string, string>>;
   readonly groups: Readonly<Record<string, OverlayGroup>>;
   readonly stage: OverlayStage;
+  readonly swarms: readonly SwarmRecord[];
+  /** One entry per placed session, keyed by session id. `parent` and `swarmId` are never
+   *  both set on one entry — that invariant is enforced at the point of writing
+   *  (`domain/swarms.ts`'s `validatePlacement`), not by this type. */
+  readonly placements: Readonly<Record<string, SessionPlacement>>;
 }

@@ -136,8 +136,8 @@ mapping. It does not optimistically mutate state and hope tmux agrees.
 
 `<appDir>/state.json` holds **overlay facts only** — things garden itself decided and cannot
 recompute: the session id to tmux name map, group order, and per-project pins, collapsed state
-and hide-dead toggle, plus stage preset and slot assignments and focused slot. It does **not**
-hold a
+and hide-dead toggle, plus stage preset and slot assignments and focused slot, plus swarm
+records and per-session parent/swarmId/successor placements. It does **not** hold a
 `SessionState` snapshot. Every session fact is derived on every boot — liveness, exit code and
 tmux name from tmux, cwd, title and recap from the transcripts, branch from a live git lookup
 keyed by cwd, status from hooks — because those are the sources of truth and a persisted copy

@@ -10,6 +10,8 @@ const emptyOverlay: OverlayState = {
   tmuxNames: {},
   groups: {},
   stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
+  swarms: [],
+  placements: {},
 };
 
 /** In-memory StorePort: the projection's contract with the store is read-modify-write,
@@ -161,6 +163,8 @@ describe('ui state', () => {
       focusedSlot: 1,
       layout: { grid: 'opaque' },
     },
+    swarms: [],
+    placements: {},
   };
 
   it('orders the groups by the store order rather than by insertion', () => {
@@ -175,6 +179,8 @@ describe('ui state', () => {
       slots: ['sid-1', null],
       focusedSlot: 1,
       layout: { grid: 'opaque' },
+      swarms: [],
+      placements: {},
     });
   });
 
@@ -305,6 +311,103 @@ describe('updateUiState when the store write fails', () => {
 
     expect(() => projection.updateUiState({ hideDeadRepos: ['/repos/a'] })).toThrow('EACCES');
     expect(projection.uiState().hideDeadRepos).toEqual([]);
+    expect(seen).toEqual([]);
+  });
+});
+
+describe('swarms and placements', () => {
+  const withPlacements: OverlayState = {
+    ...emptyOverlay,
+    swarms: [{ id: 'swarm-1', name: 'A swarm', archived: false }],
+    placements: { 'sid-1': { swarmId: 'swarm-1' } },
+  };
+
+  it('carries swarms and placements through the uiState() round trip', () => {
+    const projection = createProjection(fakeStore(withPlacements).port);
+
+    expect(projection.uiState().swarms).toEqual([
+      { id: 'swarm-1', name: 'A swarm', archived: false },
+    ]);
+    expect(projection.uiState().placements).toEqual({ 'sid-1': { swarmId: 'swarm-1' } });
+  });
+
+  it('leaves swarms and placements untouched when a ui-only patch is applied', () => {
+    const store = fakeStore(withPlacements);
+    const projection = createProjection(store.port);
+
+    projection.updateUiState({ hideDeadRepos: [] });
+
+    expect(store.written().swarms).toEqual(withPlacements.swarms);
+    expect(store.written().placements).toEqual(withPlacements.placements);
+  });
+
+  it('updateOverlay writes through the store, refreshes uiState(), and notifies ui subscribers', () => {
+    const store = fakeStore(emptyOverlay);
+    const projection = createProjection(store.port);
+    const seen: UiState[] = [];
+    projection.subscribeUiState((ui) => seen.push(ui));
+
+    const next = projection.updateOverlay((base) => ({
+      ...base,
+      swarms: [{ id: 'swarm-1', name: 'A swarm', archived: false }],
+    }));
+
+    expect(next.swarms).toEqual([{ id: 'swarm-1', name: 'A swarm', archived: false }]);
+    expect(store.written().swarms).toEqual([{ id: 'swarm-1', name: 'A swarm', archived: false }]);
+    expect(projection.uiState().swarms).toEqual([
+      { id: 'swarm-1', name: 'A swarm', archived: false },
+    ]);
+    expect(seen).toHaveLength(1);
+    expect(seen[0]?.swarms).toEqual([{ id: 'swarm-1', name: 'A swarm', archived: false }]);
+  });
+
+  it('does not notify session subscribers when only the overlay moves through updateOverlay', () => {
+    const projection = createProjection(fakeStore(emptyOverlay).port);
+    const seen: Delta[][] = [];
+    projection.subscribe((deltas) => seen.push(deltas));
+
+    projection.updateOverlay((base) => ({ ...base, swarms: [] }));
+
+    expect(seen).toEqual([]);
+  });
+
+  it('placementOf resolves a placed session, including its top-level swarm', () => {
+    const overlay: OverlayState = {
+      ...emptyOverlay,
+      placements: {
+        child: { parent: 'orchestrator' },
+        orchestrator: { swarmId: 'swarm-1' },
+      },
+    };
+    const projection = createProjection(fakeStore(overlay).port);
+
+    expect(projection.placementOf('child')).toEqual({
+      parent: 'orchestrator',
+      topLevelSwarmId: 'swarm-1',
+    });
+  });
+
+  it('placementOf returns undefined for a session with no placement entry', () => {
+    const projection = createProjection(fakeStore(emptyOverlay).port);
+
+    expect(projection.placementOf('nobody')).toBeUndefined();
+  });
+
+  it('skips the write and the notification when mutate returns its own base unchanged', () => {
+    let writes = 0;
+    const countingStore: StorePort = {
+      read: () => emptyOverlay,
+      write: () => {
+        writes += 1;
+      },
+    };
+    const projection = createProjection(countingStore);
+    const seen: UiState[] = [];
+    projection.subscribeUiState((ui) => seen.push(ui));
+
+    projection.updateOverlay((base) => base);
+
+    expect(writes).toBe(0);
     expect(seen).toEqual([]);
   });
 });
