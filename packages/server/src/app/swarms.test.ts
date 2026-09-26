@@ -12,6 +12,7 @@ import {
   handoffSession,
   placeSession,
   pruneKnownSessions,
+  recordSpawn,
   renameSwarm,
   SwarmCycleError,
   SwarmNotFoundError,
@@ -233,6 +234,68 @@ describe('placeSession', () => {
     placeSession({ projection }, { sessionId: 'a', placement: { type: 'none' } });
 
     expect(current().placements['a']).toEqual({ successor: 'b' });
+  });
+});
+
+describe('recordSpawn', () => {
+  it('places the child under an already-swarmed caller, with one write and no new swarm', () => {
+    const overlay: OverlayState = {
+      ...emptyOverlay,
+      swarms: [{ id: 's1', name: 'Existing', archived: false }],
+      placements: { caller: { swarmId: 's1' } },
+    };
+    const { projection, writes, current } = fakeProjection(overlay, [
+      aSession({ id: 'caller' }),
+      aSession({ id: 'child' }),
+    ]);
+
+    recordSpawn({ projection }, { callerId: 'caller', childId: 'child', callerTitle: 'Caller' });
+
+    expect(writes).toHaveLength(1);
+    expect(current().swarms).toEqual([{ id: 's1', name: 'Existing', archived: false }]);
+    expect(current().placements).toEqual({
+      caller: { swarmId: 's1' },
+      child: { parent: 'caller' },
+    });
+  });
+
+  it('mints a swarm named after the caller, places the caller top-level, and records the child, atomically', () => {
+    const { projection, writes, current } = fakeProjection(emptyOverlay, [
+      aSession({ id: 'caller' }),
+      aSession({ id: 'child' }),
+    ]);
+
+    recordSpawn({ projection }, { callerId: 'caller', childId: 'child', callerTitle: 'Caller' });
+
+    expect(writes).toHaveLength(1);
+    expect(current().swarms).toHaveLength(1);
+    const swarm = current().swarms[0]!;
+    expect(swarm.name).toBe('Caller');
+    expect(swarm.archived).toBe(false);
+    expect(current().placements).toEqual({
+      caller: { swarmId: swarm.id },
+      child: { parent: 'caller' },
+    });
+  });
+
+  it('falls back to "Untitled swarm" when the caller has no title', () => {
+    const { projection, current } = fakeProjection(emptyOverlay, [
+      aSession({ id: 'caller' }),
+      aSession({ id: 'child' }),
+    ]);
+
+    recordSpawn({ projection }, { callerId: 'caller', childId: 'child', callerTitle: null });
+
+    expect(current().swarms[0]?.name).toBe('Untitled swarm');
+  });
+
+  it('throws SessionNotFoundError and performs no write for an unknown caller', () => {
+    const { projection, writes } = fakeProjection(emptyOverlay, [aSession({ id: 'child' })]);
+
+    expect(() =>
+      recordSpawn({ projection }, { callerId: 'ghost', childId: 'child', callerTitle: null }),
+    ).toThrow(SessionNotFoundError);
+    expect(writes).toEqual([]);
   });
 });
 
