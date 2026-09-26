@@ -9,7 +9,7 @@ import { useSessionStore } from '../../state/sessionStore';
 import { useUiStore } from '../../state/uiStore';
 import { attachPane, detachPane } from '../../terminals/registry';
 import { deadPaneStatusLine } from './deadPaneStatus';
-import { paneTitle } from './paneTitle';
+import { paneTitle, swarmChipFor } from './paneTitle';
 import { removeFromStage } from './removeFromStage';
 import { slotFromEmptySlotId } from './presetLayout';
 
@@ -52,6 +52,8 @@ export function StagePane(props: IDockviewPanelProps) {
   const focused = slot !== -1 && slot === uiState.focusedSlot;
   const live = session?.liveness === 'live';
   const connectionEpoch = useLocalStore((state) => state.connectionEpoch);
+  const setSidebarMode = useLocalStore((state) => state.setSidebarMode);
+  const setSelectedSwarmId = useLocalStore((state) => state.setSelectedSwarmId);
   const terminalRef = useRef<HTMLDivElement>(null);
   const [confirmingKill, setConfirmingKill] = useState(false);
 
@@ -105,6 +107,15 @@ export function StagePane(props: IDockviewPanelProps) {
   // Every hook above must run unconditionally, so the "no session" bail-out sits here rather
   // than at the top — everything below can then treat `session` as defined.
   if (session === undefined) return null;
+
+  const swarmChip = swarmChipFor(session, uiState.placements, uiState.swarms);
+
+  function goToSwarm(event: MouseEvent) {
+    event.stopPropagation();
+    if (swarmChip === null) return;
+    setSidebarMode('swarms');
+    setSelectedSwarmId(swarmChip.id);
+  }
 
   function focus() {
     if (slot === -1 || focused) return;
@@ -164,7 +175,21 @@ export function StagePane(props: IDockviewPanelProps) {
     >
       <div className="pane-header">
         <div className="pane-title-wrap">
-          <div className="pane-title">{paneTitle(session)}</div>
+          <div className="pane-title">
+            {swarmChip !== null && (
+              <>
+                <span
+                  className="pane-swarm-chip"
+                  data-goto-swarm={swarmChip.id}
+                  onClick={goToSwarm}
+                >
+                  {swarmChip.name}
+                </span>
+                <span className="pane-swarm-sep">›</span>
+              </>
+            )}
+            <span className="pane-title-text">{paneTitle(session)}</span>
+          </div>
           <MetaRow label="branch" value={session.branch} />
           <MetaRow
             label="session"
