@@ -79,9 +79,15 @@ A session has a garden/tmux name (`79-bounded-session-list`) and a Claude Code n
 addresses it for messaging (`79-bounded-session-list-c0`). The suffix is a random disambiguator,
 not a hash or slice of anything you hold, and the session id is the only bridge between them. So
 resolve the address with `message-session`'s `resolve_session.sh`, every time. The messaging name
-belongs to one process: resume or restart a session and it comes back under a different one, so a
-name quoted from memory is stale the moment its process is — and a misdelivered note fails
-silently in both directions.
+belongs to one process: resume or restart a
+session and it comes back under a different one, so a name quoted from memory is stale the moment
+its process is — and a misdelivered note fails silently in both directions.
+
+`GARDEN_SESSION_ID` is garden's own identifier, not Claude Code's: the registry session id
+`message-session`'s `resolve_session.sh` reads from `~/.claude/sessions/<pid>.json` is a separate
+value. An in-pane `/clear` is believed (but unverified) to mint Claude Code a new registry session
+id without changing garden's `GARDEN_SESSION_ID` — identify a session by the garden id, which
+survives that.
 
 When you report to your user, use the Claude Code name — that's what renders in the web console's
 pane header, not the garden/tmux name. The web console never shows the id itself; for that, use
