@@ -420,6 +420,54 @@ describe('swarms and placements', () => {
     expect(projection.placementOf('nobody')).toBeUndefined();
   });
 
+  it('merges parent/swarmId/successor onto every session, even when called unfiltered', () => {
+    const store = fakeStore({ ...emptyOverlay, placements: { 'sid-1': { swarmId: 'swarm-1' } } });
+    const projection = createProjection(store.port);
+    projection.dispatch(hook('UserPromptSubmit', 'sid-1'));
+
+    expect(projection.sessions().find((s) => s.id === 'sid-1')).toMatchObject({
+      swarmId: 'swarm-1',
+    });
+  });
+
+  it('resolves swarm membership over the full placements map before the dead-session filter narrows the list', () => {
+    const store = fakeStore({
+      ...emptyOverlay,
+      placements: {
+        orchestrator: { swarmId: 'swarm-1' },
+        child: { parent: 'orchestrator' },
+      },
+    });
+    const projection = createProjection(store.port);
+    projection.dispatch({
+      type: 'session-registered',
+      id: 'orchestrator',
+      tmuxName: 'orch',
+      cwd: '/repo',
+    });
+    // No tmux-snapshot ever names 'orch' again, so it's dead; this transcript also puts
+    // its lastActivity 30 days back — past the default 7-day window.
+    projection.dispatch(staleTranscript('orchestrator'));
+    projection.dispatch({
+      type: 'session-registered',
+      id: 'child',
+      tmuxName: 'child',
+      cwd: '/repo',
+    });
+    projection.dispatch({
+      type: 'tmux-snapshot',
+      sessions: [{ name: 'child', paneDead: false, exitCode: null }],
+    });
+
+    // The orchestrator is excluded by the ordinary default-window filter...
+    expect(projection.sessions({}).map((s) => s.id)).not.toContain('orchestrator');
+    // ...but its live child, whose swarm membership depends on the orchestrator's own
+    // placement entry, still resolves under --swarm even though the orchestrator itself
+    // never appears in the swarm-scoped result.
+    const result = projection.sessions({ swarmId: 'swarm-1' });
+    expect(result.map((s) => s.id)).toEqual(['child']);
+  });
+
   it('skips the write and the notification when mutate returns its own base unchanged', () => {
     let writes = 0;
     const countingStore: StorePort = {

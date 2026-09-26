@@ -410,6 +410,89 @@ describe('handoffSession', () => {
       childOfA: { parent: 'b' },
     });
   });
+
+  it('mints a swarm for a fully unplaced caller instead of leaving the successor in Solo', () => {
+    // The ordinary first-handoff path: `a` has never spawned a child or been placed.
+    const { projection, current } = fakeProjection(emptyOverlay, [
+      aSession({ id: 'a', title: 'Caller' }),
+      aSession({ id: 'b' }),
+    ]);
+
+    handoffSession({ projection }, { fromId: 'a', toId: 'b' });
+
+    expect(current().swarms).toHaveLength(1);
+    const swarm = current().swarms[0]!;
+    expect(swarm.name).toBe('Caller');
+    expect(current().placements).toEqual({
+      a: { parent: 'b', successor: 'b' },
+      b: { swarmId: swarm.id },
+    });
+  });
+
+  it('moves every child of an unplaced caller under the new swarm, not just the caller', () => {
+    const overlay: OverlayState = { ...emptyOverlay, placements: { childOfA: { parent: 'a' } } };
+    const { projection, current } = fakeProjection(overlay, [
+      aSession({ id: 'a' }),
+      aSession({ id: 'b' }),
+      aSession({ id: 'childOfA' }),
+    ]);
+
+    handoffSession({ projection }, { fromId: 'a', toId: 'b' });
+
+    const swarm = current().swarms[0]!;
+    expect(current().placements).toEqual({
+      a: { parent: 'b', successor: 'b' },
+      b: { swarmId: swarm.id },
+      childOfA: { parent: 'b' },
+    });
+  });
+
+  it('falls back to "Untitled swarm" when the unplaced caller has no title', () => {
+    const { projection, current } = fakeProjection(emptyOverlay, [
+      aSession({ id: 'a', title: null }),
+      aSession({ id: 'b' }),
+    ]);
+
+    handoffSession({ projection }, { fromId: 'a', toId: 'b' });
+
+    expect(current().swarms[0]?.name).toBe('Untitled swarm');
+  });
+
+  it('preserves a pre-existing parent placement on the caller instead of minting a swarm over it', () => {
+    // Same asymmetric case `recordSpawn` guards against: `a` is a child of `orchestrator`
+    // via the placement endpoint, and that chain doesn't resolve to a swarm either — still
+    // not the "isn't placed at all" case.
+    const overlay: OverlayState = {
+      ...emptyOverlay,
+      placements: { a: { parent: 'orchestrator' } },
+    };
+    const { projection, current } = fakeProjection(overlay, [
+      aSession({ id: 'a' }),
+      aSession({ id: 'b' }),
+      aSession({ id: 'orchestrator' }),
+    ]);
+
+    handoffSession({ projection }, { fromId: 'a', toId: 'b' });
+
+    expect(current().swarms).toEqual([]);
+    expect(current().placements).toEqual({
+      a: { parent: 'b', successor: 'b' },
+      b: { parent: 'orchestrator' },
+    });
+  });
+
+  it('still rejects an unplaced caller that already has a successor, minting no swarm', () => {
+    const overlay: OverlayState = { ...emptyOverlay, placements: { a: { successor: 'prior' } } };
+    const { projection, writes } = fakeProjection(overlay, [
+      aSession({ id: 'a' }),
+      aSession({ id: 'b' }),
+    ]);
+
+    expect(() => handoffSession({ projection }, { fromId: 'a', toId: 'b' })).toThrow(
+      SwarmCycleError,
+    );
+    expect(writes).toEqual([]);
+  });
 });
 
 describe('pruneKnownSessions', () => {

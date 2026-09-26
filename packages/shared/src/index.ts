@@ -31,6 +31,16 @@ export interface SessionState {
   /** The Claude-side addressable name (e.g. `garden-7a`) read from the Claude session
    *  registry. Null when the registry carries no entry for this session's id. */
   claudeSessionName: string | null;
+  /** Swarm/placement fields, merged on from the overlay's `placements` map at read time
+   *  (`app/projection.ts`). Mirrors `SessionPlacement`'s shape; absent for an unplaced
+   *  session. Not derived by `domain/reduce.ts`/`domain/diff.ts`: a fresh HTTP `GET
+   *  /sessions` always reflects the current placements, but a WS delta never carries
+   *  these, so a browser client holding a session from an earlier snapshot would see them
+   *  go stale after a later handoff/adopt — moot today, since nothing in `packages/web`
+   *  reads them yet. */
+  parent?: string;
+  swarmId?: string;
+  successor?: string;
 }
 
 export type SessionMap = Record<string, SessionState>;
@@ -122,6 +132,7 @@ export interface SessionsFilter {
   maxRecapChars?: number;
   live?: boolean;
   status?: Status;
+  swarmId?: string;
 }
 
 /** Validates a raw CLI flag or query-string value as a non-negative integer before any
@@ -141,6 +152,9 @@ export function parseNonNegativeInt(raw: string): number | undefined {
 export interface CreateSessionRequest {
   cwd: string;
   callerSessionId?: string;
+  /** When true and `callerSessionId` is set, the caller's placement moves to the new
+   *  session (a handoff) instead of the new session spawning as the caller's child. */
+  handoff?: boolean;
 }
 export interface CreateSessionResponse {
   id: string;

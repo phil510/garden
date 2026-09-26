@@ -11,6 +11,7 @@ import type {
 } from '../../app/ports.js';
 import type { Projection } from '../../app/projection.js';
 import type { SessionsDeps } from '../../app/sessions.js';
+import { CrossSwarmHandoffError } from '../../app/swarms.js';
 import { sessionRoutes } from './sessions.js';
 
 const noopLogger: Logger = { warn: () => undefined, error: () => undefined };
@@ -354,6 +355,42 @@ describe('GET /sessions', () => {
 
     expect(response.statusCode).toBe(400);
   });
+
+  it('folds swarm into the filter as swarmId', async () => {
+    let seenFilter: SessionsFilter | undefined;
+    const app = buildApp({
+      tmux: fakeTmux(),
+      store: fakeStore(),
+      projection: fakeProjection([], (filter) => (seenFilter = filter)),
+      serverPort: 4310,
+      settingsPath,
+      readClaudeCommand: () => ['claude'],
+    });
+
+    const response = await app.inject({ method: 'GET', url: '/sessions?swarm=swarm-1' });
+
+    expect(response.statusCode).toBe(200);
+    expect(seenFilter).toEqual({ swarmId: 'swarm-1' });
+  });
+
+  it('rejects a repeated swarm query key with a 400 from the boundary', async () => {
+    const app = buildApp({
+      tmux: fakeTmux(),
+      store: fakeStore(),
+      projection: fakeProjection(),
+      serverPort: 4310,
+      settingsPath,
+      readClaudeCommand: () => ['claude'],
+    });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/sessions?swarm=a&swarm=b',
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: 'swarm must not be repeated' });
+  });
 });
 
 describe('POST /sessions', () => {
@@ -399,6 +436,97 @@ describe('POST /sessions', () => {
     const body = response.json<{ id: string; tmuxName: string }>();
     expect(body.tmuxName).toBe('garden');
     expect(body.id).not.toBe('');
+  });
+
+  it('rejects a non-boolean handoff field without touching tmux', async () => {
+    const calls: TmuxNewSessionRequest[] = [];
+    const app = buildApp({
+      tmux: fakeTmux({
+        newSession: (request) => {
+          calls.push(request);
+          return Promise.resolve();
+        },
+      }),
+      store: fakeStore(),
+      projection: fakeProjection(),
+      serverPort: 4310,
+      settingsPath,
+      readClaudeCommand: () => ['claude'],
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/sessions',
+      payload: { cwd: '/Users/dev/garden', handoff: 'true' },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(calls).toEqual([]);
+  });
+
+  it('maps a SwarmCycleError from the pre-spawn successor check to a 409', async () => {
+    const app = buildApp({
+      tmux: fakeTmux({ newSession: () => Promise.resolve() }),
+      store: fakeStore(),
+      projection: {
+        ...fakeProjection(),
+        placementOf: () => ({ successor: 'someone-else' }),
+      },
+      serverPort: 4310,
+      settingsPath,
+      readClaudeCommand: () => ['claude'],
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/sessions',
+      payload: { cwd: '/Users/dev/garden', callerSessionId: 'caller', handoff: true },
+    });
+
+    expect(response.statusCode).toBe(409);
+  });
+
+  it('maps a CrossSwarmHandoffError from the handoff branch to a 409, and kills the orphaned tmux session', async () => {
+    // A concurrent handoff for the same caller can land between the pre-spawn guard and
+    // the real handoffSession() call, so tmux is already running for the new session's id
+    // by the time this rejection surfaces — the fix rolls that spawn back rather than
+    // leaving an orphan the client has no id to correlate or kill.
+    let spawnedId: string | undefined;
+    const killed: string[] = [];
+    const app = buildApp({
+      tmux: fakeTmux({
+        newSession: (request) => {
+          spawnedId = request.sessionId;
+          return Promise.resolve();
+        },
+        killSession: (name) => {
+          killed.push(name);
+          return Promise.resolve();
+        },
+      }),
+      store: fakeStore(),
+      projection: {
+        ...fakeProjection(),
+        sessions: () =>
+          spawnedId === undefined ? [] : [aSession({ id: spawnedId, tmuxName: 'garden' })],
+        placementOf: () => undefined,
+        updateOverlay: () => {
+          throw new CrossSwarmHandoffError('different swarm');
+        },
+      },
+      serverPort: 4310,
+      settingsPath,
+      readClaudeCommand: () => ['claude'],
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/sessions',
+      payload: { cwd: '/Users/dev/garden', callerSessionId: 'caller', handoff: true },
+    });
+
+    expect(response.statusCode).toBe(409);
+    expect(killed).toEqual(['garden']);
   });
 
   it('warns and strips unknownCaller from the wire response when callerSessionId does not resolve', async () => {

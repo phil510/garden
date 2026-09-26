@@ -4,7 +4,15 @@ import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { CliHttpError, createSession, killSession, listSessions, resumeSession } from './http.js';
+import {
+  CliHttpError,
+  createSession,
+  handoffSession,
+  killSession,
+  listSessions,
+  placeSession,
+  resumeSession,
+} from './http.js';
 
 type Handler = (request: IncomingMessage, response: ServerResponse) => void;
 
@@ -92,6 +100,14 @@ describe('listSessions', () => {
     });
     await expect(listSessions({ sinceDays: 30 })).resolves.toEqual({ sessions: [] });
   });
+
+  it('sends swarmId as a swarm query param', async () => {
+    await startServer((request, response) => {
+      expect(request.url).toBe('/sessions?swarm=swarm-1');
+      sendJson(response, 200, { sessions: [] });
+    });
+    await expect(listSessions({ swarmId: 'swarm-1' })).resolves.toEqual({ sessions: [] });
+  });
 });
 
 describe('createSession', () => {
@@ -120,6 +136,68 @@ describe('createSession', () => {
     await expect(createSession('/repo', 'caller-1')).resolves.toEqual({
       id: 'abc',
       tmuxName: 'repo',
+    });
+  });
+
+  it('includes handoff: true in the body when requested', async () => {
+    await startServer((request, response) => {
+      void (async () => {
+        expect(JSON.parse(await readBody(request))).toEqual({
+          cwd: '/repo',
+          callerSessionId: 'caller-1',
+          handoff: true,
+        });
+        sendJson(response, 200, { id: 'abc', tmuxName: 'repo' });
+      })();
+    });
+    await expect(createSession('/repo', 'caller-1', true)).resolves.toEqual({
+      id: 'abc',
+      tmuxName: 'repo',
+    });
+  });
+
+  it('omits handoff from the body when not requested', async () => {
+    await startServer((request, response) => {
+      void (async () => {
+        expect(JSON.parse(await readBody(request))).toEqual({ cwd: '/repo' });
+        sendJson(response, 200, { id: 'abc', tmuxName: 'repo' });
+      })();
+    });
+    await expect(createSession('/repo', undefined, false)).resolves.toEqual({
+      id: 'abc',
+      tmuxName: 'repo',
+    });
+  });
+});
+
+describe('handoffSession', () => {
+  it('posts { to } to the handoff route', async () => {
+    await startServer((request, response) => {
+      void (async () => {
+        expect(request.method).toBe('POST');
+        expect(request.url).toBe('/sessions/a/handoff');
+        expect(JSON.parse(await readBody(request))).toEqual({ to: 'b' });
+        sendJson(response, 200, { ok: true });
+      })();
+    });
+    await expect(handoffSession('a', 'b')).resolves.toEqual({ ok: true });
+  });
+});
+
+describe('placeSession', () => {
+  it('posts { placement } to the placement route', async () => {
+    await startServer((request, response) => {
+      void (async () => {
+        expect(request.method).toBe('POST');
+        expect(request.url).toBe('/sessions/a/placement');
+        expect(JSON.parse(await readBody(request))).toEqual({
+          placement: { type: 'parent', parentId: 'b' },
+        });
+        sendJson(response, 200, { ok: true });
+      })();
+    });
+    await expect(placeSession('a', { type: 'parent', parentId: 'b' })).resolves.toEqual({
+      ok: true,
     });
   });
 });
