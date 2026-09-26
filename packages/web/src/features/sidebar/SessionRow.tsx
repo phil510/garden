@@ -1,10 +1,17 @@
 import type { SessionState } from '@garden/shared';
-import { Fragment, useState, type MouseEvent } from 'react';
+import { Fragment, useEffect, useRef, useState, type MouseEvent } from 'react';
 import { killSession, resumeSession } from '../../api/client';
 import { reportCommandFailure } from '../../api/reportCommandFailure';
+import { ContextMenu } from '../../components/ContextMenu';
 import { StatusPill } from '../../components/StatusPill';
 import { HoverCard } from './HoverCard';
 import { lastPathSegment } from './lastPathSegment';
+import { pressStartedInMenu } from './pressOrigin';
+import {
+  sessionRowMenuAction,
+  sessionRowMenuItems,
+  type ConfirmingAction,
+} from './sessionRowMenuItems';
 import { metaLineSegmentClassName, metaLineSegments } from './sessionIdentity';
 
 interface SessionRowProps {
@@ -20,37 +27,64 @@ export function SessionRow({ session, onStage, focused, now, onSelect }: Session
   // read during render — a raw ref's `.current` is not.
   const [rowEl, setRowEl] = useState<HTMLDivElement | null>(null);
   const [hovered, setHovered] = useState(false);
-  const [confirmingKill, setConfirmingKill] = useState(false);
+  const [contextMenuPoint, setContextMenuPoint] = useState<{ x: number; y: number } | null>(null);
+  const [confirming, setConfirming] = useState<ConfirmingAction>(null);
   const dead = session.liveness === 'dead';
   const title = session.title ?? lastPathSegment(session.cwd);
 
-  function handleKill(event: MouseEvent) {
-    event.stopPropagation();
-    setConfirmingKill(true);
+  // A press on a menu item that releases on the row body reaches the row as a click without
+  // passing through ContextMenu's own guard, since the browser routes a mismatched
+  // mousedown/mouseup pair to their common ancestor. Tracked here on the capture phase, ahead
+  // of that guard; reset whenever the menu's lifecycle changes.
+  const pressStartedInMenuRef = useRef(false);
+  useEffect(() => {
+    pressStartedInMenuRef.current = false;
+  }, [contextMenuPoint]);
+
+  function handleRowMouseDown(event: MouseEvent) {
+    pressStartedInMenuRef.current = pressStartedInMenu(
+      event.target instanceof Element ? event.target : null,
+    );
   }
 
-  function handleKillCancel(event: MouseEvent) {
-    event.stopPropagation();
-    setConfirmingKill(false);
+  function handleRowClick() {
+    const pressStartedInMenu = pressStartedInMenuRef.current;
+    pressStartedInMenuRef.current = false;
+    if (pressStartedInMenu) return;
+    onSelect(session.id);
   }
 
-  function handleKillConfirm(event: MouseEvent) {
+  function handleContextMenu(event: MouseEvent) {
+    event.preventDefault();
     event.stopPropagation();
-    setConfirmingKill(false);
-    killSession(session.id).catch(reportCommandFailure);
+    setConfirming(null);
+    setContextMenuPoint({ x: event.clientX, y: event.clientY });
   }
 
-  function handleResume(event: MouseEvent) {
-    event.stopPropagation();
-    resumeSession(session.id).catch(reportCommandFailure);
+  function closeContextMenu() {
+    setContextMenuPoint(null);
+    setConfirming(null);
   }
+
+  const menuItems = sessionRowMenuItems(dead, confirming).map((item) => ({
+    ...item,
+    onSelect: () => {
+      const result = sessionRowMenuAction(item.key);
+      setConfirming(result.confirming);
+      if (result.act === 'kill') killSession(session.id).catch(reportCommandFailure);
+      if (result.act === 'resume') resumeSession(session.id).catch(reportCommandFailure);
+      if (result.act !== null) setContextMenuPoint(null);
+    },
+  }));
 
   return (
     <div
       ref={setRowEl}
       className={`session-row${onStage ? ' on-stage' : ''}${dead ? ' dead' : ''}`}
       tabIndex={0}
-      onClick={() => onSelect(session.id)}
+      onClick={handleRowClick}
+      onMouseDownCapture={handleRowMouseDown}
+      onContextMenu={handleContextMenu}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
@@ -69,28 +103,16 @@ export function SessionRow({ session, onStage, focused, now, onSelect }: Session
           </Fragment>
         ))}
       </div>
-      {confirmingKill ? (
-        <div className="row-confirm">
-          <span className="muted">Kill session?</span>
-          <button className="danger" onClick={handleKillConfirm}>
-            Confirm
-          </button>
-          <button className="ghost" onClick={handleKillCancel}>
-            Cancel
-          </button>
-        </div>
-      ) : (
-        <div className="row-actions">
-          {dead && <button onClick={handleResume}>Resume</button>}
-          {!dead && (
-            <button className="danger" onClick={handleKill}>
-              Kill
-            </button>
-          )}
-        </div>
-      )}
-      {hovered && rowEl !== null && (
+      {hovered && rowEl !== null && contextMenuPoint === null && (
         <HoverCard title={title} session={session} anchor={rowEl} now={now} />
+      )}
+      {contextMenuPoint !== null && (
+        <ContextMenu
+          x={contextMenuPoint.x}
+          y={contextMenuPoint.y}
+          items={menuItems}
+          onClose={closeContextMenu}
+        />
       )}
     </div>
   );

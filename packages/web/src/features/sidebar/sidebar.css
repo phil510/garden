@@ -153,27 +153,6 @@
   background: var(--accent);
 }
 
-.row-actions {
-  display: flex;
-  gap: 5px;
-  margin-top: 2px;
-}
-.row-actions button {
-  padding: 3px 7px;
-  font-size: 11px;
-}
-.row-confirm {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 2px;
-  font-size: 11.5px;
-}
-.row-confirm button {
-  padding: 3px 7px;
-  font-size: 11px;
-}
-
 .hover-card {
   position: fixed;
   z-index: 50;
