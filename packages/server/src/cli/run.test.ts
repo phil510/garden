@@ -40,8 +40,8 @@ function recordingClient(): { client: CliClient; calls: string[] } {
       calls.push(filter === undefined ? 'ls' : `ls:${JSON.stringify(filter)}`);
       return Promise.resolve(sessions);
     },
-    createSession: (cwd) => {
-      calls.push(`new:${cwd}`);
+    createSession: (cwd, callerSessionId, handoff) => {
+      calls.push(`new:${cwd}:${callerSessionId ?? ''}:${String(handoff)}`);
       return Promise.resolve(created);
     },
     resumeSession: (id) => {
@@ -169,7 +169,7 @@ describe('runCli', () => {
     const exitCode = await runCli('new', ['/repo'], io, client);
 
     expect(exitCode).toBe(0);
-    expect(calls).toEqual(['new:/repo']);
+    expect(calls).toEqual(['new:/repo:caller-1:false']);
   });
 
   it('dispatches "ls" with no positionals required', async () => {
@@ -199,8 +199,8 @@ describe('runCli', () => {
     expect(await runCli('new', ['/repo', '--handoff'], io, withFlag)).toBe(0);
     expect(await runCli('new', ['/repo'], io, withoutFlag)).toBe(0);
 
-    expect(withFlagCalls).toEqual(['new:/repo']);
-    expect(withoutFlagCalls).toEqual(['new:/repo']);
+    expect(withFlagCalls).toEqual(['new:/repo:caller-1:true']);
+    expect(withoutFlagCalls).toEqual(['new:/repo:caller-1:false']);
   });
 
   it('dispatches "handoff --to <id>"', async () => {
