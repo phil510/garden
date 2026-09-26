@@ -218,8 +218,15 @@ export async function main(detached: boolean): Promise<void> {
   await replay(projection, store, tmux, transcripts, branches, logger, config.claudeSessionsDir);
   // Only valid once replay's transcript scan has settled what "known" means — any earlier
   // (store-loaded, or the first tmux snapshot) would prune a live child whose transcript
-  // just hasn't been read yet.
-  pruneKnownSessions({ projection });
+  // just hasn't been read yet. Isolated like every other boot step above: a stale overlay
+  // entry left behind by a failed prune is not a reason to fail boot.
+  try {
+    pruneKnownSessions({ projection });
+  } catch (error) {
+    logger.error(
+      `post-boot pruning failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
 
   const watcher = transcripts.watch((event) => {
     projection.dispatch(event);
