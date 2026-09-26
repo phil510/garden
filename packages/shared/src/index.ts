@@ -64,6 +64,9 @@ export interface UiState {
   /** Raw per-session placement, keyed by session id — not a resolved tree. A client walks
    *  `parent` up to a top-level ancestor itself to find a session's swarm. */
   placements: Record<string, SessionPlacement>;
+  swarmOrder: string[];
+  collapsedSwarms: string[];
+  hideDeadSwarms: string[];
 }
 
 export interface SwarmRecord {

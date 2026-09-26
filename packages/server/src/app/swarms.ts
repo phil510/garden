@@ -57,7 +57,10 @@ export function renameSwarm(deps: SwarmsDeps, request: { id: string; name: strin
   });
 }
 
-function setArchived(deps: SwarmsDeps, id: string, archived: boolean): void {
+/** Exported for `resumeSession` (`app/sessions.ts`), which clears a swarm's `archived` flag
+ *  when a resumed session belongs to one — the only other write site for this flag besides
+ *  `archiveSwarm`/`unarchiveSwarm` themselves. */
+export function setArchived(deps: SwarmsDeps, id: string, archived: boolean): void {
   deps.projection.updateOverlay((base) => {
     findSwarm(base, id);
     return {

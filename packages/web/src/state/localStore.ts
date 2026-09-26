@@ -20,10 +20,18 @@ const STAGE_MIN_WIDTH = 200;
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
+export type SidebarMode = 'repos' | 'swarms';
+
 interface LocalStore {
   /** Keyed by whatever id the caller scrolls — a pane, a tree, a list. */
   scrollOffsets: Record<string, number>;
   setScrollOffset: (key: string, offset: number) => void;
+  /** The sidebar's [ Repos | Swarms ] toggle. Per-browser like every other field in this
+   *  store: it resets to `repos` on reload rather than round-tripping through state.json — no
+   *  AC requires the toggle itself to survive a reload, only swarm collapse/order (via
+   *  UiState). */
+  sidebarMode: SidebarMode;
+  setSidebarMode: (mode: SidebarMode) => void;
   /** Expanded directory paths per session, since each session's file tree is rooted at its
    *  own cwd. */
   expandedPaths: Record<string, readonly string[]>;
@@ -57,6 +65,8 @@ export const useLocalStore = create<LocalStore>((set) => ({
   scrollOffsets: {},
   setScrollOffset: (key, offset) =>
     set((state) => ({ scrollOffsets: { ...state.scrollOffsets, [key]: offset } })),
+  sidebarMode: 'repos',
+  setSidebarMode: (mode) => set({ sidebarMode: mode }),
   expandedPaths: {},
   toggleExpandedPath: (sessionId, path) =>
     set((state) => {

@@ -12,6 +12,9 @@ const emptyOverlay: OverlayState = {
   stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
   swarms: [],
   placements: {},
+  swarmOrder: [],
+  collapsedSwarms: [],
+  hideDeadSwarms: [],
 };
 
 /** In-memory StorePort: the projection's contract with the store is read-modify-write,
@@ -165,6 +168,9 @@ describe('ui state', () => {
     },
     swarms: [],
     placements: {},
+    swarmOrder: [],
+    collapsedSwarms: [],
+    hideDeadSwarms: [],
   };
 
   it('orders the groups by the store order rather than by insertion', () => {
@@ -181,6 +187,9 @@ describe('ui state', () => {
       layout: { grid: 'opaque' },
       swarms: [],
       placements: {},
+      swarmOrder: [],
+      collapsedSwarms: [],
+      hideDeadSwarms: [],
     });
   });
 
@@ -271,6 +280,24 @@ describe('ui state', () => {
       '/repos/a': { pinned: false, order: 0, collapsed: false, hideDead: false },
       '/repos/z': { pinned: false, order: 1, collapsed: false, hideDead: true },
     });
+  });
+
+  it('round-trips swarmOrder, collapsedSwarms and hideDeadSwarms through updateUiState', () => {
+    const store = fakeStore(overlay);
+    const projection = createProjection(store.port);
+
+    projection.updateUiState({
+      swarmOrder: ['swarm-2', 'swarm-1'],
+      collapsedSwarms: ['swarm-1'],
+      hideDeadSwarms: ['swarm-2'],
+    });
+
+    expect(store.written().swarmOrder).toEqual(['swarm-2', 'swarm-1']);
+    expect(store.written().collapsedSwarms).toEqual(['swarm-1']);
+    expect(store.written().hideDeadSwarms).toEqual(['swarm-2']);
+    expect(projection.uiState().swarmOrder).toEqual(['swarm-2', 'swarm-1']);
+    expect(projection.uiState().collapsedSwarms).toEqual(['swarm-1']);
+    expect(projection.uiState().hideDeadSwarms).toEqual(['swarm-2']);
   });
 
   it('notifies ui subscribers, and none after they unsubscribe', () => {

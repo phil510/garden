@@ -37,6 +37,9 @@ function isUiStateRequest(body: unknown): body is UiStateRequest {
   if ('pinnedRepos' in patch && !isStringArray(patch.pinnedRepos)) return false;
   if ('collapsedRepos' in patch && !isStringArray(patch.collapsedRepos)) return false;
   if ('hideDeadRepos' in patch && !isStringArray(patch.hideDeadRepos)) return false;
+  if ('swarmOrder' in patch && !isStringArray(patch.swarmOrder)) return false;
+  if ('collapsedSwarms' in patch && !isStringArray(patch.collapsedSwarms)) return false;
+  if ('hideDeadSwarms' in patch && !isStringArray(patch.hideDeadSwarms)) return false;
   if ('preset' in patch && !presets.has(patch.preset as StagePreset)) return false;
   if ('slots' in patch && !isSlotsArray(patch.slots)) return false;
   if ('focusedSlot' in patch && !isSlotIndex(patch.focusedSlot)) return false;
