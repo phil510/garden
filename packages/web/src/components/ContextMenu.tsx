@@ -1,4 +1,10 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+} from 'react';
 import { computeContextMenuPosition } from './contextMenuPosition';
 import './context-menu.css';
 
@@ -50,6 +56,14 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
     };
   }, [onClose]);
 
+  // The menu is rendered inline in the row's own DOM (no portal — see plan.md), so an
+  // item's click would otherwise bubble into the row's onClick and stage the session as
+  // an unwanted side effect of picking a menu item.
+  function onItemClick(event: ReactMouseEvent, item: ContextMenuItem) {
+    event.stopPropagation();
+    item.onSelect();
+  }
+
   return (
     <div
       ref={containerRef}
@@ -62,7 +76,7 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
         <div
           key={item.key}
           className={`context-menu-item${item.danger === true ? ' danger' : ''}`}
-          onClick={() => item.onSelect()}
+          onClick={(event) => onItemClick(event, item)}
         >
           {item.label}
         </div>
