@@ -5,13 +5,16 @@ import { deriveTmuxName } from '../domain/tmuxName.js';
 import { SessionNotFoundError } from './errors.js';
 import type { StorePort, TmuxPaneFact, TmuxPort } from './ports.js';
 import type { Projection } from './projection.js';
-import { recordSpawn, setArchived } from './swarms.js';
+import { handoffSession, recordSpawn, setArchived, SwarmCycleError } from './swarms.js';
 
 export { SessionNotFoundError } from './errors.js';
 
 export interface CreateSessionRequest {
   readonly cwd: string;
   readonly callerSessionId?: string;
+  /** When true and `callerSessionId` is set, the caller's placement moves to the new
+   *  session instead of the new session spawning as the caller's child. */
+  readonly handoff?: boolean;
 }
 
 export interface CreateSessionResult {
@@ -106,6 +109,18 @@ export async function createSession(
 ): Promise<CreateSessionResult> {
   const { tmux, store, projection, serverPort, settingsPath, readClaudeCommand, permissionMode } =
     deps;
+
+  // Checked before spawning anything: the new session's id is always fresh, so this is the
+  // only computeHandoff rejection reachable from this call site (cross-swarm/cycle both
+  // require the target to already have a placements entry). Catching it after the spawn
+  // would leave a live, unplaced tmux session behind for every retry of an already-handed-
+  // off caller.
+  if (request.handoff === true && request.callerSessionId !== undefined) {
+    const priorSuccessor = projection.placementOf(request.callerSessionId)?.successor;
+    if (priorSuccessor !== undefined)
+      throw new SwarmCycleError(`${request.callerSessionId} already has a successor`);
+  }
+
   const panes = await tmux.listPanes();
   const takenNames = takenTmuxNames(projection, panes);
   const id = randomUUID();
@@ -131,6 +146,23 @@ export async function createSession(
   projection.dispatch({ type: 'session-registered', id, tmuxName, cwd: request.cwd });
 
   if (request.callerSessionId === undefined) return { id, tmuxName };
+
+  if (request.handoff === true) {
+    try {
+      handoffSession({ projection }, { fromId: request.callerSessionId, toId: id });
+    } catch (error) {
+      if (error instanceof SessionNotFoundError) return { id, tmuxName, unknownCaller: true };
+      // A concurrent handoff for the same caller can land in the gap between the pre-spawn
+      // guard above and this call, so a rejection reaching here (unlike an unknown caller)
+      // finds tmux already running for `id`. Roll it back the same way `killSession` does,
+      // rather than leaving an orphaned session the caller has no id to correlate or kill.
+      // The rollback is best-effort: its own failure (e.g. tmux.killSession rejecting on an
+      // already-exited pane) must not replace the rejection the caller actually needs to see.
+      await killSession(deps, { id }).catch(() => undefined);
+      throw error;
+    }
+    return { id, tmuxName };
+  }
 
   const callerTitle =
     projection.sessions().find((session) => session.id === request.callerSessionId)?.title ?? null;

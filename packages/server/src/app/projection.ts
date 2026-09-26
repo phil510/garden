@@ -1,5 +1,6 @@
 import type { Delta, SessionsFilter, SessionState, UiState, UiStateRequest } from '@garden/shared';
 import { diff } from '../domain/diff.js';
+import { filterBySwarm, mergePlacements } from '../domain/placements.js';
 import { initialState, reduce } from '../domain/reduce.js';
 import { filterSessions } from '../domain/sessionsFilter.js';
 import { resolveSwarmId } from '../domain/swarms.js';
@@ -99,8 +100,15 @@ export function createProjection(store: StorePort): Projection {
 
   return {
     sessions: (filter) => {
-      const all = Object.values(state.sessions);
-      return filter === undefined ? all : filterSessions(all, filter, Date.now());
+      // `ui.placements` (kept in sync by updateOverlay/updateUiState), not `store.read()` —
+      // this runs on every call, including the tmux-poll branch sweep every tick, and a
+      // fresh disk read there would turn a pure in-memory accessor into per-tick I/O.
+      const { placements } = ui;
+      const merged = mergePlacements(Object.values(state.sessions), placements);
+      if (filter === undefined) return merged;
+      const swarmScoped =
+        filter.swarmId === undefined ? merged : filterBySwarm(merged, placements, filter.swarmId);
+      return filterSessions(swarmScoped, filter, Date.now());
     },
     uiState: () => ui,
 

@@ -3,7 +3,10 @@ import type {
   CreateSessionRequest,
   CreateSessionResponse,
   ErrorResponse,
+  HandoffRequest,
   OkResponse,
+  Placement,
+  PlacementRequest,
   SessionsFilter,
   SessionsResponse,
 } from '@garden/shared';
@@ -44,6 +47,7 @@ function sessionsQuery(filter: SessionsFilter): string {
   if (filter.maxRecapChars !== undefined) params.set('maxRecapChars', String(filter.maxRecapChars));
   if (filter.live !== undefined) params.set('live', String(filter.live));
   if (filter.status !== undefined) params.set('status', filter.status);
+  if (filter.swarmId !== undefined) params.set('swarm', filter.swarmId);
   const query = params.toString();
   return query === '' ? '' : `?${query}`;
 }
@@ -55,9 +59,13 @@ export function listSessions(filter?: SessionsFilter): Promise<SessionsResponse>
 export function createSession(
   cwd: string,
   callerSessionId?: string,
+  handoff?: boolean,
 ): Promise<CreateSessionResponse> {
-  const body: CreateSessionRequest =
-    callerSessionId === undefined ? { cwd } : { cwd, callerSessionId };
+  const body: CreateSessionRequest = {
+    cwd,
+    ...(callerSessionId === undefined ? {} : { callerSessionId }),
+    ...(handoff === true ? { handoff: true } : {}),
+  };
   return request('/sessions', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -71,4 +79,22 @@ export function resumeSession(id: string): Promise<CreateSessionResponse> {
 
 export function killSession(id: string): Promise<OkResponse> {
   return request(`/sessions/${encodeURIComponent(id)}/kill`, { method: 'POST' });
+}
+
+export function handoffSession(fromId: string, to: string): Promise<OkResponse> {
+  const body: HandoffRequest = { to };
+  return request(`/sessions/${encodeURIComponent(fromId)}/handoff`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export function placeSession(id: string, placement: Placement): Promise<OkResponse> {
+  const body: PlacementRequest = { placement };
+  return request(`/sessions/${encodeURIComponent(id)}/placement`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
 }

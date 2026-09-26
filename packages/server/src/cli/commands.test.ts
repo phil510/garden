@@ -7,7 +7,7 @@ import type {
 } from '@garden/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { CliClient, Io } from './commands.js';
-import { runKill, runLs, runNew, runResume } from './commands.js';
+import { runAdopt, runHandoff, runKill, runLs, runNew, runResume } from './commands.js';
 
 function collectingIo(): { io: Io; stdout: string[]; stderr: string[] } {
   const stdout: string[] = [];
@@ -54,6 +54,8 @@ function throwingClient(error: Error): CliClient {
     createSession: () => Promise.reject(error),
     resumeSession: () => Promise.reject(error),
     killSession: () => Promise.reject(error),
+    handoffSession: () => Promise.reject(error),
+    placeSession: () => Promise.reject(error),
   };
 }
 
@@ -145,6 +147,173 @@ describe('runNew', () => {
     expect(exitCode).toBe(1);
     expect(stdout).toEqual([]);
     expect(stderr).toEqual(['garden: garden server is not running\n']);
+  });
+
+  it('passes handoff: true through to createSession when --handoff is set and a caller is present', async () => {
+    process.env.GARDEN_SESSION_ID = 'caller-1';
+    const { io } = collectingIo();
+    const response: CreateSessionResponse = { id: 'abc', tmuxName: 'repo' };
+    const calls: Array<[string, string | undefined, boolean | undefined]> = [];
+    const client: CliClient = {
+      ...throwingClient(new Error('unused')),
+      createSession: (cwd, callerSessionId, handoff) => {
+        calls.push([cwd, callerSessionId, handoff]);
+        return Promise.resolve(response);
+      },
+    };
+
+    const exitCode = await runNew(io, '/repo', false, client, true);
+
+    expect(exitCode).toBe(0);
+    expect(calls).toEqual([['/repo', 'caller-1', true]]);
+  });
+
+  it('fails with exit 1 and creates no relationship when --handoff is set but GARDEN_SESSION_ID is unset', async () => {
+    delete process.env.GARDEN_SESSION_ID;
+    const { io, stdout, stderr } = collectingIo();
+    const calls: unknown[] = [];
+    const client: CliClient = {
+      ...throwingClient(new Error('unused')),
+      createSession: (...args) => {
+        calls.push(args);
+        return Promise.resolve({ id: 'abc', tmuxName: 'repo' });
+      },
+    };
+
+    const exitCode = await runNew(io, '/repo', false, client, true);
+
+    expect(exitCode).toBe(1);
+    expect(calls).toEqual([]);
+    expect(stdout).toEqual([]);
+    expect(stderr).toEqual(['garden: GARDEN_SESSION_ID is not set\n']);
+  });
+});
+
+describe('runHandoff', () => {
+  let originalSessionId: string | undefined;
+
+  beforeEach(() => {
+    originalSessionId = process.env.GARDEN_SESSION_ID;
+  });
+
+  afterEach(() => {
+    if (originalSessionId === undefined) delete process.env.GARDEN_SESSION_ID;
+    else process.env.GARDEN_SESSION_ID = originalSessionId;
+  });
+
+  it('hands off from GARDEN_SESSION_ID to the named target on success', async () => {
+    process.env.GARDEN_SESSION_ID = 'caller-1';
+    const { io, stdout } = collectingIo();
+    const calls: Array<[string, string]> = [];
+    const client: CliClient = {
+      ...throwingClient(new Error('unused')),
+      handoffSession: (fromId, to) => {
+        calls.push([fromId, to]);
+        return Promise.resolve({ ok: true });
+      },
+    };
+
+    const exitCode = await runHandoff(io, 'target-1', false, client);
+
+    expect(exitCode).toBe(0);
+    expect(calls).toEqual([['caller-1', 'target-1']]);
+    expect(stdout).toEqual(['handed off\n']);
+  });
+
+  it('fails with exit 1 and creates no relationship when GARDEN_SESSION_ID is unset', async () => {
+    delete process.env.GARDEN_SESSION_ID;
+    const { io, stdout, stderr } = collectingIo();
+    const calls: unknown[] = [];
+    const client: CliClient = {
+      ...throwingClient(new Error('unused')),
+      handoffSession: (...args) => {
+        calls.push(args);
+        return Promise.resolve({ ok: true });
+      },
+    };
+
+    const exitCode = await runHandoff(io, 'target-1', false, client);
+
+    expect(exitCode).toBe(1);
+    expect(calls).toEqual([]);
+    expect(stdout).toEqual([]);
+    expect(stderr).toEqual(['garden: GARDEN_SESSION_ID is not set\n']);
+  });
+
+  it('surfaces a cycle/cross-swarm rejection from the server on stderr, exit 1', async () => {
+    process.env.GARDEN_SESSION_ID = 'caller-1';
+    const { io, stderr } = collectingIo();
+    const client = throwingClient(
+      new Error('would create a cycle: target-1 is already an ancestor'),
+    );
+
+    const exitCode = await runHandoff(io, 'target-1', false, client);
+
+    expect(exitCode).toBe(1);
+    expect(stderr).toEqual(['garden: would create a cycle: target-1 is already an ancestor\n']);
+  });
+});
+
+describe('runAdopt', () => {
+  let originalSessionId: string | undefined;
+
+  beforeEach(() => {
+    originalSessionId = process.env.GARDEN_SESSION_ID;
+  });
+
+  afterEach(() => {
+    if (originalSessionId === undefined) delete process.env.GARDEN_SESSION_ID;
+    else process.env.GARDEN_SESSION_ID = originalSessionId;
+  });
+
+  it("places the named target's parent as GARDEN_SESSION_ID on success", async () => {
+    process.env.GARDEN_SESSION_ID = 'caller-1';
+    const { io, stdout } = collectingIo();
+    const calls: Array<[string, unknown]> = [];
+    const client: CliClient = {
+      ...throwingClient(new Error('unused')),
+      placeSession: (id, placement) => {
+        calls.push([id, placement]);
+        return Promise.resolve({ ok: true });
+      },
+    };
+
+    const exitCode = await runAdopt(io, 'target-1', false, client);
+
+    expect(exitCode).toBe(0);
+    expect(calls).toEqual([['target-1', { type: 'parent', parentId: 'caller-1' }]]);
+    expect(stdout).toEqual(['adopted\n']);
+  });
+
+  it('fails with exit 1 and creates no relationship when GARDEN_SESSION_ID is unset', async () => {
+    delete process.env.GARDEN_SESSION_ID;
+    const { io, stdout, stderr } = collectingIo();
+    const calls: unknown[] = [];
+    const client: CliClient = {
+      ...throwingClient(new Error('unused')),
+      placeSession: (...args) => {
+        calls.push(args);
+        return Promise.resolve({ ok: true });
+      },
+    };
+
+    const exitCode = await runAdopt(io, 'target-1', false, client);
+
+    expect(exitCode).toBe(1);
+    expect(calls).toEqual([]);
+    expect(stdout).toEqual([]);
+    expect(stderr).toEqual(['garden: GARDEN_SESSION_ID is not set\n']);
+  });
+
+  it('surfaces a cross-swarm rejection from the server on stderr, exit 1', async () => {
+    process.env.GARDEN_SESSION_ID = 'caller-1';
+    const { io, stderr } = collectingIo();
+    const client = throwingClient(new Error('target-1 belongs to a different swarm than caller-1'));
+
+    const exitCode = await runAdopt(io, 'target-1', false, client);
+
+    expect(exitCode).toBe(1);
+    expect(stderr).toEqual(['garden: target-1 belongs to a different swarm than caller-1\n']);
   });
 });
 

@@ -1,6 +1,7 @@
 import type {
   CreateSessionResponse,
   OkResponse,
+  Placement,
   SessionsFilter,
   SessionsResponse,
 } from '@garden/shared';
@@ -12,12 +13,23 @@ export interface Io {
   readonly stderr: WritableLike;
 }
 
-/** The four calls a subcommand needs. `./http.ts`'s exports satisfy this by shape. */
+/** The `garden` bin's own message for every verb that needs a caller session and finds
+ *  none — `new --handoff`, `handoff --to`, and `adopt` all read `GARDEN_SESSION_ID` as
+ *  "self" and fail this same way when it's unset. */
+const NO_CALLER_SESSION = 'GARDEN_SESSION_ID is not set';
+
+/** The calls a subcommand needs. `./http.ts`'s exports satisfy this by shape. */
 export interface CliClient {
   listSessions(filter?: SessionsFilter): Promise<SessionsResponse>;
-  createSession(cwd: string, callerSessionId?: string): Promise<CreateSessionResponse>;
+  createSession(
+    cwd: string,
+    callerSessionId?: string,
+    handoff?: boolean,
+  ): Promise<CreateSessionResponse>;
   resumeSession(id: string): Promise<CreateSessionResponse>;
   killSession(id: string): Promise<OkResponse>;
+  handoffSession(fromId: string, to: string): Promise<OkResponse>;
+  placeSession(id: string, placement: Placement): Promise<OkResponse>;
 }
 
 export const defaultClient: CliClient = http;
@@ -52,12 +64,16 @@ export function runNew(
   dir: string,
   json: boolean,
   client: CliClient = defaultClient,
+  handoff = false,
 ): Promise<0 | 1> {
   const callerSessionId = process.env.GARDEN_SESSION_ID;
   return runCommand(
     io,
     json,
-    () => client.createSession(dir, callerSessionId),
+    () => {
+      if (handoff && callerSessionId === undefined) throw new Error(NO_CALLER_SESSION);
+      return client.createSession(dir, callerSessionId, handoff);
+    },
     (result) => `${result.id}\t${result.tmuxName}`,
   );
 }
@@ -106,5 +122,41 @@ export function runKill(
     json,
     () => client.killSession(id),
     () => 'killed',
+  );
+}
+
+export function runHandoff(
+  io: Io,
+  to: string,
+  json: boolean,
+  client: CliClient = defaultClient,
+): Promise<0 | 1> {
+  return runCommand(
+    io,
+    json,
+    () => {
+      const self = process.env.GARDEN_SESSION_ID;
+      if (self === undefined) throw new Error(NO_CALLER_SESSION);
+      return client.handoffSession(self, to);
+    },
+    () => 'handed off',
+  );
+}
+
+export function runAdopt(
+  io: Io,
+  target: string,
+  json: boolean,
+  client: CliClient = defaultClient,
+): Promise<0 | 1> {
+  return runCommand(
+    io,
+    json,
+    () => {
+      const self = process.env.GARDEN_SESSION_ID;
+      if (self === undefined) throw new Error(NO_CALLER_SESSION);
+      return client.placeSession(target, { type: 'parent', parentId: self });
+    },
+    () => 'adopted',
   );
 }
