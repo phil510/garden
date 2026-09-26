@@ -82,11 +82,44 @@
 }
 
 .pane-title {
+  display: flex;
+  align-items: center;
+  min-width: 0;
   font-size: 12px;
   font-weight: 500;
+}
+
+.pane-title-text {
+  flex: 1 1 auto;
+  min-width: 24px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Gives up space six times faster than .pane-title-text (flex-shrink 6 vs 1), and its 34px
+   floor keeps a few characters + ellipsis instead of collapsing to nothing — the split that
+   makes the chip truncate first on a narrow pane. */
+.pane-swarm-chip {
+  flex: 0 1 auto;
+  flex-shrink: 6;
+  min-width: 34px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
+.pane-swarm-chip:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.pane-swarm-sep {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+  margin: 0 5px;
 }
 
 .pane-meta-row {
