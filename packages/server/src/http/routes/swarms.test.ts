@@ -92,6 +92,60 @@ describe('PATCH /swarms/:id', () => {
   });
 });
 
+describe('POST /swarms/:id/archive', () => {
+  it('answers ok on success', async () => {
+    const overlay: OverlayState = {
+      ...emptyOverlay,
+      swarms: [{ id: 's1', name: 'A', archived: false }],
+    };
+    const app = buildApp({
+      projection: fakeProjection({ updateOverlay: (mutate) => mutate(overlay) }),
+    });
+    const response = await app.inject({ method: 'POST', url: '/swarms/s1/archive' });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ ok: true });
+  });
+
+  it('maps SwarmNotFoundError to 404', async () => {
+    const app = buildApp({
+      projection: fakeProjection({
+        updateOverlay: () => {
+          throw new SwarmNotFoundError('no such swarm: s1');
+        },
+      }),
+    });
+    const response = await app.inject({ method: 'POST', url: '/swarms/s1/archive' });
+    expect(response.statusCode).toBe(404);
+  });
+});
+
+describe('POST /swarms/:id/unarchive', () => {
+  it('answers ok on success', async () => {
+    const overlay: OverlayState = {
+      ...emptyOverlay,
+      swarms: [{ id: 's1', name: 'A', archived: true }],
+    };
+    const app = buildApp({
+      projection: fakeProjection({ updateOverlay: (mutate) => mutate(overlay) }),
+    });
+    const response = await app.inject({ method: 'POST', url: '/swarms/s1/unarchive' });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ ok: true });
+  });
+
+  it('maps SwarmNotFoundError to 404', async () => {
+    const app = buildApp({
+      projection: fakeProjection({
+        updateOverlay: () => {
+          throw new SwarmNotFoundError('no such swarm: s1');
+        },
+      }),
+    });
+    const response = await app.inject({ method: 'POST', url: '/swarms/s1/unarchive' });
+    expect(response.statusCode).toBe(404);
+  });
+});
+
 describe('DELETE /swarms/:id', () => {
   it('answers ok on success', async () => {
     const overlay: OverlayState = {
@@ -104,6 +158,18 @@ describe('DELETE /swarms/:id', () => {
     const response = await app.inject({ method: 'DELETE', url: '/swarms/s1' });
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ ok: true });
+  });
+
+  it('maps SwarmNotFoundError to 404', async () => {
+    const app = buildApp({
+      projection: fakeProjection({
+        updateOverlay: () => {
+          throw new SwarmNotFoundError('no such swarm: s1');
+        },
+      }),
+    });
+    const response = await app.inject({ method: 'DELETE', url: '/swarms/s1' });
+    expect(response.statusCode).toBe(404);
   });
 });
 
@@ -200,5 +266,21 @@ describe('POST /sessions/:id/handoff', () => {
       payload: { to: 'b' },
     });
     expect(response.statusCode).toBe(409);
+  });
+
+  it('maps SessionNotFoundError to 404', async () => {
+    const app = buildApp({
+      projection: fakeProjection({
+        updateOverlay: () => {
+          throw new SessionNotFoundError('no such session: a');
+        },
+      }),
+    });
+    const response = await app.inject({
+      method: 'POST',
+      url: '/sessions/a/handoff',
+      payload: { to: 'b' },
+    });
+    expect(response.statusCode).toBe(404);
   });
 });
