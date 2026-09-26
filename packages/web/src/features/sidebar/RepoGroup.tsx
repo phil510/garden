@@ -2,6 +2,8 @@ import type { SessionMap, SessionPlacement } from '@garden/shared';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useState, type KeyboardEvent } from 'react';
+import type { ActiveSwarmOption } from './groupSwarms';
+import { resolveTopLevelSwarmId } from './groupSwarms';
 import type { SidebarGroup } from './groupSessions';
 import { hideDeadLabel } from './hideDeadLabel';
 import { SessionRow } from './SessionRow';
@@ -17,6 +19,7 @@ interface RepoGroupProps {
   group: SidebarGroup;
   sessions: SessionMap;
   placements: Record<string, SessionPlacement>;
+  activeSwarms: readonly ActiveSwarmOption[];
   now: number;
   onStageIds: ReadonlySet<string>;
   focusedSessionId: string | null;
@@ -29,6 +32,7 @@ export function RepoGroup({
   group,
   sessions,
   placements,
+  activeSwarms,
   now,
   onStageIds,
   focusedSessionId,
@@ -94,6 +98,8 @@ export function RepoGroup({
             now={now}
             onSelect={onSelectSession}
             successorName={resolveSuccessorName(placements, sessions, session.id)}
+            currentSwarmId={resolveTopLevelSwarmId(placements, session.id)}
+            activeSwarms={activeSwarms}
           />
         ))}
         {hiddenCappedCount > 0 && (

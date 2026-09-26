@@ -1,11 +1,8 @@
+import type { ActiveSwarmOption } from './groupSwarms';
+
 export type ConfirmingAction = 'kill' | 'resume' | null;
 
 const ADD_TO_SWARM_FILTER_THRESHOLD = 8;
-
-export interface ActiveSwarmOption {
-  swarmId: string;
-  name: string;
-}
 
 interface PlainMenuItem {
   key: string;

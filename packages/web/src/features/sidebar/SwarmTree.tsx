@@ -1,5 +1,6 @@
 import type { SessionMap, SessionPlacement } from '@garden/shared';
-import type { SwarmTreeNode } from './groupSwarms';
+import type { ActiveSwarmOption, SwarmTreeNode } from './groupSwarms';
+import { resolveTopLevelSwarmId } from './groupSwarms';
 import { SessionRow } from './SessionRow';
 import { resolveSuccessorName } from './successorName';
 
@@ -7,6 +8,7 @@ interface SwarmTreeProps {
   nodes: SwarmTreeNode[];
   sessions: SessionMap;
   placements: Record<string, SessionPlacement>;
+  activeSwarms: readonly ActiveSwarmOption[];
   now: number;
   onStageIds: ReadonlySet<string>;
   focusedSessionId: string | null;
@@ -23,6 +25,7 @@ export function SwarmTree({
   nodes,
   sessions,
   placements,
+  activeSwarms,
   now,
   onStageIds,
   focusedSessionId,
@@ -36,6 +39,7 @@ export function SwarmTree({
           node={node}
           sessions={sessions}
           placements={placements}
+          activeSwarms={activeSwarms}
           now={now}
           onStageIds={onStageIds}
           focusedSessionId={focusedSessionId}
@@ -54,6 +58,7 @@ function SwarmTreeRow({
   node,
   sessions,
   placements,
+  activeSwarms,
   now,
   onStageIds,
   focusedSessionId,
@@ -74,6 +79,8 @@ function SwarmTreeRow({
         now={now}
         onSelect={onSelectSession}
         successorName={resolveSuccessorName(placements, sessions, session.id)}
+        currentSwarmId={resolveTopLevelSwarmId(placements, session.id)}
+        activeSwarms={activeSwarms}
         hasChildren={node.children.length > 0}
       />
       {node.children.length > 0 && (
@@ -84,6 +91,7 @@ function SwarmTreeRow({
                 node={child}
                 sessions={sessions}
                 placements={placements}
+                activeSwarms={activeSwarms}
                 now={now}
                 onStageIds={onStageIds}
                 focusedSessionId={focusedSessionId}

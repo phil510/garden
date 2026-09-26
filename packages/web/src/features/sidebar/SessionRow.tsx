@@ -1,11 +1,13 @@
 import type { SessionState } from '@garden/shared';
 import { Fragment, useEffect, useRef, useState, type MouseEvent } from 'react';
-import { killSession, resumeSession } from '../../api/client';
+import { createSwarm, killSession, resumeSession, setSessionPlacement } from '../../api/client';
 import { reportCommandFailure } from '../../api/reportCommandFailure';
 import { ContextMenu, type ContextMenuItem } from '../../components/ContextMenu';
 import { StatusPill } from '../../components/StatusPill';
+import type { ActiveSwarmOption } from './groupSwarms';
 import { HoverCard } from './HoverCard';
 import { lastPathSegment } from './lastPathSegment';
+import { NewSwarmPopover } from './NewSwarmPopover';
 import { pressStartedInMenu } from './pressOrigin';
 import {
   sessionRowMenuAction,
@@ -13,6 +15,8 @@ import {
   type ConfirmingAction,
 } from './sessionRowMenuItems';
 import { metaLineSegmentClassName, metaLineSegments } from './sessionIdentity';
+
+const ADD_SWARM_KEY_PREFIX = 'add-swarm:';
 
 interface SessionRowProps {
   session: SessionState;
@@ -23,6 +27,11 @@ interface SessionRowProps {
   /** The successor's `claudeSessionName`, resolved by the caller via `resolveSuccessorName`
    *  — null when this session has no successor. */
   successorName: string | null;
+  /** This session's current swarm, resolved by the caller via `resolveTopLevelSwarmId` —
+   *  undefined when it's solo. Drives whether the row menu offers "Remove from swarm". */
+  currentSwarmId?: string | undefined;
+  /** Active swarms, recency-sorted, for the row menu's "Add to swarm" submenu. */
+  activeSwarms: readonly ActiveSwarmOption[];
   /** Swarms-mode tree rows only: whether this row has a rendered `<ul class="tree-children">`
    *  following it, which drives the parent-side rail corner in CSS
    *  (`.session-row.has-children::after`). Always false in Repos mode. */
@@ -36,6 +45,8 @@ export function SessionRow({
   now,
   onSelect,
   successorName,
+  currentSwarmId,
+  activeSwarms,
   hasChildren = false,
 }: SessionRowProps) {
   // A callback ref feeding state, not a plain ref, so the hover card's anchor is safe to
@@ -44,6 +55,7 @@ export function SessionRow({
   const [hovered, setHovered] = useState(false);
   const [contextMenuPoint, setContextMenuPoint] = useState<{ x: number; y: number } | null>(null);
   const [confirming, setConfirming] = useState<ConfirmingAction>(null);
+  const [newSwarmPromptOpen, setNewSwarmPromptOpen] = useState(false);
   const dead = session.liveness === 'dead';
   const crashed = dead && session.exitCode !== null && session.exitCode !== 0;
   const title = session.title ?? lastPathSegment(session.cwd);
@@ -74,40 +86,74 @@ export function SessionRow({
     event.preventDefault();
     event.stopPropagation();
     setConfirming(null);
+    setNewSwarmPromptOpen(false);
     setContextMenuPoint({ x: event.clientX, y: event.clientY });
   }
 
   function closeContextMenu() {
     setContextMenuPoint(null);
     setConfirming(null);
+    setNewSwarmPromptOpen(false);
   }
 
-  // Add-to-swarm/Remove-from-swarm items are wired here once SessionRow has swarm context to
-  // pass into sessionRowMenuItems (task 4) — until then, sessionRowMenuAction's default case
-  // makes onSelect an inert no-op for any key it doesn't recognize.
-  const menuItems: ContextMenuItem[] = sessionRowMenuItems(dead, confirming).map(
-    (item): ContextMenuItem => ({
+  async function createSwarmAndAssign(name: string) {
+    try {
+      const { id } = await createSwarm(name);
+      await setSessionPlacement(session.id, { type: 'swarm', swarmId: id });
+    } catch (error) {
+      reportCommandFailure(error);
+    }
+  }
+
+  function handleMenuSelect(key: string) {
+    if (key === 'remove-swarm') {
+      setSessionPlacement(session.id, { type: 'none' }).catch(reportCommandFailure);
+      closeContextMenu();
+      return;
+    }
+    if (key.startsWith(ADD_SWARM_KEY_PREFIX)) {
+      const swarmId = key.slice(ADD_SWARM_KEY_PREFIX.length);
+      setSessionPlacement(session.id, { type: 'swarm', swarmId }).catch(reportCommandFailure);
+      closeContextMenu();
+      return;
+    }
+    if (key === 'new-swarm') {
+      setNewSwarmPromptOpen(true);
+      return;
+    }
+    const result = sessionRowMenuAction(key);
+    setConfirming(result.confirming);
+    if (result.act === 'kill') killSession(session.id).catch(reportCommandFailure);
+    if (result.act === 'resume') resumeSession(session.id).catch(reportCommandFailure);
+    if (result.act !== null) setContextMenuPoint(null);
+  }
+
+  const menuItems: ContextMenuItem[] = sessionRowMenuItems(
+    dead,
+    confirming,
+    currentSwarmId,
+    activeSwarms,
+  ).map((item): ContextMenuItem => {
+    const submenu = item.submenu;
+    return {
       key: item.key,
       label: item.label,
       danger: item.danger,
-      onSelect: () => {
-        const result = sessionRowMenuAction(item.key);
-        setConfirming(result.confirming);
-        if (result.act === 'kill') killSession(session.id).catch(reportCommandFailure);
-        if (result.act === 'resume') resumeSession(session.id).catch(reportCommandFailure);
-        if (result.act !== null) setContextMenuPoint(null);
-      },
-      ...(item.submenu === undefined
+      onSelect: () => handleMenuSelect(item.key),
+      ...(submenu === undefined
         ? {}
         : {
             submenu: {
-              filterable: item.submenu.filterable,
-              items: item.submenu.items.map((subitem) => ({ ...subitem, onSelect: () => {} })),
-              footer: { ...item.submenu.footer, onSelect: () => {} },
+              filterable: submenu.filterable,
+              items: submenu.items.map((subitem) => ({
+                ...subitem,
+                onSelect: () => handleMenuSelect(subitem.key),
+              })),
+              footer: { ...submenu.footer, onSelect: () => handleMenuSelect(submenu.footer.key) },
             },
           }),
-    }),
-  );
+    };
+  });
 
   return (
     <div
@@ -146,12 +192,24 @@ export function SessionRow({
       {hovered && rowEl !== null && contextMenuPoint === null && (
         <HoverCard title={title} session={session} anchor={rowEl} now={now} />
       )}
-      {contextMenuPoint !== null && (
+      {contextMenuPoint !== null && !newSwarmPromptOpen && (
         <ContextMenu
           x={contextMenuPoint.x}
           y={contextMenuPoint.y}
           items={menuItems}
           onClose={closeContextMenu}
+        />
+      )}
+      {contextMenuPoint !== null && newSwarmPromptOpen && (
+        <NewSwarmPopover
+          x={contextMenuPoint.x}
+          y={contextMenuPoint.y}
+          initialName={title}
+          onCancel={closeContextMenu}
+          onCreate={(name) => {
+            void createSwarmAndAssign(name);
+            closeContextMenu();
+          }}
         />
       )}
     </div>

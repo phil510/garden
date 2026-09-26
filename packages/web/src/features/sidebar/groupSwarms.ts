@@ -214,3 +214,20 @@ export function groupSwarms(sessions: SessionMap, uiState: SwarmsUiState): Group
 
   return { swarms, solo, soloTotal: soloRoots.length, soloHideDead };
 }
+
+export interface ActiveSwarmOption {
+  swarmId: string;
+  name: string;
+}
+
+/** Active (not finished/archived) swarms, most-recent-activity first — feeds the "Add to
+ *  swarm" row menu's own sort, which is recency-only and therefore distinct from the
+ *  sidebar's own swarmOrder-then-recency order (`groupSwarms`'s `swarms.sort` above). Reuses
+ *  each `SwarmGroup`'s already-computed `recency` rather than re-deriving it. */
+export function activeSwarmsByRecency(swarms: readonly SwarmGroup[]): ActiveSwarmOption[] {
+  return swarms
+    .filter((swarm) => !swarm.finished)
+    .slice()
+    .sort((a, b) => b.recency - a.recency)
+    .map((swarm) => ({ swarmId: swarm.swarmId, name: swarm.name }));
+}

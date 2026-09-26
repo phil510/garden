@@ -14,7 +14,8 @@ import { useLocalStore, type SidebarMode } from '../../state/localStore';
 import { useSessionStore } from '../../state/sessionStore';
 import { useUiStore } from '../../state/uiStore';
 import { groupSessions } from './groupSessions';
-import { groupSwarms, SOLO_BUCKET_ID } from './groupSwarms';
+import { activeSwarmsByRecency, groupSwarms, SOLO_BUCKET_ID } from './groupSwarms';
+import type { ActiveSwarmOption } from './groupSwarms';
 import { hideDeadLabel } from './hideDeadLabel';
 import { NewSessionModal } from './NewSessionModal';
 import { placeOnStage } from './placeOnStage';
@@ -52,6 +53,10 @@ export function Sidebar() {
   const now = Date.now();
   const onStageIds = new Set(uiState.slots.filter((id): id is string => id !== null));
   const focusedId = focusedSessionId(uiState.slots, uiState.focusedSlot);
+  // Computed once here rather than inside each mode's sidebar: a session's swarm membership
+  // (and the menu that changes it) isn't a Swarms-mode-only concept, so Repos mode needs the
+  // same recency-sorted active-swarm list for its own rows' "Add to swarm" menu.
+  const activeSwarms = activeSwarmsByRecency(groupSwarms(sessions, uiState).swarms);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
@@ -87,6 +92,7 @@ export function Sidebar() {
         <RepoSidebar
           sessions={sessions}
           uiState={uiState}
+          activeSwarms={activeSwarms}
           now={now}
           onStageIds={onStageIds}
           focusedId={focusedId}
@@ -97,6 +103,7 @@ export function Sidebar() {
         <SwarmSidebar
           sessions={sessions}
           uiState={uiState}
+          activeSwarms={activeSwarms}
           now={now}
           onStageIds={onStageIds}
           focusedId={focusedId}
@@ -123,6 +130,7 @@ export function Sidebar() {
 type SharedSidebarProps = {
   sessions: ReturnType<typeof useSessionStore.getState>['sessions'];
   uiState: ReturnType<typeof useUiStore.getState>['uiState'];
+  activeSwarms: readonly ActiveSwarmOption[];
   now: number;
   onStageIds: ReadonlySet<string>;
   focusedId: string | null;
@@ -133,6 +141,7 @@ type SharedSidebarProps = {
 function RepoSidebar({
   sessions,
   uiState,
+  activeSwarms,
   now,
   onStageIds,
   focusedId,
@@ -172,6 +181,7 @@ function RepoSidebar({
             group={group}
             sessions={sessions}
             placements={uiState.placements}
+            activeSwarms={activeSwarms}
             now={now}
             onStageIds={onStageIds}
             focusedSessionId={focusedId}
@@ -194,6 +204,7 @@ interface SwarmSidebarProps extends SharedSidebarProps {
 function SwarmSidebar({
   sessions,
   uiState,
+  activeSwarms,
   now,
   onStageIds,
   focusedId,
@@ -276,6 +287,7 @@ function SwarmSidebar({
               swarm={swarm}
               sessions={sessions}
               placements={uiState.placements}
+              activeSwarms={activeSwarms}
               now={now}
               onStageIds={onStageIds}
               focusedSessionId={focusedId}
@@ -300,6 +312,7 @@ function SwarmSidebar({
                 nodes={solo}
                 sessions={sessions}
                 placements={uiState.placements}
+                activeSwarms={activeSwarms}
                 now={now}
                 onStageIds={onStageIds}
                 focusedSessionId={focusedId}
@@ -347,6 +360,7 @@ function SwarmSidebar({
                         nodes={swarm.roots}
                         sessions={sessions}
                         placements={uiState.placements}
+                        activeSwarms={activeSwarms}
                         now={now}
                         onStageIds={onStageIds}
                         focusedSessionId={focusedId}
