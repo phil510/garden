@@ -203,6 +203,11 @@ function SwarmSidebar({
   const active = swarms.filter((swarm) => !swarm.finished);
   const finished = swarms.filter((swarm) => swarm.finished);
   const visibleOrder = active.map((swarm) => swarm.swarmId);
+  // The base a drag reorders within has to carry every swarm, not just the active ones
+  // `SortableContext` renders — `updateUiState` replaces `swarmOrder` wholesale rather than
+  // merging (`projection.ts`'s `updateUiState`), so writing back an active-only order would
+  // silently drop a finished swarm's position the moment any active swarm gets dragged.
+  const fullOrder = swarms.map((swarm) => swarm.swarmId);
 
   function toggleCollapse(swarmId: string) {
     updateUiState({
@@ -221,7 +226,7 @@ function SwarmSidebar({
     const overSwarmId = event.over?.id as string | undefined;
     if (overSwarmId === undefined || overSwarmId === activeSwarmId) return;
     updateUiState({
-      swarmOrder: reorderSwarms(visibleOrder, activeSwarmId, overSwarmId),
+      swarmOrder: reorderSwarms(fullOrder, activeSwarmId, overSwarmId),
     }).catch(reportCommandFailure);
   }
 

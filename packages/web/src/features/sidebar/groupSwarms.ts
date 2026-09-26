@@ -116,13 +116,21 @@ export function groupSwarms(sessions: SessionMap, uiState: SwarmsUiState): Group
     else siblings.push(session.id);
   }
 
-  function buildNode(sessionId: string): SwarmTreeNode {
+  // `visualParent` is restricted to live sessions the same way `resolveTopLevelSwarmId`
+  // restricts its walk to known placements, but normal writes can't create a cycle here
+  // either (the server's `wouldCreateParentCycle` rejects one before it's ever written) —
+  // guarded anyway, matching that walk's own guard, since a hand-edited state.json is the
+  // same credible risk `pruneOverlay` already treats it as server-side. Without this, a
+  // cyclic `parent` chain would recurse forever rather than just resolving oddly.
+  function buildNode(sessionId: string, visited: ReadonlySet<string> = new Set()): SwarmTreeNode {
+    if (visited.has(sessionId)) return { sessionId, children: [] };
+    const nextVisited = new Set(visited).add(sessionId);
     const childIds = childrenByParent.get(sessionId) ?? [];
     const children = childIds
       .map((id) => sessions[id])
       .filter((s): s is SessionState => s !== undefined)
       .sort((a, b) => b.lastActivity - a.lastActivity)
-      .map((s) => buildNode(s.id));
+      .map((s) => buildNode(s.id, nextVisited));
     return { sessionId, children };
   }
 
