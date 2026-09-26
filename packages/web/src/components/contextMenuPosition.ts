@@ -26,3 +26,20 @@ export function computeContextMenuPosition(
   const top = point.y > maxTop ? Math.max(8, maxTop) : point.y;
   return { left, top };
 }
+
+export interface SubmenuAnchor {
+  left: number;
+  width: number;
+}
+
+/** Whether a submenu opening from the right edge of its parent item (at `anchor.left +
+ *  anchor.width`) would run past the viewport's right edge, and should instead open to the
+ *  left of the parent item. An 8px margin matches `computeContextMenuPosition`'s own bottom
+ *  clamp. */
+export function computeSubmenuFlip(
+  anchor: SubmenuAnchor,
+  submenuWidth: number,
+  viewportWidth: number,
+): boolean {
+  return anchor.left + anchor.width + submenuWidth > viewportWidth - 8;
+}

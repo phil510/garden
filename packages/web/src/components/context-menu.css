@@ -24,3 +24,56 @@
   background: color-mix(in srgb, var(--danger) 16%, transparent);
   color: var(--danger);
 }
+.context-menu-item.has-submenu {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.submenu-caret {
+  font-size: 9px;
+  color: var(--text-faint);
+}
+.context-menu-item.has-submenu:hover .submenu-caret {
+  color: var(--accent);
+}
+.context-submenu {
+  position: absolute;
+  left: 100%;
+  top: -4px;
+  background: var(--raised);
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  padding: 4px;
+  min-width: 170px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.context-submenu.flip-submenu {
+  left: auto;
+  right: 100%;
+}
+.context-menu-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 2px;
+}
+.submenu-filter {
+  position: sticky;
+  top: 0;
+  width: 100%;
+  margin-bottom: 4px;
+  font: inherit;
+  font-size: 12px;
+  background: var(--ground);
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  color: var(--text);
+  padding: 5px 7px;
+}
+.submenu-filter:focus {
+  outline: none;
+  border-color: var(--accent);
+}
