@@ -156,7 +156,9 @@ export async function createSession(
       // guard above and this call, so a rejection reaching here (unlike an unknown caller)
       // finds tmux already running for `id`. Roll it back the same way `killSession` does,
       // rather than leaving an orphaned session the caller has no id to correlate or kill.
-      await killSession(deps, { id });
+      // The rollback is best-effort: its own failure (e.g. tmux.killSession rejecting on an
+      // already-exited pane) must not replace the rejection the caller actually needs to see.
+      await killSession(deps, { id }).catch(() => undefined);
       throw error;
     }
     return { id, tmuxName };
