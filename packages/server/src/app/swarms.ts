@@ -129,6 +129,37 @@ export function placeSession(
   });
 }
 
+// A caller that already resolves to a swarm, or that already carries a `parent` edge of
+// its own (set by the placement endpoint, independent of any swarm), is not the "isn't
+// placed at all" case `mintSwarmFor` exists to handle — minting over it would silently
+// replace that `parent` edge, since `parent` and `swarmId` can never both be set (finding:
+// a caller placed under another session via `POST /sessions/:id/placement`, whose ancestor
+// chain doesn't currently resolve to a swarm, lost its `parent` link the first time it
+// spawned).
+function isUnplaced(base: OverlayState, id: string): boolean {
+  return (
+    resolveSwarmId(base.placements, id) === undefined && base.placements[id]?.parent === undefined
+  );
+}
+
+/**
+ * Mints a fresh swarm and places `id` at its top level, preserving any `successor` a prior
+ * handoff already set on it — a placement move never clears that field (see `placeSession`),
+ * since it tracks a completed handoff rather than where the session currently sits. Callers
+ * check `isUnplaced` first; this always mints unconditionally.
+ */
+function mintSwarmFor(base: OverlayState, id: string, title: string | null): OverlayState {
+  const swarmId = randomUUID();
+  const priorSuccessor = base.placements[id]?.successor;
+  const entry: SessionPlacement =
+    priorSuccessor === undefined ? { swarmId } : { swarmId, successor: priorSuccessor };
+  return {
+    ...base,
+    swarms: [...base.swarms, { id: swarmId, name: title ?? 'Untitled swarm', archived: false }],
+    placements: { ...base.placements, [id]: entry },
+  };
+}
+
 /**
  * Called right after a new session's tmux process and store entry exist, when its create
  * request named a caller session. Places the child under the caller, creating a swarm for
@@ -145,43 +176,21 @@ export function recordSpawn(
     if (!known.has(request.callerId))
       throw new SessionNotFoundError(`no such session: ${request.callerId}`);
 
-    // A caller that already resolves to a swarm, or that already carries a `parent` edge of
-    // its own (set by the placement endpoint, independent of any swarm), is not the "isn't
-    // placed at all" case this mints a swarm for — minting here would silently replace that
-    // `parent` edge, since `parent` and `swarmId` can never both be set (finding: a caller
-    // placed under another session via `POST /sessions/:id/placement`, whose ancestor chain
-    // doesn't currently resolve to a swarm, lost its `parent` link the first time it spawned).
-    const existingSwarmId = resolveSwarmId(base.placements, request.callerId);
-    if (existingSwarmId !== undefined || base.placements[request.callerId]?.parent !== undefined) {
-      return {
-        ...base,
-        placements: { ...base.placements, [request.childId]: { parent: request.callerId } },
-      };
-    }
+    const withSwarm = isUnplaced(base, request.callerId)
+      ? mintSwarmFor(base, request.callerId, request.callerTitle)
+      : base;
 
-    const swarmId = randomUUID();
-    // Preserves a prior `successor` the same way `placeSession` does: it survives every
-    // placement move, this one included, since it tracks a completed handoff rather than
-    // where the session currently sits.
-    const priorSuccessor = base.placements[request.callerId]?.successor;
-    const callerEntry: SessionPlacement =
-      priorSuccessor === undefined ? { swarmId } : { swarmId, successor: priorSuccessor };
     return {
-      ...base,
-      swarms: [
-        ...base.swarms,
-        { id: swarmId, name: request.callerTitle ?? 'Untitled swarm', archived: false },
-      ],
-      placements: {
-        ...base.placements,
-        [request.callerId]: callerEntry,
-        [request.childId]: { parent: request.callerId },
-      },
+      ...withSwarm,
+      placements: { ...withSwarm.placements, [request.childId]: { parent: request.callerId } },
     };
   });
 }
 
 export function handoffSession(deps: SwarmsDeps, request: { fromId: string; toId: string }): void {
+  const callerTitle =
+    deps.projection.sessions().find((session) => session.id === request.fromId)?.title ?? null;
+
   deps.projection.updateOverlay((base) => {
     const known = knownSessionIds(deps, base);
     if (!known.has(request.fromId))
@@ -189,14 +198,22 @@ export function handoffSession(deps: SwarmsDeps, request: { fromId: string; toId
     if (!known.has(request.toId))
       throw new SessionNotFoundError(`no such session: ${request.toId}`);
 
-    const result = computeHandoff(base, request.fromId, request.toId);
+    // Mint a swarm for the caller first when it isn't placed at all yet — the ordinary
+    // first-handoff case (a top-level session that has never spawned a child or been
+    // placed). Without this, computeHandoff moves `{}` onto the new session: both it and
+    // the caller resolve to no swarm at all, the successor left in Solo.
+    const withSwarm = isUnplaced(base, request.fromId)
+      ? mintSwarmFor(base, request.fromId, callerTitle)
+      : base;
+
+    const result = computeHandoff(withSwarm, request.fromId, request.toId);
     if (!result.ok) {
       throw result.code === 'cross-swarm'
         ? new CrossSwarmHandoffError(result.reason)
         : new SwarmCycleError(result.reason);
     }
 
-    return { ...base, placements: result.placements };
+    return { ...withSwarm, placements: result.placements };
   });
 }
 

@@ -378,7 +378,14 @@ describe('createSession', () => {
 
     expect(result.unknownCaller).toBeUndefined();
     expect(written().placements['caller']).toEqual({ parent: result.id, successor: result.id });
-    expect(written().placements[result.id]).toEqual({});
+    // The caller had no swarm/parent of its own (the ordinary first-handoff case), so a
+    // swarm is minted for the successor rather than leaving it in Solo — see swarms.ts's
+    // `mintSwarmFor` and app/swarms.test.ts for the direct coverage.
+    const successorPlacement = written().placements[result.id];
+    expect(typeof successorPlacement?.swarmId).toBe('string');
+    expect(written().swarms).toEqual([
+      { id: successorPlacement?.swarmId, name: 'Untitled swarm', archived: false },
+    ]);
   });
 
   it('sets unknownCaller instead of throwing when the handoff caller does not resolve', async () => {
