@@ -154,6 +154,12 @@ export function recordSpawn(
     }
 
     const swarmId = randomUUID();
+    // Preserves a prior `successor` the same way `placeSession` does: it survives every
+    // placement move, this one included, since it tracks a completed handoff rather than
+    // where the session currently sits.
+    const priorSuccessor = base.placements[request.callerId]?.successor;
+    const callerEntry: SessionPlacement =
+      priorSuccessor === undefined ? { swarmId } : { swarmId, successor: priorSuccessor };
     return {
       ...base,
       swarms: [
@@ -162,7 +168,7 @@ export function recordSpawn(
       ],
       placements: {
         ...base.placements,
-        [request.callerId]: { swarmId },
+        [request.callerId]: callerEntry,
         [request.childId]: { parent: request.callerId },
       },
     };

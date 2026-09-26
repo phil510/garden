@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -61,16 +61,31 @@ describe('spawn provenance', () => {
           projection,
           serverPort: 4310,
           settingsPath: '/nonexistent/claude-settings.json',
-          readClaudeCommand: () => sleeper,
+          // Proves the process itself observes the value, not just tmux's own record of it —
+          // mirrors tmux-adapter.test.ts's GARDEN_PORT check.
+          readClaudeCommand: () => [
+            'sh',
+            '-c',
+            'printenv GARDEN_SESSION_ID > session-id.txt; sleep 30',
+          ],
         },
         { cwd },
       );
 
-      await until(
-        'the new pane to be listed',
-        () => listPanes(target),
-        (list) => list.length === 1,
+      const written = await until(
+        'the session command to write session-id.txt',
+        () => {
+          try {
+            return Promise.resolve(readFileSync(join(cwd, 'session-id.txt'), 'utf8').trim());
+          } catch {
+            return Promise.resolve('');
+          }
+        },
+        (text) => text !== '',
       );
+      expect(written).toBe(id);
+      // Also holds in tmux's own record, which is what the resume-path tests below rely on
+      // proving instead, since those can't route a controllable script through readClaudeCommand.
       expect(await sessionEnv(target, tmuxName, 'GARDEN_SESSION_ID')).toBe(id);
     });
   });

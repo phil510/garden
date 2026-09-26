@@ -278,6 +278,22 @@ describe('recordSpawn', () => {
     });
   });
 
+  it('preserves an existing successor field on the caller when minting a new swarm', () => {
+    const overlay: OverlayState = {
+      ...emptyOverlay,
+      placements: { caller: { parent: 'retired-to', successor: 'retired-to' } },
+    };
+    const { projection, current } = fakeProjection(overlay, [
+      aSession({ id: 'caller' }),
+      aSession({ id: 'child' }),
+    ]);
+
+    recordSpawn({ projection }, { callerId: 'caller', childId: 'child', callerTitle: 'Caller' });
+
+    const swarm = current().swarms[0]!;
+    expect(current().placements['caller']).toEqual({ swarmId: swarm.id, successor: 'retired-to' });
+  });
+
   it('falls back to "Untitled swarm" when the caller has no title', () => {
     const { projection, current } = fakeProjection(emptyOverlay, [
       aSession({ id: 'caller' }),
