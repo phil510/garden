@@ -15,7 +15,7 @@ import type { OverlayState, StorePort, TmuxPort } from '../../src/app/ports.js';
 import { createProjection } from '../../src/app/projection.js';
 import { resumeSession } from '../../src/app/sessions.js';
 import { until } from './support/poll.js';
-import { withTmuxServer } from './support/tmux-server.js';
+import { sessionEnv, withTmuxServer } from './support/tmux-server.js';
 
 function fakeStore(): StorePort {
   let current: OverlayState = DEFAULT_OVERLAY_STATE;
@@ -86,6 +86,9 @@ describe('resuming a session against real tmux', () => {
       );
       expect(panes[0]?.session).toBe(tmuxName);
       expect(projection.sessions().find((s) => s.id === id)?.tmuxName).toBe(tmuxName);
+      // respawn-pane passes no -e of its own; this proves the session's environment set at
+      // the original new-session survives it rather than being reset.
+      expect(await sessionEnv(target, tmuxName, 'GARDEN_SESSION_ID')).toBe(id);
     });
   });
 
@@ -120,6 +123,9 @@ describe('resuming a session against real tmux', () => {
       );
       expect(panes[0]?.session).toBe(result.tmuxName);
       expect(projection.sessions().find((s) => s.id === id)?.tmuxName).toBe(result.tmuxName);
+      // The fallback path is a full tmux.newSession call, not a respawn-pane, so it needs
+      // its own proof the -e flag was passed rather than inheriting the in-place case above.
+      expect(await sessionEnv(target, result.tmuxName, 'GARDEN_SESSION_ID')).toBe(id);
     });
   });
 });
