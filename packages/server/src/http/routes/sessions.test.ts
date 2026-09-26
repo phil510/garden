@@ -349,6 +349,42 @@ describe('GET /sessions', () => {
 
     expect(response.statusCode).toBe(400);
   });
+
+  it('folds swarm into the filter as swarmId', async () => {
+    let seenFilter: SessionsFilter | undefined;
+    const app = buildApp({
+      tmux: fakeTmux(),
+      store: fakeStore(),
+      projection: fakeProjection([], (filter) => (seenFilter = filter)),
+      serverPort: 4310,
+      settingsPath,
+      readClaudeCommand: () => ['claude'],
+    });
+
+    const response = await app.inject({ method: 'GET', url: '/sessions?swarm=swarm-1' });
+
+    expect(response.statusCode).toBe(200);
+    expect(seenFilter).toEqual({ swarmId: 'swarm-1' });
+  });
+
+  it('rejects a repeated swarm query key with a 400 from the boundary', async () => {
+    const app = buildApp({
+      tmux: fakeTmux(),
+      store: fakeStore(),
+      projection: fakeProjection(),
+      serverPort: 4310,
+      settingsPath,
+      readClaudeCommand: () => ['claude'],
+    });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/sessions?swarm=a&swarm=b',
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: 'swarm must not be repeated' });
+  });
 });
 
 describe('POST /sessions', () => {

@@ -29,6 +29,7 @@ interface SessionsQuerystring {
   maxRecapChars?: string | string[];
   live?: string | string[];
   status?: string | string[];
+  swarm?: string | string[];
 }
 
 type ParsedFilter = { ok: true; filter: SessionsFilter } | { ok: false; error: string };
@@ -86,6 +87,10 @@ function parseSessionsFilter(query: SessionsQuerystring): ParsedFilter {
       return { ok: false, error: `invalid status: ${statusField.value}` };
     filter.status = statusField.value;
   }
+
+  const swarmField = narrowQueryField('swarm', query.swarm);
+  if (!swarmField.ok) return swarmField;
+  if (swarmField.value !== undefined) filter.swarmId = swarmField.value;
 
   return { ok: true, filter };
 }
