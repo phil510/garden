@@ -24,7 +24,8 @@ function isCreateSessionRequest(body: unknown): body is CreateSessionRequest {
   if (typeof record.cwd !== 'string') return false;
   if (record.callerSessionId !== undefined && typeof record.callerSessionId !== 'string')
     return false;
-  return record.handoff === undefined || typeof record.handoff === 'boolean';
+  if (record.handoff !== undefined && typeof record.handoff !== 'boolean') return false;
+  return record.handoffFilePath === undefined || typeof record.handoffFilePath === 'string';
 }
 
 interface SessionsQuerystring {

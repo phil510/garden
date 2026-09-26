@@ -528,6 +528,103 @@ describe('createSession', () => {
     // confirms the rollback didn't touch anything beyond the id it spawned.
     expect(store.read().tmuxNames).toEqual({});
   });
+
+  it('appends the handoff first-prompt instruction when handoff is true and handoffFilePath is set', async () => {
+    const calls: TmuxNewSessionRequest[] = [];
+    const tmux = fakeTmux({
+      newSession: (request) => {
+        calls.push(request);
+        return Promise.resolve();
+      },
+    });
+    const { projection } = fakeProjection();
+    const { store } = fakeStore();
+
+    await createSession(
+      {
+        tmux,
+        store,
+        projection,
+        serverPort: 4310,
+        settingsPath: '/home/.garden/claude-settings.json',
+        readClaudeCommand: () => ['claude'],
+      },
+      { cwd: '/Users/dev/garden', handoff: true, handoffFilePath: '/repo/.handoffs/topic.md' },
+    );
+
+    expect(calls[0]?.command).toEqual([
+      'claude',
+      '--session-id',
+      calls[0]?.sessionId,
+      '--settings',
+      '/home/.garden/claude-settings.json',
+      'Continue from the handoff at /repo/.handoffs/topic.md.',
+    ]);
+  });
+
+  it('omits the handoff instruction when handoffFilePath is absent, even with handoff: true', async () => {
+    const calls: TmuxNewSessionRequest[] = [];
+    const tmux = fakeTmux({
+      newSession: (request) => {
+        calls.push(request);
+        return Promise.resolve();
+      },
+    });
+    const { projection } = fakeProjection();
+    const { store } = fakeStore();
+
+    await createSession(
+      {
+        tmux,
+        store,
+        projection,
+        serverPort: 4310,
+        settingsPath: '/home/.garden/claude-settings.json',
+        readClaudeCommand: () => ['claude'],
+      },
+      { cwd: '/Users/dev/garden', handoff: true },
+    );
+
+    expect(calls[0]?.command).toEqual([
+      'claude',
+      '--session-id',
+      calls[0]?.sessionId,
+      '--settings',
+      '/home/.garden/claude-settings.json',
+    ]);
+  });
+
+  it('omits the handoff instruction when handoffFilePath is set but handoff is false', async () => {
+    const calls: TmuxNewSessionRequest[] = [];
+    const tmux = fakeTmux({
+      newSession: (request) => {
+        calls.push(request);
+        return Promise.resolve();
+      },
+    });
+    const { projection } = fakeProjection();
+    const { store } = fakeStore();
+
+    await createSession(
+      {
+        tmux,
+        store,
+        projection,
+        serverPort: 4310,
+        settingsPath: '/home/.garden/claude-settings.json',
+        readClaudeCommand: () => ['claude'],
+      },
+      { cwd: '/Users/dev/garden', handoffFilePath: '/repo/.handoffs/topic.md' },
+    );
+
+    expect(calls[0]?.command).toEqual([
+      'claude',
+      '--session-id',
+      calls[0]?.sessionId,
+      '--settings',
+      '/home/.garden/claude-settings.json',
+    ]);
+  });
 });
 
 describe('resumeSession', () => {

@@ -60,11 +60,13 @@ export function createSession(
   cwd: string,
   callerSessionId?: string,
   handoff?: boolean,
+  handoffFilePath?: string,
 ): Promise<CreateSessionResponse> {
   const body: CreateSessionRequest = {
     cwd,
     ...(callerSessionId === undefined ? {} : { callerSessionId }),
     ...(handoff === true ? { handoff: true } : {}),
+    ...(handoffFilePath === undefined ? {} : { handoffFilePath }),
   };
   return request('/sessions', {
     method: 'POST',

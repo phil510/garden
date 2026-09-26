@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import type {
   CreateSessionResponse,
   OkResponse,
@@ -8,6 +9,10 @@ import type {
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { CliClient, Io } from './commands.js';
 import { runAdopt, runHandoff, runKill, runLs, runNew, runResume } from './commands.js';
+
+/** A path guaranteed to exist on disk, for tests of the --handoff-file existence check —
+ *  this file itself, rather than a temp-file fixture neither the check nor the assertion needs. */
+const AN_EXISTING_FILE = fileURLToPath(import.meta.url);
 
 function collectingIo(): { io: Io; stdout: string[]; stderr: string[] } {
   const stdout: string[] = [];
@@ -186,6 +191,66 @@ describe('runNew', () => {
     expect(calls).toEqual([]);
     expect(stdout).toEqual([]);
     expect(stderr).toEqual(['garden: GARDEN_SESSION_ID is not set\n']);
+  });
+
+  it('passes handoffFilePath through to createSession when --handoff and an existing --handoff-file are both given', async () => {
+    process.env.GARDEN_SESSION_ID = 'caller-1';
+    const { io } = collectingIo();
+    const response: CreateSessionResponse = { id: 'abc', tmuxName: 'repo' };
+    const calls: Array<[string, string | undefined, boolean | undefined, string | undefined]> = [];
+    const client: CliClient = {
+      ...throwingClient(new Error('unused')),
+      createSession: (cwd, callerSessionId, handoff, handoffFilePath) => {
+        calls.push([cwd, callerSessionId, handoff, handoffFilePath]);
+        return Promise.resolve(response);
+      },
+    };
+
+    const exitCode = await runNew(io, '/repo', false, client, true, AN_EXISTING_FILE);
+
+    expect(exitCode).toBe(0);
+    expect(calls).toEqual([['/repo', 'caller-1', true, AN_EXISTING_FILE]]);
+  });
+
+  it('fails with exit 1 and makes no client call when --handoff-file is given without --handoff', async () => {
+    process.env.GARDEN_SESSION_ID = 'caller-1';
+    const { io, stdout, stderr } = collectingIo();
+    const calls: unknown[] = [];
+    const client: CliClient = {
+      ...throwingClient(new Error('unused')),
+      createSession: (...args) => {
+        calls.push(args);
+        return Promise.resolve({ id: 'abc', tmuxName: 'repo' });
+      },
+    };
+
+    const exitCode = await runNew(io, '/repo', false, client, false, AN_EXISTING_FILE);
+
+    expect(exitCode).toBe(1);
+    expect(calls).toEqual([]);
+    expect(stdout).toEqual([]);
+    expect(stderr).toEqual(['garden: --handoff-file requires --handoff\n']);
+  });
+
+  it('fails with exit 1 and makes no client call when --handoff-file does not exist', async () => {
+    process.env.GARDEN_SESSION_ID = 'caller-1';
+    const { io, stdout, stderr } = collectingIo();
+    const calls: unknown[] = [];
+    const missingPath = '/definitely/does/not/exist/handoff.md';
+    const client: CliClient = {
+      ...throwingClient(new Error('unused')),
+      createSession: (...args) => {
+        calls.push(args);
+        return Promise.resolve({ id: 'abc', tmuxName: 'repo' });
+      },
+    };
+
+    const exitCode = await runNew(io, '/repo', false, client, true, missingPath);
+
+    expect(exitCode).toBe(1);
+    expect(calls).toEqual([]);
+    expect(stdout).toEqual([]);
+    expect(stderr).toEqual([`garden: handoff file not found: ${missingPath}\n`]);
   });
 });
 

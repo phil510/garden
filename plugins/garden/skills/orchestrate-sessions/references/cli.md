@@ -55,6 +55,12 @@ session's own environment — unset, this fails the same way as `handoff`/`adopt
 `garden: GARDEN_SESSION_ID is not set`) and spawns nothing. Output is the same
 `{ "id": "...", "tmuxName": "..." }` shape as a plain `new`.
 
+Add `--handoff-file <path>` alongside `--handoff` to point the new session at a written
+`.handoffs/*.md` file — its own first prompt becomes "Continue from the handoff at `<path>`.",
+which the `session-pickup` skill's existing trigger prose picks up automatically, no separate
+invocation needed. Only valid together with `--handoff`: given alone, or with a `<path>` that
+doesn't exist on disk, `garden new` fails fast (exit 1, stderr) and spawns nothing.
+
 ## List sessions
 
 ```

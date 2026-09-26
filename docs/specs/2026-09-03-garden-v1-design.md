@@ -48,7 +48,9 @@ Each of these is a plausible follow-on that an implementer might otherwise build
 - **Light theme.** Dark only, built on CSS variables so light is a later variable swap.
 - **An MCP server, and a `garden` skill teaching CC the CLI.** CC reaches garden through the CLI.
   The skill will live in this repo but is separate work.
-- **Session handoff/pickup automation.**
+- ~~**Session handoff/pickup automation.**~~ Reversed by #178: the `session-handoff` /
+  `session-pickup` skills live in `plugins/garden/skills/`, and `garden new --handoff` wires the
+  automatic pickup path.
 - **Multi-user, remote access, auth.** The server binds `127.0.0.1` and this is not configurable.
 - **Windows.** tmux is required.
 

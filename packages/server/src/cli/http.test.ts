@@ -168,6 +168,40 @@ describe('createSession', () => {
       tmuxName: 'repo',
     });
   });
+
+  it('includes handoffFilePath in the body when provided', async () => {
+    await startServer((request, response) => {
+      void (async () => {
+        expect(JSON.parse(await readBody(request))).toEqual({
+          cwd: '/repo',
+          callerSessionId: 'caller-1',
+          handoff: true,
+          handoffFilePath: '/repo/.handoffs/2026-01-01-topic.md',
+        });
+        sendJson(response, 200, { id: 'abc', tmuxName: 'repo' });
+      })();
+    });
+    await expect(
+      createSession('/repo', 'caller-1', true, '/repo/.handoffs/2026-01-01-topic.md'),
+    ).resolves.toEqual({ id: 'abc', tmuxName: 'repo' });
+  });
+
+  it('omits handoffFilePath from the body when not provided', async () => {
+    await startServer((request, response) => {
+      void (async () => {
+        expect(JSON.parse(await readBody(request))).toEqual({
+          cwd: '/repo',
+          callerSessionId: 'caller-1',
+          handoff: true,
+        });
+        sendJson(response, 200, { id: 'abc', tmuxName: 'repo' });
+      })();
+    });
+    await expect(createSession('/repo', 'caller-1', true)).resolves.toEqual({
+      id: 'abc',
+      tmuxName: 'repo',
+    });
+  });
 });
 
 describe('handoffSession', () => {
