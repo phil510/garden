@@ -20,6 +20,8 @@ const initialUiState: UiState = {
   slots: [],
   focusedSlot: 0,
   layout: null,
+  swarms: [],
+  placements: {},
 };
 
 export const useUiStore = create<UiStore>((set) => ({
