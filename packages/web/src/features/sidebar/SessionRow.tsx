@@ -23,6 +23,10 @@ interface SessionRowProps {
   /** The successor's `claudeSessionName`, resolved by the caller via `resolveSuccessorName`
    *  — null when this session has no successor. */
   successorName: string | null;
+  /** Swarms-mode tree rows only: whether this row has a rendered `<ul class="tree-children">`
+   *  following it, which drives the parent-side rail corner in CSS
+   *  (`.session-row.has-children::after`). Always false in Repos mode. */
+  hasChildren?: boolean;
 }
 
 export function SessionRow({
@@ -32,6 +36,7 @@ export function SessionRow({
   now,
   onSelect,
   successorName,
+  hasChildren = false,
 }: SessionRowProps) {
   // A callback ref feeding state, not a plain ref, so the hover card's anchor is safe to
   // read during render — a raw ref's `.current` is not.
@@ -91,7 +96,7 @@ export function SessionRow({
   return (
     <div
       ref={setRowEl}
-      className={`session-row${onStage ? ' on-stage' : ''}${dead ? ' dead' : ''}`}
+      className={`session-row${onStage ? ' on-stage' : ''}${dead ? ' dead' : ''}${hasChildren ? ' has-children' : ''}`}
       tabIndex={0}
       onClick={handleRowClick}
       onMouseDownCapture={handleRowMouseDown}

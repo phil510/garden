@@ -67,8 +67,22 @@
 .session-row:hover {
   background: var(--raised);
 }
-.session-row.on-stage {
-  border-left-color: var(--accent);
+/* The on-stage/focus accent is a layered stripe rather than a color on the real
+   border-left above: a pseudo-element only paints above a sibling pseudo (the
+   has-children corner below, or a parent li's rail) once it has its own explicit
+   z-index — the real border can't win that fight, since an element's own border
+   always paints before its own generated content, stacking context or not.
+   left/width/height match the border-left exactly, so this reads as that border,
+   just able to render on top of the tree lines wherever their shared x=0 overlaps. */
+.session-row.on-stage::before {
+  content: '';
+  position: absolute;
+  left: -2px;
+  top: 0;
+  width: 2px;
+  height: 100%;
+  background: var(--accent);
+  z-index: 1;
 }
 /* A dead session carries no status, so its row recedes to keep live work legible at a glance.
    De-emphasis only — text drops a step in contrast, and hover or stage presence brings the
@@ -147,6 +161,67 @@
 .handoff-note {
   font-size: 11px;
   color: var(--text-faint);
+}
+
+/* ---- Swarms-mode tree lines ----
+   Each child draws its own elbow (└-shaped border-left + border-bottom on ::before, down
+   to the elbow height); a non-last child extends the rail past its elbow via ::after so it
+   reaches the next sibling, and the last child simply has no ::after — the rail stops at
+   its own elbow, reading as a closing corner instead of running into nothing. A parent row
+   with children grows the same corner in reverse (border-top + border-left on ::after)
+   starting near its own status dot, so the rail visibly begins at the parent instead of
+   floating below it. Depth is uniform: every level nests the same 18px indent and the same
+   two rules, so the elbow's width matches that indent exactly and lands flush on the child
+   row's own left edge (an on-stage row's accent border included: they're meant to overlap
+   there, not leave a gap to dodge each other).
+
+   Two measured constants keep every corner on one shared line (ported from the linked mock,
+   whose .session-row padding/gap/flex-direction is identical to this file's — re-verified
+   against this component's own markup, not assumed from the mock's DOM):
+   - x: li::before's -18px offset lands its rail at the row's own left edge (x=0). The
+     parent corner's ::after sits on .session-row itself, whose padding edge starts 2px in —
+     past the row's own 2px accent border — so it needs left:-2px, not 0, to land on that
+     same x=0.
+   - y: 17.6px/15.6px center each corner's horizontal stroke on the row's status-dot. */
+ul.tree-children {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 18px;
+}
+li.tree-node {
+  position: relative;
+}
+li.tree-node::before {
+  content: '';
+  position: absolute;
+  left: -18px;
+  top: 0;
+  width: 18px;
+  height: 17.6px;
+  border-left: 2px solid var(--tree-line);
+  border-bottom: 2px solid var(--tree-line);
+}
+li.tree-node:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: -18px;
+  top: 17.6px;
+  bottom: 0;
+  width: 2px;
+  background: var(--tree-line);
+}
+.session-row.has-children {
+  position: relative;
+}
+.session-row.has-children::after {
+  content: '';
+  position: absolute;
+  left: -2px;
+  top: 15.6px;
+  width: 9px;
+  height: calc(100% - 15.6px);
+  border-top: 2px solid var(--tree-line);
+  border-left: 2px solid var(--tree-line);
 }
 .row-name {
   overflow: hidden;
