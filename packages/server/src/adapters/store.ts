@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { STAGE_PRESETS } from '@garden/shared';
+import type { SessionPlacement, SwarmRecord } from '@garden/shared';
 import type { OverlayStage, OverlayState } from '../domain/overlay.js';
 
 export const DEFAULT_OVERLAY_STATE: OverlayState = {
@@ -8,6 +9,8 @@ export const DEFAULT_OVERLAY_STATE: OverlayState = {
   tmuxNames: {},
   groups: {},
   stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
+  swarms: [],
+  placements: {},
 };
 
 function statePath(appDir: string): string {
@@ -41,15 +44,54 @@ function isOverlayStage(value: unknown): value is OverlayStage {
   );
 }
 
+function isSwarmRecord(value: unknown): value is SwarmRecord {
+  return (
+    isRecord(value) &&
+    typeof value['id'] === 'string' &&
+    typeof value['name'] === 'string' &&
+    typeof value['archived'] === 'boolean'
+  );
+}
+
+function isSwarms(value: unknown): value is readonly SwarmRecord[] {
+  return Array.isArray(value) && value.every(isSwarmRecord);
+}
+
+function isOptionalString(value: unknown): value is string | undefined {
+  return value === undefined || typeof value === 'string';
+}
+
+function isSessionPlacement(value: unknown): value is SessionPlacement {
+  return (
+    isRecord(value) &&
+    isOptionalString(value['parent']) &&
+    isOptionalString(value['swarmId']) &&
+    isOptionalString(value['successor'])
+  );
+}
+
+function isPlacements(value: unknown): value is Readonly<Record<string, SessionPlacement>> {
+  return isRecord(value) && Object.values(value).every(isSessionPlacement);
+}
+
 /** Every field the rest of the server reads without checking. A file that parses as
- *  JSON but does not answer this shape is as unusable as one that does not parse. */
-function isOverlayState(value: unknown): value is OverlayState {
+ *  JSON but does not answer this shape is as unusable as one that does not parse.
+ *  `swarms`/`placements` are the exception: absent is valid (a pre-#170 `state.json`
+ *  simply predates them, and losing its `tmuxNames`/`groups`/`stage` over two fields it
+ *  never had would be the actual loss), but present-and-malformed still fails the whole
+ *  file, same as every other field here. */
+function isOverlayState(
+  value: unknown,
+): value is Record<string, unknown> &
+  Pick<OverlayState, 'version' | 'tmuxNames' | 'groups' | 'stage'> {
   if (!isRecord(value)) return false;
   return (
     value['version'] === 1 &&
     isRecord(value['tmuxNames']) &&
     isRecord(value['groups']) &&
-    isOverlayStage(value['stage'])
+    isOverlayStage(value['stage']) &&
+    (value['swarms'] === undefined || isSwarms(value['swarms'])) &&
+    (value['placements'] === undefined || isPlacements(value['placements']))
   );
 }
 
@@ -76,7 +118,14 @@ export function readOverlayState(appDir: string, logger: StoreLogger): OverlaySt
     logger.warn(`ignoring ${path}: not a version 1 overlay state`);
     return DEFAULT_OVERLAY_STATE;
   }
-  return parsed;
+  return {
+    version: 1,
+    tmuxNames: parsed.tmuxNames,
+    groups: parsed.groups,
+    stage: parsed.stage,
+    swarms: isSwarms(parsed['swarms']) ? parsed['swarms'] : [],
+    placements: isPlacements(parsed['placements']) ? parsed['placements'] : {},
+  };
 }
 
 /** Writes to a temp file beside the target and renames over it, so a concurrent

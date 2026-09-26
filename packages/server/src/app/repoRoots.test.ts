@@ -9,6 +9,8 @@ const emptyOverlay: OverlayState = {
   tmuxNames: {},
   groups: {},
   stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
+  swarms: [],
+  placements: {},
 };
 
 /**
