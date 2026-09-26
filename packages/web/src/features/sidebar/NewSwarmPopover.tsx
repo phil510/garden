@@ -67,6 +67,11 @@ export function NewSwarmPopover({ x, y, initialName, onCancel, onCreate }: NewSw
     event.stopPropagation();
   }
 
+  function onContainerContextMenu(event: ReactMouseEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
   function commit() {
     onCreate(name.trim() || initialName);
   }
@@ -81,6 +86,7 @@ export function NewSwarmPopover({ x, y, initialName, onCancel, onCreate }: NewSw
       onClick={stopBubbling}
       onMouseDown={stopBubbling}
       onPointerDown={stopBubbling}
+      onContextMenu={onContainerContextMenu}
     >
       <div className="ns-label muted">New swarm</div>
       <input
