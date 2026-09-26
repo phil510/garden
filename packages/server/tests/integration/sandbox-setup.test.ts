@@ -43,7 +43,13 @@ async function rejection(promise: Promise<unknown>): Promise<{ code: number; std
 describe('scripts/setup-sandbox.ts', () => {
   it('refuses a socket a live tmux server already holds, and leaves it running', async () => {
     await withTmuxServer(async (target) => {
-      await newSession(target, { name: 'alpha', cwd: tmpdir(), port: 4310, command: sleeper });
+      await newSession(target, {
+        name: 'alpha',
+        cwd: tmpdir(),
+        port: 4310,
+        sessionId: 'alpha-id',
+        command: sleeper,
+      });
 
       const appDir = mkdtempSync(join(tmpdir(), 'garden-sandbox-appdir-'));
       try {

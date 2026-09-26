@@ -47,6 +47,7 @@ export interface NewSessionRequest {
   readonly name: string;
   readonly cwd: string;
   readonly port: number;
+  readonly sessionId: string;
   readonly command: readonly string[];
 }
 export interface RespawnRequest {
@@ -154,6 +155,8 @@ export async function newSession(target: TmuxTarget, request: NewSessionRequest)
     request.cwd,
     '-e',
     `GARDEN_PORT=${String(request.port)}`,
+    '-e',
+    `GARDEN_SESSION_ID=${request.sessionId}`,
     '--',
     ...request.command,
   ]);

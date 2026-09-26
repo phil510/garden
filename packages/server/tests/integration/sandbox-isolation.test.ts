@@ -23,11 +23,29 @@ describe('two garden instances on separate tmux sockets', () => {
   it('keep their sessions invisible to each other, and a name used on one is free on the other', async () => {
     await withTmuxServer(async (first) => {
       await withTmuxServer(async (second) => {
-        await newSession(first, { name: 'alpha', cwd: tmpdir(), port: 4310, command: sleeper });
-        await newSession(first, { name: 'shared', cwd: tmpdir(), port: 4310, command: sleeper });
+        await newSession(first, {
+          name: 'alpha',
+          cwd: tmpdir(),
+          port: 4310,
+          sessionId: 'alpha-id',
+          command: sleeper,
+        });
+        await newSession(first, {
+          name: 'shared',
+          cwd: tmpdir(),
+          port: 4310,
+          sessionId: 'shared-id',
+          command: sleeper,
+        });
 
         // A single shared server would reject this as a duplicate session name.
-        await newSession(second, { name: 'shared', cwd: tmpdir(), port: 4311, command: sleeper });
+        await newSession(second, {
+          name: 'shared',
+          cwd: tmpdir(),
+          port: 4311,
+          sessionId: 'shared-id',
+          command: sleeper,
+        });
 
         expect(await sessionNames(first, 2)).toEqual(['alpha', 'shared']);
         expect(await sessionNames(second, 1)).toEqual(['shared']);

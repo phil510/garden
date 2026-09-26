@@ -54,6 +54,7 @@ describe('resuming a session against real tmux', () => {
         name: tmuxName,
         cwd,
         port: 4310,
+        sessionId: id,
         command: ['sh', '-c', 'exit 4'],
       });
       await until(

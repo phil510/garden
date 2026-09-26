@@ -17,6 +17,7 @@ export interface TmuxNewSessionRequest {
   readonly name: string;
   readonly cwd: string;
   readonly port: number;
+  readonly sessionId: string;
   readonly command: readonly string[];
 }
 
