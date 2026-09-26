@@ -1,0 +1,26 @@
+.context-menu {
+  position: fixed;
+  z-index: 90;
+  background: var(--raised);
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  padding: 4px;
+  min-width: 168px;
+}
+.context-menu-item {
+  padding: 7px 10px;
+  font-size: 12px;
+  border-radius: 3px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.context-menu-item:hover {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+/* Danger items mirror button.danger: normal-colored at rest, red only on hover. */
+.context-menu-item.danger:hover {
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  color: var(--danger);
+}
