@@ -36,9 +36,17 @@ the PRs, not in your window.
 
 ## Dispatch
 
-`garden new <dir> --json` returns `id` and `tmuxName`. Neither is the address you send messages
-to — see "Two naming systems" below. The id exists before the peer does, so a resolve that misses
-right after `new` means not-yet-started: retry before concluding anything.
+`garden new <dir> --json` places the new peer under you as it spawns: the CLI reads your own
+`GARDEN_SESSION_ID` and hands it to the server as the caller, which records the child's `parent`
+as you — minting you a swarm on the first dispatch if you don't already have one — so the
+relationship lands in garden's own swarm data with no second call. Neither `id` nor `tmuxName` is
+the address you send messages to — see "Two naming systems" below. The id exists before the peer
+does, so a resolve that misses right after `new` means not-yet-started: retry before concluding
+anything.
+
+Reach for `garden adopt <id> --json` instead when the session already exists and wasn't spawned
+under you — one a teammate started, or one that predates your own `GARDEN_SESSION_ID` — to place
+it under you after the fact.
 
 Give a peer somewhere of its own to work: a worktree per task, not a shared checkout. Two sessions
 in one working directory fight over the index and the branch, and neither will report that as the
