@@ -5,13 +5,16 @@ import { deriveTmuxName } from '../domain/tmuxName.js';
 import { SessionNotFoundError } from './errors.js';
 import type { StorePort, TmuxPaneFact, TmuxPort } from './ports.js';
 import type { Projection } from './projection.js';
-import { recordSpawn } from './swarms.js';
+import { handoffSession, recordSpawn } from './swarms.js';
 
 export { SessionNotFoundError } from './errors.js';
 
 export interface CreateSessionRequest {
   readonly cwd: string;
   readonly callerSessionId?: string;
+  /** When true and `callerSessionId` is set, the caller's placement moves to the new
+   *  session instead of the new session spawning as the caller's child. */
+  readonly handoff?: boolean;
 }
 
 export interface CreateSessionResult {
@@ -131,6 +134,16 @@ export async function createSession(
   projection.dispatch({ type: 'session-registered', id, tmuxName, cwd: request.cwd });
 
   if (request.callerSessionId === undefined) return { id, tmuxName };
+
+  if (request.handoff === true) {
+    try {
+      handoffSession({ projection }, { fromId: request.callerSessionId, toId: id });
+    } catch (error) {
+      if (!(error instanceof SessionNotFoundError)) throw error;
+      return { id, tmuxName, unknownCaller: true };
+    }
+    return { id, tmuxName };
+  }
 
   const callerTitle =
     projection.sessions().find((session) => session.id === request.callerSessionId)?.title ?? null;

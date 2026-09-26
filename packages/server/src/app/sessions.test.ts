@@ -4,7 +4,9 @@ import { describe, expect, it } from 'vitest';
 import type { GardenEvent } from '../domain/types.js';
 import type { OverlayState, StorePort, TmuxNewSessionRequest, TmuxPort } from './ports.js';
 import type { Projection } from './projection.js';
+import { createProjection } from './projection.js';
 import { createSession, killSession, resumeSession } from './sessions.js';
+import { SwarmCycleError } from './swarms.js';
 
 const emptyOverlay: OverlayState = {
   version: 1,
@@ -345,6 +347,97 @@ describe('createSession', () => {
       { type: 'session-registered', id: result.id, tmuxName: 'garden', cwd: '/Users/dev/garden' },
     ]);
     expect(current().placements).toEqual({});
+  });
+
+  it("moves the caller's placement to the new session instead of spawning a child when handoff is true", async () => {
+    // Uses the real projection (not the fakeProjection() double above), sharing one store
+    // with `deps.store`: handoffSession requires the new session's own id to already be
+    // "known" (via store.tmuxNames), which only holds once writeTmuxName and updateOverlay
+    // read/write the same underlying store — exactly how main.ts wires them in production.
+    const tmux = fakeTmux({ newSession: () => Promise.resolve() });
+    const { store, written } = fakeStore();
+    const projection = createProjection(store);
+    projection.dispatch({
+      type: 'session-registered',
+      id: 'caller',
+      tmuxName: 'caller',
+      cwd: '/repo',
+    });
+
+    const result = await createSession(
+      {
+        tmux,
+        store,
+        projection,
+        serverPort: 4310,
+        settingsPath: '/home/.garden/claude-settings.json',
+        readClaudeCommand: () => ['claude'],
+      },
+      { cwd: '/Users/dev/garden', callerSessionId: 'caller', handoff: true },
+    );
+
+    expect(result.unknownCaller).toBeUndefined();
+    expect(written().placements['caller']).toEqual({ parent: result.id, successor: result.id });
+    expect(written().placements[result.id]).toEqual({});
+  });
+
+  it('sets unknownCaller instead of throwing when the handoff caller does not resolve', async () => {
+    const tmux = fakeTmux({ newSession: () => Promise.resolve() });
+    const { projection, dispatched, current } = fakeProjection([]);
+    const { store } = fakeStore();
+
+    const result = await createSession(
+      {
+        tmux,
+        store,
+        projection,
+        serverPort: 4310,
+        settingsPath: '/home/.garden/claude-settings.json',
+        readClaudeCommand: () => ['claude'],
+      },
+      { cwd: '/Users/dev/garden', callerSessionId: 'ghost', handoff: true },
+    );
+
+    expect(result.unknownCaller).toBe(true);
+    expect(dispatched).toEqual([
+      { type: 'session-registered', id: result.id, tmuxName: 'garden', cwd: '/Users/dev/garden' },
+    ]);
+    expect(current().placements).toEqual({});
+  });
+
+  it('lets a SwarmCycleError propagate uncaught when the caller already has a successor', async () => {
+    // The one rejection reachable through this call site: the new session's id is always
+    // freshly minted, so it can never itself already resolve to a different swarm or
+    // already lie on the caller's ancestor chain (cross-swarm/cycle, the other two
+    // computeHandoff codes) — only "caller already mid-handoff" can occur here. The other
+    // two codes get their real coverage via handoff --to / adopt (task 5-7), where both
+    // endpoints already exist.
+    const tmux = fakeTmux({ newSession: () => Promise.resolve() });
+    const { store } = fakeStore({
+      ...emptyOverlay,
+      placements: { caller: { successor: 'someone-else' } },
+    });
+    const projection = createProjection(store);
+    projection.dispatch({
+      type: 'session-registered',
+      id: 'caller',
+      tmuxName: 'caller',
+      cwd: '/repo',
+    });
+
+    await expect(
+      createSession(
+        {
+          tmux,
+          store,
+          projection,
+          serverPort: 4310,
+          settingsPath: '/home/.garden/claude-settings.json',
+          readClaudeCommand: () => ['claude'],
+        },
+        { cwd: '/Users/dev/garden', callerSessionId: 'caller', handoff: true },
+      ),
+    ).rejects.toThrow(SwarmCycleError);
   });
 });
 

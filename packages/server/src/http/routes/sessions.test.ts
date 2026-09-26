@@ -11,6 +11,7 @@ import type {
 } from '../../app/ports.js';
 import type { Projection } from '../../app/projection.js';
 import type { SessionsDeps } from '../../app/sessions.js';
+import { CrossSwarmHandoffError, SwarmCycleError } from '../../app/swarms.js';
 import { sessionRoutes } from './sessions.js';
 
 const noopLogger: Logger = { warn: () => undefined, error: () => undefined };
@@ -430,6 +431,80 @@ describe('POST /sessions', () => {
     const body = response.json<{ id: string; tmuxName: string }>();
     expect(body.tmuxName).toBe('garden');
     expect(body.id).not.toBe('');
+  });
+
+  it('rejects a non-boolean handoff field without touching tmux', async () => {
+    const calls: TmuxNewSessionRequest[] = [];
+    const app = buildApp({
+      tmux: fakeTmux({
+        newSession: (request) => {
+          calls.push(request);
+          return Promise.resolve();
+        },
+      }),
+      store: fakeStore(),
+      projection: fakeProjection(),
+      serverPort: 4310,
+      settingsPath,
+      readClaudeCommand: () => ['claude'],
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/sessions',
+      payload: { cwd: '/Users/dev/garden', handoff: 'true' },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(calls).toEqual([]);
+  });
+
+  it('maps a SwarmCycleError from the handoff branch to a 409', async () => {
+    const app = buildApp({
+      tmux: fakeTmux({ newSession: () => Promise.resolve() }),
+      store: fakeStore(),
+      projection: {
+        ...fakeProjection(),
+        updateOverlay: () => {
+          throw new SwarmCycleError('caller already has a successor');
+        },
+      },
+      serverPort: 4310,
+      settingsPath,
+      readClaudeCommand: () => ['claude'],
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/sessions',
+      payload: { cwd: '/Users/dev/garden', callerSessionId: 'caller', handoff: true },
+    });
+
+    expect(response.statusCode).toBe(409);
+  });
+
+  it('maps a CrossSwarmHandoffError from the handoff branch to a 409', async () => {
+    const app = buildApp({
+      tmux: fakeTmux({ newSession: () => Promise.resolve() }),
+      store: fakeStore(),
+      projection: {
+        ...fakeProjection(),
+        updateOverlay: () => {
+          throw new CrossSwarmHandoffError('different swarm');
+        },
+      },
+      serverPort: 4310,
+      settingsPath,
+      readClaudeCommand: () => ['claude'],
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/sessions',
+      payload: { cwd: '/Users/dev/garden', callerSessionId: 'caller', handoff: true },
+    });
+
+    expect(response.statusCode).toBe(409);
   });
 
   it('warns and strips unknownCaller from the wire response when callerSessionId does not resolve', async () => {
