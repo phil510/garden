@@ -1,5 +1,5 @@
 import type { CreateSessionResponse, OkResponse, SessionsResponse } from '@garden/shared';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { CliClient, Io } from './commands.js';
 import type { StopAllDeps } from './stop.js';
 import {
@@ -65,11 +65,13 @@ function recordingClient(): { client: CliClient; calls: string[] } {
 }
 
 describe('isCliCommand', () => {
-  it('recognises the six subcommands and nothing else', () => {
+  it('recognises the eight subcommands and nothing else', () => {
     expect(isCliCommand('new')).toBe(true);
     expect(isCliCommand('ls')).toBe(true);
     expect(isCliCommand('kill')).toBe(true);
     expect(isCliCommand('resume')).toBe(true);
+    expect(isCliCommand('handoff')).toBe(true);
+    expect(isCliCommand('adopt')).toBe(true);
     expect(isCliCommand('stop')).toBe(true);
     expect(isCliCommand('uninstall')).toBe(true);
     expect(isCliCommand('bogus')).toBe(false);
@@ -148,6 +150,18 @@ describe('decideEntrypointAction', () => {
 });
 
 describe('runCli', () => {
+  let originalSessionId: string | undefined;
+
+  beforeEach(() => {
+    originalSessionId = process.env.GARDEN_SESSION_ID;
+    process.env.GARDEN_SESSION_ID = 'caller-1';
+  });
+
+  afterEach(() => {
+    if (originalSessionId === undefined) delete process.env.GARDEN_SESSION_ID;
+    else process.env.GARDEN_SESSION_ID = originalSessionId;
+  });
+
   it('dispatches "new <dir>" with the positional as the directory', async () => {
     const { io } = collectingIo();
     const { client, calls } = recordingClient();
@@ -175,6 +189,62 @@ describe('runCli', () => {
     expect(await runCli('kill', ['abc'], io, client)).toBe(0);
     expect(await runCli('resume', ['abc'], io, client)).toBe(0);
     expect(calls).toEqual(['kill:abc', 'resume:abc']);
+  });
+
+  it('passes --handoff through to runNew as true, and omits it (false) without the flag', async () => {
+    const { io } = collectingIo();
+    const { client: withFlag, calls: withFlagCalls } = recordingClient();
+    const { client: withoutFlag, calls: withoutFlagCalls } = recordingClient();
+
+    expect(await runCli('new', ['/repo', '--handoff'], io, withFlag)).toBe(0);
+    expect(await runCli('new', ['/repo'], io, withoutFlag)).toBe(0);
+
+    expect(withFlagCalls).toEqual(['new:/repo']);
+    expect(withoutFlagCalls).toEqual(['new:/repo']);
+  });
+
+  it('dispatches "handoff --to <id>"', async () => {
+    const { io } = collectingIo();
+    const { client, calls } = recordingClient();
+
+    const exitCode = await runCli('handoff', ['--to', 'target-1'], io, client);
+
+    expect(exitCode).toBe(0);
+    expect(calls).toEqual(['handoff:caller-1:target-1']);
+  });
+
+  it('requires --to for "handoff"', async () => {
+    const { io, stderr } = collectingIo();
+    const { client, calls } = recordingClient();
+
+    const exitCode = await runCli('handoff', [], io, client);
+
+    expect(exitCode).toBe(1);
+    expect(calls).toEqual([]);
+    expect(stderr).toEqual(['garden: usage: garden handoff --to <id>\n']);
+  });
+
+  it('dispatches "adopt <id>" with the positional as the target', async () => {
+    const { io } = collectingIo();
+    const { client, calls } = recordingClient();
+
+    const exitCode = await runCli('adopt', ['target-1'], io, client);
+
+    expect(exitCode).toBe(0);
+    expect(calls).toEqual([
+      `place:target-1:${JSON.stringify({ type: 'parent', parentId: 'caller-1' })}`,
+    ]);
+  });
+
+  it('requires a positional for "adopt"', async () => {
+    const { io, stderr } = collectingIo();
+    const { client, calls } = recordingClient();
+
+    const exitCode = await runCli('adopt', [], io, client);
+
+    expect(exitCode).toBe(1);
+    expect(calls).toEqual([]);
+    expect(stderr).toEqual(['garden: usage: garden adopt <id>\n']);
   });
 
   it('recognises --json anywhere after the subcommand', async () => {
@@ -210,6 +280,16 @@ describe('runCli', () => {
     await runCli('ls', [], io, client);
 
     expect(calls).toEqual(['ls']);
+  });
+
+  it('threads --swarm into the filter as swarmId', async () => {
+    const { io } = collectingIo();
+    const { client, calls } = recordingClient();
+
+    const exitCode = await runCli('ls', ['--swarm', 'swarm-1'], io, client);
+
+    expect(exitCode).toBe(0);
+    expect(calls).toEqual([`ls:${JSON.stringify({ swarmId: 'swarm-1' })}`]);
   });
 
   it('rejects a non-numeric --since-days with a usage error', async () => {
