@@ -354,6 +354,18 @@ li.tree-node:not(:last-child)::after {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.swarm-name-input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-weight: 600;
+  font-size: 12.5px;
+  background: var(--ground);
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  color: var(--text);
+  padding: 1px 4px;
+}
 .swarm-repos {
   font-size: 11px;
   color: var(--text-muted);
