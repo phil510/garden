@@ -52,6 +52,14 @@ function recordingClient(): { client: CliClient; calls: string[] } {
       calls.push(`kill:${id}`);
       return Promise.resolve(ok);
     },
+    handoffSession: (fromId, to) => {
+      calls.push(`handoff:${fromId}:${to}`);
+      return Promise.resolve(ok);
+    },
+    placeSession: (id, placement) => {
+      calls.push(`place:${id}:${JSON.stringify(placement)}`);
+      return Promise.resolve(ok);
+    },
   };
   return { client, calls };
 }

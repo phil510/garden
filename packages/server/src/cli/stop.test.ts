@@ -131,6 +131,8 @@ function fakeClient(overrides: Partial<CliClient> = {}): { client: CliClient; ca
     createSession: () => Promise.reject(new Error('not used by this test')),
     resumeSession: () => Promise.reject(new Error('not used by this test')),
     killSession: () => Promise.reject(new Error('not used by this test')),
+    handoffSession: () => Promise.reject(new Error('not used by this test')),
+    placeSession: () => Promise.reject(new Error('not used by this test')),
     ...overrides,
   };
   return { client, calls };
