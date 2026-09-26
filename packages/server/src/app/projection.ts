@@ -94,7 +94,10 @@ export function createProjection(store: StorePort): Projection {
 
   return {
     sessions: (filter) => {
-      const { placements } = store.read();
+      // `ui.placements` (kept in sync by updateOverlay/updateUiState), not `store.read()` —
+      // this runs on every call, including the tmux-poll branch sweep every tick, and a
+      // fresh disk read there would turn a pure in-memory accessor into per-tick I/O.
+      const { placements } = ui;
       const merged = mergePlacements(Object.values(state.sessions), placements);
       if (filter === undefined) return merged;
       const swarmScoped =

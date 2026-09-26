@@ -217,11 +217,11 @@ export async function runCli(
     case 'handoff':
       return values.to === undefined
         ? usage(io, 'garden handoff --to <id>')
-        : runHandoff(io, json, client, values.to);
+        : runHandoff(io, values.to, json, client);
     case 'adopt':
       return positionals[0] === undefined
         ? usage(io, 'garden adopt <id>')
-        : runAdopt(io, json, client, positionals[0]);
+        : runAdopt(io, positionals[0], json, client);
     case 'stop':
       return values.all === true
         ? runStopAll(io, values.yes === true, client, stopAllDeps)

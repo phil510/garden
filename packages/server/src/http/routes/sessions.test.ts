@@ -11,7 +11,7 @@ import type {
 } from '../../app/ports.js';
 import type { Projection } from '../../app/projection.js';
 import type { SessionsDeps } from '../../app/sessions.js';
-import { CrossSwarmHandoffError, SwarmCycleError } from '../../app/swarms.js';
+import { CrossSwarmHandoffError } from '../../app/swarms.js';
 import { sessionRoutes } from './sessions.js';
 
 const noopLogger: Logger = { warn: () => undefined, error: () => undefined };
@@ -459,15 +459,13 @@ describe('POST /sessions', () => {
     expect(calls).toEqual([]);
   });
 
-  it('maps a SwarmCycleError from the handoff branch to a 409', async () => {
+  it('maps a SwarmCycleError from the pre-spawn successor check to a 409', async () => {
     const app = buildApp({
       tmux: fakeTmux({ newSession: () => Promise.resolve() }),
       store: fakeStore(),
       projection: {
         ...fakeProjection(),
-        updateOverlay: () => {
-          throw new SwarmCycleError('caller already has a successor');
-        },
+        placementOf: () => ({ successor: 'someone-else' }),
       },
       serverPort: 4310,
       settingsPath,
@@ -489,6 +487,7 @@ describe('POST /sessions', () => {
       store: fakeStore(),
       projection: {
         ...fakeProjection(),
+        placementOf: () => undefined,
         updateOverlay: () => {
           throw new CrossSwarmHandoffError('different swarm');
         },

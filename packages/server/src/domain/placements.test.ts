@@ -63,9 +63,9 @@ describe('filterBySwarm', () => {
     expect(filterBySwarm([solo], {}, 'swarm-1')).toEqual([]);
   });
 
-  // AC8: a live child of a dead, filtered-out orchestrator still resolves its swarm
-  // membership correctly, even though the ancestor's own SessionState is absent from
-  // `sessions` — the placements map is what resolveSwarmId walks, not the session list.
+  // A live child of a dead, filtered-out orchestrator still resolves its swarm membership
+  // correctly, even though the ancestor's own SessionState is absent from `sessions` — the
+  // placements map is what resolveSwarmId walks, not the session list.
   it("resolves a live descendant's swarm through an ancestor absent from the session list", () => {
     const child = aSession({ id: 'child', liveness: 'live' });
     const placements = {

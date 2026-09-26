@@ -33,8 +33,11 @@ export interface SessionState {
   claudeSessionName: string | null;
   /** Swarm/placement fields, merged on from the overlay's `placements` map at read time
    *  (`app/projection.ts`). Mirrors `SessionPlacement`'s shape; absent for an unplaced
-   *  session. Not derived by `domain/reduce.ts`/`domain/diff.ts`, so a WS delta never
-   *  carries these — the browser client doesn't consume them (out of scope for #172). */
+   *  session. Not derived by `domain/reduce.ts`/`domain/diff.ts`: a fresh HTTP `GET
+   *  /sessions` always reflects the current placements, but a WS delta never carries
+   *  these, so a browser client holding a session from an earlier snapshot would see them
+   *  go stale after a later handoff/adopt — moot today, since nothing in `packages/web`
+   *  reads them yet. */
   parent?: string;
   swarmId?: string;
   successor?: string;

@@ -390,7 +390,9 @@ describe('createSession', () => {
       {
         tmux,
         store,
-        projection,
+        // The pre-spawn successor check reads placementOf for an id nothing has placed —
+        // undefined, same as the real projection would answer.
+        projection: { ...projection, placementOf: () => undefined },
         serverPort: 4310,
         settingsPath: '/home/.garden/claude-settings.json',
         readClaudeCommand: () => ['claude'],
@@ -405,14 +407,20 @@ describe('createSession', () => {
     expect(current().placements).toEqual({});
   });
 
-  it('lets a SwarmCycleError propagate uncaught when the caller already has a successor', async () => {
+  it('rejects with SwarmCycleError before spawning tmux when the caller already has a successor', async () => {
     // The one rejection reachable through this call site: the new session's id is always
     // freshly minted, so it can never itself already resolve to a different swarm or
     // already lie on the caller's ancestor chain (cross-swarm/cycle, the other two
-    // computeHandoff codes) — only "caller already mid-handoff" can occur here. The other
-    // two codes get their real coverage via handoff --to / adopt (task 5-7), where both
-    // endpoints already exist.
-    const tmux = fakeTmux({ newSession: () => Promise.resolve() });
+    // computeHandoff codes) — only "caller already mid-handoff" can occur here. Checked
+    // before tmux.newSession runs, so a retry from an already-handed-off caller doesn't
+    // leave a live, unplaced session behind.
+    const newSessionCalls: unknown[] = [];
+    const tmux = fakeTmux({
+      newSession: (request) => {
+        newSessionCalls.push(request);
+        return Promise.resolve();
+      },
+    });
     const { store } = fakeStore({
       ...emptyOverlay,
       placements: { caller: { successor: 'someone-else' } },
@@ -438,6 +446,7 @@ describe('createSession', () => {
         { cwd: '/Users/dev/garden', callerSessionId: 'caller', handoff: true },
       ),
     ).rejects.toThrow(SwarmCycleError);
+    expect(newSessionCalls).toEqual([]);
   });
 });
 

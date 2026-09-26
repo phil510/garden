@@ -403,7 +403,7 @@ describe('swarms and placements', () => {
     });
   });
 
-  it('resolves swarm membership over the full placements map before the dead-session filter narrows the list (AC7/AC8)', () => {
+  it('resolves swarm membership over the full placements map before the dead-session filter narrows the list', () => {
     const store = fakeStore({
       ...emptyOverlay,
       placements: {

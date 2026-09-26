@@ -168,7 +168,7 @@ describe('runNew', () => {
     expect(calls).toEqual([['/repo', 'caller-1', true]]);
   });
 
-  it('fails with exit 1 and creates no relationship when --handoff is set but GARDEN_SESSION_ID is unset (AC4)', async () => {
+  it('fails with exit 1 and creates no relationship when --handoff is set but GARDEN_SESSION_ID is unset', async () => {
     delete process.env.GARDEN_SESSION_ID;
     const { io, stdout, stderr } = collectingIo();
     const calls: unknown[] = [];
@@ -213,14 +213,14 @@ describe('runHandoff', () => {
       },
     };
 
-    const exitCode = await runHandoff(io, false, client, 'target-1');
+    const exitCode = await runHandoff(io, 'target-1', false, client);
 
     expect(exitCode).toBe(0);
     expect(calls).toEqual([['caller-1', 'target-1']]);
     expect(stdout).toEqual(['handed off\n']);
   });
 
-  it('fails with exit 1 and creates no relationship when GARDEN_SESSION_ID is unset (AC4)', async () => {
+  it('fails with exit 1 and creates no relationship when GARDEN_SESSION_ID is unset', async () => {
     delete process.env.GARDEN_SESSION_ID;
     const { io, stdout, stderr } = collectingIo();
     const calls: unknown[] = [];
@@ -232,7 +232,7 @@ describe('runHandoff', () => {
       },
     };
 
-    const exitCode = await runHandoff(io, false, client, 'target-1');
+    const exitCode = await runHandoff(io, 'target-1', false, client);
 
     expect(exitCode).toBe(1);
     expect(calls).toEqual([]);
@@ -240,14 +240,14 @@ describe('runHandoff', () => {
     expect(stderr).toEqual(['garden: GARDEN_SESSION_ID is not set\n']);
   });
 
-  it('surfaces a cycle/cross-swarm rejection from the server on stderr, exit 1 (AC5)', async () => {
+  it('surfaces a cycle/cross-swarm rejection from the server on stderr, exit 1', async () => {
     process.env.GARDEN_SESSION_ID = 'caller-1';
     const { io, stderr } = collectingIo();
     const client = throwingClient(
       new Error('would create a cycle: target-1 is already an ancestor'),
     );
 
-    const exitCode = await runHandoff(io, false, client, 'target-1');
+    const exitCode = await runHandoff(io, 'target-1', false, client);
 
     expect(exitCode).toBe(1);
     expect(stderr).toEqual(['garden: would create a cycle: target-1 is already an ancestor\n']);
@@ -278,14 +278,14 @@ describe('runAdopt', () => {
       },
     };
 
-    const exitCode = await runAdopt(io, false, client, 'target-1');
+    const exitCode = await runAdopt(io, 'target-1', false, client);
 
     expect(exitCode).toBe(0);
     expect(calls).toEqual([['target-1', { type: 'parent', parentId: 'caller-1' }]]);
     expect(stdout).toEqual(['adopted\n']);
   });
 
-  it('fails with exit 1 and creates no relationship when GARDEN_SESSION_ID is unset (AC4)', async () => {
+  it('fails with exit 1 and creates no relationship when GARDEN_SESSION_ID is unset', async () => {
     delete process.env.GARDEN_SESSION_ID;
     const { io, stdout, stderr } = collectingIo();
     const calls: unknown[] = [];
@@ -297,7 +297,7 @@ describe('runAdopt', () => {
       },
     };
 
-    const exitCode = await runAdopt(io, false, client, 'target-1');
+    const exitCode = await runAdopt(io, 'target-1', false, client);
 
     expect(exitCode).toBe(1);
     expect(calls).toEqual([]);
@@ -305,12 +305,12 @@ describe('runAdopt', () => {
     expect(stderr).toEqual(['garden: GARDEN_SESSION_ID is not set\n']);
   });
 
-  it('surfaces a cross-swarm rejection from the server on stderr, exit 1 (AC5)', async () => {
+  it('surfaces a cross-swarm rejection from the server on stderr, exit 1', async () => {
     process.env.GARDEN_SESSION_ID = 'caller-1';
     const { io, stderr } = collectingIo();
     const client = throwingClient(new Error('target-1 belongs to a different swarm than caller-1'));
 
-    const exitCode = await runAdopt(io, false, client, 'target-1');
+    const exitCode = await runAdopt(io, 'target-1', false, client);
 
     expect(exitCode).toBe(1);
     expect(stderr).toEqual(['garden: target-1 belongs to a different swarm than caller-1\n']);

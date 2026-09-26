@@ -15,7 +15,7 @@ export interface Io {
 
 /** The `garden` bin's own message for every verb that needs a caller session and finds
  *  none — `new --handoff`, `handoff --to`, and `adopt` all read `GARDEN_SESSION_ID` as
- *  "self" and fail this same way when it's unset (AC4). */
+ *  "self" and fail this same way when it's unset. */
 const NO_CALLER_SESSION = 'GARDEN_SESSION_ID is not set';
 
 /** The calls a subcommand needs. `./http.ts`'s exports satisfy this by shape. */
@@ -127,9 +127,9 @@ export function runKill(
 
 export function runHandoff(
   io: Io,
+  to: string,
   json: boolean,
   client: CliClient = defaultClient,
-  to: string,
 ): Promise<0 | 1> {
   return runCommand(
     io,
@@ -145,9 +145,9 @@ export function runHandoff(
 
 export function runAdopt(
   io: Io,
+  target: string,
   json: boolean,
   client: CliClient = defaultClient,
-  target: string,
 ): Promise<0 | 1> {
   return runCommand(
     io,

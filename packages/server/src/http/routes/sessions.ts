@@ -100,12 +100,12 @@ function parseSessionsFilter(query: SessionsQuerystring): ParsedFilter {
 
 /** `SessionNotFoundError` is the one case a client can act on (the id is stale) — logged at
  *  `warn`, since a stale id is an expected condition, not the failure this route guards
- *  against. `SwarmCycleError`/`CrossSwarmHandoffError` are the `new --handoff` rejections
- *  `computeHandoff` produces, mirrored here from `http/routes/swarms.ts`'s own `sendError`
- *  (kept separately maintained per file, not a shared helper). Every other failure is an
- *  opaque tmux or store error, logged at `error` with its stack (when it has one) rather
- *  than only its message, so root-causing from logs doesn't need to reproduce the failure
- *  to find where it came from; the response body still carries only the message. */
+ *  against. `SwarmCycleError`/`CrossSwarmHandoffError` are `new --handoff` rejections,
+ *  mapped to 409 the same way `http/routes/swarms.ts`'s own `sendError` maps them. Every
+ *  other failure is an opaque tmux or store error, logged at `error` with its stack (when
+ *  it has one) rather than only its message, so root-causing from logs doesn't need to
+ *  reproduce the failure to find where it came from; the response body still carries only
+ *  the message. */
 function sendError(logger: Logger, reply: FastifyReply, error: unknown): FastifyReply {
   if (error instanceof SessionNotFoundError) {
     logger.warn(error.message);

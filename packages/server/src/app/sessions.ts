@@ -5,7 +5,7 @@ import { deriveTmuxName } from '../domain/tmuxName.js';
 import { SessionNotFoundError } from './errors.js';
 import type { StorePort, TmuxPaneFact, TmuxPort } from './ports.js';
 import type { Projection } from './projection.js';
-import { handoffSession, recordSpawn } from './swarms.js';
+import { handoffSession, recordSpawn, SwarmCycleError } from './swarms.js';
 
 export { SessionNotFoundError } from './errors.js';
 
@@ -109,6 +109,18 @@ export async function createSession(
 ): Promise<CreateSessionResult> {
   const { tmux, store, projection, serverPort, settingsPath, readClaudeCommand, permissionMode } =
     deps;
+
+  // Checked before spawning anything: the new session's id is always fresh, so this is the
+  // only computeHandoff rejection reachable from this call site (cross-swarm/cycle both
+  // require the target to already have a placements entry). Catching it after the spawn
+  // would leave a live, unplaced tmux session behind for every retry of an already-handed-
+  // off caller.
+  if (request.handoff === true && request.callerSessionId !== undefined) {
+    const priorSuccessor = projection.placementOf(request.callerSessionId)?.successor;
+    if (priorSuccessor !== undefined)
+      throw new SwarmCycleError(`${request.callerSessionId} already has a successor`);
+  }
+
   const panes = await tmux.listPanes();
   const takenNames = takenTmuxNames(projection, panes);
   const id = randomUUID();
