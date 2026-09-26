@@ -107,16 +107,12 @@ address changes on resume, and what you knew goes with it. So keep it in a file 
 where the repo doesn't already ignore it. Give peers its **absolute** path in the brief: the same
 relative path in a peer's worktree is missing or a different run's file.
 
-It holds only what no other system holds — a policy header and three sections:
+It holds only what no other system holds — a policy header and two sections:
 
 ```markdown
 # settings-ui — started 2026-09-21
 
-merge: ask-human (approver: <name>) · create-issue: auto
-
-## Tasks
-
-- 6f1c9e2a-3b7d-4c58-9a0e-2d4f8b1c7e35 — #160 settings UI — plan: /Users/dev/garden/docs/plans/160.md
+merge: ask-human (approver: <name>) · create-issue: auto · swarm: 6f1c9e2a-3b7d-4c58-9a0e-2d4f8b1c7e35
 
 ## Blocked
 
@@ -129,11 +125,14 @@ merge: ask-human (approver: <name>) · create-issue: auto
 - user: proxy through the server after all (supersedes client-only — CORS blocked the direct read)
 ```
 
-Tasks is which task went to which session. Blocked records the event that unblocks, not a status
-— "waiting on your user", "answered but the peer hasn't been told" and "peer has it and is
-working" look alike in a status field and need three different things from you — and the entry
-goes when the event fires. Decisions are appended with who made them and on what, never edited:
-a reversed decision and the reason it was reversed are both things nothing else on disk holds.
+`swarm` is your own `swarmId` from `garden ls` — dispatching your first peer mints you one
+automatically (see "Dispatch" above), so it's there to record by the time you write the header.
+
+Blocked records the event that unblocks, not a status — "waiting on your user", "answered but
+the peer hasn't been told" and "peer has it and is working" look alike in a status field and need
+three different things from you — and the entry goes when the event fires. Decisions are appended
+with who made them and on what, never edited: a reversed decision and the reason it was reversed
+are both things nothing else on disk holds.
 
 Everything else has an authoritative home: `garden ls` owns cwd, branch, liveness and status; git
 owns commits and worktrees; GitHub owns PR, CI and review state. A copy here can only go wrong —
@@ -141,11 +140,7 @@ a green CI line is about a commit, not a time, so it is stale the moment a peer 
 recently you wrote it. Point at plans, PRs and commits, and when the file disagrees with those
 sources, they win. It is authoritative only for intent and decisions.
 
-Identify a session by its session id, which survives resume — never by the messaging name, which
-changes on every restart and so misroutes a later note with no error. The task label beside the
-id is what keeps the file scannable, and a file nobody scans stops being updated.
-
-Write to it on a dispatch, a block or unblock, or a decision, and not otherwise: that keeps it
+Write to it on a block or unblock, or a decision, and not otherwise: that keeps it
 small enough that updating it never becomes a task of its own, and means a change to it says
 something. You are the only writer; peers read it and report their deltas to you, since
 concurrent edits with no locking lose updates silently. It follows that the file is only as
