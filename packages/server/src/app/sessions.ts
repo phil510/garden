@@ -4,6 +4,7 @@ import type { PermissionMode } from '../config.js';
 import { deriveTmuxName } from '../domain/tmuxName.js';
 import type { StorePort, TmuxPaneFact, TmuxPort } from './ports.js';
 import type { Projection } from './projection.js';
+import { setArchived } from './swarms.js';
 
 export interface CreateSessionRequest {
   readonly cwd: string;
@@ -124,6 +125,19 @@ export async function createSession(
   return { id, tmuxName };
 }
 
+/** If the resumed session resolves to a top-level swarm that is currently archived, clears
+ *  that flag so the swarm returns to the main list — the other half of "resuming a member
+ *  un-finishes its swarm" (the all-members-dead half needs no server change, since that's a
+ *  pure function of liveness the client already recomputes). Reuses `setArchived`'s write
+ *  rather than duplicating it; only called once the swarm is confirmed to exist and be
+ *  archived, so it never hits that function's not-found throw. */
+function unarchiveResumedSwarm(deps: SessionsDeps, sessionId: string): void {
+  const swarmId = deps.projection.placementOf(sessionId)?.topLevelSwarmId;
+  if (swarmId === undefined) return;
+  const swarm = deps.projection.uiState().swarms.find((candidate) => candidate.id === swarmId);
+  if (swarm?.archived === true) setArchived(deps, swarmId, false);
+}
+
 /**
  * Resumes a dead session by whichever mechanism fits: `respawn-pane` in place when
  * tmux still holds the session (a dead pane kept by `remain-on-exit`), otherwise a
@@ -148,6 +162,7 @@ export async function resumeSession(
   const panes = await tmux.listPanes();
   const priorName = session.tmuxName;
 
+  let result: ResumeSessionResult;
   if (priorName !== null && panes.some((pane) => pane.session === priorName)) {
     await tmux.respawnPane({ name: priorName, command });
     writeTmuxName(store, request.id, priorName);
@@ -157,15 +172,18 @@ export async function resumeSession(
       tmuxName: priorName,
       cwd: session.cwd,
     });
-    return { id: request.id, tmuxName: priorName };
+    result = { id: request.id, tmuxName: priorName };
+  } else {
+    const takenNames = takenTmuxNames(projection, panes, request.id);
+    const tmuxName = deriveTmuxName(session.cwd, takenNames);
+    await tmux.newSession({ name: tmuxName, cwd: session.cwd, port: serverPort, command });
+    writeTmuxName(store, request.id, tmuxName);
+    projection.dispatch({ type: 'session-registered', id: request.id, tmuxName, cwd: session.cwd });
+    result = { id: request.id, tmuxName };
   }
 
-  const takenNames = takenTmuxNames(projection, panes, request.id);
-  const tmuxName = deriveTmuxName(session.cwd, takenNames);
-  await tmux.newSession({ name: tmuxName, cwd: session.cwd, port: serverPort, command });
-  writeTmuxName(store, request.id, tmuxName);
-  projection.dispatch({ type: 'session-registered', id: request.id, tmuxName, cwd: session.cwd });
-  return { id: request.id, tmuxName };
+  unarchiveResumedSwarm(deps, request.id);
+  return result;
 }
 
 /**
