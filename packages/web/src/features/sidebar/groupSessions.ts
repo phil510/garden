@@ -1,4 +1,5 @@
 import type { SessionMap, SessionState, UiState } from '@garden/shared';
+import { isAttentionStatus } from './attentionStatus';
 import { lastPathSegment } from './lastPathSegment';
 
 export interface SidebarGroup {
@@ -49,9 +50,7 @@ export function groupSessions(
       .sort((a, b) => b.lastActivity - a.lastActivity)
       .map((session) => session.id),
     liveCount: members.filter((session) => session.liveness === 'live').length,
-    attention: members.some(
-      (session) => session.status === 'needs-approval' || session.status === 'waiting',
-    ),
+    attention: members.some((session) => isAttentionStatus(session.status)),
     pinned: pinned.has(repoRoot),
     collapsed: !expandedRepoRoots.has(repoRoot),
     hideDead: hideDeadRepos.has(repoRoot),
