@@ -13,6 +13,31 @@ export interface TmuxServerContext {
 }
 
 /**
+ * Reads tmux's own record of a session's environment — set once at `new-session` time and
+ * unaffected by any later `respawn-pane` in that session — rather than the pane process's
+ * environment, so this proves an `-e` flag landed even when nothing in the pane ever reads
+ * it. `undefined` when the session has no such variable set.
+ */
+export async function sessionEnv(
+  ctx: TmuxServerContext,
+  name: string,
+  key: string,
+): Promise<string | undefined> {
+  const { stdout } = await execFileAsync('tmux', [
+    '-L',
+    ctx.socket,
+    '-f',
+    ctx.confPath,
+    'show-environment',
+    '-t',
+    name,
+    key,
+  ]);
+  const line = stdout.trim();
+  return line.startsWith(`${key}=`) ? line.slice(key.length + 1) : undefined;
+}
+
+/**
  * Runs `fn` against a fresh tmux server on a socket nobody else uses and kills it
  * whether `fn` threw or not. The socket name is literal on purpose: it is what
  * makes pointing a test at the real garden socket impossible.

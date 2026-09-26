@@ -148,7 +148,7 @@ describe('WS /attach/:id against a real tmux pane and a real pty', () => {
       const tmuxName = basename(cwd);
       const id = randomUUID();
 
-      await newSession(target, { name: tmuxName, cwd, port: 4310, command: ['sh'] });
+      await newSession(target, { name: tmuxName, cwd, port: 4310, sessionId: id, command: ['sh'] });
 
       const projection = createProjection(fakeStore());
       projection.dispatch({ type: 'session-registered', id, tmuxName, cwd });
@@ -234,7 +234,7 @@ describe('WS /attach/:id against a real tmux pane and a real pty', () => {
       const tmuxName = basename(cwd);
       const id = randomUUID();
 
-      await newSession(target, { name: tmuxName, cwd, port: 4310, command: ['sh'] });
+      await newSession(target, { name: tmuxName, cwd, port: 4310, sessionId: id, command: ['sh'] });
 
       const projection = createProjection(fakeStore());
       projection.dispatch({ type: 'session-registered', id, tmuxName, cwd });

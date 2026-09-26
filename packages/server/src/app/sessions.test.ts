@@ -25,8 +25,9 @@ function fakeTmux(overrides: Partial<TmuxPort> = {}): TmuxPort {
   };
 }
 
-function fakeProjection(sessions: SessionState[] = []) {
+function fakeProjection(sessions: SessionState[] = [], overlay: OverlayState = emptyOverlay) {
   const dispatched: GardenEvent[] = [];
+  let current = overlay;
   const projection: Projection = {
     sessions: () => sessions,
     uiState: () => {
@@ -38,14 +39,15 @@ function fakeProjection(sessions: SessionState[] = []) {
     },
     subscribe: () => () => undefined,
     subscribeUiState: () => () => undefined,
-    updateOverlay: () => {
-      throw new Error('not used by this test');
+    updateOverlay: (mutate) => {
+      current = mutate(current);
+      return current;
     },
     placementOf: () => {
       throw new Error('not used by this test');
     },
   };
-  return { projection, dispatched };
+  return { projection, dispatched, current: () => current };
 }
 
 /** In-memory StorePort: sessions.ts's contract with the store is read-modify-write,
@@ -90,6 +92,7 @@ describe('createSession', () => {
         name: 'garden',
         cwd: '/Users/dev/garden',
         port: 4310,
+        sessionId: result.id,
         command: [
           'claude',
           '--session-id',
@@ -297,6 +300,52 @@ describe('createSession', () => {
     expect(dispatched).toEqual([]);
     expect(written().tmuxNames).toEqual({});
   });
+
+  it('records the caller as parent when callerSessionId resolves to a known session', async () => {
+    const tmux = fakeTmux({ newSession: () => Promise.resolve() });
+    const { projection, current } = fakeProjection([aSession({ id: 'caller', title: 'Caller' })]);
+    const { store } = fakeStore();
+
+    const result = await createSession(
+      {
+        tmux,
+        store,
+        projection,
+        serverPort: 4310,
+        settingsPath: '/home/.garden/claude-settings.json',
+        readClaudeCommand: () => ['claude'],
+      },
+      { cwd: '/Users/dev/garden', callerSessionId: 'caller' },
+    );
+
+    expect(result.unknownCaller).toBeUndefined();
+    expect(current().placements[result.id]).toEqual({ parent: 'caller' });
+    expect(current().swarms[0]?.name).toBe('Caller');
+  });
+
+  it('sets unknownCaller instead of throwing when callerSessionId does not resolve', async () => {
+    const tmux = fakeTmux({ newSession: () => Promise.resolve() });
+    const { projection, dispatched, current } = fakeProjection([]);
+    const { store } = fakeStore();
+
+    const result = await createSession(
+      {
+        tmux,
+        store,
+        projection,
+        serverPort: 4310,
+        settingsPath: '/home/.garden/claude-settings.json',
+        readClaudeCommand: () => ['claude'],
+      },
+      { cwd: '/Users/dev/garden', callerSessionId: 'ghost' },
+    );
+
+    expect(result.unknownCaller).toBe(true);
+    expect(dispatched).toEqual([
+      { type: 'session-registered', id: result.id, tmuxName: 'garden', cwd: '/Users/dev/garden' },
+    ]);
+    expect(current().placements).toEqual({});
+  });
 });
 
 describe('resumeSession', () => {
@@ -440,6 +489,7 @@ describe('resumeSession', () => {
         name: 'garden',
         cwd: '/Users/dev/garden',
         port: 4310,
+        sessionId: 'sid-1',
         command: [
           'claude',
           '--resume',
@@ -482,6 +532,7 @@ describe('resumeSession', () => {
         name: 'garden',
         cwd: '/Users/dev/garden',
         port: 4310,
+        sessionId: 'sid-1',
         command: ['claude', '--resume', 'sid-1', '--settings', settingsPath],
       },
     ]);
@@ -529,6 +580,7 @@ describe('resumeSession', () => {
         name: 'garden-2',
         cwd: '/Users/dev/garden',
         port: 4310,
+        sessionId: 'sid-1',
         command: ['claude', '--resume', 'sid-1', '--settings', settingsPath],
       },
     ]);

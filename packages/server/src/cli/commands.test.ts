@@ -5,7 +5,7 @@ import type {
   SessionState,
   SessionsResponse,
 } from '@garden/shared';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { CliClient, Io } from './commands.js';
 import { runKill, runLs, runNew, runResume } from './commands.js';
 
@@ -58,6 +58,55 @@ function throwingClient(error: Error): CliClient {
 }
 
 describe('runNew', () => {
+  let originalSessionId: string | undefined;
+
+  beforeEach(() => {
+    originalSessionId = process.env.GARDEN_SESSION_ID;
+  });
+
+  afterEach(() => {
+    if (originalSessionId === undefined) delete process.env.GARDEN_SESSION_ID;
+    else process.env.GARDEN_SESSION_ID = originalSessionId;
+  });
+
+  it('forwards GARDEN_SESSION_ID from its own pane environment as the caller', async () => {
+    process.env.GARDEN_SESSION_ID = 'caller-1';
+    const { io } = collectingIo();
+    const response: CreateSessionResponse = { id: 'abc', tmuxName: 'repo' };
+    const calls: Array<[string, string | undefined]> = [];
+    const client: CliClient = {
+      ...throwingClient(new Error('unused')),
+      createSession: (cwd, callerSessionId) => {
+        calls.push([cwd, callerSessionId]);
+        return Promise.resolve(response);
+      },
+    };
+
+    const exitCode = await runNew(io, '/repo', false, client);
+
+    expect(exitCode).toBe(0);
+    expect(calls).toEqual([['/repo', 'caller-1']]);
+  });
+
+  it('forwards no caller when GARDEN_SESSION_ID is unset', async () => {
+    delete process.env.GARDEN_SESSION_ID;
+    const { io } = collectingIo();
+    const response: CreateSessionResponse = { id: 'abc', tmuxName: 'repo' };
+    const calls: Array<[string, string | undefined]> = [];
+    const client: CliClient = {
+      ...throwingClient(new Error('unused')),
+      createSession: (cwd, callerSessionId) => {
+        calls.push([cwd, callerSessionId]);
+        return Promise.resolve(response);
+      },
+    };
+
+    const exitCode = await runNew(io, '/repo', false, client);
+
+    expect(exitCode).toBe(0);
+    expect(calls).toEqual([['/repo', undefined]]);
+  });
+
   it('prints the minted id and tmux name on success', async () => {
     const { io, stdout, stderr } = collectingIo();
     const response: CreateSessionResponse = { id: 'abc', tmuxName: 'repo' };
