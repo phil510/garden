@@ -252,3 +252,11 @@ plus the turn it was mid-way through, and it comes back at a new address — re-
 resume. An unanswered gate stalls indefinitely and nothing will tell you. So kill on evidence,
 not on ceremony: a peer that reported done is evidence, and so is your user saying kill it. Only
 when nothing has reported and the status is ambiguous do you read `recap` or ask.
+
+That's winding down a peer. Replacing _yourself_ — while your swarm keeps running — is a
+different move: `garden handoff --to <id>` when an existing session should take over, or `garden
+new <dir> --handoff --json` to spin up a fresh one. Either way the whole swarm transfers in one
+call — your `parent`/`swarmId` moves to the new session, your children move with it, and you get
+`successor` set — instead of leaving your children parentless. Both verbs act on the _calling_
+session's own place (they read your own `GARDEN_SESSION_ID`): this is something you do to end
+your own run, never something you do to a peer.
