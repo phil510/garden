@@ -1,5 +1,5 @@
 import type { SessionState } from '@garden/shared';
-import { Fragment, useState, type MouseEvent } from 'react';
+import { Fragment, useEffect, useRef, useState, type MouseEvent } from 'react';
 import { killSession, resumeSession } from '../../api/client';
 import { reportCommandFailure } from '../../api/reportCommandFailure';
 import { ContextMenu } from '../../components/ContextMenu';
@@ -31,6 +31,34 @@ export function SessionRow({ session, onStage, focused, now, onSelect }: Session
   const dead = session.liveness === 'dead';
   const title = session.title ?? lastPathSegment(session.cwd);
 
+  // ContextMenu's own container-level guard stops a click from bubbling into onClick below
+  // when the press and release both land inside the menu. It can't catch a press that starts
+  // on a menu item and releases on the row body: the browser targets that mismatched
+  // mousedown/mouseup pair at their common ancestor (the row itself), so the click never
+  // passes through the menu's subtree at all. Tracked here instead, at the one point both
+  // ends of that drag share — on the capture phase, so this still sees the press before the
+  // menu's own bubble-phase guard (which runs later) can stop it from getting this far.
+  // Reset whenever the menu's own lifecycle changes so a press from a previous menu never
+  // survives to arbitrate a later click.
+  const pressStartedInMenuRef = useRef(false);
+  useEffect(() => {
+    pressStartedInMenuRef.current = false;
+  }, [contextMenuPoint]);
+
+  function handleRowMouseDown(event: MouseEvent) {
+    pressStartedInMenuRef.current =
+      contextMenuPoint !== null &&
+      event.target instanceof Element &&
+      event.target.closest('.context-menu') !== null;
+  }
+
+  function handleRowClick() {
+    const pressStartedInMenu = pressStartedInMenuRef.current;
+    pressStartedInMenuRef.current = false;
+    if (pressStartedInMenu) return;
+    onSelect(session.id);
+  }
+
   function handleContextMenu(event: MouseEvent) {
     event.preventDefault();
     event.stopPropagation();
@@ -59,7 +87,8 @@ export function SessionRow({ session, onStage, focused, now, onSelect }: Session
       ref={setRowEl}
       className={`session-row${onStage ? ' on-stage' : ''}${dead ? ' dead' : ''}`}
       tabIndex={0}
-      onClick={() => onSelect(session.id)}
+      onClick={handleRowClick}
+      onMouseDownCapture={handleRowMouseDown}
       onContextMenu={handleContextMenu}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
