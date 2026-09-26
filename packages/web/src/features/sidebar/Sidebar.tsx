@@ -209,18 +209,19 @@ function SwarmSidebar({
   // element: a dead pane can stay on stage after its swarm has gone fully dead/finished, and
   // the Finished section only mounts its rows when open (default closed) — that click still
   // switches to Swarms mode (StagePane's handler), it just has nothing to scroll/flash.
+  // The class is removed on the CSS animation's own `animationend` rather than a `setTimeout`
+  // twin of its duration: resetting `selectedSwarmId` back to null re-runs this effect (it's
+  // a dependency), which would otherwise race a timer-based cleanup into firing early.
   useEffect(() => {
     if (selectedSwarmId === null) return;
     const target = document.querySelector(`[data-swarm-id="${selectedSwarmId}"]`);
-    if (target === null) {
-      setSelectedSwarmId(null);
-      return;
-    }
+    setSelectedSwarmId(null);
+    if (target === null) return;
     target.scrollIntoView({ block: 'center', behavior: 'smooth' });
     target.classList.add('flash');
-    const timer = setTimeout(() => target.classList.remove('flash'), 1000);
-    setSelectedSwarmId(null);
-    return () => clearTimeout(timer);
+    target.addEventListener('animationend', () => target.classList.remove('flash'), {
+      once: true,
+    });
   }, [selectedSwarmId, setSelectedSwarmId]);
   const visibleOrder = active.map((swarm) => swarm.swarmId);
   // The base a drag reorders within has to carry every swarm, not just the active ones

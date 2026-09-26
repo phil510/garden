@@ -178,11 +178,7 @@ export function StagePane(props: IDockviewPanelProps) {
           <div className="pane-title">
             {swarmChip !== null && (
               <>
-                <span
-                  className="pane-swarm-chip"
-                  data-goto-swarm={swarmChip.id}
-                  onClick={goToSwarm}
-                >
+                <span className="pane-swarm-chip" onClick={goToSwarm}>
                   {swarmChip.name}
                 </span>
                 <span className="pane-swarm-sep">›</span>
