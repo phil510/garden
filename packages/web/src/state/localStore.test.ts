@@ -8,6 +8,7 @@ beforeEach(() => {
     openFileRequest: null,
     sidebarWidth: 280,
     filePanelWidth: 320,
+    selectedSwarmId: null,
   });
 });
 
@@ -155,5 +156,20 @@ describe('localStore', () => {
     // proportional max, is what caps the file panel.
     useLocalStore.getState().resizeFilePanelBy(5000, 3000, 2500);
     expect(useLocalStore.getState().filePanelWidth).toBe(300);
+  });
+
+  it('starts with no selected swarm', () => {
+    expect(useLocalStore.getState().selectedSwarmId).toBeNull();
+  });
+
+  it('records a selected swarm', () => {
+    useLocalStore.getState().setSelectedSwarmId('swarm-1');
+    expect(useLocalStore.getState().selectedSwarmId).toBe('swarm-1');
+  });
+
+  it('clears the selected swarm', () => {
+    useLocalStore.getState().setSelectedSwarmId('swarm-1');
+    useLocalStore.getState().setSelectedSwarmId(null);
+    expect(useLocalStore.getState().selectedSwarmId).toBeNull();
   });
 });

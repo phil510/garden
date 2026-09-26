@@ -4,7 +4,7 @@ import type { KeyboardEvent } from 'react';
 import type { SwarmGroup } from './groupSwarms';
 
 interface SwarmHeaderProps {
-  swarm: Pick<SwarmGroup, 'name' | 'repoCount' | 'attention' | 'collapsed'>;
+  swarm: Pick<SwarmGroup, 'swarmId' | 'name' | 'repoCount' | 'attention' | 'collapsed'>;
   onToggle: () => void;
   className?: string;
   /** `useSortable`'s drag attributes/listeners for an active swarm, spread onto the header
@@ -32,6 +32,7 @@ export function SwarmHeader({
   return (
     <div
       className={`swarm-header${swarm.collapsed ? ' collapsed' : ''}${className ? ` ${className}` : ''}`}
+      data-swarm-id={swarm.swarmId}
       onClick={onToggle}
       onKeyDown={onKeyDown}
       {...dragAttributes}

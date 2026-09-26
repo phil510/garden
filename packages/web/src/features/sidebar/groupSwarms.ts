@@ -42,7 +42,7 @@ type SwarmsUiState = Pick<
  * walk: an acyclic chain can legitimately read one hop past the entry count, at the final
  * missing parent.
  */
-function resolveTopLevelSwarmId(
+export function resolveTopLevelSwarmId(
   placements: Record<string, SessionPlacement>,
   sessionId: string,
 ): string | undefined {

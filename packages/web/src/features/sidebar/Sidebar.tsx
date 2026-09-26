@@ -7,7 +7,7 @@ import {
   type DragEndEvent,
 } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { updateUiState } from '../../api/client';
 import { reportCommandFailure } from '../../api/reportCommandFailure';
 import { useLocalStore, type SidebarMode } from '../../state/localStore';
@@ -25,6 +25,7 @@ import { focusedSessionId } from './stageFocus';
 import { SwarmGroup } from './SwarmGroup';
 import { SwarmHeader } from './SwarmHeader';
 import { SwarmTree } from './SwarmTree';
+import { resolveSwarmScrollAction } from './swarmScrollTarget';
 import { toggleHideDeadRepo } from './toggleHideDeadRepo';
 import { toggleHideDeadSwarm } from './toggleHideDeadSwarm';
 import { toggleRepoCollapse } from './toggleRepoCollapse';
@@ -103,6 +104,7 @@ export function Sidebar() {
           onSelectSession={selectSession}
           finishedOpen={finishedOpen}
           onToggleFinishedOpen={() => setFinishedOpen((open) => !open)}
+          onOpenFinished={() => setFinishedOpen(true)}
         />
       )}
       {pickerOpen && (
@@ -186,6 +188,7 @@ function RepoSidebar({
 interface SwarmSidebarProps extends SharedSidebarProps {
   finishedOpen: boolean;
   onToggleFinishedOpen: () => void;
+  onOpenFinished: () => void;
 }
 
 function SwarmSidebar({
@@ -198,10 +201,43 @@ function SwarmSidebar({
   onSelectSession,
   finishedOpen,
   onToggleFinishedOpen,
+  onOpenFinished,
 }: SwarmSidebarProps) {
   const { swarms, solo, soloTotal, soloHideDead } = groupSwarms(sessions, uiState);
   const active = swarms.filter((swarm) => !swarm.finished);
   const finished = swarms.filter((swarm) => swarm.finished);
+  const selectedSwarmId = useLocalStore((state) => state.selectedSwarmId);
+  const setSelectedSwarmId = useLocalStore((state) => state.setSelectedSwarmId);
+
+  // Scrolls to and flashes the swarm a pane-header chip click named. A dead pane can stay on
+  // stage after its swarm has gone fully dead/finished, and the Finished section only mounts
+  // its rows when open (default closed) — in that case, expand Finished first (without
+  // clearing selectedSwarmId) so the next run of this effect, triggered by finishedOpen
+  // changing, finds the now-mounted target instead of no-oping.
+  // The flash class is removed on the CSS animation's own `animationend` rather than a
+  // `setTimeout` twin of its duration: resetting `selectedSwarmId` back to null re-runs this
+  // effect (it's a dependency), which would otherwise race a timer-based cleanup into firing
+  // early.
+  useEffect(() => {
+    const action = resolveSwarmScrollAction(
+      selectedSwarmId,
+      finishedOpen,
+      finished.map((swarm) => swarm.swarmId),
+    );
+    if (action === 'idle') return;
+    if (action === 'expand-finished') {
+      onOpenFinished();
+      return;
+    }
+    const target = document.querySelector(`[data-swarm-id="${selectedSwarmId}"]`);
+    setSelectedSwarmId(null);
+    if (target === null) return;
+    target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    target.classList.add('flash');
+    target.addEventListener('animationend', () => target.classList.remove('flash'), {
+      once: true,
+    });
+  }, [selectedSwarmId, setSelectedSwarmId, finished, finishedOpen, onOpenFinished]);
   const visibleOrder = active.map((swarm) => swarm.swarmId);
   // The base a drag reorders within has to carry every swarm, not just the active ones
   // `SortableContext` renders — `updateUiState` replaces `swarmOrder` wholesale rather than
