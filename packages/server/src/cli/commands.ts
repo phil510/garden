@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import type {
   CreateSessionResponse,
   OkResponse,
@@ -25,6 +26,7 @@ export interface CliClient {
     cwd: string,
     callerSessionId?: string,
     handoff?: boolean,
+    handoffFilePath?: string,
   ): Promise<CreateSessionResponse>;
   resumeSession(id: string): Promise<CreateSessionResponse>;
   killSession(id: string): Promise<OkResponse>;
@@ -65,6 +67,7 @@ export function runNew(
   json: boolean,
   client: CliClient = defaultClient,
   handoff = false,
+  handoffFilePath?: string,
 ): Promise<0 | 1> {
   const callerSessionId = process.env.GARDEN_SESSION_ID;
   return runCommand(
@@ -72,7 +75,12 @@ export function runNew(
     json,
     () => {
       if (handoff && callerSessionId === undefined) throw new Error(NO_CALLER_SESSION);
-      return client.createSession(dir, callerSessionId, handoff);
+      if (handoffFilePath !== undefined) {
+        if (!handoff) throw new Error('--handoff-file requires --handoff');
+        if (!existsSync(handoffFilePath))
+          throw new Error(`handoff file not found: ${handoffFilePath}`);
+      }
+      return client.createSession(dir, callerSessionId, handoff, handoffFilePath);
     },
     (result) => `${result.id}\t${result.tmuxName}`,
   );

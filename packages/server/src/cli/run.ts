@@ -35,8 +35,8 @@ export function isCliCommand(command: string | undefined): command is CliCommand
 
 export function usageLines(): string {
   return (
-    'usage: garden [new <dir> [--handoff] | ls | kill <id> | resume <id> | ' +
-    'handoff --to <id> | adopt <id> | stop [--all] | uninstall]\n'
+    'usage: garden [new <dir> [--handoff] [--handoff-file <path>] | ls | kill <id> | ' +
+    'resume <id> | handoff --to <id> | adopt <id> | stop [--all] | uninstall]\n'
   );
 }
 
@@ -182,6 +182,7 @@ export async function runCli(
       live: { type: 'boolean', default: false },
       status: { type: 'string' },
       handoff: { type: 'boolean', default: false },
+      'handoff-file': { type: 'string' },
       to: { type: 'string' },
       swarm: { type: 'string' },
     },
@@ -195,7 +196,7 @@ export async function runCli(
     case 'new':
       return positionals[0] === undefined
         ? usage(io, 'garden new <dir>')
-        : runNew(io, positionals[0], json, client, values.handoff === true);
+        : runNew(io, positionals[0], json, client, values.handoff === true, values['handoff-file']);
     case 'ls': {
       const parsed = parseLsFilter({
         'since-days': values['since-days'],
