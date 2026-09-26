@@ -84,6 +84,7 @@ export function Sidebar() {
               key={group.repoRoot}
               group={group}
               sessions={sessions}
+              placements={uiState.placements}
               now={now}
               onStageIds={onStageIds}
               focusedSessionId={focusedId}

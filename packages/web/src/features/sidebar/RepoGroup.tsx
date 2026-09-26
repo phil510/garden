@@ -1,10 +1,11 @@
-import type { SessionMap } from '@garden/shared';
+import type { SessionMap, SessionPlacement } from '@garden/shared';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useState, type KeyboardEvent } from 'react';
 import type { SidebarGroup } from './groupSessions';
 import { hideDeadLabel } from './hideDeadLabel';
 import { SessionRow } from './SessionRow';
+import { resolveSuccessorName } from './successorName';
 import {
   capDeadSessions,
   hiddenCappedDeadCount,
@@ -15,6 +16,7 @@ import {
 interface RepoGroupProps {
   group: SidebarGroup;
   sessions: SessionMap;
+  placements: Record<string, SessionPlacement>;
   now: number;
   onStageIds: ReadonlySet<string>;
   focusedSessionId: string | null;
@@ -26,6 +28,7 @@ interface RepoGroupProps {
 export function RepoGroup({
   group,
   sessions,
+  placements,
   now,
   onStageIds,
   focusedSessionId,
@@ -90,6 +93,7 @@ export function RepoGroup({
             focused={focusedSessionId === session.id}
             now={now}
             onSelect={onSelectSession}
+            successorName={resolveSuccessorName(placements, sessions, session.id)}
           />
         ))}
         {hiddenCappedCount > 0 && (
