@@ -1,6 +1,14 @@
 import type { SessionState } from '@garden/shared';
 import type { DraggableAttributes, DraggableSyntheticListeners } from '@dnd-kit/core';
-import { Fragment, useEffect, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type MouseEvent,
+} from 'react';
 import { createSwarm, killSession, resumeSession, setSessionPlacement } from '../../api/client';
 import { reportCommandFailure } from '../../api/reportCommandFailure';
 import { ContextMenu, type ContextMenuItem } from '../../components/ContextMenu';
@@ -74,10 +82,16 @@ export function SessionRow({
   const crashed = dead && session.exitCode !== null && session.exitCode !== 0;
   const title = session.title ?? lastPathSegment(session.cwd);
 
-  function setCombinedRowRef(node: HTMLDivElement | null) {
-    setRowEl(node);
-    dragRef?.(node);
-  }
+  // Memoized so identity is stable across renders that don't change dragRef (Repos mode never
+  // supplies one) — otherwise a new function every render makes React re-invoke both the old
+  // and new ref callback on every commit, an avoidable extra setRowEl/re-render pair.
+  const setCombinedRowRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      setRowEl(node);
+      dragRef?.(node);
+    },
+    [dragRef],
+  );
 
   // A press on a menu item that releases on the row body reaches the row as a click without
   // passing through ContextMenu's own guard, since the browser routes a mismatched
@@ -87,14 +101,6 @@ export function SessionRow({
   useEffect(() => {
     pressStartedInMenuRef.current = false;
   }, [contextMenuPoint]);
-
-  // dnd-kit's pointer sensor releases a completed drag with a native click still following it
-  // when the release lands back on the same row it started from — tracked across the
-  // isDragging true→false transition so that trailing click doesn't also stage the session.
-  const justDraggedRef = useRef(false);
-  useEffect(() => {
-    if (isDragging) justDraggedRef.current = true;
-  }, [isDragging]);
 
   function handleRowMouseDown(event: MouseEvent) {
     pressStartedInMenuRef.current = pressStartedInMenu(
@@ -106,10 +112,6 @@ export function SessionRow({
     const pressStartedInMenu = pressStartedInMenuRef.current;
     pressStartedInMenuRef.current = false;
     if (pressStartedInMenu) return;
-    if (justDraggedRef.current) {
-      justDraggedRef.current = false;
-      return;
-    }
     onSelect(session.id);
   }
 

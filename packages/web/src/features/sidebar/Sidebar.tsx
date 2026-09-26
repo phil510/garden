@@ -38,22 +38,28 @@ import { toggleSwarmCollapse } from './toggleSwarmCollapse';
 import './sidebar.css';
 
 /**
- * A session drag resolves only against 'swarm-header'/'solo' droppables, via `pointerWithin`
- * (able to resolve to nothing, unlike `closestCenter`'s always-nearest) — filtering out every
- * 'swarm-reorder' droppable (the whole swarm-group, still registered for header-vs-header
- * reordering) keeps a session dropped anywhere inside its own swarm's rows from resolving to
- * that swarm through the group's own droppable rather than its header's separate one. A
- * swarm-header reorder drag keeps `closestCenter`'s nearest-always semantics, matching every
- * other reorder (repos, session slots) in this codebase.
+ * Each drag kind is filtered to its own droppable types before its own algorithm runs, so
+ * neither can resolve against the other's targets. A session drag resolves only against
+ * 'swarm-header'/'solo' droppables, via `pointerWithin` (able to resolve to nothing, unlike
+ * `closestCenter`'s always-nearest) — this keeps a session dropped anywhere inside its own
+ * swarm's rows from resolving to that swarm through the group's own 'swarm-reorder' droppable
+ * rather than its header's separate one. A swarm-header reorder drag keeps `closestCenter`'s
+ * nearest-always semantics (matching every other reorder — repos, session slots — in this
+ * codebase), filtered to only the other 'swarm-reorder' droppables: unfiltered, it would also
+ * see every 'swarm-header'/'solo' droppable now registered alongside them, and a header (which
+ * sits at the top of its group) can be nearer than the group a reorder is actually targeting.
  */
 const swarmSidebarCollisionDetection: CollisionDetection = (args) => {
   const activeType = args.active.data.current?.type as string | undefined;
-  if (activeType !== 'session') return closestCenter(args);
+  const wantedType = activeType === 'session' ? undefined : 'swarm-reorder';
   const droppableContainers = args.droppableContainers.filter((container) => {
     const type = container.data.current?.type as string | undefined;
-    return type === 'swarm-header' || type === 'solo';
+    return wantedType === undefined
+      ? type === 'swarm-header' || type === 'solo'
+      : type === wantedType;
   });
-  return pointerWithin({ ...args, droppableContainers });
+  const filteredArgs = { ...args, droppableContainers };
+  return activeType === 'session' ? pointerWithin(filteredArgs) : closestCenter(filteredArgs);
 };
 
 const SIDEBAR_MODES: readonly { mode: SidebarMode; label: string }[] = [

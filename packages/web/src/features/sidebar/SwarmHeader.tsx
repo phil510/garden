@@ -45,6 +45,10 @@ export function SwarmHeader({
   const [renaming, setRenaming] = useState(false);
   const [draft, setDraft] = useState(swarm.name);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Whether Enter/Escape has already resolved the open rename session (commit or cancel).
+  // Removing a focused input from the DOM can still fire a trailing native blur afterward —
+  // this guards that stray onBlur from re-committing (or, after Escape, committing at all).
+  const renameSessionActiveRef = useRef(false);
   const [contextMenuPoint, setContextMenuPoint] = useState<{ x: number; y: number } | null>(null);
   const [confirming, setConfirming] = useState<SwarmMenuConfirming>(null);
   // A separate droppable from the group's own header-reorder sortable (which shares the group
@@ -66,9 +70,12 @@ export function SwarmHeader({
   function startRenaming() {
     setDraft(swarm.name);
     setRenaming(true);
+    renameSessionActiveRef.current = true;
   }
 
   function commitRename() {
+    if (!renameSessionActiveRef.current) return;
+    renameSessionActiveRef.current = false;
     setRenaming(false);
     const name = resolveSwarmRename(swarm.name, draft);
     if (name === null) return;
@@ -76,6 +83,7 @@ export function SwarmHeader({
   }
 
   function cancelRename() {
+    renameSessionActiveRef.current = false;
     setRenaming(false);
   }
 

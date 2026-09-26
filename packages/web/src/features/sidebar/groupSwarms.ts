@@ -161,7 +161,6 @@ export function groupSwarms(sessions: SessionMap, uiState: SwarmsUiState): Group
   const hideDeadSwarms = new Set(uiState.hideDeadSwarms);
   const order = new Map(uiState.swarmOrder.map((id, index) => [id, index]));
 
-  const recencyBySwarmId = new Map<string, number>();
   const swarms: SwarmGroup[] = Array.from(knownSwarms.values(), (swarm) => {
     const memberIds = allSessions.filter((session) => bucketOf.get(session.id) === swarm.id);
     const repoCount = new Set(
@@ -172,7 +171,6 @@ export function groupSwarms(sessions: SessionMap, uiState: SwarmsUiState): Group
       swarm.archived || (memberIds.length > 0 && memberIds.every((s) => s.liveness === 'dead'));
     const hideDead = hideDeadSwarms.has(swarm.id);
     const recency = Math.max(0, ...memberIds.map((s) => s.lastActivity));
-    recencyBySwarmId.set(swarm.id, recency);
 
     return {
       swarmId: swarm.id,
@@ -207,7 +205,7 @@ export function groupSwarms(sessions: SessionMap, uiState: SwarmsUiState): Group
         (aOrder ?? Number.POSITIVE_INFINITY) - (bOrder ?? Number.POSITIVE_INFINITY);
       if (orderDelta !== 0) return orderDelta;
     }
-    return (recencyBySwarmId.get(b.swarmId) ?? 0) - (recencyBySwarmId.get(a.swarmId) ?? 0);
+    return b.recency - a.recency;
   });
 
   const soloRoots = sortedRoots(SOLO_BUCKET_ID).map((session) => buildNode(session.id));
