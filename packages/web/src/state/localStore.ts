@@ -59,6 +59,10 @@ interface LocalStore {
    *  its local scrollback. */
   connectionEpoch: number;
   noteConnected: () => void;
+  /** A swarm the pane-header chip asked the Swarms sidebar to scroll to and flash. A one-shot
+   *  target the sidebar clears after acting on it, same shape as `openFileRequest`. */
+  selectedSwarmId: string | null;
+  setSelectedSwarmId: (id: string | null) => void;
 }
 
 export const useLocalStore = create<LocalStore>((set) => ({
@@ -99,4 +103,6 @@ export const useLocalStore = create<LocalStore>((set) => ({
   requestOpenFile: (sessionId, path, line) => set({ openFileRequest: { sessionId, path, line } }),
   connectionEpoch: 0,
   noteConnected: () => set((state) => ({ connectionEpoch: state.connectionEpoch + 1 })),
+  selectedSwarmId: null,
+  setSelectedSwarmId: (id) => set({ selectedSwarmId: id }),
 }));
