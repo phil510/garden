@@ -1,7 +1,12 @@
 import { aSession } from '@garden/shared/fixtures';
 import type { SessionMap, SessionPlacement, SwarmRecord, UiState } from '@garden/shared';
 import { describe, expect, it } from 'vitest';
-import { groupSwarms, type SwarmTreeNode } from './groupSwarms';
+import {
+  activeSwarmsByRecency,
+  groupSwarms,
+  type SwarmGroup,
+  type SwarmTreeNode,
+} from './groupSwarms';
 
 type SwarmsUiState = Pick<
   UiState,
@@ -410,5 +415,44 @@ describe('groupSwarms', () => {
       expect(solo).toEqual([]);
       expect(soloTotal).toBe(1);
     });
+  });
+});
+
+function aSwarmGroup(overrides: Partial<SwarmGroup> = {}): SwarmGroup {
+  return {
+    swarmId: 'swarm-1',
+    name: 'A swarm',
+    repoCount: 1,
+    attention: 0,
+    collapsed: false,
+    hideDead: false,
+    archived: false,
+    finished: false,
+    recency: 0,
+    roots: [],
+    ...overrides,
+  };
+}
+
+describe('activeSwarmsByRecency', () => {
+  it('excludes finished swarms', () => {
+    const active = aSwarmGroup({ swarmId: 'active', finished: false });
+    const finished = aSwarmGroup({ swarmId: 'finished', finished: true });
+
+    expect(activeSwarmsByRecency([active, finished])).toEqual([
+      { swarmId: 'active', name: 'A swarm' },
+    ]);
+  });
+
+  it('sorts by recency alone, most recent first, ignoring swarmOrder-style input order', () => {
+    const stale = aSwarmGroup({ swarmId: 'stale', name: 'Stale', recency: 1 });
+    const fresh = aSwarmGroup({ swarmId: 'fresh', name: 'Fresh', recency: 9 });
+    const mid = aSwarmGroup({ swarmId: 'mid', name: 'Mid', recency: 5 });
+
+    expect(activeSwarmsByRecency([stale, fresh, mid])).toEqual([
+      { swarmId: 'fresh', name: 'Fresh' },
+      { swarmId: 'mid', name: 'Mid' },
+      { swarmId: 'stale', name: 'Stale' },
+    ]);
   });
 });
