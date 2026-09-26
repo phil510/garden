@@ -151,8 +151,13 @@ export async function createSession(
     try {
       handoffSession({ projection }, { fromId: request.callerSessionId, toId: id });
     } catch (error) {
-      if (!(error instanceof SessionNotFoundError)) throw error;
-      return { id, tmuxName, unknownCaller: true };
+      if (error instanceof SessionNotFoundError) return { id, tmuxName, unknownCaller: true };
+      // A concurrent handoff for the same caller can land in the gap between the pre-spawn
+      // guard above and this call, so a rejection reaching here (unlike an unknown caller)
+      // finds tmux already running for `id`. Roll it back the same way `killSession` does,
+      // rather than leaving an orphaned session the caller has no id to correlate or kill.
+      await killSession(deps, { id });
+      throw error;
     }
     return { id, tmuxName };
   }

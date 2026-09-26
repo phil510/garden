@@ -455,6 +455,56 @@ describe('createSession', () => {
     ).rejects.toThrow(SwarmCycleError);
     expect(newSessionCalls).toEqual([]);
   });
+
+  it('kills the just-spawned tmux session and rethrows when a real handoff rejection lands after spawn', async () => {
+    // The pre-spawn guard only reads placementOf before tmux.newSession starts, so it can't
+    // see a concurrent handoff for the same caller that completes while that call is in
+    // flight. This simulates exactly that landing inside newSession itself: by the time the
+    // real handoffSession() call runs below, the caller already has a real successor, and
+    // tmux is already running for the new session's id.
+    const killed: string[] = [];
+    const { store } = fakeStore();
+    const projection = createProjection(store);
+    projection.dispatch({
+      type: 'session-registered',
+      id: 'caller',
+      tmuxName: 'caller',
+      cwd: '/repo',
+    });
+    const tmux = fakeTmux({
+      newSession: () => {
+        projection.updateOverlay((base) => ({
+          ...base,
+          placements: { ...base.placements, caller: { successor: 'someone-else' } },
+        }));
+        return Promise.resolve();
+      },
+      killSession: (name) => {
+        killed.push(name);
+        return Promise.resolve();
+      },
+    });
+
+    await expect(
+      createSession(
+        {
+          tmux,
+          store,
+          projection,
+          serverPort: 4310,
+          settingsPath: '/home/.garden/claude-settings.json',
+          readClaudeCommand: () => ['claude'],
+        },
+        { cwd: '/Users/dev/garden', callerSessionId: 'caller', handoff: true },
+      ),
+    ).rejects.toThrow(SwarmCycleError);
+
+    expect(killed).toEqual(['garden']);
+    // Only the rolled-back session's own tmux name ever lands in the store's map — the
+    // caller was registered via `dispatch` alone, same as the fixture above, so this also
+    // confirms the rollback didn't touch anything beyond the id it spawned.
+    expect(store.read().tmuxNames).toEqual({});
+  });
 });
 
 describe('resumeSession', () => {

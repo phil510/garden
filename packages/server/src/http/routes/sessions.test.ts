@@ -481,12 +481,29 @@ describe('POST /sessions', () => {
     expect(response.statusCode).toBe(409);
   });
 
-  it('maps a CrossSwarmHandoffError from the handoff branch to a 409', async () => {
+  it('maps a CrossSwarmHandoffError from the handoff branch to a 409, and kills the orphaned tmux session', async () => {
+    // A concurrent handoff for the same caller can land between the pre-spawn guard and
+    // the real handoffSession() call, so tmux is already running for the new session's id
+    // by the time this rejection surfaces — the fix rolls that spawn back rather than
+    // leaving an orphan the client has no id to correlate or kill.
+    let spawnedId: string | undefined;
+    const killed: string[] = [];
     const app = buildApp({
-      tmux: fakeTmux({ newSession: () => Promise.resolve() }),
+      tmux: fakeTmux({
+        newSession: (request) => {
+          spawnedId = request.sessionId;
+          return Promise.resolve();
+        },
+        killSession: (name) => {
+          killed.push(name);
+          return Promise.resolve();
+        },
+      }),
       store: fakeStore(),
       projection: {
         ...fakeProjection(),
+        sessions: () =>
+          spawnedId === undefined ? [] : [aSession({ id: spawnedId, tmuxName: 'garden' })],
         placementOf: () => undefined,
         updateOverlay: () => {
           throw new CrossSwarmHandoffError('different swarm');
@@ -504,6 +521,7 @@ describe('POST /sessions', () => {
     });
 
     expect(response.statusCode).toBe(409);
+    expect(killed).toEqual(['garden']);
   });
 
   it('warns and strips unknownCaller from the wire response when callerSessionId does not resolve', async () => {
