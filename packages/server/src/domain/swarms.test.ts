@@ -7,7 +7,6 @@ import {
   resolveSwarmId,
   validatePlacement,
   wouldCreateParentCycle,
-  wouldCreateSuccessorCycle,
 } from './swarms.js';
 
 function anOverlay(overrides: Partial<OverlayState> = {}): OverlayState {
@@ -82,23 +81,6 @@ describe('wouldCreateParentCycle', () => {
 
   it('allows adopting a dangling (unplaced) session', () => {
     expect(wouldCreateParentCycle({}, 'a', 'ghost')).toBe(false);
-  });
-});
-
-describe('wouldCreateSuccessorCycle', () => {
-  it('rejects a session naming itself as its own successor', () => {
-    expect(wouldCreateSuccessorCycle({}, 'a', 'a')).toBe(true);
-  });
-
-  it('rejects a 3-hop chain forming a cycle', () => {
-    // a's successor is b, b's successor is c; naming a as c's successor closes the loop.
-    const placements = { a: { successor: 'b' }, b: { successor: 'c' } };
-    expect(wouldCreateSuccessorCycle(placements, 'c', 'a')).toBe(true);
-  });
-
-  it('allows an unrelated successor chain', () => {
-    const placements = { a: { successor: 'b' } };
-    expect(wouldCreateSuccessorCycle(placements, 'c', 'a')).toBe(false);
   });
 });
 

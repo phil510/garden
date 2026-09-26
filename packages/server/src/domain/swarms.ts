@@ -61,27 +61,6 @@ export function wouldCreateParentCycle(
 }
 
 /**
- * True if `sessionId` appears in `newSuccessorId`'s successor chain — walking the whole
- * chain, not just the immediate hop, matters: a 3-hop chain (A's successor is B, whose
- * successor would become A) is only caught this way.
- */
-export function wouldCreateSuccessorCycle(
-  placements: Placements,
-  sessionId: string,
-  newSuccessorId: string,
-): boolean {
-  const visited = new Set<string>();
-  let currentId: string | undefined = newSuccessorId;
-  while (currentId !== undefined) {
-    if (currentId === sessionId) return true;
-    if (visited.has(currentId)) return false;
-    visited.add(currentId);
-    currentId = placements[currentId]?.successor;
-  }
-  return false;
-}
-
-/**
  * Checks a proposed placement against the overlay's current swarms/placements. The target
  * session existing (for a `parent` placement) is the caller's job — `app/swarms.ts` checks
  * it against the known-session set before this ever runs, so a dangling reference is never
