@@ -29,6 +29,14 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
 
+  // Read via a ref rather than listing onClose as a dependency below: onClose is a fresh
+  // closure every render (it's an inline arrow in SessionRow), and re-subscribing the
+  // document listeners on every render this menu is open for is unnecessary churn.
+  const onCloseRef = useRef(onClose);
+  useLayoutEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
   useLayoutEffect(() => {
     const menu = containerRef.current;
     if (menu === null) return;
@@ -43,10 +51,10 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') onCloseRef.current();
     }
     function onMouseDown(event: MouseEvent) {
-      if (!containerRef.current?.contains(event.target as Node)) onClose();
+      if (!containerRef.current?.contains(event.target as Node)) onCloseRef.current();
     }
     document.addEventListener('keydown', onKeyDown);
     document.addEventListener('mousedown', onMouseDown);
@@ -54,14 +62,20 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
       document.removeEventListener('keydown', onKeyDown);
       document.removeEventListener('mousedown', onMouseDown);
     };
-  }, [onClose]);
+  }, []);
 
-  // The menu is rendered inline in the row's own DOM (no portal — see plan.md), so an
-  // item's click would otherwise bubble into the row's onClick and stage the session as
-  // an unwanted side effect of picking a menu item.
+  // The menu is rendered inline in the row's own DOM (no portal — see plan.md), so a
+  // native event fired inside it would otherwise bubble up into the row's own handlers:
+  // a click into onClick (staging the session) and a right-click into onContextMenu
+  // (resetting the row's confirm state and repositioning the menu at the new point).
   function onItemClick(event: ReactMouseEvent, item: ContextMenuItem) {
     event.stopPropagation();
     item.onSelect();
+  }
+
+  function onContainerContextMenu(event: ReactMouseEvent) {
+    event.preventDefault();
+    event.stopPropagation();
   }
 
   return (
@@ -71,6 +85,7 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
       style={
         position === null ? { visibility: 'hidden' } : { left: position.left, top: position.top }
       }
+      onContextMenu={onContainerContextMenu}
     >
       {items.map((item) => (
         <div
