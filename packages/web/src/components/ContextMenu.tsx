@@ -64,13 +64,15 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
     };
   }, []);
 
-  // The menu is rendered inline in the row's own DOM (no portal — see plan.md), so a
-  // native event fired inside it would otherwise bubble up into the row's own handlers:
-  // a click into onClick (staging the session) and a right-click into onContextMenu
-  // (resetting the row's confirm state and repositioning the menu at the new point).
-  function onItemClick(event: ReactMouseEvent, item: ContextMenuItem) {
+  // The menu is rendered inline in the row's own DOM (no portal, following HoverCard's
+  // convention — nothing else in this codebase uses createPortal), so a native event
+  // landing anywhere in this subtree would otherwise bubble up into the row's own
+  // handlers: a click into onClick (staging the session) and a right-click into
+  // onContextMenu (resetting the row's confirm state and repositioning the menu at the
+  // new point). Stopped once at the container boundary rather than per item, so it
+  // covers the container's own padding too and a later item doesn't need its own guard.
+  function stopBubbling(event: ReactMouseEvent) {
     event.stopPropagation();
-    item.onSelect();
   }
 
   function onContainerContextMenu(event: ReactMouseEvent) {
@@ -85,13 +87,15 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
       style={
         position === null ? { visibility: 'hidden' } : { left: position.left, top: position.top }
       }
+      onClick={stopBubbling}
+      onMouseDown={stopBubbling}
       onContextMenu={onContainerContextMenu}
     >
       {items.map((item) => (
         <div
           key={item.key}
           className={`context-menu-item${item.danger === true ? ' danger' : ''}`}
-          onClick={(event) => onItemClick(event, item)}
+          onClick={() => item.onSelect()}
         >
           {item.label}
         </div>
