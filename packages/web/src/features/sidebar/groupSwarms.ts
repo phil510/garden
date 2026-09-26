@@ -13,8 +13,15 @@ export interface SwarmGroup {
   attention: number;
   collapsed: boolean;
   hideDead: boolean;
+  /** The raw record flag — unlike `finished`, doesn't also fold in "every member dead" — for
+   *  the header menu's Archive/Unarchive label and dispatch. */
+  archived: boolean;
   finished: boolean;
   roots: SwarmTreeNode[];
+  /** Most recent member `lastActivity` (0 for a swarm with no members) — the same figure
+   *  `swarmOrder`-less sort already uses internally, exposed for the "Add to swarm" menu's
+   *  own recency sort over active swarms. */
+  recency: number;
 }
 
 export interface GroupedSwarms {
@@ -154,7 +161,6 @@ export function groupSwarms(sessions: SessionMap, uiState: SwarmsUiState): Group
   const hideDeadSwarms = new Set(uiState.hideDeadSwarms);
   const order = new Map(uiState.swarmOrder.map((id, index) => [id, index]));
 
-  const recencyBySwarmId = new Map<string, number>();
   const swarms: SwarmGroup[] = Array.from(knownSwarms.values(), (swarm) => {
     const memberIds = allSessions.filter((session) => bucketOf.get(session.id) === swarm.id);
     const repoCount = new Set(
@@ -164,7 +170,7 @@ export function groupSwarms(sessions: SessionMap, uiState: SwarmsUiState): Group
     const finished =
       swarm.archived || (memberIds.length > 0 && memberIds.every((s) => s.liveness === 'dead'));
     const hideDead = hideDeadSwarms.has(swarm.id);
-    recencyBySwarmId.set(swarm.id, Math.max(0, ...memberIds.map((s) => s.lastActivity)));
+    const recency = Math.max(0, ...memberIds.map((s) => s.lastActivity));
 
     return {
       swarmId: swarm.id,
@@ -176,7 +182,9 @@ export function groupSwarms(sessions: SessionMap, uiState: SwarmsUiState): Group
       // for consistency with the sibling Repos-mode toggle rather than fixed here.
       collapsed: !collapsedSwarms.has(swarm.id),
       hideDead,
+      archived: swarm.archived,
       finished,
+      recency,
       roots: sortedRoots(swarm.id)
         .map((session) => buildNode(session.id))
         .map((node) => filterDeadLeaves(node, sessions, uiState.placements, hideDead))
@@ -197,7 +205,7 @@ export function groupSwarms(sessions: SessionMap, uiState: SwarmsUiState): Group
         (aOrder ?? Number.POSITIVE_INFINITY) - (bOrder ?? Number.POSITIVE_INFINITY);
       if (orderDelta !== 0) return orderDelta;
     }
-    return (recencyBySwarmId.get(b.swarmId) ?? 0) - (recencyBySwarmId.get(a.swarmId) ?? 0);
+    return b.recency - a.recency;
   });
 
   const soloRoots = sortedRoots(SOLO_BUCKET_ID).map((session) => buildNode(session.id));
@@ -207,4 +215,21 @@ export function groupSwarms(sessions: SessionMap, uiState: SwarmsUiState): Group
     .filter((node): node is SwarmTreeNode => node !== null);
 
   return { swarms, solo, soloTotal: soloRoots.length, soloHideDead };
+}
+
+export interface ActiveSwarmOption {
+  swarmId: string;
+  name: string;
+}
+
+/** Active (not finished/archived) swarms, most-recent-activity first — feeds the "Add to
+ *  swarm" row menu's own sort, which is recency-only and therefore distinct from the
+ *  sidebar's own swarmOrder-then-recency order (`groupSwarms`'s `swarms.sort` above). Reuses
+ *  each `SwarmGroup`'s already-computed `recency` rather than re-deriving it. */
+export function activeSwarmsByRecency(swarms: readonly SwarmGroup[]): ActiveSwarmOption[] {
+  return swarms
+    .filter((swarm) => !swarm.finished)
+    .slice()
+    .sort((a, b) => b.recency - a.recency)
+    .map((swarm) => ({ swarmId: swarm.swarmId, name: swarm.name }));
 }

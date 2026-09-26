@@ -1,9 +1,14 @@
 import type {
   CreateSessionRequest,
   CreateSessionResponse,
+  CreateSwarmRequest,
+  CreateSwarmResponse,
   ErrorResponse,
   FileResponse,
   OkResponse,
+  Placement,
+  PlacementRequest,
+  RenameSwarmRequest,
   ReposResponse,
   SettingsRequest,
   SettingsResponse,
@@ -75,5 +80,41 @@ export function updateUiState(patch: UiStateRequest): Promise<OkResponse> {
     method: 'PUT',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(patch),
+  });
+}
+
+export function createSwarm(name: string): Promise<CreateSwarmResponse> {
+  return request('/swarms', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name } satisfies CreateSwarmRequest),
+  });
+}
+
+export function renameSwarm(id: string, name: string): Promise<OkResponse> {
+  return request(`/swarms/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name } satisfies RenameSwarmRequest),
+  });
+}
+
+export function archiveSwarm(id: string): Promise<OkResponse> {
+  return request(`/swarms/${encodeURIComponent(id)}/archive`, { method: 'POST' });
+}
+
+export function unarchiveSwarm(id: string): Promise<OkResponse> {
+  return request(`/swarms/${encodeURIComponent(id)}/unarchive`, { method: 'POST' });
+}
+
+export function deleteSwarm(id: string): Promise<OkResponse> {
+  return request(`/swarms/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+export function setSessionPlacement(sessionId: string, placement: Placement): Promise<OkResponse> {
+  return request(`/sessions/${encodeURIComponent(sessionId)}/placement`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ placement } satisfies PlacementRequest),
   });
 }

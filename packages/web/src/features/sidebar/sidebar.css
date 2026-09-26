@@ -70,6 +70,9 @@
 .session-row:hover {
   background: var(--raised);
 }
+.session-row.dragging {
+  opacity: 0.5;
+}
 /* The on-stage/focus accent is a layered stripe rather than a color on the real
    border-left above: a pseudo-element only paints above a sibling pseudo (the
    has-children corner below, or a parent li's rail) once it has its own explicit
@@ -345,6 +348,11 @@ li.tree-node:not(:last-child)::after {
 .swarm-header.dragging {
   opacity: 0.5;
 }
+.swarm-header.drop-target {
+  background: var(--accent-dim);
+  outline: 1px dashed var(--accent);
+  outline-offset: -1px;
+}
 .swarm-name {
   font-weight: 600;
   font-size: 12.5px;
@@ -353,6 +361,18 @@ li.tree-node:not(:last-child)::after {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.swarm-name-input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-weight: 600;
+  font-size: 12.5px;
+  background: var(--ground);
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  color: var(--text);
+  padding: 1px 4px;
 }
 .swarm-repos {
   font-size: 11px;
@@ -442,6 +462,11 @@ li.tree-node:not(:last-child)::after {
   top: 0;
   /* See .repo-header's identical rule: must outrank .session-row.on-stage::before's z-index. */
   z-index: 2;
+}
+.solo-header.drop-target {
+  background: var(--accent-dim);
+  outline: 1px dashed var(--accent);
+  outline-offset: -1px;
 }
 .solo-label {
   font-size: 11px;
