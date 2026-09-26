@@ -142,6 +142,9 @@ export async function createSession(
       ...permissionFlags(permissionMode),
       '--settings',
       settingsPath,
+      ...(request.handoff === true && request.handoffFilePath
+        ? [`Continue from the handoff at ${request.handoffFilePath}.`]
+        : []),
     ],
   });
 
