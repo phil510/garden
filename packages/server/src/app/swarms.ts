@@ -145,8 +145,14 @@ export function recordSpawn(
     if (!known.has(request.callerId))
       throw new SessionNotFoundError(`no such session: ${request.callerId}`);
 
+    // A caller that already resolves to a swarm, or that already carries a `parent` edge of
+    // its own (set by the placement endpoint, independent of any swarm), is not the "isn't
+    // placed at all" case this mints a swarm for — minting here would silently replace that
+    // `parent` edge, since `parent` and `swarmId` can never both be set (finding: a caller
+    // placed under another session via `POST /sessions/:id/placement`, whose ancestor chain
+    // doesn't currently resolve to a swarm, lost its `parent` link the first time it spawned).
     const existingSwarmId = resolveSwarmId(base.placements, request.callerId);
-    if (existingSwarmId !== undefined) {
+    if (existingSwarmId !== undefined || base.placements[request.callerId]?.parent !== undefined) {
       return {
         ...base,
         placements: { ...base.placements, [request.childId]: { parent: request.callerId } },

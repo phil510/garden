@@ -279,9 +279,12 @@ describe('recordSpawn', () => {
   });
 
   it('preserves an existing successor field on the caller when minting a new swarm', () => {
+    // A `successor` with no `parent`/`swarmId` alongside it arises from `placeSession`
+    // resetting a session to `type: 'none'` after a handoff — the placement move clears
+    // `parent`, but the historical `successor` survives it (see `placeSession`).
     const overlay: OverlayState = {
       ...emptyOverlay,
-      placements: { caller: { parent: 'retired-to', successor: 'retired-to' } },
+      placements: { caller: { successor: 'retired-to' } },
     };
     const { projection, current } = fakeProjection(overlay, [
       aSession({ id: 'caller' }),
@@ -292,6 +295,30 @@ describe('recordSpawn', () => {
 
     const swarm = current().swarms[0]!;
     expect(current().placements['caller']).toEqual({ swarmId: swarm.id, successor: 'retired-to' });
+  });
+
+  it("preserves a caller's pre-existing parent placement instead of minting a swarm over it", () => {
+    // `caller` was placed under `other-top-level` via the placement endpoint independently
+    // of any swarm — `other-top-level` has no placement entry of its own, so
+    // `resolveSwarmId` walks off the end and returns undefined, same as a genuinely
+    // unplaced caller. Minting a swarm here would silently drop the `parent` edge.
+    const overlay: OverlayState = {
+      ...emptyOverlay,
+      placements: { caller: { parent: 'other-top-level' } },
+    };
+    const { projection, writes, current } = fakeProjection(overlay, [
+      aSession({ id: 'caller' }),
+      aSession({ id: 'child' }),
+    ]);
+
+    recordSpawn({ projection }, { callerId: 'caller', childId: 'child', callerTitle: 'Caller' });
+
+    expect(writes).toHaveLength(1);
+    expect(current().swarms).toEqual([]);
+    expect(current().placements).toEqual({
+      caller: { parent: 'other-top-level' },
+      child: { parent: 'caller' },
+    });
   });
 
   it('falls back to "Untitled swarm" when the caller has no title', () => {
