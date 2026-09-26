@@ -122,6 +122,20 @@ describe('groupSwarms', () => {
     expect(swarms[0]!.finished).toBe(true);
   });
 
+  it('exposes the record’s raw archived flag distinctly from finished', () => {
+    // A swarm can be `finished` (every member dead) without being `archived` — the header
+    // menu's Archive/Unarchive label and dispatch need the raw flag, not the conflated one.
+    const dead = aSession({ id: 'root', liveness: 'dead' });
+    const sessions = asMap(dead);
+    const placements: Record<string, SessionPlacement> = { root: { swarmId: 'swarm-1' } };
+    const uiState = anUiState({ swarms: [swarmRecord({ archived: false })], placements });
+
+    const { swarms } = groupSwarms(sessions, uiState);
+
+    expect(swarms[0]!.finished).toBe(true);
+    expect(swarms[0]!.archived).toBe(false);
+  });
+
   it('is finished when every resolving session is dead', () => {
     const root = aSession({ id: 'root', liveness: 'dead' });
     const child = aSession({ id: 'child', liveness: 'dead' });

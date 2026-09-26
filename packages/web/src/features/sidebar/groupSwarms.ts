@@ -13,6 +13,9 @@ export interface SwarmGroup {
   attention: number;
   collapsed: boolean;
   hideDead: boolean;
+  /** The raw record flag — unlike `finished`, doesn't also fold in "every member dead" — for
+   *  the header menu's Archive/Unarchive label and dispatch. */
+  archived: boolean;
   finished: boolean;
   roots: SwarmTreeNode[];
   /** Most recent member `lastActivity` (0 for a swarm with no members) — the same figure
@@ -181,6 +184,7 @@ export function groupSwarms(sessions: SessionMap, uiState: SwarmsUiState): Group
       // for consistency with the sibling Repos-mode toggle rather than fixed here.
       collapsed: !collapsedSwarms.has(swarm.id),
       hideDead,
+      archived: swarm.archived,
       finished,
       recency,
       roots: sortedRoots(swarm.id)

@@ -7,13 +7,22 @@ import {
   type KeyboardEvent,
   type MouseEvent as ReactMouseEvent,
 } from 'react';
-import { renameSwarm } from '../../api/client';
+import { archiveSwarm, deleteSwarm, renameSwarm, unarchiveSwarm } from '../../api/client';
 import { reportCommandFailure } from '../../api/reportCommandFailure';
+import { ContextMenu, type ContextMenuItem } from '../../components/ContextMenu';
 import type { SwarmGroup } from './groupSwarms';
 import { resolveSwarmRename } from './resolveSwarmRename';
+import {
+  swarmHeaderMenuAction,
+  swarmHeaderMenuItems,
+  type SwarmMenuConfirming,
+} from './swarmHeaderMenuItems';
 
 interface SwarmHeaderProps {
-  swarm: Pick<SwarmGroup, 'swarmId' | 'name' | 'repoCount' | 'attention' | 'collapsed'>;
+  swarm: Pick<
+    SwarmGroup,
+    'swarmId' | 'name' | 'repoCount' | 'attention' | 'collapsed' | 'archived'
+  >;
   onToggle: () => void;
   className?: string;
   /** `useSortable`'s drag attributes/listeners for an active swarm, spread onto the header
@@ -23,8 +32,9 @@ interface SwarmHeaderProps {
 }
 
 /** The swarm-header row shared by an active swarm and a Finished-section entry: chevron,
- *  name (double-click to rename in place), repo count, attention badge. Finished entries
- *  pass no drag props and fold in their own `finished` class via `className`. */
+ *  name (double-click, or the header's own context menu, to rename in place), repo count,
+ *  attention badge. Finished entries pass no drag props and fold in their own `finished`
+ *  class via `className`. */
 export function SwarmHeader({
   swarm,
   onToggle,
@@ -35,6 +45,8 @@ export function SwarmHeader({
   const [renaming, setRenaming] = useState(false);
   const [draft, setDraft] = useState(swarm.name);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [contextMenuPoint, setContextMenuPoint] = useState<{ x: number; y: number } | null>(null);
+  const [confirming, setConfirming] = useState<SwarmMenuConfirming>(null);
 
   useEffect(() => {
     if (!renaming) return;
@@ -71,6 +83,18 @@ export function SwarmHeader({
     onToggle();
   }
 
+  function onHeaderContextMenu(event: ReactMouseEvent<HTMLDivElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    setConfirming(null);
+    setContextMenuPoint({ x: event.clientX, y: event.clientY });
+  }
+
+  function closeContextMenu() {
+    setContextMenuPoint(null);
+    setConfirming(null);
+  }
+
   // Stopped from bubbling to the header div: otherwise a Space in the name is swallowed by
   // the header's Space-toggles-collapse handler, and dragging to select text starts a header
   // reorder once the pointer sensor's 8px threshold is crossed.
@@ -84,12 +108,30 @@ export function SwarmHeader({
     else if (event.key === 'Escape') cancelRename();
   }
 
+  function handleMenuSelect(key: string) {
+    const result = swarmHeaderMenuAction(key);
+    setConfirming(result.confirming);
+    if (result.act === 'rename') startRenaming();
+    if (result.act === 'toggle-archive') {
+      (swarm.archived ? unarchiveSwarm(swarm.swarmId) : archiveSwarm(swarm.swarmId)).catch(
+        reportCommandFailure,
+      );
+    }
+    if (result.act === 'delete') deleteSwarm(swarm.swarmId).catch(reportCommandFailure);
+    if (result.act !== null) closeContextMenu();
+  }
+
+  const menuItems: ContextMenuItem[] = swarmHeaderMenuItems(swarm.archived, confirming).map(
+    (item) => ({ ...item, onSelect: () => handleMenuSelect(item.key) }),
+  );
+
   return (
     <div
       className={`swarm-header${swarm.collapsed ? ' collapsed' : ''}${className ? ` ${className}` : ''}`}
       data-swarm-id={swarm.swarmId}
       onClick={onHeaderClick}
       onKeyDown={onHeaderKeyDown}
+      onContextMenu={onHeaderContextMenu}
       {...dragAttributes}
       {...dragListeners}
     >
@@ -117,6 +159,14 @@ export function SwarmHeader({
         {swarm.repoCount} repo{swarm.repoCount === 1 ? '' : 's'}
       </span>
       {swarm.attention > 0 && <span className="swarm-attn-badge">{swarm.attention}</span>}
+      {contextMenuPoint !== null && (
+        <ContextMenu
+          x={contextMenuPoint.x}
+          y={contextMenuPoint.y}
+          items={menuItems}
+          onClose={closeContextMenu}
+        />
+      )}
     </div>
   );
 }
