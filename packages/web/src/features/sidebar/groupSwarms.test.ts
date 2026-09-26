@@ -180,6 +180,25 @@ describe('groupSwarms', () => {
     expect(swarms.map((s) => s.swarmId)).toEqual(['swarm-new', 'swarm-old']);
   });
 
+  it('exposes recency as the max member lastActivity, 0 for a swarm with no members', () => {
+    const a = aSession({ id: 'a', lastActivity: 5 });
+    const b = aSession({ id: 'b', lastActivity: 9 });
+    const sessions = asMap(a, b);
+    const placements: Record<string, SessionPlacement> = {
+      a: { swarmId: 'swarm-1' },
+      b: { parent: 'a' },
+    };
+    const uiState = anUiState({
+      swarms: [swarmRecord({ id: 'swarm-1' }), swarmRecord({ id: 'swarm-empty' })],
+      placements,
+    });
+
+    const { swarms } = groupSwarms(sessions, uiState);
+
+    expect(swarms.find((s) => s.swarmId === 'swarm-1')!.recency).toBe(9);
+    expect(swarms.find((s) => s.swarmId === 'swarm-empty')!.recency).toBe(0);
+  });
+
   it('membership in collapsedSwarms marks a swarm expanded, toggling back to collapsed on removal', () => {
     const root = aSession({ id: 'root' });
     const placements: Record<string, SessionPlacement> = { root: { swarmId: 'swarm-1' } };

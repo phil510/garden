@@ -2,7 +2,7 @@ import type { SessionState } from '@garden/shared';
 import { Fragment, useEffect, useRef, useState, type MouseEvent } from 'react';
 import { killSession, resumeSession } from '../../api/client';
 import { reportCommandFailure } from '../../api/reportCommandFailure';
-import { ContextMenu } from '../../components/ContextMenu';
+import { ContextMenu, type ContextMenuItem } from '../../components/ContextMenu';
 import { StatusPill } from '../../components/StatusPill';
 import { HoverCard } from './HoverCard';
 import { lastPathSegment } from './lastPathSegment';
@@ -82,16 +82,32 @@ export function SessionRow({
     setConfirming(null);
   }
 
-  const menuItems = sessionRowMenuItems(dead, confirming).map((item) => ({
-    ...item,
-    onSelect: () => {
-      const result = sessionRowMenuAction(item.key);
-      setConfirming(result.confirming);
-      if (result.act === 'kill') killSession(session.id).catch(reportCommandFailure);
-      if (result.act === 'resume') resumeSession(session.id).catch(reportCommandFailure);
-      if (result.act !== null) setContextMenuPoint(null);
-    },
-  }));
+  // Add-to-swarm/Remove-from-swarm items are wired here once SessionRow has swarm context to
+  // pass into sessionRowMenuItems (task 4) — until then, sessionRowMenuAction's default case
+  // makes onSelect an inert no-op for any key it doesn't recognize.
+  const menuItems: ContextMenuItem[] = sessionRowMenuItems(dead, confirming).map(
+    (item): ContextMenuItem => ({
+      key: item.key,
+      label: item.label,
+      danger: item.danger,
+      onSelect: () => {
+        const result = sessionRowMenuAction(item.key);
+        setConfirming(result.confirming);
+        if (result.act === 'kill') killSession(session.id).catch(reportCommandFailure);
+        if (result.act === 'resume') resumeSession(session.id).catch(reportCommandFailure);
+        if (result.act !== null) setContextMenuPoint(null);
+      },
+      ...(item.submenu === undefined
+        ? {}
+        : {
+            submenu: {
+              filterable: item.submenu.filterable,
+              items: item.submenu.items.map((subitem) => ({ ...subitem, onSelect: () => {} })),
+              footer: { ...item.submenu.footer, onSelect: () => {} },
+            },
+          }),
+    }),
+  );
 
   return (
     <div

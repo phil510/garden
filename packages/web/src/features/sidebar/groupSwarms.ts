@@ -15,6 +15,10 @@ export interface SwarmGroup {
   hideDead: boolean;
   finished: boolean;
   roots: SwarmTreeNode[];
+  /** Most recent member `lastActivity` (0 for a swarm with no members) — the same figure
+   *  `swarmOrder`-less sort already uses internally, exposed for the "Add to swarm" menu's
+   *  own recency sort over active swarms. */
+  recency: number;
 }
 
 export interface GroupedSwarms {
@@ -164,7 +168,8 @@ export function groupSwarms(sessions: SessionMap, uiState: SwarmsUiState): Group
     const finished =
       swarm.archived || (memberIds.length > 0 && memberIds.every((s) => s.liveness === 'dead'));
     const hideDead = hideDeadSwarms.has(swarm.id);
-    recencyBySwarmId.set(swarm.id, Math.max(0, ...memberIds.map((s) => s.lastActivity)));
+    const recency = Math.max(0, ...memberIds.map((s) => s.lastActivity));
+    recencyBySwarmId.set(swarm.id, recency);
 
     return {
       swarmId: swarm.id,
@@ -177,6 +182,7 @@ export function groupSwarms(sessions: SessionMap, uiState: SwarmsUiState): Group
       collapsed: !collapsedSwarms.has(swarm.id),
       hideDead,
       finished,
+      recency,
       roots: sortedRoots(swarm.id)
         .map((session) => buildNode(session.id))
         .map((node) => filterDeadLeaves(node, sessions, uiState.placements, hideDead))
