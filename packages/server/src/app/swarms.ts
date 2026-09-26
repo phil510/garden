@@ -1,9 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import type { Placement, SessionPlacement, SwarmRecord } from '@garden/shared';
-import { computeHandoff, pruneOverlay, validatePlacement } from '../domain/swarms.js';
+import {
+  computeHandoff,
+  pruneOverlay,
+  resolveSwarmId,
+  validatePlacement,
+} from '../domain/swarms.js';
+import { SessionNotFoundError } from './errors.js';
 import type { OverlayState } from './ports.js';
 import type { Projection } from './projection.js';
-import { SessionNotFoundError } from './sessions.js';
 
 export interface SwarmsDeps {
   readonly projection: Projection;
@@ -121,6 +126,46 @@ export function placeSession(
     if (prior?.successor !== undefined) entry.successor = prior.successor;
 
     return { ...base, placements: { ...base.placements, [request.sessionId]: entry } };
+  });
+}
+
+/**
+ * Called right after a new session's tmux process and store entry exist, when its create
+ * request named a caller session. Places the child under the caller, creating a swarm for
+ * the caller first if it has none yet — one `updateOverlay` call so the swarm-creation,
+ * caller-placement, and child-placement writes land atomically, matching the atomicity
+ * `handoffSession` above relies on.
+ */
+export function recordSpawn(
+  deps: SwarmsDeps,
+  request: { callerId: string; childId: string; callerTitle: string | null },
+): void {
+  deps.projection.updateOverlay((base) => {
+    const known = knownSessionIds(deps, base);
+    if (!known.has(request.callerId))
+      throw new SessionNotFoundError(`no such session: ${request.callerId}`);
+
+    const existingSwarmId = resolveSwarmId(base.placements, request.callerId);
+    if (existingSwarmId !== undefined) {
+      return {
+        ...base,
+        placements: { ...base.placements, [request.childId]: { parent: request.callerId } },
+      };
+    }
+
+    const swarmId = randomUUID();
+    return {
+      ...base,
+      swarms: [
+        ...base.swarms,
+        { id: swarmId, name: request.callerTitle ?? 'Untitled swarm', archived: false },
+      ],
+      placements: {
+        ...base.placements,
+        [request.callerId]: { swarmId },
+        [request.childId]: { parent: request.callerId },
+      },
+    };
   });
 }
 
