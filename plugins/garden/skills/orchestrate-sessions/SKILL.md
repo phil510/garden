@@ -48,6 +48,13 @@ Reach for `garden adopt <id> --json` instead when the session already exists and
 under you — one a teammate started, or one that predates your own `GARDEN_SESSION_ID` — to place
 it under you after the fact.
 
+**Don't add `--handoff` to the command above expecting an enhanced spawn.** It reads like a flag
+on the same call, but it does the opposite of ordinary dispatch: instead of placing the new peer
+under you, it moves _your own_ `parent`/`swarmId`/children onto the new session and leaves you a
+leaf with `successor` set — the exit code and `{id, tmuxName}` shape are identical either way, so
+nothing at the call site catches the mix-up. That's the self-succession move covered under
+"Winding down" below; reach for it only to end your own run, never to spawn an ordinary peer.
+
 Give a peer somewhere of its own to work: a worktree per task, not a shared checkout. Two sessions
 in one working directory fight over the index and the branch, and neither will report that as the
 cause of whatever breaks.
