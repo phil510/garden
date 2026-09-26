@@ -351,37 +351,35 @@ function SwarmSidebar({
           />
         ))}
       </SortableContext>
-      {soloTotal > 0 && (
-        <div className="solo-group">
-          <div ref={setSoloDropRef} className={`solo-header${soloIsOver ? ' drop-target' : ''}`}>
-            <span className="solo-label upper faint">Solo</span>
-            <span className="repo-count mono">{soloTotal}</span>
-          </div>
-          <div className="solo-rows">
-            {solo.length === 0 ? (
-              <div className="empty-groups-note">Nothing to show.</div>
-            ) : (
-              <SwarmTree
-                nodes={solo}
-                sessions={sessions}
-                placements={uiState.placements}
-                activeSwarms={activeSwarms}
-                now={now}
-                onStageIds={onStageIds}
-                focusedSessionId={focusedId}
-                onSelectSession={onSelectSession}
-              />
-            )}
-            <div
-              className="hide-dead-row"
-              title={`${hideDeadLabel(soloHideDead)} sessions`}
-              onClick={() => toggleHideDead(SOLO_BUCKET_ID)}
-            >
-              {hideDeadLabel(soloHideDead)}
-            </div>
+      <div className="solo-group">
+        <div ref={setSoloDropRef} className={`solo-header${soloIsOver ? ' drop-target' : ''}`}>
+          <span className="solo-label upper faint">Solo</span>
+          <span className="repo-count mono">{soloTotal}</span>
+        </div>
+        <div className="solo-rows">
+          {solo.length === 0 ? (
+            <div className="empty-groups-note">Nothing to show.</div>
+          ) : (
+            <SwarmTree
+              nodes={solo}
+              sessions={sessions}
+              placements={uiState.placements}
+              activeSwarms={activeSwarms}
+              now={now}
+              onStageIds={onStageIds}
+              focusedSessionId={focusedId}
+              onSelectSession={onSelectSession}
+            />
+          )}
+          <div
+            className="hide-dead-row"
+            title={`${hideDeadLabel(soloHideDead)} sessions`}
+            onClick={() => toggleHideDead(SOLO_BUCKET_ID)}
+          >
+            {hideDeadLabel(soloHideDead)}
           </div>
         </div>
-      )}
+      </div>
       {finished.length > 0 && (
         <div className="finished-section">
           <div
