@@ -13,6 +13,9 @@ const emptyOverlay: OverlayState = {
   stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
   swarms: [],
   placements: {},
+  swarmOrder: [],
+  collapsedSwarms: [],
+  hideDeadSwarms: [],
 };
 
 function fakeTmux(overrides: Partial<TmuxPort> = {}): TmuxPort {
@@ -620,6 +623,9 @@ describe('killSession', () => {
       stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
       swarms: [],
       placements: {},
+      swarmOrder: [],
+      collapsedSwarms: [],
+      hideDeadSwarms: [],
     });
 
     await killSession(

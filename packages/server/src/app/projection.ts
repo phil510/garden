@@ -50,6 +50,9 @@ function toUiState(overlay: OverlayState): UiState {
     layout: overlay.stage.layout,
     swarms: [...overlay.swarms],
     placements: { ...overlay.placements },
+    swarmOrder: [...overlay.swarmOrder],
+    collapsedSwarms: [...overlay.collapsedSwarms],
+    hideDeadSwarms: [...overlay.hideDeadSwarms],
   };
 }
 
@@ -82,6 +85,9 @@ function toOverlay(base: OverlayState, ui: UiState): OverlayState {
       focusedSlot: ui.focusedSlot,
       layout: ui.layout,
     },
+    swarmOrder: [...ui.swarmOrder],
+    collapsedSwarms: [...ui.collapsedSwarms],
+    hideDeadSwarms: [...ui.hideDeadSwarms],
   };
 }
 

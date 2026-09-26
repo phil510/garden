@@ -11,6 +11,9 @@ export const DEFAULT_OVERLAY_STATE: OverlayState = {
   stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
   swarms: [],
   placements: {},
+  swarmOrder: [],
+  collapsedSwarms: [],
+  hideDeadSwarms: [],
 };
 
 function statePath(appDir: string): string {
@@ -74,12 +77,16 @@ function isPlacements(value: unknown): value is Readonly<Record<string, SessionP
   return isRecord(value) && Object.values(value).every(isSessionPlacement);
 }
 
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((entry) => typeof entry === 'string');
+}
+
 /** Every field the rest of the server reads without checking. A file that parses as
  *  JSON but does not answer this shape is as unusable as one that does not parse.
- *  `swarms`/`placements` are the exception: absent is valid (a pre-#170 `state.json`
- *  simply predates them, and losing its `tmuxNames`/`groups`/`stage` over two fields it
- *  never had would be the actual loss), but present-and-malformed still fails the whole
- *  file, same as every other field here. */
+ *  `swarms`/`placements`/`swarmOrder`/`collapsedSwarms`/`hideDeadSwarms` are the exception:
+ *  absent is valid (a pre-#170/#187 `state.json` simply predates them, and losing its
+ *  `tmuxNames`/`groups`/`stage` over fields it never had would be the actual loss), but
+ *  present-and-malformed still fails the whole file, same as every other field here. */
 function isOverlayState(
   value: unknown,
 ): value is Record<string, unknown> &
@@ -91,7 +98,10 @@ function isOverlayState(
     isRecord(value['groups']) &&
     isOverlayStage(value['stage']) &&
     (value['swarms'] === undefined || isSwarms(value['swarms'])) &&
-    (value['placements'] === undefined || isPlacements(value['placements']))
+    (value['placements'] === undefined || isPlacements(value['placements'])) &&
+    (value['swarmOrder'] === undefined || isStringArray(value['swarmOrder'])) &&
+    (value['collapsedSwarms'] === undefined || isStringArray(value['collapsedSwarms'])) &&
+    (value['hideDeadSwarms'] === undefined || isStringArray(value['hideDeadSwarms']))
   );
 }
 
@@ -125,6 +135,9 @@ export function readOverlayState(appDir: string, logger: StoreLogger): OverlaySt
     stage: parsed.stage,
     swarms: isSwarms(parsed['swarms']) ? parsed['swarms'] : [],
     placements: isPlacements(parsed['placements']) ? parsed['placements'] : {},
+    swarmOrder: isStringArray(parsed['swarmOrder']) ? parsed['swarmOrder'] : [],
+    collapsedSwarms: isStringArray(parsed['collapsedSwarms']) ? parsed['collapsedSwarms'] : [],
+    hideDeadSwarms: isStringArray(parsed['hideDeadSwarms']) ? parsed['hideDeadSwarms'] : [],
   };
 }
 

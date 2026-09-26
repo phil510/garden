@@ -38,6 +38,9 @@ const UI_STATE: UiState = {
   layout: null,
   swarms: [],
   placements: {},
+  swarmOrder: [],
+  collapsedSwarms: [],
+  hideDeadSwarms: [],
 };
 
 function fakeProjection() {
