@@ -7,7 +7,7 @@ import {
   type DragEndEvent,
 } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { updateUiState } from '../../api/client';
 import { reportCommandFailure } from '../../api/reportCommandFailure';
 import { useLocalStore, type SidebarMode } from '../../state/localStore';
@@ -202,6 +202,26 @@ function SwarmSidebar({
   const { swarms, solo, soloTotal, soloHideDead } = groupSwarms(sessions, uiState);
   const active = swarms.filter((swarm) => !swarm.finished);
   const finished = swarms.filter((swarm) => swarm.finished);
+  const selectedSwarmId = useLocalStore((state) => state.selectedSwarmId);
+  const setSelectedSwarmId = useLocalStore((state) => state.setSelectedSwarmId);
+
+  // Scrolls to and flashes the swarm a pane-header chip click named. Guards for a missing
+  // element: a dead pane can stay on stage after its swarm has gone fully dead/finished, and
+  // the Finished section only mounts its rows when open (default closed) — that click still
+  // switches to Swarms mode (StagePane's handler), it just has nothing to scroll/flash.
+  useEffect(() => {
+    if (selectedSwarmId === null) return;
+    const target = document.querySelector(`[data-swarm-id="${selectedSwarmId}"]`);
+    if (target === null) {
+      setSelectedSwarmId(null);
+      return;
+    }
+    target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    target.classList.add('flash');
+    const timer = setTimeout(() => target.classList.remove('flash'), 1000);
+    setSelectedSwarmId(null);
+    return () => clearTimeout(timer);
+  }, [selectedSwarmId, setSelectedSwarmId]);
   const visibleOrder = active.map((swarm) => swarm.swarmId);
   // The base a drag reorders within has to carry every swarm, not just the active ones
   // `SortableContext` renders — `updateUiState` replaces `swarmOrder` wholesale rather than
