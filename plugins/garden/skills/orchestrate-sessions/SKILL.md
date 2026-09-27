@@ -174,9 +174,11 @@ something. It follows that the file is only as current as your last write — a 
 session picking the run up, not live status.
 
 `<member-name>.md` belongs to one member and no one else writes it. Pick that name yourself when
-you dispatch, as a short label for the member's task or role (`160-launch-commands`, not
-`79-bounded-session-list`) — anything but a name the runtime hands out, because every runtime name
-can move out from under the file. The messaging name changes on every resume (see "Two naming
+you dispatch, checking the folder so it lands on a label no current member already has — the
+one-writer-per-file rule above only holds if two members never pick the same one — as a short
+label for the member's task or role (`160-launch-commands`, not `79-bounded-session-list`) —
+anything but a name the runtime hands out, because every runtime name can move out from under the
+file. The messaging name changes on every resume (see "Two naming
 systems" above). The garden/tmux name usually survives a resume too, but only when a live pane is
 still there to reclaim it; kill a session first and `garden resume` instead derives a fresh one, so
 a file named after it goes orphaned by the same kill-then-resume this skill already treats as
