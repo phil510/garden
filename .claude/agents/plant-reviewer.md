@@ -141,17 +141,17 @@ decides whether a fix round runs at all.
    you are buying overlap rather than coverage. `ken-thompson` is
    mandatory whenever step 2 found new mechanisms. Pick agents from
    what the diff warrants, not from what the brief names. `sonnet` is
-   right for most diffs; reach for `opus`, and for more than one
-   specialist, where the failure mode won't fit in your head at once:
+   the default for every agent you dispatch, the standing pair
+   included. Escalate to `opus`, and to more than one specialist, only
+   where the failure mode won't fit in your head at once:
    dense logic, concurrency, security-relevant paths, data migrations.
    Fifty lines rewriting a retry loop deserve more than a thousand-line
    rename.
 
    **Dispatch.** One parallel batch via the `Agent` tool. **Pass
-   `model` on every dispatch** — the standing pair pins `opus` in
-   frontmatter and the dispatch parameter is what overrides it, so a
-   default dispatch pays the definition's price rather than the
-   change's. Brief every agent with step 2's scope — the brief's
+   `model` on every dispatch** — `sonnet` unless you escalated that
+   agent. The standing pair pins `opus` in frontmatter, so omitting
+   `model` silently pays opus prices on a diff that didn't ask for it. Brief every agent with step 2's scope — the brief's
    claims, the dependency contracts you traced, the baseline — because
    an agent handed only a diff can only find what is in the diff.
    Merge all findings: dedup, classify by severity, drop anything a
