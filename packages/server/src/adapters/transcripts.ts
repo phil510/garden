@@ -166,6 +166,11 @@ export interface TranscriptWatcher {
    *  test that writes right after calling `watchTranscripts` needs it, or the write can
    *  land before `transcriptsDir`'s watch exists to see it. */
   ready: Promise<void>;
+  /** Runs one reconciliation pass immediately, without waiting for `reconcileMs`'s own
+   *  schedule. `transcripts.test.ts` uses this as its deterministic driver in place of
+   *  waiting on chokidar's native delivery, which is confirmed to drop events outright under
+   *  contention rather than merely deliver them late (decisions.md). */
+  reconcileNow(): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -251,10 +256,11 @@ export function watchTranscripts(
   // reconciliation already running when close() is called finishes its dispatches before
   // close() resolves, rather than racing a dispatch against a closed watcher.
   let reconciling: Promise<void> | undefined;
-  const reconcileTimer = setInterval(() => {
+  function runReconciliationTick(): Promise<void> {
     // Skips this tick rather than queuing — a slow reconciliation pass (many files, a
-    // contended disk) should never stack a second one behind it.
-    if (reconciling) return;
+    // contended disk) should never stack a second one behind it. reconcileNow() shares this
+    // guard too, so calling it while a tick is already in flight just awaits that one.
+    if (reconciling) return reconciling;
     reconciling = reconcileTranscripts(transcriptsDir, roots, signatures, reread, logger)
       .catch((error: unknown) => {
         logger.error(
@@ -264,10 +270,13 @@ export function watchTranscripts(
       .finally(() => {
         reconciling = undefined;
       });
-  }, reconcileMs);
+    return reconciling;
+  }
+  const reconcileTimer = setInterval(() => void runReconciliationTick(), reconcileMs);
 
   return {
     ready,
+    reconcileNow: runReconciliationTick,
     close: async () => {
       clearInterval(reconcileTimer);
       // Closing the watcher first removes its listeners synchronously (chokidar's own
