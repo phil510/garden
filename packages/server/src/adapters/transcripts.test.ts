@@ -514,6 +514,56 @@ describe('watchTranscripts', () => {
     });
   });
 
+  it('emits an event for a write to a pre-existing transcript and for a brand-new one, both landing after boot', async () => {
+    await withTempHome(async (home) => {
+      const root = '/Users/phil/Desktop/Extend/garden';
+      const pathA = writeProjectFile(home, root, 'session-a', HEAD_LINE('session-a') + '\n');
+      // See the settle-window comment in the test above: A must be quiescent before the
+      // watch starts, or its own boot-time append below could get folded into a spurious
+      // initial-scan-adjacent event instead of proving the after-`ready` write path.
+      await new Promise((resolve) => setTimeout(resolve, 250));
+
+      const events: TranscriptChangedEvent[] = [];
+      const watcher = watchTranscripts(
+        transcriptsDirFor(home),
+        [root],
+        (event) => events.push(event),
+        silentLogger(),
+        50,
+      );
+      try {
+        await watcher.ready;
+
+        // This is the production path for a write landing during boot: the watcher is
+        // armed (via `ready`) before replay's scan runs. A is the pre-existing file a
+        // reconciliation pass would otherwise be the only thing to catch; C is new.
+        appendFileSync(pathA, TITLE_LINE + '\n', 'utf8');
+        const pathC = writeProjectFile(home, root, 'session-c', HEAD_LINE('session-c') + '\n');
+
+        // Real chokidar delivery has been observed to drop events under contention (see the
+        // file-level comment above), so each attempt re-touches both files rather than
+        // relying on either write's native event arriving on the first try.
+        await vi.waitFor(
+          () => {
+            appendFileSync(pathA, '\n', 'utf8');
+            appendFileSync(pathC, '\n', 'utf8');
+            expect(
+              events.some(
+                (event) =>
+                  event.record.sessionId === 'session-a' &&
+                  event.record.title === 'Bounded read title',
+              ),
+            ).toBe(true);
+            expect(events.some((event) => event.record.sessionId === 'session-c')).toBe(true);
+          },
+          { timeout: 5000, interval: 100 },
+        );
+      } finally {
+        await watcher.close();
+      }
+    });
+  });
+
   it("logs the watcher's error events instead of swallowing them", async () => {
     await withTempHome(async (home) => {
       const root = '/Users/phil/Desktop/Extend/garden';
