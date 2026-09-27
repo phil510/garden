@@ -1,32 +1,36 @@
-import { appendFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { watch } from 'chokidar';
+import { EventEmitter } from 'node:events';
+import {
+  appendFileSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import { stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { slugify } from '../domain/slug.js';
 import type { GardenEvent } from '../domain/types.js';
-import { listTranscriptFiles, readTranscriptRecord, watchTranscripts } from './transcripts.js';
-import type { TranscriptLogger } from './transcripts.js';
+import {
+  DEBOUNCE_MS,
+  createCoalescer,
+  listTranscriptFiles,
+  readTranscriptRecord,
+  reconcileTranscripts,
+  watchTranscripts,
+} from './transcripts.js';
+import type { TranscriptLogger, TranscriptSignature } from './transcripts.js';
 
-/** Polls until `predicate` holds or the deadline passes, failing with the last observation. */
-async function until<T>(
-  probe: () => T,
-  predicate: (value: T) => boolean,
-  description: string,
-  timeoutMs = 5000,
-): Promise<T> {
-  const deadline = Date.now() + timeoutMs;
-  let last = probe();
-  while (!predicate(last)) {
-    if (Date.now() >= deadline) {
-      throw new Error(
-        `Timed out after ${timeoutMs}ms waiting for ${description}. Last observation: ${JSON.stringify(last)}`,
-      );
-    }
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    last = probe();
-  }
-  return last;
-}
+// Wraps the real implementation by default, so every existing test still exercises real
+// chokidar/fs timing (docs/testing.md) — only the one test below that needs a synthetic
+// 'error' event overrides it, and only for that one call.
+vi.mock('chokidar', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('chokidar')>();
+  return { ...actual, watch: vi.fn(actual.watch) };
+});
 
 function silentLogger(): TranscriptLogger {
   return { warn: () => {}, error: () => {} };
@@ -41,8 +45,12 @@ function transcriptsDirFor(home: string): string {
   return join(home, '.claude', 'projects');
 }
 
+function projectDirFor(home: string, root: string): string {
+  return join(home, '.claude', 'projects', slugify(root));
+}
+
 function writeProjectFile(home: string, root: string, sessionId: string, text: string): string {
-  const dir = join(home, '.claude', 'projects', slugify(root));
+  const dir = projectDirFor(home, root);
   mkdirSync(dir, { recursive: true });
   const path = join(dir, `${sessionId}.jsonl`);
   writeFileSync(path, text, 'utf8');
@@ -176,6 +184,16 @@ describe('readTranscriptRecord', () => {
 type TranscriptChangedEvent = Extract<GardenEvent, { type: 'transcript-changed' }>;
 
 describe('watchTranscripts', () => {
+  // These five tests pin garden's own logic — the in/out-of-scope rules listTranscriptFiles
+  // and inScopeDirs enforce, the debounce coalescing, the warn-once bookkeeping — not
+  // chokidar's delivery. A real chokidar watch on a machine under heavy contention has been
+  // observed to sometimes never deliver a single native event for a watcher's whole
+  // lifetime, not merely deliver one late, so waiting on native delivery here would make the
+  // assertion itself flaky. Each test instead drives pickup via `reconcileNow()` right after
+  // writing, which reads straight off disk and so passes whether or not chokidar's own
+  // 'add'/'change' ever fires for that write — which also means these five never exercise
+  // isWatchedPath or the watcher.on('add'|'change', ...) registrations themselves; those get
+  // their own dedicated, deterministic tests below.
   it('emits a transcript-changed event for a file created after the watch starts', async () => {
     await withTempHome(async (home) => {
       const root = '/Users/phil/Desktop/Extend/garden';
@@ -188,12 +206,10 @@ describe('watchTranscripts', () => {
         20,
       );
       try {
+        await watcher.ready;
         writeProjectFile(home, root, 'session-a', HEAD_LINE('session-a') + '\n');
-        await until(
-          () => events,
-          (list) => list.length > 0,
-          'the created file to be picked up',
-        );
+        await watcher.reconcileNow();
+
         expect(events[0]?.record.sessionId).toBe('session-a');
       } finally {
         await watcher.close();
@@ -213,6 +229,7 @@ describe('watchTranscripts', () => {
         20,
       );
       try {
+        await watcher.ready;
         writeProjectFile(
           home,
           '/Users/phil/Downloads/scratch',
@@ -220,12 +237,9 @@ describe('watchTranscripts', () => {
           HEAD_LINE('session-b') + '\n',
         );
         writeProjectFile(home, root, 'session-a', HEAD_LINE('session-a') + '\n');
-        await until(
-          () => events,
-          (list) => list.length > 0,
-          'the in-scope file to be picked up',
-        );
+        await watcher.reconcileNow();
 
+        expect(events.some((event) => event.record.sessionId === 'session-a')).toBe(true);
         expect(events.some((event) => event.path.includes('scratch'))).toBe(false);
       } finally {
         await watcher.close();
@@ -245,6 +259,7 @@ describe('watchTranscripts', () => {
         20,
       );
       try {
+        await watcher.ready;
         const dir = join(home, '.claude', 'projects', slugify(root));
         mkdirSync(join(dir, 'session-a', 'subagents'), { recursive: true });
         writeFileSync(
@@ -253,13 +268,37 @@ describe('watchTranscripts', () => {
           'utf8',
         );
         writeProjectFile(home, root, 'session-b', HEAD_LINE('session-b') + '\n');
-        await until(
-          () => events,
-          (list) => list.length > 0,
-          'the sibling in-scope file to be picked up',
-        );
+        await watcher.reconcileNow();
 
+        expect(events.some((event) => event.record.sessionId === 'session-b')).toBe(true);
         expect(events.some((event) => event.path.includes('subagents'))).toBe(false);
+      } finally {
+        await watcher.close();
+      }
+    });
+  });
+
+  it('registers an ignore predicate matching isWatchedPath, checked directly rather than via a write', async () => {
+    // The five reconcileNow()-driven tests above never touch this predicate — they read
+    // straight off disk via listTranscriptFiles/inScopeDirs — so this calls the exact
+    // function chokidar was configured with, captured off the mocked `watch`, and asserts its
+    // in/out-of-scope behavior deterministically with no filesystem writes or timing at all.
+    await withTempHome(async (home) => {
+      const root = '/Users/phil/Desktop/Extend/garden';
+      const watcher = watchTranscripts(transcriptsDirFor(home), [root], () => {}, silentLogger());
+      try {
+        await watcher.ready;
+        const options = vi.mocked(watch).mock.calls.at(-1)?.[1];
+        const ignored = options?.ignored as (path: string) => boolean;
+        const dir = projectDirFor(home, root);
+
+        expect(ignored(transcriptsDirFor(home))).toBe(false);
+        expect(ignored(dir)).toBe(false);
+        expect(ignored(join(dir, 'session-a.jsonl'))).toBe(false);
+
+        expect(ignored(join(home, '.claude', 'projects', 'some-out-of-scope-slug'))).toBe(true);
+        expect(ignored(join(dir, 'session-a', 'subagents'))).toBe(true);
+        expect(ignored(join(dir, 'session-a', 'subagents', 'agent-1.jsonl'))).toBe(true);
       } finally {
         await watcher.close();
       }
@@ -269,32 +308,37 @@ describe('watchTranscripts', () => {
   it('debounces a run of writes into a single re-read', async () => {
     await withTempHome(async (home) => {
       const root = '/Users/phil/Desktop/Extend/garden';
+      // This test's own exact-count assertion (one event, not two) can't tolerate a real
+      // chokidar debounce timer firing independently of reconcileNow()'s own read — under
+      // contention, reconcileNow() itself does several real fs syscalls and so has no fixed
+      // bound on how long it takes, which means no fixed debounce window is safely longer
+      // than it. Faking chokidar away removes that second path entirely rather than merely
+      // making it unlikely: reconcileNow() is then provably the only thing that can dispatch.
+      // The coalescing math itself (repeated schedules for one path collapsing into a single
+      // run) is proven deterministically below, in `describe('createCoalescer', ...)`; this
+      // test's own job is just the settled outcome — one read carrying the final content.
+      class FakeWatcher extends EventEmitter {
+        close(): Promise<void> {
+          return Promise.resolve();
+        }
+      }
+      const fake = new FakeWatcher();
+      vi.mocked(watch).mockImplementationOnce(() => fake as unknown as ReturnType<typeof watch>);
+
       const events: TranscriptChangedEvent[] = [];
       const watcher = watchTranscripts(
         transcriptsDirFor(home),
         [root],
         (event) => events.push(event),
         silentLogger(),
-        40,
       );
       try {
+        // No await watcher.ready here: the fake watcher never emits 'ready', and reconcileNow()
+        // doesn't depend on it — it reads straight off disk.
         const path = writeProjectFile(home, root, 'session-a', HEAD_LINE('session-a') + '\n');
         appendFileSync(path, TITLE_LINE + '\n', 'utf8');
         appendFileSync(path, LAST_PROMPT_LINE + '\n', 'utf8');
-
-        await until(
-          () => events,
-          (list) => list.length > 0,
-          'the writes to be picked up',
-        );
-        await expect(
-          until(
-            () => events.length,
-            (count) => count > 1,
-            'a second, undebounced event',
-            300,
-          ),
-        ).rejects.toThrow();
+        await watcher.reconcileNow();
 
         expect(events).toHaveLength(1);
         expect(events[0]?.record.lastPrompt).toBe('do the thing');
@@ -318,28 +362,305 @@ describe('watchTranscripts', () => {
         20,
       );
       try {
+        await watcher.ready;
         const path = writeProjectFile(
           home,
           root,
           'session-a',
           `not json\n${HEAD_LINE('session-a')}\n`,
         );
-        await until(
-          () => events,
-          (list) => list.length > 0,
-          'the first read to complete',
-        );
+        await watcher.reconcileNow();
         appendFileSync(path, `${TITLE_LINE}\n`, 'utf8');
-        await until(
-          () => events,
-          (list) => list.length > 1,
-          'the second read to complete',
-        );
+        await watcher.reconcileNow();
 
         expect(warnings).toHaveLength(1);
       } finally {
         await watcher.close();
       }
     });
+  });
+
+  it('runs a reconciliation pass on its own configured interval and dispatches what it finds', async () => {
+    await withTempHome(async (home) => {
+      const root = '/Users/phil/Desktop/Extend/garden';
+      // A stand-in for chokidar's FSWatcher that never emits, same as the error-logging test
+      // below: this test is about the setInterval -> reconcileTranscripts -> dispatch wiring
+      // inside watchTranscripts, not chokidar's own delivery, so faking chokidar away keeps
+      // the two concerns separate and lets fake timers drive the interval deterministically.
+      class FakeWatcher extends EventEmitter {
+        close(): Promise<void> {
+          return Promise.resolve();
+        }
+      }
+      const fake = new FakeWatcher();
+      vi.mocked(watch).mockImplementationOnce(() => fake as unknown as ReturnType<typeof watch>);
+
+      // Written before the watcher even exists, so nothing but a reconciliation tick could
+      // ever find it — the fake watcher has no 'add'/'change' to emit.
+      writeProjectFile(home, root, 'session-a', HEAD_LINE('session-a') + '\n');
+
+      // Fakes only setInterval/clearInterval, not setTimeout or Node's own I/O machinery — the
+      // reconciliation pass this drives does real fs reads, which need the real event loop to
+      // actually complete them.
+      vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+      try {
+        const events: TranscriptChangedEvent[] = [];
+        const watcher = watchTranscripts(
+          transcriptsDirFor(home),
+          [root],
+          (event) => events.push(event),
+          silentLogger(),
+          DEBOUNCE_MS,
+          50,
+        );
+        try {
+          await vi.advanceTimersByTimeAsync(50);
+          // The fake-timer advance fires the interval's callback, but the real fs reads it
+          // kicks off still need a real event-loop turn to complete — setTimeout is real here
+          // (only setInterval/clearInterval are faked above), so this actually waits.
+          await vi.waitFor(() => expect(events[0]?.record.sessionId).toBe('session-a'));
+        } finally {
+          await watcher.close();
+        }
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
+  it("dispatches a transcript-changed event when the native watcher emits 'add' or 'change'", async () => {
+    await withTempHome(async (home) => {
+      const root = '/Users/phil/Desktop/Extend/garden';
+      // A stand-in for chokidar's FSWatcher, same technique as the error-logging test below:
+      // this drives watcher.on('add'|'change', ...) directly, which none of the
+      // reconcileNow()-driven tests above ever touch — they read straight off disk and never
+      // reach these listeners at all.
+      class FakeWatcher extends EventEmitter {
+        close(): Promise<void> {
+          return Promise.resolve();
+        }
+      }
+      const fake = new FakeWatcher();
+      vi.mocked(watch).mockImplementationOnce(() => fake as unknown as ReturnType<typeof watch>);
+
+      const events: TranscriptChangedEvent[] = [];
+      const watcher = watchTranscripts(
+        transcriptsDirFor(home),
+        [root],
+        (event) => events.push(event),
+        silentLogger(),
+        5,
+      );
+      try {
+        const path = writeProjectFile(home, root, 'session-a', HEAD_LINE('session-a') + '\n');
+        fake.emit('add', path);
+        await vi.waitFor(() => expect(events[0]?.record.sessionId).toBe('session-a'));
+
+        appendFileSync(path, TITLE_LINE + '\n', 'utf8');
+        fake.emit('change', path);
+        await vi.waitFor(() => expect(events[1]?.record.title).toBe('Bounded read title'));
+      } finally {
+        await watcher.close();
+      }
+    });
+  });
+
+  it("logs the watcher's error events instead of swallowing them", async () => {
+    await withTempHome(async (home) => {
+      const root = '/Users/phil/Desktop/Extend/garden';
+      // A minimal stand-in for chokidar's FSWatcher: real chokidar has no fast, reliable
+      // way to be made to emit a real 'error' from test code, so this proves the wiring —
+      // logger.error gets called — without exercising real FS timing.
+      class FakeWatcher extends EventEmitter {
+        close(): Promise<void> {
+          return Promise.resolve();
+        }
+      }
+      const fake = new FakeWatcher();
+      vi.mocked(watch).mockImplementationOnce(() => fake as unknown as ReturnType<typeof watch>);
+
+      const errors: string[] = [];
+      const logger: TranscriptLogger = { warn: () => {}, error: (m) => errors.push(m) };
+      const watcher = watchTranscripts(transcriptsDirFor(home), [root], () => {}, logger);
+      try {
+        fake.emit('error', new Error('EMFILE, too many open files'));
+        expect(errors).toEqual([expect.stringContaining('EMFILE')]);
+      } finally {
+        await watcher.close();
+      }
+    });
+  });
+});
+
+describe('reconcileTranscripts', () => {
+  it('invokes onStale for an in-scope file with no cached signature', async () => {
+    await withTempHome(async (home) => {
+      const root = '/Users/phil/Desktop/Extend/garden';
+      const path = writeProjectFile(home, root, 'session-a', HEAD_LINE('session-a') + '\n');
+      const signatures = new Map<string, TranscriptSignature>();
+      const seen: string[] = [];
+
+      // onStale owns caching its own success, same as production's reread() does — this is
+      // what makes the cache accurate regardless of which path (native watch or this
+      // reconciliation loop) last read a given file.
+      await reconcileTranscripts(
+        transcriptsDirFor(home),
+        [root],
+        signatures,
+        async (p) => {
+          seen.push(p);
+          signatures.set(p, await stat(p));
+        },
+        silentLogger(),
+      );
+
+      expect(seen).toEqual([path]);
+      expect(signatures.has(path)).toBe(true);
+    });
+  });
+
+  it('does not re-invoke onStale once a matching signature is cached', async () => {
+    await withTempHome(async (home) => {
+      const root = '/Users/phil/Desktop/Extend/garden';
+      const path = writeProjectFile(home, root, 'session-a', HEAD_LINE('session-a') + '\n');
+      const { size, mtimeMs } = await stat(path);
+      const signatures = new Map<string, TranscriptSignature>([[path, { size, mtimeMs }]]);
+      const seen: string[] = [];
+
+      await reconcileTranscripts(
+        transcriptsDirFor(home),
+        [root],
+        signatures,
+        (p) => {
+          seen.push(p);
+          return Promise.resolve();
+        },
+        silentLogger(),
+      );
+
+      expect(seen).toEqual([]);
+    });
+  });
+
+  it('re-invokes onStale once a cached signature no longer matches', async () => {
+    await withTempHome(async (home) => {
+      const root = '/Users/phil/Desktop/Extend/garden';
+      const path = writeProjectFile(home, root, 'session-a', HEAD_LINE('session-a') + '\n');
+      const signatures = new Map<string, TranscriptSignature>([[path, { size: 0, mtimeMs: 0 }]]);
+      const seen: string[] = [];
+
+      await reconcileTranscripts(
+        transcriptsDirFor(home),
+        [root],
+        signatures,
+        (p) => {
+          seen.push(p);
+          return Promise.resolve();
+        },
+        silentLogger(),
+      );
+
+      expect(seen).toEqual([path]);
+    });
+  });
+
+  it('logs a stat failure that is not a vanished file, instead of swallowing it', async () => {
+    await withTempHome(async (home) => {
+      const root = '/Users/phil/Desktop/Extend/garden';
+      const dir = projectDirFor(home, root);
+      mkdirSync(dir, { recursive: true });
+      // A symlink pointing at itself: stat() on it rejects with ELOOP, not ENOENT, so this
+      // is a file that's persistently unreadable rather than merely vanished.
+      const path = join(dir, 'broken.jsonl');
+      symlinkSync(path, path);
+      const signatures = new Map<string, TranscriptSignature>();
+      const errors: string[] = [];
+      const logger: TranscriptLogger = { warn: () => {}, error: (m) => errors.push(m) };
+
+      await reconcileTranscripts(
+        transcriptsDirFor(home),
+        [root],
+        signatures,
+        () => Promise.resolve(),
+        logger,
+      );
+
+      expect(errors).toEqual([expect.stringContaining(path)]);
+    });
+  });
+});
+
+describe('createCoalescer', () => {
+  it('collapses repeated schedules for one key into a single run after debounceMs of quiet', () => {
+    vi.useFakeTimers();
+    try {
+      const runs: string[] = [];
+      const coalescer = createCoalescer((key) => runs.push(key), 100);
+
+      coalescer.schedule('a');
+      vi.advanceTimersByTime(50);
+      coalescer.schedule('a'); // restarts the wait
+      vi.advanceTimersByTime(99);
+      expect(runs).toEqual([]);
+
+      vi.advanceTimersByTime(1);
+      expect(runs).toEqual(['a']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('tracks each key independently', () => {
+    vi.useFakeTimers();
+    try {
+      const runs: string[] = [];
+      const coalescer = createCoalescer((key) => runs.push(key), 100);
+
+      coalescer.schedule('a');
+      vi.advanceTimersByTime(50);
+      coalescer.schedule('b');
+      vi.advanceTimersByTime(50);
+      expect(runs).toEqual(['a']);
+
+      vi.advanceTimersByTime(50);
+      expect(runs).toEqual(['a', 'b']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('schedules a fresh run for a key whose previous run already fired', () => {
+    vi.useFakeTimers();
+    try {
+      const runs: string[] = [];
+      const coalescer = createCoalescer((key) => runs.push(key), 100);
+
+      coalescer.schedule('a');
+      vi.advanceTimersByTime(100);
+      expect(runs).toEqual(['a']);
+
+      coalescer.schedule('a');
+      vi.advanceTimersByTime(100);
+      expect(runs).toEqual(['a', 'a']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('clear() cancels every pending run', () => {
+    vi.useFakeTimers();
+    try {
+      const runs: string[] = [];
+      const coalescer = createCoalescer((key) => runs.push(key), 100);
+
+      coalescer.schedule('a');
+      coalescer.schedule('b');
+      coalescer.clear();
+      vi.advanceTimersByTime(200);
+
+      expect(runs).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

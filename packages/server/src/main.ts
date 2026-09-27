@@ -215,6 +215,16 @@ export async function main(detached: boolean): Promise<void> {
   const stopRepoRoots = watchRepoRoots({ git, projection });
   const branches = createBranchSweeper({ git, projection });
 
+  // Started before replay() rather than after — including before its store-loaded and
+  // tmux-snapshot dispatches, not just before its transcript scan — so a write landing
+  // anywhere in that window still reaches the watch instead of being lost until the next
+  // unrelated event or a restart. A transcript-changed dispatch racing the boot scan's own
+  // dispatch for the same path is expected and harmless: reduce() folds the same fact
+  // idempotently.
+  const watcher = transcripts.watch((event) => {
+    projection.dispatch(event);
+  });
+
   await replay(projection, store, tmux, transcripts, branches, logger, config.claudeSessionsDir);
   // Only valid once replay's transcript scan has settled what "known" means — any earlier
   // (store-loaded, or the first tmux snapshot) would prune a live child whose transcript
@@ -228,9 +238,6 @@ export async function main(detached: boolean): Promise<void> {
     );
   }
 
-  const watcher = transcripts.watch((event) => {
-    projection.dispatch(event);
-  });
   const poll = setInterval(() => {
     // A tmux that fails mid-run leaves liveness stale until the next tick; it does not end the server.
     dispatchTmuxSnapshot(projection, tmux).catch((error: unknown) => {
