@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..', '..');
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const HOOKS_SCRIPTS_DIR = join(REPO_ROOT, 'plugins', 'garden', 'hooks', 'scripts');
 
 export const WARN_SH = join(HOOKS_SCRIPTS_DIR, 'warn.sh');

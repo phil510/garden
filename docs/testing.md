@@ -33,9 +33,20 @@ package's tier. Integration tests live in `packages/server/tests/integration/` u
 vitest config with `fileParallelism: false` and raised timeouts — real tmux servers stepping on
 each other and slow CI runners are what that config prevents.
 
+A script that isn't a package and isn't dev-tooling — the garden plugin's hook scripts, say —
+still needs somewhere to be tested that isn't `packages/server`, which has no relationship to
+it, and isn't inside `plugins/garden/` itself, since that whole directory is copied into every
+user's plugin cache and would ship its tests and fixtures along with it. Repo-level `tests/`
+(also collected by the root `vitest.config.ts`) is that place. Whether such a test belongs in
+the unit or integration tier still follows the line above, not the tier its neighbours happen
+to use: the plugin's hook scripts need only `bash` and `jq`, not a tmux server, so their tests
+run in the unit tier even though they spawn a real subprocess — "`execFile` is never mocked"
+governs how a subprocess is exercised, not which tier gets to exercise it.
+
 Each package's `vitest.config.ts` collects only its own `src/**/*.test.ts`, and the root config
-only `scripts/**/*.test.ts`, so an integration test under `tests/` can never be collected by
-`pnpm test`. Every config runs the `node` environment with `globals: false`, so every test file
+only `scripts/**/*.test.ts` plus repo-level `tests/**/*.test.ts`, so a test under
+`packages/server/tests/integration/` can never be collected by `pnpm test`. Every config runs
+the `node` environment with `globals: false`, so every test file
 imports `describe`, `it`, `expect`, `vi` explicitly. Small cost, and it keeps a test file's
 dependencies visible at the top rather than ambient.
 
