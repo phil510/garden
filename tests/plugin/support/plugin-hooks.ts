@@ -12,6 +12,15 @@ const HOOKS_SCRIPTS_DIR = join(REPO_ROOT, 'plugins', 'garden', 'hooks', 'scripts
 
 export const WARN_SH = join(HOOKS_SCRIPTS_DIR, 'warn.sh');
 export const RECOVER_SH = join(HOOKS_SCRIPTS_DIR, 'recover.sh');
+export const CONTEXT_TOKENS_SH = join(
+  REPO_ROOT,
+  'plugins',
+  'garden',
+  'skills',
+  'orchestrate-sessions',
+  'scripts',
+  'context_tokens.sh',
+);
 
 /** Tracks every temp dir a test created, so a single `cleanupTempDirs()` in `afterEach` tears
  * them all down whether the test passed or not — never left for the next run to inherit. */

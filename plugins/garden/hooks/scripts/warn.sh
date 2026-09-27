@@ -9,6 +9,9 @@ shopt -s nullglob
 
 command -v jq >/dev/null 2>&1 || exit 0
 
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+usage_filter_file="$script_dir/lib/usage-filter.jq"
+
 input=$(cat)
 
 # A subagent's tool call carries the parent's session_id/transcript_path; agent_id is present
@@ -41,19 +44,8 @@ marker="$scratchpad_dir/.compaction-warned"
 transcript=$(printf '%s' "$input" | jq -r '.transcript_path // empty' 2>/dev/null)
 [ -n "$transcript" ] && [ -f "$transcript" ] || exit 0
 
-# Occupancy is the last assistant turn's usage, not a sum over turns — see
-# skills/orchestrate-sessions/scripts/context_tokens.sh, which this mirrors.
-usage_filter='
-  select(.type == "assistant" and .message.usage != null)
-  | .message.usage
-  | (.input_tokens // 0)
-    + (.cache_creation_input_tokens // 0)
-    + (.cache_read_input_tokens // 0)
-    + (.output_tokens // 0)
-'
-
 last_usage_in() {
-  jq -r "$usage_filter" 2>/dev/null | tail -n 1
+  jq -r -f "$usage_filter_file" 2>/dev/null | tail -n 1
 }
 
 # This hook runs on every tool call, so read only the transcript's tail rather than the whole
