@@ -41,7 +41,7 @@ describe('plugins/garden/hooks/scripts/recover.sh', () => {
 
     expect(result.code).toBe(0);
     expect(result.stdout.trim()).toBe(
-      'Read `compaction-status.md` in your scratchpad if it exists. Treat the summary you are resuming from as claims, not settled fact: check them against the repo before acting on them.',
+      'Compaction happened, but no `compaction-status.md` was written before it, so there is no on-disk summary of your prior state. Whatever summary Claude Code itself resumed you with is still just claims, not settled fact: check them against the repo before acting on them.',
     );
   });
 
