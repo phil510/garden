@@ -146,17 +146,32 @@ of them can only be wrong.
 So the startup sequence is a replay, not a restore:
 
 1. Read `config.json` and `state.json`.
-2. Dispatch `{ type: 'store-loaded' }` — the projection now knows the id-to-name map and the
+2. Start the transcript watcher — before any dispatch below, so a write landing anywhere in
+   this sequence still reaches it instead of being lost until the next unrelated event or a
+   restart. A `transcript-changed` dispatch from the watcher's own initial scan racing the boot
+   scan's dispatch for the same path (step 5) is expected and harmless: `reduce()` folds the
+   same fact idempotently.
+3. Dispatch `{ type: 'store-loaded' }` — the projection now knows the id-to-name map and the
    UI preferences, and nothing else.
-3. Dispatch a full `tmux-snapshot`.
-4. Scan `<transcriptsDir>/**` and dispatch a `transcript-changed` per file.
-5. Sweep every session's cwd for its current branch, once every distinct cwd from step 4 exists
+4. Dispatch a full `tmux-snapshot`.
+5. Scan `<transcriptsDir>/**` and dispatch a `transcript-changed` per file.
+6. Sweep every session's cwd for its current branch, once every distinct cwd from step 5 exists
    in state, and dispatch a `branch-resolved` per cwd.
-6. Start the watcher and the tmux poll (which repeats step 5 on every tick); serve HTTP.
+7. Start the tmux poll (which repeats step 6 on every tick); serve HTTP.
 
-Nothing is reconciled by hand, because steps 3 and 4 are the same events the adapters emit
-during normal operation — boot is just the first batch of them. A live session recovered this
-way has `unknown` status until its next hook event, which is correct rather than a limitation.
+Nothing is reconciled by hand for steps 4 and 5, because they are the same events the adapters
+emit during normal operation — boot is just the first batch of them. A live session recovered
+this way has `unknown` status until its next hook event, which is correct rather than a
+limitation.
+
+The watcher itself does carry one reconciliation of its own: alongside chokidar's native watch,
+it runs a periodic rescan (every ~10s) that diffs every in-scope transcript file's `(size,
+mtimeMs)` against what it last read and rereads anything new or changed. This backstops a real
+gap in chokidar's own guarantees — its `'ready'` event proves the transcripts directory's own
+watch is registered, but not that every session subdirectory's watch is armed too, because
+chokidar scans a newly created directory's contents before it registers that directory's own
+native watch handle. A rapid write landing in that narrower window would otherwise go unnoticed
+until something else touches the file or the server restarts.
 
 ### 4.3 What goes in `http/`
 
