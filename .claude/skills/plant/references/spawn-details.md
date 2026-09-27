@@ -29,7 +29,7 @@ already-active team). Then per worker:
 Agent(
   name:          <role><n>,             # unique per spawn, e.g. developer2
   subagent_type: plant-<role>,          # one per role, e.g. plant-developer
-  model:         <omit, or opus>,       # omit to use the agent's sonnet default
+  model:         <omit, or override>,   # omit to use the agent's frontmatter default
   prompt:        <thin opener>,
 )
 ```
@@ -41,14 +41,18 @@ the agent type, not in the opener; the opener's "You are the <role>
 for..." line is a restatement for the worker's benefit, not the routing
 mechanism.
 
-- **Model.** Every role's agent definition declares `model: sonnet` in
-  frontmatter as its default, so the orchestrator doesn't pass `model:`
-  on a normal spawn. Opus is opt-in: pass `model: opus` on the spawn
-  only when the user calls out a PR that warrants it — the Agent tool's
-  `model` param takes precedence over the agent's frontmatter. `plant`
-  targets small/medium PRs, where sonnet's current capability and
-  context window are the right default; opus is reserved for the larger
-  changes where it shines, which the user flags.
+- **Model.** Each role's agent definition declares its default in
+  frontmatter — `opus` for the planner, `sonnet` for the developer and
+  reviewer — so the orchestrator doesn't pass `model:` on a normal
+  spawn. The planner gets opus because planning is where judgment pays
+  off and it is a small share of a run's spend; the developer stages,
+  where most of the spend goes, get sonnet because `plant` targets
+  small/medium PRs where its capability is enough. Override any stage on
+  your own reading of the task's complexity, not only when the user
+  asks: `model: opus` for a developer or reviewer facing dense logic,
+  concurrency, or security-relevant paths; `model: sonnet` for the
+  planner on a brief with nothing left to decide. The Agent tool's
+  `model` param takes precedence over the frontmatter.
 - **`name`** is the role string plus a per-role counter (`planner1`,
   `developer2`, `reviewer1`). It's how the orchestrator addresses the
   worker with `SendMessage`. **Never reuse a name** — each re-spawn of a

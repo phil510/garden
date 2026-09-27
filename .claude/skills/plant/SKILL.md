@@ -143,7 +143,8 @@ either merges the PR or hands you the go-ahead to.
 | **Developer** (stage 2 + every fix round) | fresh per round | Self-bootstraps the worktree (`pnpm install`). Initial: implements the plan, self-reviews, opens the draft PR. Fix-round: applies the internal reviewer's `fix` findings, one commit per finding, pushes.                                         |
 | **Reviewer** (stage 3)                    | fresh per round | Internal review via `pr-review-toolkit` agents plus named agents scaled to the diff → `review-round-<k>.md`. Clean → flips stage 3 (PR stays draft). Dirty → annotates, no flip. Cap 3 rounds (1 for `Size: small`), then escalates `review_cap`. |
 
-All three workers default to **sonnet** and die with your session.
+The planner defaults to **opus**, the developer and reviewer to
+**sonnet**; all three die with your session.
 `plant-developer` is dual-mode (`${MODE}` = `initial` or `fix-round`);
 `plant-reviewer` is single-mode — its opener carries no `${MODE}`.
 
@@ -162,11 +163,12 @@ Spawn every worker the same way — `Agent` with a unique `name`,
 `subagent_type: plant-<role>` (each role is a named agent at
 `.claude/agents/plant-<role>.md`, and that agent definition is the
 worker's entire instruction set, so the role is carried by the agent type,
-not by the opener), and a **thin opener** (~5 lines) as the prompt. The
-agent declares `model: sonnet` in frontmatter as its default, so you don't
-pass `model:` on a normal spawn; pass `model: opus` only when the user
-calls out a PR that warrants it — the Agent tool's `model` param takes
-precedence over the agent's frontmatter.
+not by the opener), and a **thin opener** (~5 lines) as the prompt. Each
+agent's frontmatter declares its default model, so a normal spawn omits
+`model:`. Override it when the task's complexity calls for it — your
+judgment, whether or not the user asked — since the Agent tool's `model`
+param takes precedence over the frontmatter. `references/spawn-details.md`
+says which way each role usually moves.
 
 The opener carries only what the agent definition can't know:
 

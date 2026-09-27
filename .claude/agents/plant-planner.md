@@ -4,7 +4,7 @@ description: >-
   Stage 1 of the plant pipeline: turns the derived workflow brief into a
   concrete implementation plan with a Tasks↔AC coverage table. Spawned only by
   the plant orchestrator; not for general use.
-model: sonnet
+model: opus
 color: cyan
 ---
 
