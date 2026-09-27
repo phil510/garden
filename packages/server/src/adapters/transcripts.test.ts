@@ -184,13 +184,16 @@ describe('readTranscriptRecord', () => {
 type TranscriptChangedEvent = Extract<GardenEvent, { type: 'transcript-changed' }>;
 
 describe('watchTranscripts', () => {
-  // These five tests pin garden's own logic — the ignore predicate, the debounce coalescing,
-  // the warn-once bookkeeping — not chokidar's delivery. A real chokidar watch on a machine
-  // under heavy contention is confirmed to sometimes never deliver a single native event for a
-  // watcher's whole lifetime, not merely deliver one late (decisions.md), so waiting on native
-  // delivery here would make the assertion itself flaky. Each test instead drives pickup via
-  // `reconcileNow()` right after writing, which reads straight off disk and so passes whether
-  // or not chokidar's own 'add'/'change' ever fires for that write.
+  // These five tests pin garden's own logic — the in/out-of-scope rules listTranscriptFiles
+  // and inScopeDirs enforce, the debounce coalescing, the warn-once bookkeeping — not
+  // chokidar's delivery. A real chokidar watch on a machine under heavy contention has been
+  // observed to sometimes never deliver a single native event for a watcher's whole
+  // lifetime, not merely deliver one late, so waiting on native delivery here would make the
+  // assertion itself flaky. Each test instead drives pickup via `reconcileNow()` right after
+  // writing, which reads straight off disk and so passes whether or not chokidar's own
+  // 'add'/'change' ever fires for that write — which also means these five never exercise
+  // isWatchedPath or the watcher.on('add'|'change', ...) registrations themselves; those get
+  // their own dedicated, deterministic tests below.
   it('emits a transcript-changed event for a file created after the watch starts', async () => {
     await withTempHome(async (home) => {
       const root = '/Users/phil/Desktop/Extend/garden';
@@ -269,6 +272,33 @@ describe('watchTranscripts', () => {
 
         expect(events.some((event) => event.record.sessionId === 'session-b')).toBe(true);
         expect(events.some((event) => event.path.includes('subagents'))).toBe(false);
+      } finally {
+        await watcher.close();
+      }
+    });
+  });
+
+  it('registers an ignore predicate matching isWatchedPath, checked directly rather than via a write', async () => {
+    // The five reconcileNow()-driven tests above never touch this predicate — they read
+    // straight off disk via listTranscriptFiles/inScopeDirs — so this calls the exact
+    // function chokidar was configured with, captured off the mocked `watch`, and asserts its
+    // in/out-of-scope behavior deterministically with no filesystem writes or timing at all.
+    await withTempHome(async (home) => {
+      const root = '/Users/phil/Desktop/Extend/garden';
+      const watcher = watchTranscripts(transcriptsDirFor(home), [root], () => {}, silentLogger());
+      try {
+        await watcher.ready;
+        const options = vi.mocked(watch).mock.calls.at(-1)?.[1];
+        const ignored = options?.ignored as (path: string) => boolean;
+        const dir = projectDirFor(home, root);
+
+        expect(ignored(transcriptsDirFor(home))).toBe(false);
+        expect(ignored(dir)).toBe(false);
+        expect(ignored(join(dir, 'session-a.jsonl'))).toBe(false);
+
+        expect(ignored(join(home, '.claude', 'projects', 'some-out-of-scope-slug'))).toBe(true);
+        expect(ignored(join(dir, 'session-a', 'subagents'))).toBe(true);
+        expect(ignored(join(dir, 'session-a', 'subagents', 'agent-1.jsonl'))).toBe(true);
       } finally {
         await watcher.close();
       }
@@ -394,6 +424,43 @@ describe('watchTranscripts', () => {
         }
       } finally {
         vi.useRealTimers();
+      }
+    });
+  });
+
+  it("dispatches a transcript-changed event when the native watcher emits 'add' or 'change'", async () => {
+    await withTempHome(async (home) => {
+      const root = '/Users/phil/Desktop/Extend/garden';
+      // A stand-in for chokidar's FSWatcher, same technique as the error-logging test below:
+      // this drives watcher.on('add'|'change', ...) directly, which none of the
+      // reconcileNow()-driven tests above ever touch — they read straight off disk and never
+      // reach these listeners at all.
+      class FakeWatcher extends EventEmitter {
+        close(): Promise<void> {
+          return Promise.resolve();
+        }
+      }
+      const fake = new FakeWatcher();
+      vi.mocked(watch).mockImplementationOnce(() => fake as unknown as ReturnType<typeof watch>);
+
+      const events: TranscriptChangedEvent[] = [];
+      const watcher = watchTranscripts(
+        transcriptsDirFor(home),
+        [root],
+        (event) => events.push(event),
+        silentLogger(),
+        5,
+      );
+      try {
+        const path = writeProjectFile(home, root, 'session-a', HEAD_LINE('session-a') + '\n');
+        fake.emit('add', path);
+        await vi.waitFor(() => expect(events[0]?.record.sessionId).toBe('session-a'));
+
+        appendFileSync(path, TITLE_LINE + '\n', 'utf8');
+        fake.emit('change', path);
+        await vi.waitFor(() => expect(events[1]?.record.title).toBe('Bounded read title'));
+      } finally {
+        await watcher.close();
       }
     });
   });
