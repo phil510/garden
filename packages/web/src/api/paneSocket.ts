@@ -74,13 +74,16 @@ export function connectPaneSocket(
   function connect(): void {
     socket = new WebSocket(paneUrl(sessionId, currentSize));
     socket.binaryType = 'arraybuffer';
+    // Streaming mode carries a multi-byte character's leading bytes across frame boundaries;
+    // a fresh decoder per message would emit U+FFFD for the half it can't yet decode.
+    const decoder = new TextDecoder();
 
     socket.addEventListener('open', () => {
       attempt = 0;
       for (const data of pendingWrites.splice(0)) send(data);
     });
     socket.addEventListener('message', (event) => {
-      handlers.onData(new TextDecoder().decode(event.data as ArrayBuffer));
+      handlers.onData(decoder.decode(event.data as ArrayBuffer, { stream: true }));
     });
     socket.addEventListener('close', (event) => {
       if (stopped) return;
