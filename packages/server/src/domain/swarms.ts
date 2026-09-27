@@ -5,15 +5,6 @@ type Placements = Readonly<Record<string, SessionPlacement>>;
 
 export type DomainResult = { ok: true } | { ok: false; reason: string };
 
-/** `code` is what `app/swarms.ts` switches on to pick a typed error — `reason` is the
- *  human-readable detail carried onto that error's message, not a second source of truth
- *  for the app layer to pattern-match against. */
-export type HandoffRejectionCode = 'existing-successor' | 'cross-swarm' | 'cycle';
-
-export type HandoffResult =
-  | { ok: true; placements: Record<string, SessionPlacement> }
-  | { ok: false; code: HandoffRejectionCode; reason: string };
-
 /**
  * Walks `parent` up to a top-level ancestor (a placement with `swarmId` set, or a
  * placement with neither field set). A `parent` id with no `placements` entry at all —
@@ -89,91 +80,15 @@ export function validatePlacement(
 }
 
 /**
- * B takes A's place: B gets A's `parent` or `swarmId` (whichever was set), every session
- * with `parent === fromId` moves under B, and A gets `parent: toId, successor: toId` —
- * A stays in the swarm, one level under its own successor.
- *
- * Three rejections, checked against the pre-mutation graph (exact for each edge
- * individually, since neither of `toId`'s two new edges is the one just re-pointed):
- * - either side already has a `successor` — unresolved by the brief for what handing off
- *   from or to a session mid-handoff should do, so both are simply blocked for now.
- * - `toId` already resolves to a different swarm than `fromId`'s (a solo `toId` is always
- *   eligible; comparing either side against `undefined` must not itself count as
- *   "different swarms").
- * - edge (c) (`fromId`'s parent becomes `toId`) would create a cycle — `toId` is already
- *   `fromId`'s descendant. Checked as a single reassignment via `wouldCreateParentCycle`
- *   with `fromId` as the session being reassigned and `toId` as its candidate new parent,
- *   the same call shape `placeSession` uses for one edge.
- * - edge (a) (`toId`'s parent becomes `fromId`'s old parent `X`) would create a cycle —
- *   `toId` is `X` itself or already an ancestor of `X` reached back down through `fromId`
- *   (e.g. `X` is a child of `toId`). Only checked when `fromId` had a `parent` (not a bare
- *   `swarmId` — a swarm reassignment can't create a parent cycle).
- */
-export function computeHandoff(overlay: OverlayState, fromId: string, toId: string): HandoffResult {
-  const { placements } = overlay;
-  const fromEntry: SessionPlacement = placements[fromId] ?? {};
-  const toEntry: SessionPlacement = placements[toId] ?? {};
-
-  if (fromEntry.successor !== undefined)
-    return { ok: false, code: 'existing-successor', reason: `${fromId} already has a successor` };
-  if (toEntry.successor !== undefined)
-    return { ok: false, code: 'existing-successor', reason: `${toId} already has a successor` };
-
-  const fromSwarm = resolveSwarmId(placements, fromId);
-  const toSwarm = resolveSwarmId(placements, toId);
-  if (toSwarm !== undefined && toSwarm !== fromSwarm)
-    return {
-      ok: false,
-      code: 'cross-swarm',
-      reason: `${toId} belongs to a different swarm than ${fromId}`,
-    };
-
-  if (wouldCreateParentCycle(placements, fromId, toId))
-    return {
-      ok: false,
-      code: 'cycle',
-      reason: `would create a cycle: ${toId} is already a descendant of ${fromId}`,
-    };
-
-  if (fromEntry.parent !== undefined && wouldCreateParentCycle(placements, toId, fromEntry.parent))
-    return {
-      ok: false,
-      code: 'cycle',
-      reason: `would create a cycle: ${toId} is already an ancestor of ${fromEntry.parent}`,
-    };
-
-  const next: Record<string, SessionPlacement> = { ...placements };
-
-  // (a) toId takes fromId's exact placement.
-  next[toId] =
-    fromEntry.parent !== undefined
-      ? { parent: fromEntry.parent }
-      : fromEntry.swarmId !== undefined
-        ? { swarmId: fromEntry.swarmId }
-        : {};
-
-  // (b) every child of fromId moves under toId.
-  for (const [id, entry] of Object.entries(placements)) {
-    if (entry.parent === fromId) next[id] = { ...entry, parent: toId };
-  }
-
-  // (c) fromId stays in the swarm, one level under its own successor.
-  next[fromId] = { parent: toId, successor: toId };
-
-  return { ok: true, placements: next };
-}
-
-/**
  * Drops overlay entries for any session id not in `knownSessionIds`, deleting swarms left
  * with zero members. Before dropping an unknown ancestor's own entry, splices its placement
  * onto every surviving entry that pointed at it — repeating until every remaining edge lands
  * on a known session or a root — so a live descendant doesn't get orphaned out of its swarm
  * just because an unrelated stale ancestor's transcript aged out under Claude Code's own
- * retention. The splice/clear checks test `knownSessionIds` directly rather than only
- * `placements`' own keys, so a `parent`/`successor` naming an id that never had a placements
- * entry of its own (the everyday case — see `resolveSwarmId`) still gets cleaned up once
- * that id itself stops being known, instead of dangling in the raw storage forever. Also
- * clears a `successor` field naming a now-unknown id.
+ * retention. The splice checks test `knownSessionIds` directly rather than only `placements`'
+ * own keys, so a `parent` naming an id that never had a placements entry of its own (the
+ * everyday case — see `resolveSwarmId`) still gets cleaned up once that id itself stops
+ * being known, instead of dangling in the raw storage forever.
  */
 export function pruneOverlay(
   overlay: OverlayState,
@@ -204,15 +119,6 @@ export function pruneOverlay(
       mutated = true;
     }
     if (!changed) break;
-  }
-
-  for (const [id, entry] of Object.entries(placements)) {
-    if (entry.successor !== undefined && !knownSessionIds.has(entry.successor)) {
-      const spliced = { ...entry };
-      delete spliced.successor;
-      placements[id] = spliced;
-      mutated = true;
-    }
   }
 
   if (ownKeysToDelete.size > 0) {

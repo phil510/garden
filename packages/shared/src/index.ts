@@ -36,11 +36,10 @@ export interface SessionState {
    *  session. Not derived by `domain/reduce.ts`/`domain/diff.ts`: a fresh HTTP `GET
    *  /sessions` always reflects the current placements, but a WS delta never carries
    *  these, so a browser client holding a session from an earlier snapshot would see them
-   *  go stale after a later handoff/adopt — moot today, since nothing in `packages/web`
-   *  reads them yet. */
+   *  go stale after a later placement change/adopt — moot today, since nothing in
+   *  `packages/web` reads them yet. */
   parent?: string;
   swarmId?: string;
-  successor?: string;
 }
 
 export type SessionMap = Record<string, SessionState>;
@@ -76,13 +75,12 @@ export interface SwarmRecord {
 }
 
 /** The per-session placement fields, shared between the server's overlay storage and the
- *  `UiState` wire shape so the two can't drift into separate shapes for the same three
- *  fields. `parent` and `swarmId` are never both set — `Placement` below is what enforces
- *  that at the point of writing one. */
+ *  `UiState` wire shape so the two can't drift into separate shapes for the same fields.
+ *  `parent` and `swarmId` are never both set — `Placement` below is what enforces that at
+ *  the point of writing one. */
 export interface SessionPlacement {
   parent?: string;
   swarmId?: string;
-  successor?: string;
 }
 
 /** The one placement a session can hold: a top-level member of a swarm, a child of another
@@ -102,9 +100,6 @@ export interface RenameSwarmRequest {
 }
 export interface PlacementRequest {
   placement: Placement;
-}
-export interface HandoffRequest {
-  to: string;
 }
 
 /** Claude Code's hook payload, verbatim snake_case. `permission_mode` is absent on
@@ -152,12 +147,6 @@ export function parseNonNegativeInt(raw: string): number | undefined {
 export interface CreateSessionRequest {
   cwd: string;
   callerSessionId?: string;
-  /** When true and `callerSessionId` is set, the caller's placement moves to the new
-   *  session (a handoff) instead of the new session spawning as the caller's child. */
-  handoff?: boolean;
-  /** Path to a handoff file the new session's first prompt should point at. Only
-   *  meaningful alongside `handoff: true`; ignored otherwise. */
-  handoffFilePath?: string;
 }
 export interface CreateSessionResponse {
   id: string;

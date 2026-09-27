@@ -65,12 +65,7 @@ function isOptionalString(value: unknown): value is string | undefined {
 }
 
 function isSessionPlacement(value: unknown): value is SessionPlacement {
-  return (
-    isRecord(value) &&
-    isOptionalString(value['parent']) &&
-    isOptionalString(value['swarmId']) &&
-    isOptionalString(value['successor'])
-  );
+  return isRecord(value) && isOptionalString(value['parent']) && isOptionalString(value['swarmId']);
 }
 
 function isPlacements(value: unknown): value is Readonly<Record<string, SessionPlacement>> {

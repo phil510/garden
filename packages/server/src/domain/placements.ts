@@ -3,9 +3,9 @@ import { resolveSwarmId } from './swarms.js';
 
 type Placements = Readonly<Record<string, SessionPlacement>>;
 
-/** Merges each session's placement entry onto it, producing the `parent`/`swarmId`/
- *  `successor` fields `ls --json` exposes. A session with no entry in `placements` is
- *  returned untouched — those three fields stay absent, not present-and-undefined. */
+/** Merges each session's placement entry onto it, producing the `parent`/`swarmId`
+ *  fields `ls --json` exposes. A session with no entry in `placements` is returned
+ *  untouched — those fields stay absent, not present-and-undefined. */
 export function mergePlacements(sessions: SessionState[], placements: Placements): SessionState[] {
   return sessions.map((session) => {
     const entry = placements[session.id];
