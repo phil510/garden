@@ -27,3 +27,19 @@ https://code.claude.com/docs/en/plugins-reference#version-management
 The marketplace entry omits `description` so `plugin.json` holds the only copy. Entry fields, when
 set, override the plugin manifest in plugin listings and details — so a second copy in the entry
 drifts out of sync without anything failing.
+
+## The auto-compact threshold is a user setting, not garden's
+
+Garden spawns every session at the model's native context window (up to 1M tokens on models that
+support it) unless the user's own Claude Code configuration says otherwise — garden's spawn path
+passes no compaction-related flag or env var, so there's nothing here to change per session.
+
+To make sessions auto-compact earlier — 200K tokens, say, instead of near the full window — set
+`autoCompactWindow: 200000` in `~/.claude/settings.json` (accepted range 100K–1M; also settable via
+the `CLAUDE_CODE_AUTO_COMPACT_WINDOW` env var or the `--autocompact`/`/autocompact` command, which
+take precedence over the settings-file value). `autoCompactEnabled` is the master on/off switch the
+threshold is gated by. This can't be shipped as a plugin default: a plugin's `settings.json` (manifest
+key or plugin-root file) only applies its `agent` and `subagentStatusLine` keys — every other key,
+including these two, is dropped at load. See
+[Set the auto-compact window](https://code.claude.com/docs/en/model-config#set-the-auto-compact-window)
+and [Default settings](https://code.claude.com/docs/en/plugins/components#default-settings).
