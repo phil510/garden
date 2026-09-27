@@ -55,8 +55,8 @@ the web console, or you can be restarted from garden so a fresh session picks th
 Reach for `garden adopt <id> --json` instead when the session already exists and wasn't spawned
 under you — one a teammate started, or one that predates your own `GARDEN_SESSION_ID` — to place
 it under you after the fact. Brief it the same way you would a fresh spawn (run folder path,
-member-file name, report contract) — adoption changes who placed the session, not what it owes
-the run.
+report contract) — its member file is already named by the `<id>` you just adopted it with, and
+adoption changes who placed the session, not what it owes the run.
 
 **Don't add `--handoff` to the command above expecting an enhanced spawn.** It reads like a flag
 on the same call, but it does the opposite of ordinary dispatch: instead of placing the new peer
@@ -72,11 +72,10 @@ cause of whatever breaks.
 **Ask for a report in the brief.** Tell the peer to message `<your session name>` when it
 finishes, and immediately if blocked, with a pointer to the result, its state, and what it needs
 from you. Spell your own name out; the peer cannot derive it. Without that contract a peer goes
-silent on completion or returns the whole story. Include the run folder's absolute path too, plus
-a name you pick for that member's file — a short label for its task or role, not derived from its
-tmux or messaging name (both can change under it; see "Write the run down" below for why that
-matters) — and tell the peer to maintain `<that name>.md` at milestones. `message-session` covers
-the rest of the brief.
+silent on completion or returns the whole story. Include the run folder's absolute path too, and
+tell the peer its member file is `<its own $GARDEN_SESSION_ID>.md` — the id `garden new --json`
+just returned (see "Write the run down" below for why) — opened with a line naming its task, and
+maintained at milestones. `message-session` covers the rest of the brief.
 
 **Settle merge/approval policy in the brief.** Naming the approver and the merge policy before
 the peer starts is what keeps an `ask`-style gate from stalling later. Relaying an
@@ -173,22 +172,17 @@ small enough that updating it never becomes a task of its own, and means a chang
 something. It follows that the file is only as current as your last write — a head start for a
 session picking the run up, not live status.
 
-`<member-name>.md` belongs to one member and no one else writes it. Pick that name yourself when
-you dispatch, checking the folder so it lands on a label no current member already has — the
-one-writer-per-file rule above only holds if two members never pick the same one — as a short
-label for the member's task or role (`160-launch-commands`, not `79-bounded-session-list`) —
-anything but a name the runtime hands out, because every runtime name can move out from under the
-file. The messaging name changes on every resume (see "Two naming
-systems" above). The garden/tmux name usually survives a resume too, but only when a live pane is
-still there to reclaim it; kill a session first and `garden resume` instead derives a fresh one, so
-a file named after it goes orphaned by the same kill-then-resume this skill already treats as
-routine (see "Winding down" below). Self-succession hands the role to a session with a new
-identity on every count, tmux name included. A label you assigned yourself sidesteps all three,
-since it was never tied to the session's runtime identity to begin with: give it to the member in
-the brief, and — on a handoff — to the successor in the same message, so the file keeps its one
-writer across the swap. It's a short snapshot of that member's goal, decisions, state, and next
-step — updated at milestones (assignment accepted, a material decision, a blocker, completion), not
-every turn.
+`<session-id>.md` belongs to one member and no one else writes it, named for the member's own
+`$GARDEN_SESSION_ID` rather than anything you assign. garden mints one UUID at creation for both
+Claude's `--session-id` and `GARDEN_SESSION_ID`, and `resumeSession` relaunches a killed session
+with `--resume <that id>` — so the id outlives a kill-then-resume and the `/clear`-driven identity
+change "Two naming systems" above describes, where the tmux name and the messaging name do not.
+You already have it — from `garden new --json`'s `id` field, `garden ls`, or the id you passed to
+`garden adopt` — so there's nothing to assign or check for collisions. Open the file with a line
+naming the member's task, so a folder of ids stays readable. On a handoff the successor is a new
+session with its own id: it starts its own file, and the predecessor's stays as its last snapshot.
+It's a short snapshot of that member's goal, decisions, state, and next step — updated at
+milestones (assignment accepted, a material decision, a blocker, completion), not every turn.
 
 After a compaction, reread `run.md` and every member's file before acting — they're the head start
 that survived what your own context didn't.
