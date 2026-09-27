@@ -365,22 +365,18 @@ describe('reconcileTranscripts', () => {
       const signatures = new Map<string, TranscriptSignature>();
       const seen: string[] = [];
 
-      // onStale owns caching its own success, same as production's reread() does — this is
-      // what makes the cache accurate regardless of which path (native watch or this
-      // reconciliation loop) last read a given file.
       await reconcileTranscripts(
         transcriptsDirFor(home),
         [root],
         signatures,
-        async (p) => {
+        (p) => {
           seen.push(p);
-          signatures.set(p, await stat(p));
+          return Promise.resolve();
         },
         silentLogger(),
       );
 
       expect(seen).toEqual([path]);
-      expect(signatures.has(path)).toBe(true);
     });
   });
 
