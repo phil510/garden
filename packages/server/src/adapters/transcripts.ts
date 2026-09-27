@@ -163,20 +163,6 @@ export async function reconcileTranscripts(
 }
 
 export interface TranscriptWatcher {
-  /** Resolves once `transcriptsDir`'s own native watch is registered — not that every
-   *  subdirectory's watch is armed too. chokidar scans a newly created directory's
-   *  contents before it registers *that directory's own* watch handle, so a write
-   *  landing in that narrower window can still go unseen; the reconciliation backstop
-   *  below is what covers that gap. Production has no immediate-write race this barrier
-   *  needs to guard — Claude Code's own writes always arrive well after startup — but a
-   *  test that writes right after calling `watchTranscripts` needs it, or the write can
-   *  land before `transcriptsDir`'s watch exists to see it. */
-  ready: Promise<void>;
-  /** Runs one reconciliation pass immediately, without waiting for `reconcileMs`'s own
-   *  schedule. `transcripts.test.ts` uses this as its deterministic driver in place of
-   *  waiting on chokidar's native delivery, which real chokidar has been observed to drop
-   *  outright under contention rather than merely deliver it late. */
-  reconcileNow(): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -244,7 +230,6 @@ export function watchTranscripts(
   const watcher = watch(transcriptsDir, {
     ignored: (path) => !isWatchedPath(transcriptsDir, roots, path),
   });
-  const ready = new Promise<void>((resolve) => watcher.once('ready', resolve));
   watcher.on('add', (path) => coalescer.schedule(path));
   watcher.on('change', (path) => coalescer.schedule(path));
   // Otherwise silent: an EMFILE under fd pressure produces the same "ready, then no more
@@ -259,8 +244,7 @@ export function watchTranscripts(
   let reconciling: Promise<void> | undefined;
   function runReconciliationTick(): Promise<void> {
     // Skips this tick rather than queuing — a slow reconciliation pass (many files, a
-    // contended disk) should never stack a second one behind it. reconcileNow() shares this
-    // guard too, so calling it while a tick is already in flight just awaits that one.
+    // contended disk) should never stack a second one behind it.
     if (reconciling) return reconciling;
     reconciling = reconcileTranscripts(transcriptsDir, roots, signatures, reread, logger)
       .catch((error: unknown) => {
@@ -276,8 +260,6 @@ export function watchTranscripts(
   const reconcileTimer = setInterval(() => void runReconciliationTick(), reconcileMs);
 
   return {
-    ready,
-    reconcileNow: runReconciliationTick,
     close: async () => {
       clearInterval(reconcileTimer);
       // Closing the watcher first removes its listeners synchronously (chokidar's own
