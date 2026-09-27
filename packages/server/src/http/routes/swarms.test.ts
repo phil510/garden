@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Logger, OverlayState } from '../../app/ports.js';
 import type { Projection } from '../../app/projection.js';
 import { SessionNotFoundError } from '../../app/sessions.js';
-import { CrossSwarmHandoffError, SwarmCycleError, SwarmNotFoundError } from '../../app/swarms.js';
+import { SwarmCycleError, SwarmNotFoundError } from '../../app/swarms.js';
 import type { SwarmsDeps } from '../../app/swarms.js';
 import { swarmRoutes } from './swarms.js';
 
@@ -231,59 +231,5 @@ describe('POST /sessions/:id/placement', () => {
       payload: { placement: { type: 'parent', parentId: 'b' } },
     });
     expect(response.statusCode).toBe(409);
-  });
-});
-
-describe('POST /sessions/:id/handoff', () => {
-  it('rejects a body with no "to"', async () => {
-    const app = buildApp({ projection: fakeProjection() });
-    const response = await app.inject({ method: 'POST', url: '/sessions/a/handoff', payload: {} });
-    expect(response.statusCode).toBe(400);
-  });
-
-  it('forwards a valid body and answers ok', async () => {
-    const overlay: OverlayState = { ...emptyOverlay, tmuxNames: { a: 'garden-a', b: 'garden-b' } };
-    const app = buildApp({
-      projection: fakeProjection({ updateOverlay: (mutate) => mutate(overlay) }),
-    });
-    const response = await app.inject({
-      method: 'POST',
-      url: '/sessions/a/handoff',
-      payload: { to: 'b' },
-    });
-    expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ ok: true });
-  });
-
-  it('maps CrossSwarmHandoffError to 409', async () => {
-    const app = buildApp({
-      projection: fakeProjection({
-        updateOverlay: () => {
-          throw new CrossSwarmHandoffError('different swarm');
-        },
-      }),
-    });
-    const response = await app.inject({
-      method: 'POST',
-      url: '/sessions/a/handoff',
-      payload: { to: 'b' },
-    });
-    expect(response.statusCode).toBe(409);
-  });
-
-  it('maps SessionNotFoundError to 404', async () => {
-    const app = buildApp({
-      projection: fakeProjection({
-        updateOverlay: () => {
-          throw new SessionNotFoundError('no such session: a');
-        },
-      }),
-    });
-    const response = await app.inject({
-      method: 'POST',
-      url: '/sessions/a/handoff',
-      payload: { to: 'b' },
-    });
-    expect(response.statusCode).toBe(404);
   });
 });

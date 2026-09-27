@@ -14,7 +14,6 @@ import type { OverlayGroup, OverlayState, StorePort } from './ports.js';
 export interface ResolvedPlacement {
   parent?: string;
   swarmId?: string;
-  successor?: string;
   topLevelSwarmId?: string;
 }
 

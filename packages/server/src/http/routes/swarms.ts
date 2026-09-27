@@ -2,7 +2,6 @@ import type {
   CreateSwarmRequest,
   CreateSwarmResponse,
   ErrorResponse,
-  HandoffRequest,
   OkResponse,
   Placement,
   PlacementRequest,
@@ -12,9 +11,7 @@ import type { FastifyInstance, FastifyReply } from 'fastify';
 import {
   archiveSwarm,
   createSwarm,
-  CrossSwarmHandoffError,
   deleteSwarm,
-  handoffSession,
   placeSession,
   renameSwarm,
   SwarmCycleError,
@@ -48,11 +45,6 @@ function isPlacementRequest(body: unknown): body is PlacementRequest {
   return isPlacement((body as Record<string, unknown>).placement);
 }
 
-function isHandoffRequest(body: unknown): body is HandoffRequest {
-  if (typeof body !== 'object' || body === null) return false;
-  return typeof (body as Record<string, unknown>).to === 'string';
-}
-
 /** Mirrors `http/routes/sessions.ts`'s `sendError`: the one case a client can act on is
  *  logged at `warn`, everything else at `error` with its stack. */
 function sendError(logger: Logger, reply: FastifyReply, error: unknown): FastifyReply {
@@ -60,7 +52,7 @@ function sendError(logger: Logger, reply: FastifyReply, error: unknown): Fastify
     logger.warn(error.message);
     return reply.code(404).send({ error: error.message } satisfies ErrorResponse);
   }
-  if (error instanceof SwarmCycleError || error instanceof CrossSwarmHandoffError) {
+  if (error instanceof SwarmCycleError) {
     logger.warn(error.message);
     return reply.code(409).send({ error: error.message } satisfies ErrorResponse);
   }
@@ -128,17 +120,6 @@ export function swarmRoutes(app: FastifyInstance, deps: SwarmsDeps, logger: Logg
       return reply.code(400).send({ error: 'invalid placement request' } satisfies ErrorResponse);
     try {
       placeSession(deps, { sessionId: request.params.id, placement: request.body.placement });
-      return reply.send({ ok: true } satisfies OkResponse);
-    } catch (error) {
-      return sendError(logger, reply, error);
-    }
-  });
-
-  app.post<{ Params: { id: string } }>('/sessions/:id/handoff', (request, reply) => {
-    if (!isHandoffRequest(request.body))
-      return reply.code(400).send({ error: 'invalid handoff request' } satisfies ErrorResponse);
-    try {
-      handoffSession(deps, { fromId: request.params.id, toId: request.body.to });
       return reply.send({ ok: true } satisfies OkResponse);
     } catch (error) {
       return sendError(logger, reply, error);

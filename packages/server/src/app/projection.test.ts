@@ -420,7 +420,7 @@ describe('swarms and placements', () => {
     expect(projection.placementOf('nobody')).toBeUndefined();
   });
 
-  it('merges parent/swarmId/successor onto every session, even when called unfiltered', () => {
+  it('merges parent/swarmId onto every session, even when called unfiltered', () => {
     const store = fakeStore({ ...emptyOverlay, placements: { 'sid-1': { swarmId: 'swarm-1' } } });
     const projection = createProjection(store.port);
     projection.dispatch(hook('UserPromptSubmit', 'sid-1'));

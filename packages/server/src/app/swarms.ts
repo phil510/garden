@@ -1,11 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Placement, SessionPlacement, SwarmRecord } from '@garden/shared';
-import {
-  computeHandoff,
-  pruneOverlay,
-  resolveSwarmId,
-  validatePlacement,
-} from '../domain/swarms.js';
+import { pruneOverlay, resolveSwarmId, validatePlacement } from '../domain/swarms.js';
 import { SessionNotFoundError } from './errors.js';
 import type { OverlayState } from './ports.js';
 import type { Projection } from './projection.js';
@@ -16,7 +11,6 @@ export interface SwarmsDeps {
 
 export class SwarmNotFoundError extends Error {}
 export class SwarmCycleError extends Error {}
-export class CrossSwarmHandoffError extends Error {}
 
 /** Every session id known to the running server, from the two sources that can each hold
  *  one the other doesn't: the projection's own sessions, and the store's `tmuxNames` — the
@@ -97,9 +91,7 @@ export function deleteSwarm(deps: SwarmsDeps, request: { id: string }): void {
 /**
  * The one placement endpoint: sets `sessionId`'s placement to exactly one of a swarm, a
  * parent, or none. Checks `sessionId` and the target both exist before calling into
- * `domain/swarms.ts` — a dangling reference must never be writable in the first place —
- * then preserves an existing `successor` field a prior handoff set, since a placement move
- * only ever overwrites `parent`/`swarmId`.
+ * `domain/swarms.ts` — a dangling reference must never be writable in the first place.
  */
 export function placeSession(
   deps: SwarmsDeps,
@@ -119,14 +111,12 @@ export function placeSession(
         : new SwarmCycleError(result.reason);
     }
 
-    const prior = base.placements[request.sessionId];
     const entry: SessionPlacement =
       request.placement.type === 'swarm'
         ? { swarmId: request.placement.swarmId }
         : request.placement.type === 'parent'
           ? { parent: request.placement.parentId }
           : {};
-    if (prior?.successor !== undefined) entry.successor = prior.successor;
 
     return { ...base, placements: { ...base.placements, [request.sessionId]: entry } };
   });
@@ -146,20 +136,15 @@ function isUnplaced(base: OverlayState, id: string): boolean {
 }
 
 /**
- * Mints a fresh swarm and places `id` at its top level, preserving any `successor` a prior
- * handoff already set on it — a placement move never clears that field (see `placeSession`),
- * since it tracks a completed handoff rather than where the session currently sits. Callers
- * check `isUnplaced` first; this always mints unconditionally.
+ * Mints a fresh swarm and places `id` at its top level. Callers check `isUnplaced` first;
+ * this always mints unconditionally.
  */
 function mintSwarmFor(base: OverlayState, id: string, title: string | null): OverlayState {
   const swarmId = randomUUID();
-  const priorSuccessor = base.placements[id]?.successor;
-  const entry: SessionPlacement =
-    priorSuccessor === undefined ? { swarmId } : { swarmId, successor: priorSuccessor };
   return {
     ...base,
     swarms: [...base.swarms, { id: swarmId, name: title ?? 'Untitled swarm', archived: false }],
-    placements: { ...base.placements, [id]: entry },
+    placements: { ...base.placements, [id]: { swarmId } },
   };
 }
 
@@ -167,8 +152,7 @@ function mintSwarmFor(base: OverlayState, id: string, title: string | null): Ove
  * Called right after a new session's tmux process and store entry exist, when its create
  * request named a caller session. Places the child under the caller, creating a swarm for
  * the caller first if it has none yet — one `updateOverlay` call so the swarm-creation,
- * caller-placement, and child-placement writes land atomically, matching the atomicity
- * `handoffSession` above relies on.
+ * caller-placement, and child-placement writes land atomically.
  */
 export function recordSpawn(
   deps: SwarmsDeps,
@@ -190,40 +174,10 @@ export function recordSpawn(
   });
 }
 
-export function handoffSession(deps: SwarmsDeps, request: { fromId: string; toId: string }): void {
-  const callerTitle =
-    deps.projection.sessions().find((session) => session.id === request.fromId)?.title ?? null;
-
-  deps.projection.updateOverlay((base) => {
-    const known = knownSessionIds(deps, base);
-    if (!known.has(request.fromId))
-      throw new SessionNotFoundError(`no such session: ${request.fromId}`);
-    if (!known.has(request.toId))
-      throw new SessionNotFoundError(`no such session: ${request.toId}`);
-
-    // Mint a swarm for the caller first when it isn't placed at all yet — the ordinary
-    // first-handoff case (a top-level session that has never spawned a child or been
-    // placed). Without this, computeHandoff moves `{}` onto the new session: both it and
-    // the caller resolve to no swarm at all, the successor left in Solo.
-    const withSwarm = isUnplaced(base, request.fromId)
-      ? mintSwarmFor(base, request.fromId, callerTitle)
-      : base;
-
-    const result = computeHandoff(withSwarm, request.fromId, request.toId);
-    if (!result.ok) {
-      throw result.code === 'cross-swarm'
-        ? new CrossSwarmHandoffError(result.reason)
-        : new SwarmCycleError(result.reason);
-    }
-
-    return { ...withSwarm, placements: result.placements };
-  });
-}
-
 /**
  * Called once, right after boot replay finishes (`main.ts`) — not an event listener, since
  * pruning only ever needs to run the one time replay has settled what "known" means. Known
- * ids are the same union `placeSession`/`handoffSession` check targets against. Only writes
+ * ids are the same union `placeSession`/`recordSpawn` check targets against. Only writes
  * when pruning actually changed something, so a boot with nothing stale to drop does not
  * touch `uiState()`/its subscribers.
  */

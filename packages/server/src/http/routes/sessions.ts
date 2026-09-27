@@ -16,16 +16,12 @@ import {
 } from '../../app/sessions.js';
 import type { SessionsDeps } from '../../app/sessions.js';
 import type { Logger } from '../../app/ports.js';
-import { CrossSwarmHandoffError, SwarmCycleError } from '../../app/swarms.js';
 
 function isCreateSessionRequest(body: unknown): body is CreateSessionRequest {
   if (typeof body !== 'object' || body === null) return false;
   const record = body as Record<string, unknown>;
   if (typeof record.cwd !== 'string') return false;
-  if (record.callerSessionId !== undefined && typeof record.callerSessionId !== 'string')
-    return false;
-  if (record.handoff !== undefined && typeof record.handoff !== 'boolean') return false;
-  return record.handoffFilePath === undefined || typeof record.handoffFilePath === 'string';
+  return record.callerSessionId === undefined || typeof record.callerSessionId === 'string';
 }
 
 interface SessionsQuerystring {
@@ -101,20 +97,14 @@ function parseSessionsFilter(query: SessionsQuerystring): ParsedFilter {
 
 /** `SessionNotFoundError` is the one case a client can act on (the id is stale) — logged at
  *  `warn`, since a stale id is an expected condition, not the failure this route guards
- *  against. `SwarmCycleError`/`CrossSwarmHandoffError` are `new --handoff` rejections,
- *  mapped to 409 the same way `http/routes/swarms.ts`'s own `sendError` maps them. Every
- *  other failure is an opaque tmux or store error, logged at `error` with its stack (when
- *  it has one) rather than only its message, so root-causing from logs doesn't need to
- *  reproduce the failure to find where it came from; the response body still carries only
- *  the message. */
+ *  against. Every other failure is an opaque tmux or store error, logged at `error` with
+ *  its stack (when it has one) rather than only its message, so root-causing from logs
+ *  doesn't need to reproduce the failure to find where it came from; the response body
+ *  still carries only the message. */
 function sendError(logger: Logger, reply: FastifyReply, error: unknown): FastifyReply {
   if (error instanceof SessionNotFoundError) {
     logger.warn(error.message);
     return reply.code(404).send({ error: error.message } satisfies ErrorResponse);
-  }
-  if (error instanceof SwarmCycleError || error instanceof CrossSwarmHandoffError) {
-    logger.warn(error.message);
-    return reply.code(409).send({ error: error.message } satisfies ErrorResponse);
   }
   const message = error instanceof Error ? error.message : String(error);
   logger.error(error instanceof Error ? (error.stack ?? message) : message);
