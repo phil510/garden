@@ -132,7 +132,16 @@ export async function reconcileTranscripts(
   onStale: (path: string) => Promise<boolean>,
 ): Promise<void> {
   for (const path of await listTranscriptFiles(transcriptsDir, roots)) {
-    const { size, mtimeMs } = await stat(path);
+    let size: number;
+    let mtimeMs: number;
+    try {
+      ({ size, mtimeMs } = await stat(path));
+    } catch {
+      // Vanished between the listing and this stat (session cleanup, a rename) — isolated
+      // the same way reread() isolates its own per-file failures, so one disappeared path
+      // can't stall every other stale file in this batch until the next tick.
+      continue;
+    }
     const known = signatures.get(path);
     if (known && known.size === size && known.mtimeMs === mtimeMs) continue;
     if (await onStale(path)) signatures.set(path, { size, mtimeMs });
@@ -222,20 +231,22 @@ export function watchTranscripts(
   });
 
   const signatures = new Map<string, TranscriptSignature>();
-  let reconciling = false;
+  // Holds the in-flight tick's promise, not just a boolean: close() awaits it below, so a
+  // reconciliation already running when close() is called finishes its dispatches before
+  // close() resolves, rather than racing a dispatch against a closed watcher.
+  let reconciling: Promise<void> | undefined;
   const reconcileTimer = setInterval(() => {
     // Skips this tick rather than queuing — a slow reconciliation pass (many files, a
     // contended disk) should never stack a second one behind it.
     if (reconciling) return;
-    reconciling = true;
-    reconcileTranscripts(transcriptsDir, roots, signatures, reread)
+    reconciling = reconcileTranscripts(transcriptsDir, roots, signatures, reread)
       .catch((error: unknown) => {
         logger.error(
           `transcript reconciliation failed: ${error instanceof Error ? error.message : String(error)}`,
         );
       })
       .finally(() => {
-        reconciling = false;
+        reconciling = undefined;
       });
   }, reconcileMs);
 
@@ -244,6 +255,7 @@ export function watchTranscripts(
     close: async () => {
       clearInterval(reconcileTimer);
       coalescer.clear();
+      await reconciling;
       await watcher.close();
     },
   };
