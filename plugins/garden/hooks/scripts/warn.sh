@@ -10,7 +10,7 @@ shopt -s nullglob
 command -v jq >/dev/null 2>&1 || exit 0
 
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-usage_filter_file="$script_dir/lib/usage-filter.jq"
+usage_filter_file="$script_dir/../../lib/usage-filter.jq"
 
 input=$(cat)
 

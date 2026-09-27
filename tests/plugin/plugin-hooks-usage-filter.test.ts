@@ -1,5 +1,5 @@
 // warn.sh and orchestrate-sessions/scripts/context_tokens.sh share one occupancy definition
-// (plugins/garden/hooks/scripts/lib/usage-filter.jq) rather than each carrying its own copy.
+// (plugins/garden/lib/usage-filter.jq) rather than each carrying its own copy.
 // This pins that sharing: the same fixture transcript must produce the same number out of
 // context_tokens.sh that it produces as warn.sh's pass/no-pass threshold decision — a filter
 // that forked between the two scripts would disagree here without either one erroring.

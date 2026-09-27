@@ -16,7 +16,7 @@ command -v jq >/dev/null || die "jq is not installed"
 # definition — resolved relative to this script's own location so it still finds the filter
 # from the installed plugin cache, regardless of the caller's cwd.
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-usage_filter_file="$script_dir/../../../hooks/scripts/lib/usage-filter.jq"
+usage_filter_file="$script_dir/../../../lib/usage-filter.jq"
 [ -f "$usage_filter_file" ] || die "usage filter not found at $usage_filter_file"
 
 arg=$1
