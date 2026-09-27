@@ -80,6 +80,12 @@ export async function readTranscriptRecord(
 export const DEBOUNCE_MS = 200;
 
 export interface TranscriptWatcher {
+  /** Resolves once chokidar's initial scan of `transcriptsDir` completes and its
+   *  underlying OS watch is armed. Production has no immediate-write race to guard —
+   *  Claude Code's own writes always arrive well after startup — but a test that writes
+   *  right after calling `watchTranscripts` needs this barrier, or the write can land
+   *  before the watch exists to see it. */
+  ready: Promise<void>;
   close(): Promise<void>;
 }
 
@@ -147,10 +153,12 @@ export function watchTranscripts(
   const watcher = watch(transcriptsDir, {
     ignored: (path) => !isWatchedPath(transcriptsDir, roots, path),
   });
+  const ready = new Promise<void>((resolve) => watcher.once('ready', resolve));
   watcher.on('add', scheduleReread);
   watcher.on('change', scheduleReread);
 
   return {
+    ready,
     close: async () => {
       for (const timer of timers.values()) clearTimeout(timer);
       timers.clear();

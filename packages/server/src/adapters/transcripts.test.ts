@@ -188,6 +188,7 @@ describe('watchTranscripts', () => {
         20,
       );
       try {
+        await watcher.ready;
         writeProjectFile(home, root, 'session-a', HEAD_LINE('session-a') + '\n');
         await until(
           () => events,
@@ -213,6 +214,7 @@ describe('watchTranscripts', () => {
         20,
       );
       try {
+        await watcher.ready;
         writeProjectFile(
           home,
           '/Users/phil/Downloads/scratch',
@@ -245,6 +247,7 @@ describe('watchTranscripts', () => {
         20,
       );
       try {
+        await watcher.ready;
         const dir = join(home, '.claude', 'projects', slugify(root));
         mkdirSync(join(dir, 'session-a', 'subagents'), { recursive: true });
         writeFileSync(
@@ -318,6 +321,7 @@ describe('watchTranscripts', () => {
         20,
       );
       try {
+        await watcher.ready;
         const path = writeProjectFile(
           home,
           root,
