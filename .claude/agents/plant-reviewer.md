@@ -141,9 +141,11 @@ decides whether a fix round runs at all.
    - `george-orwell` — prose / docs / PR body clarity
    - `richard-feynman` — "is this the right mental model"
 
-   A lens that fits neither slot 2 nor slot 3 this round isn't lost —
-   it's covered by your own second read of the diff in step 6, not by
-   a fourth dispatch.
+   A lens that fits neither slot 2 nor slot 3 this round is dropped,
+   not covered — no later step re-checks its blind spot, and a fourth
+   dispatch isn't the fix either. That's the accepted cost of the cap,
+   disclosed rather than mitigated; loosen the cap if it costs a real
+   finding in practice.
 
    **Scaling.** On a `Size: small` brief, `code-reviewer` alone at
    `sonnet` is the whole review. On a standard brief, fill slots 1 and
