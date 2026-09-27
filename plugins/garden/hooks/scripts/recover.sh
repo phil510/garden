@@ -17,7 +17,10 @@ scratchpad_dir=$(printf '%s' "$input" | jq -r '.scratchpad_dir // empty' 2>/dev/
 if [ -z "$scratchpad_dir" ]; then
   session_id=$(printf '%s' "$input" | jq -r '.session_id // empty' 2>/dev/null)
   if [ -n "$session_id" ]; then
-    for candidate in /private/tmp/claude-*/*/"$session_id"/scratchpad; do
+    # GARDEN_HOOKS_GLOB_ROOT lets tests point this at a hermetic directory instead of the real
+    # /private/tmp; unset in production, where the default is the real scratchpad root.
+    glob_root=${GARDEN_HOOKS_GLOB_ROOT:-/private/tmp}
+    for candidate in "$glob_root"/claude-*/*/"$session_id"/scratchpad; do
       [ -d "$candidate" ] || continue
       scratchpad_dir=$candidate
       break

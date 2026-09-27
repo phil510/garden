@@ -1,11 +1,12 @@
 // Exercises plugins/garden/hooks/scripts/recover.sh as a real subprocess — see
 // plugin-hooks-warn.test.ts and docs/testing.md for why these run as subprocesses rather than
 // through a mocked execFile.
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   cleanupTempDirs,
+  GLOB_ROOT_ENV,
   markerExists,
   markerPath,
   parseHookOutput,
@@ -13,6 +14,7 @@ import {
   RECOVER_SH,
   runScript,
   statusFilePath,
+  tempGlobRoot,
   tempScratchpad,
   usageLine,
   WARN_SH,
@@ -109,27 +111,29 @@ describe('plugins/garden/hooks/scripts/recover.sh', () => {
     expect(result.stdout).toBe('');
   });
 
-  it('falls back to globbing /private/tmp/claude-*/*/<session_id>/scratchpad when scratchpad_dir is absent', () => {
+  it('falls back to globbing <root>/claude-*/*/<session_id>/scratchpad when scratchpad_dir is absent', () => {
     // Mirrors plugin-hooks-warn.test.ts's positive glob-fallback test: recover.sh carries its
     // own byte-for-byte copy of the same resolution logic, and every other test in this file
     // passes scratchpad_dir explicitly, so only this test proves recover.sh's copy actually
     // resolves a real directory rather than just handling the "no match" case.
+    const globRoot = tempGlobRoot();
     const sessionId = `garden-hooks-test-glob-${process.pid}-${Date.now()}`;
-    const root = join('/private/tmp', `claude-garden-hooks-test-${process.pid}-${Date.now()}`);
-    const scratchpad = join(root, 'encoded-project', sessionId, 'scratchpad');
-    try {
-      mkdirSync(scratchpad, { recursive: true });
-      writeFileSync(markerPath(scratchpad), '');
-      writeFileSync(statusFilePath(scratchpad), 'Goal: prove the glob fallback resolves\n');
+    const scratchpad = join(
+      globRoot,
+      'claude-garden-hooks-test',
+      'encoded-project',
+      sessionId,
+      'scratchpad',
+    );
+    mkdirSync(scratchpad, { recursive: true });
+    writeFileSync(markerPath(scratchpad), '');
+    writeFileSync(statusFilePath(scratchpad), 'Goal: prove the glob fallback resolves\n');
 
-      const result = runRecover({ session_id: sessionId });
+    const result = runRecover({ session_id: sessionId }, { [GLOB_ROOT_ENV]: globRoot });
 
-      expect(result.code).toBe(0);
-      expect(result.stdout).toContain('Goal: prove the glob fallback resolves');
-      expect(existsSync(markerPath(scratchpad))).toBe(false);
-    } finally {
-      rmSync(root, { recursive: true, force: true });
-    }
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain('Goal: prove the glob fallback resolves');
+    expect(existsSync(markerPath(scratchpad))).toBe(false);
   });
 
   it('re-arms the warning: a warn.sh call after recover.sh has cleared the marker warns again', () => {

@@ -23,6 +23,19 @@ export function tempScratchpad(): string {
   return dir;
 }
 
+/** Env var name the scripts check to override their default `/private/tmp` glob root — see
+ * plugins/garden/hooks/scripts/{warn,recover}.sh. */
+export const GLOB_ROOT_ENV = 'GARDEN_HOOKS_GLOB_ROOT';
+
+/** A hermetic stand-in for the scripts' default `/private/tmp` glob root, so the glob-fallback
+ * tests don't need to write under the real system tmp root — which a non-macOS CI runner may
+ * not permit. Auto-cleaned via cleanupTempDirs(). */
+export function tempGlobRoot(): string {
+  const dir = mkdtempSync(join(tmpdir(), 'garden-hooks-test-root-'));
+  tempDirs.push(dir);
+  return dir;
+}
+
 export function cleanupTempDirs(): void {
   while (tempDirs.length > 0) {
     const dir = tempDirs.pop();

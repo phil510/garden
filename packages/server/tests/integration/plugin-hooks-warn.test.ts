@@ -1,16 +1,18 @@
 // Exercises plugins/garden/hooks/scripts/warn.sh as a real subprocess against fixture
 // transcripts and a per-test temp scratchpad — see docs/testing.md: execFile is never mocked,
 // so the argument-building and guard logic here can only be proven by actually running it.
-import { existsSync, mkdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   cleanupTempDirs,
   fillerLines,
+  GLOB_ROOT_ENV,
   markerExists,
   parseHookOutput,
   pathWithoutJq,
   runScript,
+  tempGlobRoot,
   tempScratchpad,
   usageLine,
   WARN_SH,
@@ -169,27 +171,31 @@ describe('plugins/garden/hooks/scripts/warn.sh', () => {
     expect(result.stdout).toBe('');
   });
 
-  it('falls back to globbing /private/tmp/claude-*/*/<session_id>/scratchpad when scratchpad_dir is absent', () => {
-    // The glob fallback is hardcoded to /private/tmp/claude-*/*/<session_id>/scratchpad, so
-    // this test builds a real path of that exact shape rather than using the generic temp dir
-    // the other tests pass explicitly via scratchpad_dir.
+  it('falls back to globbing <root>/claude-*/*/<session_id>/scratchpad when scratchpad_dir is absent', () => {
+    // The glob fallback matches <root>/claude-*/*/<session_id>/scratchpad (root defaults to
+    // /private/tmp; GLOB_ROOT_ENV points it at a hermetic dir here), so this test builds a real
+    // path of that exact shape rather than using the generic temp dir the other tests pass
+    // explicitly via scratchpad_dir.
+    const globRoot = tempGlobRoot();
     const sessionId = `garden-hooks-test-glob-${process.pid}-${Date.now()}`;
-    // Nested directly under /private/tmp, matching the script's literal glob shape
-    // (claude-*/*/<session_id>/scratchpad) — the fixture's own top-level dir IS the "claude-*"
-    // segment, so cleanup removes exactly that one directory rather than sharing /private/tmp.
-    const root = join('/private/tmp', `claude-garden-hooks-test-${process.pid}-${Date.now()}`);
-    const scratchpad = join(root, 'encoded-project', sessionId, 'scratchpad');
-    try {
-      mkdirSync(scratchpad, { recursive: true });
-      const transcript = writeTranscript(scratchpad, [usageLine(200000)]);
+    // The "claude-*" and "*" segments the glob expects, nested under the hermetic root.
+    const scratchpad = join(
+      globRoot,
+      'claude-garden-hooks-test',
+      'encoded-project',
+      sessionId,
+      'scratchpad',
+    );
+    mkdirSync(scratchpad, { recursive: true });
+    const transcript = writeTranscript(scratchpad, [usageLine(200000)]);
 
-      const result = runWarn({ session_id: sessionId, transcript_path: transcript });
+    const result = runWarn(
+      { session_id: sessionId, transcript_path: transcript },
+      { [GLOB_ROOT_ENV]: globRoot },
+    );
 
-      expect(result.code).toBe(0);
-      expect(parseHookOutput(result.stdout).hookSpecificOutput.hookEventName).toBe('PostToolUse');
-      expect(existsSync(join(scratchpad, '.compaction-warned'))).toBe(true);
-    } finally {
-      rmSync(root, { recursive: true, force: true });
-    }
+    expect(result.code).toBe(0);
+    expect(parseHookOutput(result.stdout).hookSpecificOutput.hookEventName).toBe('PostToolUse');
+    expect(existsSync(join(scratchpad, '.compaction-warned'))).toBe(true);
   });
 });
