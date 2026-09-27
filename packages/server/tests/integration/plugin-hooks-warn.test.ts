@@ -92,6 +92,42 @@ describe('plugins/garden/hooks/scripts/warn.sh', () => {
     expect(markerExists(scratchpad)).toBe(true);
   });
 
+  it('governs occupancy by the last assistant usage line, not the first', () => {
+    // Early line is below threshold, later line is above it. Summing the two lines (210000)
+    // or taking the first (20000) would both disagree with taking the last (190000) — this
+    // is the direction that rules out "first line wins".
+    const scratchpad = tempScratchpad();
+    const transcript = writeTranscript(scratchpad, [usageLine(20000), usageLine(190000)]);
+
+    const result = runWarn({
+      session_id: 's-last-not-first',
+      transcript_path: transcript,
+      scratchpad_dir: scratchpad,
+    });
+
+    expect(result.code).toBe(0);
+    expect(parseHookOutput(result.stdout).hookSpecificOutput.hookEventName).toBe('PostToolUse');
+    expect(markerExists(scratchpad)).toBe(true);
+  });
+
+  it('governs occupancy by the last assistant usage line, not a sum over all lines', () => {
+    // Early line is above threshold, later line is below it. Summing the two lines (210000)
+    // would fire; taking the first (190000) would also fire; only taking the last (20000)
+    // stays quiet — this is the direction that rules out "sum of all lines".
+    const scratchpad = tempScratchpad();
+    const transcript = writeTranscript(scratchpad, [usageLine(190000), usageLine(20000)]);
+
+    const result = runWarn({
+      session_id: 's-last-not-sum',
+      transcript_path: transcript,
+      scratchpad_dir: scratchpad,
+    });
+
+    expect(result.code).toBe(0);
+    expect(result.stdout).toBe('');
+    expect(markerExists(scratchpad)).toBe(false);
+  });
+
   it('exits 0 silently when jq is not installed', () => {
     const scratchpad = tempScratchpad();
     const transcript = writeTranscript(scratchpad, [usageLine(200000)]);
