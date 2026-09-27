@@ -47,23 +47,16 @@ anything.
 Check `GARDEN_SESSION_ID` is set in your own environment before that first spawn — a session
 started by an older garden, or never started by garden at all, has it unset. `garden new` still exits 0
 and returns a normal `{id, tmuxName}` in that case, but records no parent: the peer lands in Solo,
-untracked, and `garden adopt`/`garden handoff --to` on it exit 1 (`GARDEN_SESSION_ID is not set`),
-since those verbs read the same variable from the caller. If it's unset, say so before dispatching
-rather than spawning peers you can't later adopt or hand off — the user can group them by hand in
-the web console, or you can be restarted from garden so a fresh session picks the variable up.
+untracked, and `garden adopt` on it exits 1 (`GARDEN_SESSION_ID is not set`), since that verb
+reads the same variable from the caller. If it's unset, say so before dispatching rather than
+spawning peers you can't later adopt — the user can group them by hand in the web console, or you
+can be restarted from garden so a fresh session picks the variable up.
 
 Reach for `garden adopt <id> --json` instead when the session already exists and wasn't spawned
 under you — one a teammate started, or one that predates your own `GARDEN_SESSION_ID` — to place
 it under you after the fact. Brief it the same way you would a fresh spawn (run folder path,
 member-file name, report contract) — tell the peer its member file is `<its own $GARDEN_SESSION_ID>.md`,
 the same id you just adopted it with; adoption changes who placed the session, not what it owes the run.
-
-**Don't add `--handoff` to the command above expecting an enhanced spawn.** It reads like a flag
-on the same call, but it does the opposite of ordinary dispatch: instead of placing the new peer
-under you, it moves _your own_ `parent`/`swarmId`/children onto the new session and leaves you a
-leaf with `successor` set — the exit code and `{id, tmuxName}` shape are identical either way, so
-nothing at the call site catches the mix-up. That's the self-succession move covered under
-"Winding down" below; reach for it only to end your own run, never to spawn an ordinary peer.
 
 Give a peer somewhere of its own to work: a worktree per task, not a shared checkout. Two sessions
 in one working directory fight over the index and the branch, and neither will report that as the
@@ -179,10 +172,9 @@ the id outlives a kill-then-resume and the `/clear`-driven identity change "Two 
 above describes, where the tmux name and the messaging name do not. You already have it — from
 `garden new --json`'s `id` field, `garden ls`, or the id you passed to `garden adopt` — so there's
 nothing to assign or check for collisions. Open the file with a line naming the member's task, so
-a folder of ids stays readable. On a handoff the successor is a new session with its own id: it
-starts its own file, and the predecessor's stays as its last snapshot. It's a short snapshot of
-that member's goal, decisions, state, and next step — updated at milestones (assignment accepted,
-a material decision, a blocker, completion), not every turn.
+a folder of ids stays readable. It's a short snapshot of that member's goal, decisions, state, and
+next step — updated at milestones (assignment accepted, a material decision, a blocker,
+completion), not every turn.
 
 After a compaction, reread `run.md` and every member's file before acting — they're the head start
 that survived what your own context didn't.
@@ -276,7 +268,8 @@ and prints current occupancy in tokens. A number that drops means the session sh
 that it is healthier.
 
 Report a high number to your user with the session's name and what it is working on, and let them
-decide; handing off to a fresh session is their call. There is no threshold that means "act" —
+decide; compacting in place, or starting a fresh session to pick up from the run folder, is their
+call. There is no threshold that means "act" —
 the right number depends on the model behind that session, on whether subagents carry most of the work, and on how
 close the task is to done.
 
@@ -294,22 +287,7 @@ resume. An unanswered gate stalls indefinitely and nothing will tell you. So kil
 not on ceremony: a peer that reported done is evidence, and so is your user saying kill it. Only
 when nothing has reported and the status is ambiguous do you read `recap` or ask.
 
-That's winding down a peer. Replacing _yourself_ — while your swarm keeps running — is a
-different move: `garden handoff --to <id>` when an existing session should take over, or `garden
-new <dir> --handoff --json` to spin up a fresh one. Either way the whole swarm transfers in one
-call — your `parent`/`swarmId` moves to the new session, your children move with it, and you get
-`successor` set — instead of leaving your children parentless. Both verbs act on the _calling_
-session's own place (they read your own `GARDEN_SESSION_ID`): this is something you do to end
-your own run, never something you do to a peer.
-
-If you've also written a `.handoffs/*.md` file for the successor (`session-handoff`), add
-`--handoff-file <path>` to the same `garden new --handoff` call — the new session's first prompt
-becomes a continue-from-handoff prompt that `session-pickup`'s own trigger picks up automatically,
-no separate invocation needed. `garden handoff --to` has no file-carrying counterpart: it targets a
-session that already exists, so point it at the handoff yourself in the message you send.
-
-Winding down one peer or replacing yourself both leave the run folder in place: other members still
-need their files, and a peer mid-write to its own has no way to know it just disappeared. Remove
-`.orchestration/<run>/` only once every member is wound down, no successor is taking over, and you
-are ending your own run too — with the whole swarm gone, nothing left will read the folder or
-clean it up.
+Winding down a peer leaves the run folder in place: other members still need their files, and a
+peer mid-write to its own has no way to know it just disappeared. Remove `.orchestration/<run>/`
+only once every member is wound down and you are ending your own run too — with the whole swarm
+gone, nothing left will read the folder or clean it up.
