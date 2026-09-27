@@ -121,9 +121,10 @@ export function createCoalescer(run: (key: string) => void, debounceMs: number) 
  * `onStale` for any path that's new or whose `(size, mtimeMs)` no longer matches what was
  * last cached — the reconciliation backstop for whatever the native watch missed (chokidar
  * scans a newly created directory before it registers that directory's own watch handle, so
- * a rapid write can land in that gap and never produce a native event again). Caches a
- * signature only once `onStale` reports success, so a failed read retries on the next call
- * rather than being marked seen.
+ * a rapid write can land in that gap and never produce a native event again). `signatures` is
+ * shared with the native watch path, and `onStale` owns recording its own success there — this
+ * function only decides whether to call it — so the cache reflects whichever path last read a
+ * file, not only this backstop's own reads.
  */
 export async function reconcileTranscripts(
   transcriptsDir: string,
@@ -144,7 +145,7 @@ export async function reconcileTranscripts(
     }
     const known = signatures.get(path);
     if (known && known.size === size && known.mtimeMs === mtimeMs) continue;
-    if (await onStale(path)) signatures.set(path, { size, mtimeMs });
+    await onStale(path);
   }
 }
 
@@ -195,10 +196,13 @@ export function watchTranscripts(
   // use, but a garden started before that has nothing to attach a watch to otherwise.
   mkdirSync(transcriptsDir, { recursive: true });
   const warnedFiles = new Set<string>();
+  const signatures = new Map<string, TranscriptSignature>();
 
   // Resolves true/false rather than void so a caller — here, the reconciliation backstop
-  // below — can tell whether to cache a signature for this path; the coalescer's own call
-  // site still fires and forgets, same as before.
+  // below — can tell whether this call did its own read; the coalescer's own call site still
+  // fires and forgets, same as before. Every successful read records its own signature,
+  // regardless of which path (native watch or reconciliation) triggered it, so the two share
+  // one accurate cache instead of only reconciliation's own reads being remembered.
   async function reread(path: string): Promise<boolean> {
     let parsed: TranscriptParse;
     try {
@@ -213,6 +217,12 @@ export function watchTranscripts(
       logger.warn(`skipped ${skipped} unparseable line(s) in ${path}`);
     }
     onEvent({ type: 'transcript-changed', path, record });
+    try {
+      signatures.set(path, await stat(path));
+    } catch {
+      // Vanished between the read that just succeeded and this stat — reconciliation's own
+      // listing on its next tick will simply no longer include it either.
+    }
     return true;
   }
 
@@ -230,7 +240,6 @@ export function watchTranscripts(
     logger.error(`transcript watcher error: ${(error as Error).message}`);
   });
 
-  const signatures = new Map<string, TranscriptSignature>();
   // Holds the in-flight tick's promise, not just a boolean: close() awaits it below, so a
   // reconciliation already running when close() is called finishes its dispatches before
   // close() resolves, rather than racing a dispatch against a closed watcher.

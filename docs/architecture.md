@@ -166,7 +166,8 @@ limitation.
 
 The watcher itself does carry one reconciliation of its own: alongside chokidar's native watch,
 it runs a periodic rescan (every ~10s) that diffs every in-scope transcript file's `(size,
-mtimeMs)` against what it last read and rereads anything new or changed. This backstops a real
+mtimeMs)` against what was last read — by either path, since a native-watch read and a
+reconciliation read share one cache — and rereads anything new or changed. This backstops a real
 gap in chokidar's own guarantees — its `'ready'` event proves the transcripts directory's own
 watch is registered, but not that every session subdirectory's watch is armed too, because
 chokidar scans a newly created directory's contents before it registers that directory's own
