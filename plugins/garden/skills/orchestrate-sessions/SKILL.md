@@ -54,7 +54,9 @@ the web console, or you can be restarted from garden so a fresh session picks th
 
 Reach for `garden adopt <id> --json` instead when the session already exists and wasn't spawned
 under you — one a teammate started, or one that predates your own `GARDEN_SESSION_ID` — to place
-it under you after the fact.
+it under you after the fact. Brief it the same way you would a fresh spawn (run folder path,
+member-file name, report contract) — adoption changes who placed the session, not what it owes
+the run.
 
 **Don't add `--handoff` to the command above expecting an enhanced spawn.** It reads like a flag
 on the same call, but it does the opposite of ordinary dispatch: instead of placing the new peer
@@ -71,10 +73,10 @@ cause of whatever breaks.
 finishes, and immediately if blocked, with a pointer to the result, its state, and what it needs
 from you. Spell your own name out; the peer cannot derive it. Without that contract a peer goes
 silent on completion or returns the whole story. Include the run folder's absolute path too, plus
-the peer's own tmux name from `garden new`'s `{id, tmuxName}` return — the peer has no other way
-to learn it, and needs it to name its own file — and tell the peer to maintain that file at
-milestones. See "Write the run down" below for what that means. `message-session` covers the rest
-of the brief.
+a name you pick for that member's file — a short label for its task or role, not derived from its
+tmux or messaging name (both can change under it; see "Write the run down" below for why that
+matters) — and tell the peer to maintain `<that name>.md` at milestones. `message-session` covers
+the rest of the brief.
 
 **Settle merge/approval policy in the brief.** Naming the approver and the merge policy before
 the peer starts is what keeps an `ask`-style gate from stalling later. Relaying an
@@ -171,14 +173,20 @@ small enough that updating it never becomes a task of its own, and means a chang
 something. It follows that the file is only as current as your last write — a head start for a
 session picking the run up, not live status.
 
-`<session-name>.md` belongs to one member and no one else writes it. Name it after the session's
-garden/tmux name, not its Claude Code messaging name (see "Two naming systems" above): the
-messaging name changes on every resume, so a peer whose context fills and gets resumed comes back
-under a different messaging name and, named that way, would either lose its own file or fork a new
-one. The tmux name doesn't change across a resume, and you already have it from `garden new`'s
-return — pass it to the peer in the brief (see "Dispatch" above) so it knows what to call its own
-file. It's a short snapshot of that member's goal, decisions, state, and next step — updated at
-milestones (assignment accepted, a material decision, a blocker, completion), not every turn.
+`<member-name>.md` belongs to one member and no one else writes it. Pick that name yourself when
+you dispatch, as a short label for the member's task or role (`160-launch-commands`, not
+`79-bounded-session-list`) — anything but a name the runtime hands out, because every runtime name
+can move out from under the file. The messaging name changes on every resume (see "Two naming
+systems" above). The garden/tmux name usually survives a resume too, but only when a live pane is
+still there to reclaim it; kill a session first and `garden resume` instead derives a fresh one, so
+a file named after it goes orphaned by the same kill-then-resume this skill already treats as
+routine (see "Winding down" below). Self-succession hands the role to a session with a new
+identity on every count, tmux name included. A label you assigned yourself sidesteps all three,
+since it was never tied to the session's runtime identity to begin with: give it to the member in
+the brief, and — on a handoff — to the successor in the same message, so the file keeps its one
+writer across the swap. It's a short snapshot of that member's goal, decisions, state, and next
+step — updated at milestones (assignment accepted, a material decision, a blocker, completion), not
+every turn.
 
 After a compaction, reread `run.md` and every member's file before acting — they're the head start
 that survived what your own context didn't.
