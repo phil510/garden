@@ -55,8 +55,8 @@ the web console, or you can be restarted from garden so a fresh session picks th
 Reach for `garden adopt <id> --json` instead when the session already exists and wasn't spawned
 under you — one a teammate started, or one that predates your own `GARDEN_SESSION_ID` — to place
 it under you after the fact. Brief it the same way you would a fresh spawn (run folder path,
-report contract). Its member file is already named by the `<id>` you just adopted it with —
-adoption changes who placed the session, not what it owes the run.
+member-file name, report contract) — tell the peer its member file is `<its own $GARDEN_SESSION_ID>.md`,
+the same id you just adopted it with; adoption changes who placed the session, not what it owes the run.
 
 **Don't add `--handoff` to the command above expecting an enhanced spawn.** It reads like a flag
 on the same call, but it does the opposite of ordinary dispatch: instead of placing the new peer
