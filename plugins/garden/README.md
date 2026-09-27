@@ -5,6 +5,12 @@ through garden's CLI, `message-session` resolves a session's messaging address, 
 writes a `.handoffs/*.md` context file for a future session, and `session-pickup` consumes one.
 Installed from the marketplace manifest at the repo root, `.claude-plugin/marketplace.json`.
 
+It also ships two hooks (`hooks/hooks.json`), active as soon as the plugin is enabled — no
+configuration needed. A `PostToolUse` hook warns once per compaction cycle when the session's
+context reaches 175K tokens, asking the agent to write a `compaction-status.md` in its
+scratchpad. A `SessionStart` hook fires right after compaction and injects that file back into
+context, so the agent picks up with a summary of its own prior state instead of nothing.
+
 ## There is no `version` field, on purpose
 
 Neither `.claude-plugin/plugin.json` nor the marketplace entry declares a `version`. Claude Code
