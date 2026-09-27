@@ -327,6 +327,36 @@ describe('watchTranscripts', () => {
     });
   });
 
+  it('collapses two native events for the same path fired before the debounce settles into a single re-read', async () => {
+    await withTempHome(async (home) => {
+      const root = '/Users/phil/Desktop/Extend/garden';
+      const fake = useFakeChokidar();
+
+      const events: TranscriptChangedEvent[] = [];
+      const watcher = watchTranscripts(
+        transcriptsDirFor(home),
+        [root],
+        (event) => events.push(event),
+        silentLogger(),
+        20,
+      );
+      try {
+        const path = writeProjectFile(home, root, 'session-a', HEAD_LINE('session-a') + '\n');
+        // Both fire in the same tick, before the first schedule()'s timer has a chance to run —
+        // if watcher.on bypassed the coalescer and called reread() directly, this would produce
+        // two dispatches instead of one.
+        fake.emit('add', path);
+        fake.emit('change', path);
+
+        await vi.waitFor(() => expect(events).toHaveLength(1));
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        expect(events).toHaveLength(1);
+      } finally {
+        await watcher.close();
+      }
+    });
+  });
+
   it("logs the watcher's error events instead of swallowing them", async () => {
     await withTempHome(async (home) => {
       const root = '/Users/phil/Desktop/Extend/garden';
