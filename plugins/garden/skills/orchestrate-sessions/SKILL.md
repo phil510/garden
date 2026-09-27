@@ -299,3 +299,8 @@ If you've also written a `.handoffs/*.md` file for the successor (`session-hando
 becomes a continue-from-handoff prompt that `session-pickup`'s own trigger picks up automatically,
 no separate invocation needed. `garden handoff --to` has no file-carrying counterpart: it targets a
 session that already exists, so point it at the handoff yourself in the message you send.
+
+Winding down one peer or replacing yourself both leave the run folder in place — the swarm is still
+running and other members still need their files. Only when the whole swarm winds down, with no
+successor to hand it to, remove `.orchestration/<run>/`: nothing left in the run needs it, and
+nothing else will clean it up.
