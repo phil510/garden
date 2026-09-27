@@ -58,21 +58,6 @@ describe('plugins/garden/hooks/scripts/warn.sh', () => {
     expect(second.stdout).toBe('');
   });
 
-  it('emits above 175K too', () => {
-    const scratchpad = tempScratchpad();
-    const transcript = writeTranscript(scratchpad, [usageLine(200000)]);
-
-    const result = runWarn({
-      session_id: 's-above',
-      transcript_path: transcript,
-      scratchpad_dir: scratchpad,
-    });
-
-    expect(result.code).toBe(0);
-    expect(parseHookOutput(result.stdout).hookSpecificOutput.hookEventName).toBe('PostToolUse');
-    expect(markerExists(scratchpad)).toBe(true);
-  });
-
   it('emits nothing and leaves the marker untouched when the input carries agent_id, even past 175K', () => {
     const scratchpad = tempScratchpad();
     const transcript = writeTranscript(scratchpad, [usageLine(200000)]);

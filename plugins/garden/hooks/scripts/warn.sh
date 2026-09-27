@@ -55,18 +55,21 @@ last_usage_in() {
 
 # This hook runs on every tool call, so read only the transcript's tail rather than the whole
 # file. But a bounded tail is an unverified assumption about how large one assistant turn's
-# JSONL line can get, and if the window is ever too small it must not silently read as "no
-# tokens found yet" — that would make the warning permanently and invisibly dead. So a tail
-# that yields nothing gets one retry against the whole file before this concludes there is
-# genuinely no assistant turn yet.
+# JSONL line can get (Claude Code's docs decline to fix the format), so a tail that yields no
+# match gets one retry against the whole file before this concludes there is genuinely no
+# assistant turn yet, rather than silently reading that as "below threshold".
 tokens=$(tail -n 50 "$transcript" 2>/dev/null | last_usage_in)
 if [ -z "$tokens" ]; then
   tokens=$(last_usage_in < "$transcript")
 fi
 [ -n "$tokens" ] || exit 0
 
+# usage_filter's arithmetic can only ever emit a number, but guard it anyway: a non-numeric
+# value reaching the `-ge` test below would make bash print an "integer expression expected"
+# diagnostic to stderr, which breaks this hook's exit-0-silently contract even though the exit
+# code itself would still be 0.
 case "$tokens" in
-  '' | *[!0-9]*) exit 0 ;;
+  *[!0-9]*) exit 0 ;;
 esac
 [ "$tokens" -ge 175000 ] || exit 0
 
