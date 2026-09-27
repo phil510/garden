@@ -79,6 +79,14 @@ export async function readTranscriptRecord(
 /** Coalesces the run of writes one turn produces on disk into a single re-read. */
 export const DEBOUNCE_MS = 200;
 
+/** How often the reconciliation backstop rescans for files the native watch missed. */
+export const RECONCILE_MS = 10_000;
+
+export interface TranscriptSignature {
+  size: number;
+  mtimeMs: number;
+}
+
 /**
  * Collapses repeated `schedule(key)` calls into a single `run(key)` once `debounceMs`
  * has passed with no further call for that key — restarting the wait on every call,
@@ -108,12 +116,38 @@ export function createCoalescer(run: (key: string) => void, debounceMs: number) 
   };
 }
 
+/**
+ * Diffs a fresh listing of in-scope transcript files against `signatures` and invokes
+ * `onStale` for any path that's new or whose `(size, mtimeMs)` no longer matches what was
+ * last cached — the reconciliation backstop for whatever the native watch missed (chokidar
+ * scans a newly created directory before it registers that directory's own watch handle, so
+ * a rapid write can land in that gap and never produce a native event again). Caches a
+ * signature only once `onStale` reports success, so a failed read retries on the next call
+ * rather than being marked seen.
+ */
+export async function reconcileTranscripts(
+  transcriptsDir: string,
+  roots: readonly string[],
+  signatures: Map<string, TranscriptSignature>,
+  onStale: (path: string) => Promise<boolean>,
+): Promise<void> {
+  for (const path of await listTranscriptFiles(transcriptsDir, roots)) {
+    const { size, mtimeMs } = await stat(path);
+    const known = signatures.get(path);
+    if (known && known.size === size && known.mtimeMs === mtimeMs) continue;
+    if (await onStale(path)) signatures.set(path, { size, mtimeMs });
+  }
+}
+
 export interface TranscriptWatcher {
-  /** Resolves once chokidar's initial scan of `transcriptsDir` completes and its
-   *  underlying OS watch is armed. Production has no immediate-write race to guard —
-   *  Claude Code's own writes always arrive well after startup — but a test that writes
-   *  right after calling `watchTranscripts` needs this barrier, or the write can land
-   *  before the watch exists to see it. */
+  /** Resolves once `transcriptsDir`'s own native watch is registered — not that every
+   *  subdirectory's watch is armed too. chokidar scans a newly created directory's
+   *  contents before it registers *that directory's own* watch handle, so a write
+   *  landing in that narrower window can still go unseen; the reconciliation backstop
+   *  below is what covers that gap. Production has no immediate-write race this barrier
+   *  needs to guard — Claude Code's own writes always arrive well after startup — but a
+   *  test that writes right after calling `watchTranscripts` needs it, or the write can
+   *  land before `transcriptsDir`'s watch exists to see it. */
   ready: Promise<void>;
   close(): Promise<void>;
 }
@@ -146,19 +180,23 @@ export function watchTranscripts(
   onEvent: (event: Extract<GardenEvent, { type: 'transcript-changed' }>) => void,
   logger: TranscriptLogger,
   debounceMs = DEBOUNCE_MS,
+  reconcileMs = RECONCILE_MS,
 ): TranscriptWatcher {
   // fs.watch needs the directory to already exist; Claude Code creates it on first
   // use, but a garden started before that has nothing to attach a watch to otherwise.
   mkdirSync(transcriptsDir, { recursive: true });
   const warnedFiles = new Set<string>();
 
-  async function reread(path: string): Promise<void> {
+  // Resolves true/false rather than void so a caller — here, the reconciliation backstop
+  // below — can tell whether to cache a signature for this path; the coalescer's own call
+  // site still fires and forgets, same as before.
+  async function reread(path: string): Promise<boolean> {
     let parsed: TranscriptParse;
     try {
       parsed = await readTranscriptRecord(path);
     } catch (error) {
       logger.error(`failed to read transcript ${path}: ${(error as Error).message}`);
-      return;
+      return false;
     }
     const { record, skipped } = parsed;
     if (skipped > 0 && !warnedFiles.has(path)) {
@@ -166,6 +204,7 @@ export function watchTranscripts(
       logger.warn(`skipped ${skipped} unparseable line(s) in ${path}`);
     }
     onEvent({ type: 'transcript-changed', path, record });
+    return true;
   }
 
   const coalescer = createCoalescer((path) => void reread(path), debounceMs);
@@ -176,10 +215,34 @@ export function watchTranscripts(
   const ready = new Promise<void>((resolve) => watcher.once('ready', resolve));
   watcher.on('add', (path) => coalescer.schedule(path));
   watcher.on('change', (path) => coalescer.schedule(path));
+  // Otherwise silent: an EMFILE under fd pressure produces the same "ready, then no more
+  // events" signature as the missed-directory-watch gap the backstop below covers.
+  watcher.on('error', (error) => {
+    logger.error(`transcript watcher error: ${(error as Error).message}`);
+  });
+
+  const signatures = new Map<string, TranscriptSignature>();
+  let reconciling = false;
+  const reconcileTimer = setInterval(() => {
+    // Skips this tick rather than queuing — a slow reconciliation pass (many files, a
+    // contended disk) should never stack a second one behind it.
+    if (reconciling) return;
+    reconciling = true;
+    reconcileTranscripts(transcriptsDir, roots, signatures, reread)
+      .catch((error: unknown) => {
+        logger.error(
+          `transcript reconciliation failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      })
+      .finally(() => {
+        reconciling = false;
+      });
+  }, reconcileMs);
 
   return {
     ready,
     close: async () => {
+      clearInterval(reconcileTimer);
       coalescer.clear();
       await watcher.close();
     },

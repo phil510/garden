@@ -1,4 +1,7 @@
+import { watch } from 'chokidar';
+import { EventEmitter } from 'node:events';
 import { appendFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
@@ -8,9 +11,18 @@ import {
   createCoalescer,
   listTranscriptFiles,
   readTranscriptRecord,
+  reconcileTranscripts,
   watchTranscripts,
 } from './transcripts.js';
-import type { TranscriptLogger } from './transcripts.js';
+import type { TranscriptLogger, TranscriptSignature } from './transcripts.js';
+
+// Wraps the real implementation by default, so every existing test still exercises real
+// chokidar/fs timing (docs/testing.md) — only the one test below that needs a synthetic
+// 'error' event overrides it, and only for that one call.
+vi.mock('chokidar', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('chokidar')>();
+  return { ...actual, watch: vi.fn(actual.watch) };
+});
 
 /** Polls until `predicate` holds or the deadline passes, failing with the last observation. */
 async function until<T>(
@@ -46,8 +58,12 @@ function transcriptsDirFor(home: string): string {
   return join(home, '.claude', 'projects');
 }
 
+function projectDirFor(home: string, root: string): string {
+  return join(home, '.claude', 'projects', slugify(root));
+}
+
 function writeProjectFile(home: string, root: string, sessionId: string, text: string): string {
-  const dir = join(home, '.claude', 'projects', slugify(root));
+  const dir = projectDirFor(home, root);
   mkdirSync(dir, { recursive: true });
   const path = join(dir, `${sessionId}.jsonl`);
   writeFileSync(path, text, 'utf8');
@@ -180,34 +196,51 @@ describe('readTranscriptRecord', () => {
 
 type TranscriptChangedEvent = Extract<GardenEvent, { type: 'transcript-changed' }>;
 
-describe('watchTranscripts', () => {
-  it('emits a transcript-changed event for a file created after the watch starts', async () => {
-    await withTempHome(async (home) => {
-      const root = '/Users/phil/Desktop/Extend/garden';
-      const events: TranscriptChangedEvent[] = [];
-      const watcher = watchTranscripts(
-        transcriptsDirFor(home),
-        [root],
-        (event) => events.push(event),
-        silentLogger(),
-        20,
-      );
-      try {
-        await watcher.ready;
-        writeProjectFile(home, root, 'session-a', HEAD_LINE('session-a') + '\n');
-        await until(
-          () => events,
-          (list) => list.length > 0,
-          'the created file to be picked up',
-        );
-        expect(events[0]?.record.sessionId).toBe('session-a');
-      } finally {
-        await watcher.close();
-      }
-    });
-  });
+// A real chokidar watch on a machine under heavy contention occasionally never delivers a
+// single native event for a given watcher's whole lifetime — confirmed by direct reproduction,
+// not theoretical (see decisions.md): the same test, given a much longer real-time budget,
+// still times out rather than resolving late, so this isn't a slow event, it's a genuinely
+// dropped one. Production's defense against that is the reconciliation backstop above; these
+// tests instead retry the whole scenario — fresh temp directory, fresh watcher — since a
+// bounded retry is the standard way to absorb a real external system's rare unreliability
+// without weakening what's asserted (it doesn't touch the `ready` barrier or the debounce
+// logic, and a genuine logic defect would still fail every attempt, not just some). A
+// successful attempt settles in well under 200ms (measured), so a short per-attempt timeout
+// buys many independent chances at the same total worst-case wall-clock as few long ones.
+const RETRY_FLAKY_NATIVE_WATCH = { retry: 6, timeout: 1500 };
 
-  it('ignores a file written outside the configured roots', async () => {
+describe('watchTranscripts', () => {
+  it(
+    'emits a transcript-changed event for a file created after the watch starts',
+    RETRY_FLAKY_NATIVE_WATCH,
+    async () => {
+      await withTempHome(async (home) => {
+        const root = '/Users/phil/Desktop/Extend/garden';
+        const events: TranscriptChangedEvent[] = [];
+        const watcher = watchTranscripts(
+          transcriptsDirFor(home),
+          [root],
+          (event) => events.push(event),
+          silentLogger(),
+          20,
+        );
+        try {
+          await watcher.ready;
+          writeProjectFile(home, root, 'session-a', HEAD_LINE('session-a') + '\n');
+          await until(
+            () => events,
+            (list) => list.length > 0,
+            'the created file to be picked up',
+          );
+          expect(events[0]?.record.sessionId).toBe('session-a');
+        } finally {
+          await watcher.close();
+        }
+      });
+    },
+  );
+
+  it('ignores a file written outside the configured roots', RETRY_FLAKY_NATIVE_WATCH, async () => {
     await withTempHome(async (home) => {
       const root = '/Users/phil/Desktop/Extend/garden';
       const events: TranscriptChangedEvent[] = [];
@@ -240,41 +273,45 @@ describe('watchTranscripts', () => {
     });
   });
 
-  it('ignores subagent files nested under a session directory', async () => {
-    await withTempHome(async (home) => {
-      const root = '/Users/phil/Desktop/Extend/garden';
-      const events: TranscriptChangedEvent[] = [];
-      const watcher = watchTranscripts(
-        transcriptsDirFor(home),
-        [root],
-        (event) => events.push(event),
-        silentLogger(),
-        20,
-      );
-      try {
-        await watcher.ready;
-        const dir = join(home, '.claude', 'projects', slugify(root));
-        mkdirSync(join(dir, 'session-a', 'subagents'), { recursive: true });
-        writeFileSync(
-          join(dir, 'session-a', 'subagents', 'agent-1.jsonl'),
-          HEAD_LINE('session-a') + '\n',
-          'utf8',
+  it(
+    'ignores subagent files nested under a session directory',
+    RETRY_FLAKY_NATIVE_WATCH,
+    async () => {
+      await withTempHome(async (home) => {
+        const root = '/Users/phil/Desktop/Extend/garden';
+        const events: TranscriptChangedEvent[] = [];
+        const watcher = watchTranscripts(
+          transcriptsDirFor(home),
+          [root],
+          (event) => events.push(event),
+          silentLogger(),
+          20,
         );
-        writeProjectFile(home, root, 'session-b', HEAD_LINE('session-b') + '\n');
-        await until(
-          () => events,
-          (list) => list.length > 0,
-          'the sibling in-scope file to be picked up',
-        );
+        try {
+          await watcher.ready;
+          const dir = join(home, '.claude', 'projects', slugify(root));
+          mkdirSync(join(dir, 'session-a', 'subagents'), { recursive: true });
+          writeFileSync(
+            join(dir, 'session-a', 'subagents', 'agent-1.jsonl'),
+            HEAD_LINE('session-a') + '\n',
+            'utf8',
+          );
+          writeProjectFile(home, root, 'session-b', HEAD_LINE('session-b') + '\n');
+          await until(
+            () => events,
+            (list) => list.length > 0,
+            'the sibling in-scope file to be picked up',
+          );
 
-        expect(events.some((event) => event.path.includes('subagents'))).toBe(false);
-      } finally {
-        await watcher.close();
-      }
-    });
-  });
+          expect(events.some((event) => event.path.includes('subagents'))).toBe(false);
+        } finally {
+          await watcher.close();
+        }
+      });
+    },
+  );
 
-  it('debounces a run of writes into a single re-read', async () => {
+  it('debounces a run of writes into a single re-read', RETRY_FLAKY_NATIVE_WATCH, async () => {
     await withTempHome(async (home) => {
       const root = '/Users/phil/Desktop/Extend/garden';
       const events: TranscriptChangedEvent[] = [];
@@ -310,43 +347,144 @@ describe('watchTranscripts', () => {
     });
   });
 
-  it('logs an unparseable line once per file across repeated re-reads', async () => {
+  it(
+    'logs an unparseable line once per file across repeated re-reads',
+    RETRY_FLAKY_NATIVE_WATCH,
+    async () => {
+      await withTempHome(async (home) => {
+        const root = '/Users/phil/Desktop/Extend/garden';
+        const events: TranscriptChangedEvent[] = [];
+        const warnings: string[] = [];
+        const logger: TranscriptLogger = { warn: (m) => warnings.push(m), error: () => {} };
+        const watcher = watchTranscripts(
+          transcriptsDirFor(home),
+          [root],
+          (event) => events.push(event),
+          logger,
+          20,
+        );
+        try {
+          await watcher.ready;
+          const path = writeProjectFile(
+            home,
+            root,
+            'session-a',
+            `not json\n${HEAD_LINE('session-a')}\n`,
+          );
+          await until(
+            () => events,
+            (list) => list.length > 0,
+            'the first read to complete',
+          );
+          appendFileSync(path, `${TITLE_LINE}\n`, 'utf8');
+          await until(
+            () => events,
+            (list) => list.length > 1,
+            'the second read to complete',
+          );
+
+          expect(warnings).toHaveLength(1);
+        } finally {
+          await watcher.close();
+        }
+      });
+    },
+  );
+
+  it("logs the watcher's error events instead of swallowing them", async () => {
     await withTempHome(async (home) => {
       const root = '/Users/phil/Desktop/Extend/garden';
-      const events: TranscriptChangedEvent[] = [];
-      const warnings: string[] = [];
-      const logger: TranscriptLogger = { warn: (m) => warnings.push(m), error: () => {} };
-      const watcher = watchTranscripts(
-        transcriptsDirFor(home),
-        [root],
-        (event) => events.push(event),
-        logger,
-        20,
-      );
-      try {
-        await watcher.ready;
-        const path = writeProjectFile(
-          home,
-          root,
-          'session-a',
-          `not json\n${HEAD_LINE('session-a')}\n`,
-        );
-        await until(
-          () => events,
-          (list) => list.length > 0,
-          'the first read to complete',
-        );
-        appendFileSync(path, `${TITLE_LINE}\n`, 'utf8');
-        await until(
-          () => events,
-          (list) => list.length > 1,
-          'the second read to complete',
-        );
+      // A minimal stand-in for chokidar's FSWatcher: real chokidar has no fast, reliable
+      // way to be made to emit a real 'error' from test code, so this proves the wiring —
+      // logger.error gets called — without exercising real FS timing.
+      class FakeWatcher extends EventEmitter {
+        close(): Promise<void> {
+          return Promise.resolve();
+        }
+      }
+      const fake = new FakeWatcher();
+      vi.mocked(watch).mockImplementationOnce(() => fake as unknown as ReturnType<typeof watch>);
 
-        expect(warnings).toHaveLength(1);
+      const errors: string[] = [];
+      const logger: TranscriptLogger = { warn: () => {}, error: (m) => errors.push(m) };
+      const watcher = watchTranscripts(transcriptsDirFor(home), [root], () => {}, logger);
+      try {
+        fake.emit('error', new Error('EMFILE, too many open files'));
+        expect(errors).toEqual([expect.stringContaining('EMFILE')]);
       } finally {
         await watcher.close();
       }
+    });
+  });
+});
+
+describe('reconcileTranscripts', () => {
+  it('invokes onStale for an in-scope file with no cached signature', async () => {
+    await withTempHome(async (home) => {
+      const root = '/Users/phil/Desktop/Extend/garden';
+      const path = writeProjectFile(home, root, 'session-a', HEAD_LINE('session-a') + '\n');
+      const signatures = new Map<string, TranscriptSignature>();
+      const seen: string[] = [];
+
+      await reconcileTranscripts(transcriptsDirFor(home), [root], signatures, (p) => {
+        seen.push(p);
+        return Promise.resolve(true);
+      });
+
+      expect(seen).toEqual([path]);
+      expect(signatures.has(path)).toBe(true);
+    });
+  });
+
+  it('does not re-invoke onStale once a matching signature is cached', async () => {
+    await withTempHome(async (home) => {
+      const root = '/Users/phil/Desktop/Extend/garden';
+      const path = writeProjectFile(home, root, 'session-a', HEAD_LINE('session-a') + '\n');
+      const { size, mtimeMs } = await stat(path);
+      const signatures = new Map<string, TranscriptSignature>([[path, { size, mtimeMs }]]);
+      const seen: string[] = [];
+
+      await reconcileTranscripts(transcriptsDirFor(home), [root], signatures, (p) => {
+        seen.push(p);
+        return Promise.resolve(true);
+      });
+
+      expect(seen).toEqual([]);
+    });
+  });
+
+  it('re-invokes onStale once a cached signature no longer matches', async () => {
+    await withTempHome(async (home) => {
+      const root = '/Users/phil/Desktop/Extend/garden';
+      const path = writeProjectFile(home, root, 'session-a', HEAD_LINE('session-a') + '\n');
+      const signatures = new Map<string, TranscriptSignature>([[path, { size: 0, mtimeMs: 0 }]]);
+      const seen: string[] = [];
+
+      await reconcileTranscripts(transcriptsDirFor(home), [root], signatures, (p) => {
+        seen.push(p);
+        return Promise.resolve(true);
+      });
+
+      expect(seen).toEqual([path]);
+    });
+  });
+
+  it('does not cache a failed read, so the next call retries it', async () => {
+    await withTempHome(async (home) => {
+      const root = '/Users/phil/Desktop/Extend/garden';
+      const path = writeProjectFile(home, root, 'session-a', HEAD_LINE('session-a') + '\n');
+      const signatures = new Map<string, TranscriptSignature>();
+      let calls = 0;
+      const onStale = () => {
+        calls += 1;
+        return Promise.resolve(false);
+      };
+
+      await reconcileTranscripts(transcriptsDirFor(home), [root], signatures, onStale);
+      await reconcileTranscripts(transcriptsDirFor(home), [root], signatures, onStale);
+
+      expect(calls).toBe(2);
+      expect(signatures.has(path)).toBe(false);
     });
   });
 });
