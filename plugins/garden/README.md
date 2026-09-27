@@ -1,9 +1,8 @@
 # garden plugin
 
-The Claude Code plugin for garden. Four skills: `orchestrate-sessions` drives the session lifecycle
-through garden's CLI, `message-session` resolves a session's messaging address, `session-handoff`
-writes a `.handoffs/*.md` context file for a future session, and `session-pickup` consumes one.
-Installed from the marketplace manifest at the repo root, `.claude-plugin/marketplace.json`.
+The Claude Code plugin for garden. Two skills: `orchestrate-sessions` drives the session lifecycle
+through garden's CLI, and `message-session` resolves a session's messaging address. Installed from
+the marketplace manifest at the repo root, `.claude-plugin/marketplace.json`.
 
 It also ships two hooks (`hooks/hooks.json`), active as soon as the plugin is enabled — no
 configuration needed. A `PostToolUse` hook warns once per compaction cycle when the session's

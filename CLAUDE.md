@@ -47,4 +47,4 @@ A concurrent sandbox needs its own port, tmux socket and app dir — see `docs/t
 
 ## Docs
 
-`docs/README.md` is the index and decides where a new doc goes. `docs/architecture.md` and `docs/testing.md` are living docs — current truth, updated in place. Specs under `docs/specs/` are frozen once merged and go stale as the code moves past them; load only the one relevant to the task. `docs/plans/` and `.handoffs/` are gitignored working state.
+`docs/README.md` is the index and decides where a new doc goes. `docs/architecture.md` and `docs/testing.md` are living docs — current truth, updated in place. Specs under `docs/specs/` are frozen once merged and go stale as the code moves past them; load only the one relevant to the task. `docs/plans/` is gitignored working state.
