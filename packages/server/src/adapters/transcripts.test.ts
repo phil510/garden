@@ -1,6 +1,13 @@
 import { watch } from 'chokidar';
 import { EventEmitter } from 'node:events';
-import { appendFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  appendFileSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -429,11 +436,17 @@ describe('reconcileTranscripts', () => {
       // onStale owns caching its own success, same as production's reread() does — this is
       // what makes the cache accurate regardless of which path (native watch or this
       // reconciliation loop) last read a given file.
-      await reconcileTranscripts(transcriptsDirFor(home), [root], signatures, async (p) => {
-        seen.push(p);
-        signatures.set(p, await stat(p));
-        return true;
-      });
+      await reconcileTranscripts(
+        transcriptsDirFor(home),
+        [root],
+        signatures,
+        async (p) => {
+          seen.push(p);
+          signatures.set(p, await stat(p));
+          return true;
+        },
+        silentLogger(),
+      );
 
       expect(seen).toEqual([path]);
       expect(signatures.has(path)).toBe(true);
@@ -448,10 +461,16 @@ describe('reconcileTranscripts', () => {
       const signatures = new Map<string, TranscriptSignature>([[path, { size, mtimeMs }]]);
       const seen: string[] = [];
 
-      await reconcileTranscripts(transcriptsDirFor(home), [root], signatures, (p) => {
-        seen.push(p);
-        return Promise.resolve(true);
-      });
+      await reconcileTranscripts(
+        transcriptsDirFor(home),
+        [root],
+        signatures,
+        (p) => {
+          seen.push(p);
+          return Promise.resolve(true);
+        },
+        silentLogger(),
+      );
 
       expect(seen).toEqual([]);
     });
@@ -464,10 +483,16 @@ describe('reconcileTranscripts', () => {
       const signatures = new Map<string, TranscriptSignature>([[path, { size: 0, mtimeMs: 0 }]]);
       const seen: string[] = [];
 
-      await reconcileTranscripts(transcriptsDirFor(home), [root], signatures, (p) => {
-        seen.push(p);
-        return Promise.resolve(true);
-      });
+      await reconcileTranscripts(
+        transcriptsDirFor(home),
+        [root],
+        signatures,
+        (p) => {
+          seen.push(p);
+          return Promise.resolve(true);
+        },
+        silentLogger(),
+      );
 
       expect(seen).toEqual([path]);
     });
@@ -484,11 +509,48 @@ describe('reconcileTranscripts', () => {
         return Promise.resolve(false);
       };
 
-      await reconcileTranscripts(transcriptsDirFor(home), [root], signatures, onStale);
-      await reconcileTranscripts(transcriptsDirFor(home), [root], signatures, onStale);
+      await reconcileTranscripts(
+        transcriptsDirFor(home),
+        [root],
+        signatures,
+        onStale,
+        silentLogger(),
+      );
+      await reconcileTranscripts(
+        transcriptsDirFor(home),
+        [root],
+        signatures,
+        onStale,
+        silentLogger(),
+      );
 
       expect(calls).toBe(2);
       expect(signatures.has(path)).toBe(false);
+    });
+  });
+
+  it('logs a stat failure that is not a vanished file, instead of swallowing it', async () => {
+    await withTempHome(async (home) => {
+      const root = '/Users/phil/Desktop/Extend/garden';
+      const dir = projectDirFor(home, root);
+      mkdirSync(dir, { recursive: true });
+      // A symlink pointing at itself: stat() on it rejects with ELOOP, not ENOENT, so this
+      // is a file that's persistently unreadable rather than merely vanished.
+      const path = join(dir, 'broken.jsonl');
+      symlinkSync(path, path);
+      const signatures = new Map<string, TranscriptSignature>();
+      const errors: string[] = [];
+      const logger: TranscriptLogger = { warn: () => {}, error: (m) => errors.push(m) };
+
+      await reconcileTranscripts(
+        transcriptsDirFor(home),
+        [root],
+        signatures,
+        () => Promise.resolve(true),
+        logger,
+      );
+
+      expect(errors).toEqual([expect.stringContaining(path)]);
     });
   });
 });

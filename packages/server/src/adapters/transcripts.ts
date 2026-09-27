@@ -124,23 +124,30 @@ export function createCoalescer(run: (key: string) => void, debounceMs: number) 
  * a rapid write can land in that gap and never produce a native event again). `signatures` is
  * shared with the native watch path, and `onStale` owns recording its own success there — this
  * function only decides whether to call it — so the cache reflects whichever path last read a
- * file, not only this backstop's own reads.
+ * file, not only this backstop's own reads. A `stat` failure is isolated per file, the same
+ * way `reread()` isolates its own per-file read failures: `ENOENT` (vanished between the
+ * listing and this stat — session cleanup, a rename) is expected and silent, anything else is
+ * logged so a file that persistently fails to stat for another reason doesn't go stale forever
+ * with no trace.
  */
 export async function reconcileTranscripts(
   transcriptsDir: string,
   roots: readonly string[],
   signatures: Map<string, TranscriptSignature>,
   onStale: (path: string) => Promise<boolean>,
+  logger: TranscriptLogger,
 ): Promise<void> {
   for (const path of await listTranscriptFiles(transcriptsDir, roots)) {
     let size: number;
     let mtimeMs: number;
     try {
       ({ size, mtimeMs } = await stat(path));
-    } catch {
-      // Vanished between the listing and this stat (session cleanup, a rename) — isolated
-      // the same way reread() isolates its own per-file failures, so one disappeared path
-      // can't stall every other stale file in this batch until the next tick.
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        logger.error(
+          `failed to stat transcript ${path} during reconciliation: ${(error as Error).message}`,
+        );
+      }
       continue;
     }
     const known = signatures.get(path);
@@ -248,7 +255,7 @@ export function watchTranscripts(
     // Skips this tick rather than queuing — a slow reconciliation pass (many files, a
     // contended disk) should never stack a second one behind it.
     if (reconciling) return;
-    reconciling = reconcileTranscripts(transcriptsDir, roots, signatures, reread)
+    reconciling = reconcileTranscripts(transcriptsDir, roots, signatures, reread, logger)
       .catch((error: unknown) => {
         logger.error(
           `transcript reconciliation failed: ${error instanceof Error ? error.message : String(error)}`,
