@@ -1,4 +1,3 @@
-import { fileURLToPath } from 'node:url';
 import type { CreateSessionResponse, OkResponse, SessionsResponse } from '@garden/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { CliClient, Io } from './commands.js';
@@ -10,10 +9,6 @@ import {
   runCli,
   usageLines,
 } from './run.js';
-
-/** A path guaranteed to exist on disk, since runNew's --handoff-file existence check runs
- *  before recordingClient's fake ever sees the call. */
-const AN_EXISTING_FILE = fileURLToPath(import.meta.url);
 
 function collectingIo(): { io: Io; stdout: string[]; stderr: string[] } {
   const stdout: string[] = [];
@@ -45,8 +40,8 @@ function recordingClient(): { client: CliClient; calls: string[] } {
       calls.push(filter === undefined ? 'ls' : `ls:${JSON.stringify(filter)}`);
       return Promise.resolve(sessions);
     },
-    createSession: (cwd, callerSessionId, handoff, handoffFilePath) => {
-      calls.push(`new:${cwd}:${callerSessionId ?? ''}:${String(handoff)}:${handoffFilePath ?? ''}`);
+    createSession: (cwd, callerSessionId) => {
+      calls.push(`new:${cwd}:${callerSessionId ?? ''}`);
       return Promise.resolve(created);
     },
     resumeSession: (id) => {
@@ -55,10 +50,6 @@ function recordingClient(): { client: CliClient; calls: string[] } {
     },
     killSession: (id) => {
       calls.push(`kill:${id}`);
-      return Promise.resolve(ok);
-    },
-    handoffSession: (fromId, to) => {
-      calls.push(`handoff:${fromId}:${to}`);
       return Promise.resolve(ok);
     },
     placeSession: (id, placement) => {
@@ -70,12 +61,11 @@ function recordingClient(): { client: CliClient; calls: string[] } {
 }
 
 describe('isCliCommand', () => {
-  it('recognises the eight subcommands and nothing else', () => {
+  it('recognises the seven subcommands and nothing else', () => {
     expect(isCliCommand('new')).toBe(true);
     expect(isCliCommand('ls')).toBe(true);
     expect(isCliCommand('kill')).toBe(true);
     expect(isCliCommand('resume')).toBe(true);
-    expect(isCliCommand('handoff')).toBe(true);
     expect(isCliCommand('adopt')).toBe(true);
     expect(isCliCommand('stop')).toBe(true);
     expect(isCliCommand('uninstall')).toBe(true);
@@ -174,7 +164,7 @@ describe('runCli', () => {
     const exitCode = await runCli('new', ['/repo'], io, client);
 
     expect(exitCode).toBe(0);
-    expect(calls).toEqual(['new:/repo:caller-1:false:']);
+    expect(calls).toEqual(['new:/repo:caller-1']);
   });
 
   it('dispatches "ls" with no positionals required', async () => {
@@ -194,53 +184,6 @@ describe('runCli', () => {
     expect(await runCli('kill', ['abc'], io, client)).toBe(0);
     expect(await runCli('resume', ['abc'], io, client)).toBe(0);
     expect(calls).toEqual(['kill:abc', 'resume:abc']);
-  });
-
-  it('passes --handoff through to runNew as true, and omits it (false) without the flag', async () => {
-    const { io } = collectingIo();
-    const { client: withFlag, calls: withFlagCalls } = recordingClient();
-    const { client: withoutFlag, calls: withoutFlagCalls } = recordingClient();
-
-    expect(await runCli('new', ['/repo', '--handoff'], io, withFlag)).toBe(0);
-    expect(await runCli('new', ['/repo'], io, withoutFlag)).toBe(0);
-
-    expect(withFlagCalls).toEqual(['new:/repo:caller-1:true:']);
-    expect(withoutFlagCalls).toEqual(['new:/repo:caller-1:false:']);
-  });
-
-  it('passes --handoff-file through to runNew, omitted when absent', async () => {
-    const { io } = collectingIo();
-    const { client: withFile, calls: withFileCalls } = recordingClient();
-    const { client: withoutFile, calls: withoutFileCalls } = recordingClient();
-
-    expect(
-      await runCli('new', ['/repo', '--handoff', '--handoff-file', AN_EXISTING_FILE], io, withFile),
-    ).toBe(0);
-    expect(await runCli('new', ['/repo', '--handoff'], io, withoutFile)).toBe(0);
-
-    expect(withFileCalls).toEqual([`new:/repo:caller-1:true:${AN_EXISTING_FILE}`]);
-    expect(withoutFileCalls).toEqual(['new:/repo:caller-1:true:']);
-  });
-
-  it('dispatches "handoff --to <id>"', async () => {
-    const { io } = collectingIo();
-    const { client, calls } = recordingClient();
-
-    const exitCode = await runCli('handoff', ['--to', 'target-1'], io, client);
-
-    expect(exitCode).toBe(0);
-    expect(calls).toEqual(['handoff:caller-1:target-1']);
-  });
-
-  it('requires --to for "handoff"', async () => {
-    const { io, stderr } = collectingIo();
-    const { client, calls } = recordingClient();
-
-    const exitCode = await runCli('handoff', [], io, client);
-
-    expect(exitCode).toBe(1);
-    expect(calls).toEqual([]);
-    expect(stderr).toEqual(['garden: usage: garden handoff --to <id>\n']);
   });
 
   it('dispatches "adopt <id>" with the positional as the target', async () => {

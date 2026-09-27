@@ -7,7 +7,6 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   CliHttpError,
   createSession,
-  handoffSession,
   killSession,
   listSessions,
   placeSession,
@@ -137,84 +136,6 @@ describe('createSession', () => {
       id: 'abc',
       tmuxName: 'repo',
     });
-  });
-
-  it('includes handoff: true in the body when requested', async () => {
-    await startServer((request, response) => {
-      void (async () => {
-        expect(JSON.parse(await readBody(request))).toEqual({
-          cwd: '/repo',
-          callerSessionId: 'caller-1',
-          handoff: true,
-        });
-        sendJson(response, 200, { id: 'abc', tmuxName: 'repo' });
-      })();
-    });
-    await expect(createSession('/repo', 'caller-1', true)).resolves.toEqual({
-      id: 'abc',
-      tmuxName: 'repo',
-    });
-  });
-
-  it('omits handoff from the body when not requested', async () => {
-    await startServer((request, response) => {
-      void (async () => {
-        expect(JSON.parse(await readBody(request))).toEqual({ cwd: '/repo' });
-        sendJson(response, 200, { id: 'abc', tmuxName: 'repo' });
-      })();
-    });
-    await expect(createSession('/repo', undefined, false)).resolves.toEqual({
-      id: 'abc',
-      tmuxName: 'repo',
-    });
-  });
-
-  it('includes handoffFilePath in the body when provided', async () => {
-    await startServer((request, response) => {
-      void (async () => {
-        expect(JSON.parse(await readBody(request))).toEqual({
-          cwd: '/repo',
-          callerSessionId: 'caller-1',
-          handoff: true,
-          handoffFilePath: '/repo/.handoffs/2026-01-01-topic.md',
-        });
-        sendJson(response, 200, { id: 'abc', tmuxName: 'repo' });
-      })();
-    });
-    await expect(
-      createSession('/repo', 'caller-1', true, '/repo/.handoffs/2026-01-01-topic.md'),
-    ).resolves.toEqual({ id: 'abc', tmuxName: 'repo' });
-  });
-
-  it('omits handoffFilePath from the body when not provided', async () => {
-    await startServer((request, response) => {
-      void (async () => {
-        expect(JSON.parse(await readBody(request))).toEqual({
-          cwd: '/repo',
-          callerSessionId: 'caller-1',
-          handoff: true,
-        });
-        sendJson(response, 200, { id: 'abc', tmuxName: 'repo' });
-      })();
-    });
-    await expect(createSession('/repo', 'caller-1', true)).resolves.toEqual({
-      id: 'abc',
-      tmuxName: 'repo',
-    });
-  });
-});
-
-describe('handoffSession', () => {
-  it('posts { to } to the handoff route', async () => {
-    await startServer((request, response) => {
-      void (async () => {
-        expect(request.method).toBe('POST');
-        expect(request.url).toBe('/sessions/a/handoff');
-        expect(JSON.parse(await readBody(request))).toEqual({ to: 'b' });
-        sendJson(response, 200, { ok: true });
-      })();
-    });
-    await expect(handoffSession('a', 'b')).resolves.toEqual({ ok: true });
   });
 });
 
