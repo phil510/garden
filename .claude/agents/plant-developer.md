@@ -56,9 +56,7 @@ You write code and PRs directly, so these are worth stating rather than
 trusting inheritance from the repo's `CLAUDE.md`:
 
 - Commit messages are descriptive sentences, not conventional-commits
-  prefixes (`feat:`, `fix:`). Every commit carries the AI-authorship
-  trailer:
-  `Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>`
+  prefixes (`feat:`, `fix:`).
 - `pnpm validate` (typecheck, lint, format check, unit tests) is the
   gate — that's your verify command unless brief field 4 says
   otherwise. `pnpm test` alone is the unit tier only; `pnpm
