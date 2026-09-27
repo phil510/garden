@@ -197,21 +197,9 @@ describe('readTranscriptRecord', () => {
 type TranscriptChangedEvent = Extract<GardenEvent, { type: 'transcript-changed' }>;
 
 describe('watchTranscripts', () => {
-  // These five tests pin garden's own logic — the in/out-of-scope rules listTranscriptFiles
-  // and inScopeDirs enforce, the debounce coalescing, the warn-once bookkeeping — not
-  // chokidar's delivery. A real chokidar watch on a machine under heavy contention has been
-  // observed to sometimes never deliver a single native event for a watcher's whole
-  // lifetime, not merely deliver one late, so waiting on native delivery here would make the
-  // assertion itself flaky. Each test instead drives pickup via `reconcileNow()` right after
-  // writing, which reads straight off disk and so passes whether or not chokidar's own
-  // 'add'/'change' ever fires for that write — which also means these five never exercise
-  // isWatchedPath or the watcher.on('add'|'change', ...) registrations themselves; those get
-  // their own dedicated, deterministic tests below.
   it('registers an ignore predicate matching isWatchedPath, checked directly rather than via a write', async () => {
-    // The five reconcileNow()-driven tests above never touch this predicate — they read
-    // straight off disk via listTranscriptFiles/inScopeDirs — so this calls the exact
-    // function chokidar was configured with, captured off the mocked `watch`, and asserts its
-    // in/out-of-scope behavior deterministically with no filesystem writes or timing at all.
+    // Captures the ignore predicate chokidar was configured with, off the mocked `watch`
+    // call, and asserts its in/out-of-scope behavior with no filesystem writes or timing.
     await withTempHome(async (home) => {
       const root = '/Users/phil/Desktop/Extend/garden';
       useFakeChokidar();
