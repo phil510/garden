@@ -7,6 +7,10 @@ export type SpawnResult =
 
 const POLL_INTERVAL_MS = 50;
 
+/** Default readiness timeout for `spawnServer`. `describeStartupFailure` (in `start.ts`) names
+ *  this same value in its timed-out message, so the two never drift apart. */
+export const DEFAULT_HEALTH_TIMEOUT_MS = 30_000;
+
 async function probeHealth(url: string): Promise<boolean> {
   try {
     const response = await fetch(url);
@@ -29,7 +33,7 @@ export async function spawnServer(
   args: readonly string[],
   env: NodeJS.ProcessEnv,
   healthUrl: string,
-  timeoutMs = 5000,
+  timeoutMs = DEFAULT_HEALTH_TIMEOUT_MS,
 ): Promise<SpawnResult> {
   const child = spawn(process.execPath, [scriptPath, ...args], {
     detached: true,
