@@ -55,7 +55,7 @@ the web console, or you can be restarted from garden so a fresh session picks th
 Reach for `garden adopt <id> --json` instead when the session already exists and wasn't spawned
 under you — one a teammate started, or one that predates your own `GARDEN_SESSION_ID` — to place
 it under you after the fact. Brief it the same way you would a fresh spawn (run folder path,
-report contract) — its member file is already named by the `<id>` you just adopted it with, and
+report contract). Its member file is already named by the `<id>` you just adopted it with —
 adoption changes who placed the session, not what it owes the run.
 
 **Don't add `--handoff` to the command above expecting an enhanced spawn.** It reads like a flag
@@ -74,8 +74,9 @@ finishes, and immediately if blocked, with a pointer to the result, its state, a
 from you. Spell your own name out; the peer cannot derive it. Without that contract a peer goes
 silent on completion or returns the whole story. Include the run folder's absolute path too, and
 tell the peer its member file is `<its own $GARDEN_SESSION_ID>.md` — the id `garden new --json`
-just returned (see "Write the run down" below for why) — opened with a line naming its task, and
-maintained at milestones. `message-session` covers the rest of the brief.
+just returned. It opens with a line naming the peer's task and stays maintained at milestones
+(see "Write the run down" below for why the id, not a label). `message-session` covers the rest
+of the brief.
 
 **Settle merge/approval policy in the brief.** Naming the approver and the merge policy before
 the peer starts is what keeps an `ask`-style gate from stalling later. Relaying an
@@ -123,15 +124,14 @@ questions.
 
 Context windows are the one place run state does not survive: yours fills up, a peer dies, an
 address changes on resume, and what you knew goes with it. So keep it on disk — a run folder,
-`.orchestration/<run>/` in the repo you are orchestrating from, added to `.git/info/exclude` with
-a trailing slash to exclude the whole tree (the same shape as this repo's own top-level
-`.gitignore` entry for the directory) where the repo doesn't already ignore it. Give peers the
-folder's **absolute** path in the brief: the same relative path in a peer's worktree is missing or
-a different run's folder.
+`.orchestration/<run>/` in the repo you are orchestrating from. Add it to `.git/info/exclude` with
+a trailing slash so the whole tree is excluded, where the repo doesn't already ignore it. Give
+peers the folder's **absolute** path in the brief: the same relative path in a peer's worktree is
+missing or a different run's folder.
 
 Every file in the folder has exactly one writer, and anyone in the run may read anything in it —
-that's what makes free reading safe with no locking: nobody edits a file they don't own, so two
-sessions never race to update the same bytes.
+that one-writer rule is what makes free reading safe with no locking, since no two sessions ever
+race to update the same bytes.
 
 `run.md` is yours alone. It holds only what no other system holds — a policy header and two
 sections:
@@ -173,16 +173,16 @@ something. It follows that the file is only as current as your last write — a 
 session picking the run up, not live status.
 
 `<session-id>.md` belongs to one member and no one else writes it, named for the member's own
-`$GARDEN_SESSION_ID` rather than anything you assign. garden mints one UUID at creation for both
-Claude's `--session-id` and `GARDEN_SESSION_ID`, and `resumeSession` relaunches a killed session
-with `--resume <that id>` — so the id outlives a kill-then-resume and the `/clear`-driven identity
-change "Two naming systems" above describes, where the tmux name and the messaging name do not.
-You already have it — from `garden new --json`'s `id` field, `garden ls`, or the id you passed to
-`garden adopt` — so there's nothing to assign or check for collisions. Open the file with a line
-naming the member's task, so a folder of ids stays readable. On a handoff the successor is a new
-session with its own id: it starts its own file, and the predecessor's stays as its last snapshot.
-It's a short snapshot of that member's goal, decisions, state, and next step — updated at
-milestones (assignment accepted, a material decision, a blocker, completion), not every turn.
+`$GARDEN_SESSION_ID`. garden mints one UUID at creation for both Claude's `--session-id` and
+`GARDEN_SESSION_ID`, and `resumeSession` relaunches a killed session with `--resume <that id>`. So
+the id outlives a kill-then-resume and the `/clear`-driven identity change "Two naming systems"
+above describes, where the tmux name and the messaging name do not. You already have it — from
+`garden new --json`'s `id` field, `garden ls`, or the id you passed to `garden adopt` — so there's
+nothing to assign or check for collisions. Open the file with a line naming the member's task, so
+a folder of ids stays readable. On a handoff the successor is a new session with its own id: it
+starts its own file, and the predecessor's stays as its last snapshot. It's a short snapshot of
+that member's goal, decisions, state, and next step — updated at milestones (assignment accepted,
+a material decision, a blocker, completion), not every turn.
 
 After a compaction, reread `run.md` and every member's file before acting — they're the head start
 that survived what your own context didn't.
@@ -308,9 +308,8 @@ becomes a continue-from-handoff prompt that `session-pickup`'s own trigger picks
 no separate invocation needed. `garden handoff --to` has no file-carrying counterpart: it targets a
 session that already exists, so point it at the handoff yourself in the message you send.
 
-Winding down one peer or replacing yourself both leave the run folder in place — the swarm is still
-running and other members still need their files. Remove `.orchestration/<run>/` only once every
-member is wound down, no successor is taking over, and you are ending your own run too: with the
-whole swarm gone, nothing left will read the folder, and nothing else will clean it up. Don't
-delete it while any peer might still be running — a peer mid-write to its own file has no way to
-know its file just disappeared.
+Winding down one peer or replacing yourself both leave the run folder in place: other members still
+need their files, and a peer mid-write to its own has no way to know it just disappeared. Remove
+`.orchestration/<run>/` only once every member is wound down, no successor is taking over, and you
+are ending your own run too — with the whole swarm gone, nothing left will read the folder or
+clean it up.
