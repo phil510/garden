@@ -70,7 +70,9 @@ cause of whatever breaks.
 **Ask for a report in the brief.** Tell the peer to message `<your session name>` when it
 finishes, and immediately if blocked, with a pointer to the result, its state, and what it needs
 from you. Spell your own name out; the peer cannot derive it. Without that contract a peer goes
-silent on completion or returns the whole story. `message-session` covers the rest of the brief.
+silent on completion or returns the whole story. Include the run folder's absolute path too, and
+tell the peer to maintain its own file there at milestones — see "Write the run down" below for
+what that means. `message-session` covers the rest of the brief.
 
 **Settle merge/approval policy in the brief.** Naming the approver and the merge policy before
 the peer starts is what keeps an `ask`-style gate from stalling later. Relaying an
