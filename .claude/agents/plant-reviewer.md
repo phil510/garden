@@ -101,12 +101,12 @@ decides whether a fix round runs at all.
    the signal that something was mis-scoped.
 
 3. **Dispatch the review.** Two decisions are yours: which agents run,
-   and at what model. A wide roster mostly buys overlap — #196's two
-   dirty rounds each dispatched six reviewers, and every `major`
-   finding converged from three or more of them independently; the
-   marginal reviewer's real yield was one `minor` finding. Three slots
-   keeps the convergent signal and drops the redundant fourth-through-
-   sixth read:
+   and at what model. A wide roster mostly buys overlap: when six
+   reviewers run against the same diff, the `major` findings tend to
+   converge from three or more of them independently, and the
+   marginal reviewer's real yield is a single `minor` finding at best.
+   Three slots keeps the convergent signal and drops the redundant
+   fourth-through-sixth read:
 
    - **Slot 1 — `code-reviewer`, always.** Project guidelines, bugs,
      general quality.
@@ -146,14 +146,15 @@ decides whether a fix round runs at all.
    a fourth dispatch.
 
    **Scaling.** On a `Size: small` brief, `code-reviewer` alone at
-   `sonnet` is the whole review. On a standard brief, fill the three
-   slots — never more, on any round. `sonnet` is the default for every
-   agent you dispatch, slots 1 and 2 included. Escalate to `opus` only
-   where the failure mode won't fit in your head at once: dense logic,
-   concurrency, security-relevant paths, data migrations. Fifty lines
-   rewriting a retry loop deserve more than a thousand-line rename. The
-   cap is on slots, not on model — opus on the slots you have, not more
-   slots.
+   `sonnet` is the whole review. On a standard brief, fill slots 1 and
+   2, and slot 3 only when it names a concrete blind spot — three
+   agents at most, never more, on any round. `sonnet` is the default
+   for every agent you dispatch, slots 1 and 2 included. Escalate to
+   `opus` only where the failure mode won't fit in your head at once:
+   dense logic, concurrency, security-relevant paths, data migrations.
+   Fifty lines rewriting a retry loop deserve more than a thousand-line
+   rename. The cap is on slots, not on model — opus on the slots you
+   have, not more slots.
 
    **Dispatch.** One parallel batch via the `Agent` tool. **Pass
    `model` on every dispatch** — `sonnet` unless you escalated that
