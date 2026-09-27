@@ -25,7 +25,6 @@ pnpm-debug.log*
 
 # Autonomous loop scratch
 .autonomous/
-.handoffs/
 
 # Pipeline state for /plant runs
 .plant/
