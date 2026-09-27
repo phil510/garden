@@ -154,11 +154,13 @@ port. Sharing any one of the three between two sandboxes puts them back in each 
   to test orchestration without spawning anything. Adapter tests always drive the real binary
   on an isolated socket. `domain/` needs no tmux fake — tmux facts are plain data by the time
   derivation sees them.
-- **Transcripts** are real files in a temp directory for anything on the watch path. The
-  parser itself is a function from string to record and needs no files, but chokidar's
-  behaviour — debounced re-read, a read landing mid-append, an atomic replace — is real
-  filesystem timing that an in-memory fake cannot reproduce. Append-while-reading works in
-  every manual test and then flakes in the field.
+- **Transcripts** use real files in a temp directory for the parser and the reconciliation
+  backstop, which both do plain fs reads. The unit tier fakes chokidar itself (`vi.fn()` in
+  place of `watch`, driven by hand-fired `add`/`change` events) to test debounce collapsing,
+  the ignore predicate, and the reconciliation interval deterministically. Chokidar's own
+  delivery — a read landing mid-append, an atomic replace — is real filesystem timing an
+  in-memory fake can't reproduce, so only `tests/integration/fake-claude.test.ts` drives it,
+  against a real watch.
 - **Hook payloads** are the cheap case: plain JSON over HTTP. Use a builder, not a fake.
 - If a unit test reaches for `vi.mock`, treat it as a signal rather than a tool — either the
   code under test imported an adapter it should not have, or the test belongs in the other
