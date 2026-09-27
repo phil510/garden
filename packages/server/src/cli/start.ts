@@ -5,7 +5,7 @@ import { chromeInstalled, openChromeWindow } from './browser.js';
 import type { Io } from './commands.js';
 import { writeAll } from './io.js';
 import { isProcessRunning, readPidFile, writePidFile } from './pid.js';
-import { spawnServer, type SpawnResult } from './serverProcess.js';
+import { DEFAULT_HEALTH_TIMEOUT_MS, spawnServer, type SpawnResult } from './serverProcess.js';
 
 export type PidStatus = 'running' | 'not-running';
 
@@ -26,9 +26,14 @@ export function describeStartupFailure(input: {
   readonly port: number;
   readonly configPath: string;
   readonly stderr: string;
+  readonly timedOut: boolean;
+  readonly timeoutMs: number;
 }): string {
   if (/EADDRINUSE/i.test(input.stderr)) {
     return `port ${String(input.port)} is already in use by another process — stop it or change "port" in ${input.configPath}`;
+  }
+  if (input.timedOut) {
+    return `garden server did not become healthy within ${String(input.timeoutMs / 1000)}s`;
   }
   const trimmed = input.stderr.trim().replace(/^garden: /, '');
   return trimmed !== '' ? trimmed : 'garden server failed to start';
@@ -94,7 +99,13 @@ export async function runStart(io: Io, deps: StartDeps = defaultStartDeps): Prom
       const configPath = join(config.appDir, 'config.json');
       await writeAll(
         io.stderr,
-        `garden: ${describeStartupFailure({ port: config.port, configPath, stderr: result.stderr })}\n`,
+        `garden: ${describeStartupFailure({
+          port: config.port,
+          configPath,
+          stderr: result.stderr,
+          timedOut: result.kind === 'timed-out',
+          timeoutMs: DEFAULT_HEALTH_TIMEOUT_MS,
+        })}\n`,
       );
       return 1;
     }
