@@ -117,12 +117,19 @@ questions.
 ## Write the run down
 
 Context windows are the one place run state does not survive: yours fills up, a peer dies, an
-address changes on resume, and what you knew goes with it. So keep it in a file —
-`.orchestration/<run>.md` in the repo you are orchestrating from, added to `.git/info/exclude`
-where the repo doesn't already ignore it. Give peers its **absolute** path in the brief: the same
-relative path in a peer's worktree is missing or a different run's file.
+address changes on resume, and what you knew goes with it. So keep it on disk — a run folder,
+`.orchestration/<run>/` in the repo you are orchestrating from, added to `.git/info/exclude` with
+a trailing slash to exclude the whole tree (the same shape as this repo's own top-level
+`.gitignore` entry for the directory) where the repo doesn't already ignore it. Give peers the
+folder's **absolute** path in the brief: the same relative path in a peer's worktree is missing or
+a different run's folder.
 
-It holds only what no other system holds — a policy header and two sections:
+Every file in the folder has exactly one writer, and anyone in the run may read anything in it —
+that's what makes free reading safe with no locking: nobody edits a file they don't own, so two
+sessions never race to update the same bytes.
+
+`run.md` is yours alone. It holds only what no other system holds — a policy header and two
+sections:
 
 ```markdown
 # settings-ui — started 2026-09-21
@@ -153,13 +160,22 @@ Everything else has an authoritative home: `garden ls` owns cwd, branch, livenes
 owns commits and worktrees; GitHub owns PR, CI and review state. A copy here can only go wrong —
 a green CI line is about a commit, not a time, so it is stale the moment a peer pushes however
 recently you wrote it. Point at plans, PRs and commits, and when the file disagrees with those
-sources, they win. It is authoritative only for intent and decisions.
+sources, they win. `run.md` is authoritative only for intent and decisions.
 
 Write to it on a block or unblock, or a decision, and not otherwise: that keeps it
 small enough that updating it never becomes a task of its own, and means a change to it says
-something. You are the only writer; peers read it and report their deltas to you, since
-concurrent edits with no locking lose updates silently. It follows that the file is only as
-current as your last write — a head start for a session picking the run up, not live status.
+something. It follows that the file is only as current as your last write — a head start for a
+session picking the run up, not live status.
+
+`<session-name>.md` belongs to one member and no one else writes it. Name it after the session's
+garden/tmux name, not its Claude Code messaging name (see "Two naming systems" above): the
+messaging name changes on every resume, so a peer resuming after compaction comes back under a
+different messaging name and, named that way, would either lose its own file or fork a new one.
+It's a short snapshot of that member's goal, decisions, state, and next step — updated at
+milestones (assignment accepted, a material decision, a blocker, completion), not every turn.
+
+After a compaction, reread `run.md` and every member's file before acting — they're the head start
+that survived what your own context didn't.
 
 ## Keep the traffic small
 
