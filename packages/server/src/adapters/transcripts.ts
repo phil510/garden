@@ -57,23 +57,29 @@ async function readWindow(path: string, position: number, length: number): Promi
  * first line of the tail read and the last line of the head read are each discarded as
  * possibly cut off — a single line longer than a window is dropped entirely, which is
  * why a returned record can be missing a title or a recap without that being an error.
+ *
+ * The returned `signature` is the `stat()` taken here, before anything is read, so it is
+ * always a valid lower bound on what the parse below actually saw: a write landing after
+ * this call only makes the cached signature stale (one harmless extra re-read later), never
+ * ahead of the dispatched content.
  */
 export async function readTranscriptRecord(
   path: string,
   windowBytes = WINDOW_BYTES,
-): Promise<TranscriptParse> {
-  const { size } = await stat(path);
+): Promise<TranscriptParse & { signature: TranscriptSignature }> {
+  const { size, mtimeMs } = await stat(path);
+  const signature: TranscriptSignature = { size, mtimeMs };
   const tailStart = Math.max(0, size - windowBytes);
   // The two windows would overlap once the whole file fits in either one, so read it
   // once instead: every line is then known complete and nothing needs discarding.
   if (tailStart <= windowBytes) {
-    return parseTranscript(await readFile(path, 'utf8'));
+    return { ...parseTranscript(await readFile(path, 'utf8')), signature };
   }
   const headText = await readWindow(path, 0, windowBytes);
   const tailText = await readWindow(path, tailStart, size - tailStart);
   const headLines = headText.split('\n').slice(0, -1);
   const tailLines = tailText.split('\n').slice(1);
-  return parseTranscript([...headLines, ...tailLines].join('\n'));
+  return { ...parseTranscript([...headLines, ...tailLines].join('\n')), signature };
 }
 
 /** Coalesces the run of writes one turn produces on disk into a single re-read. */
@@ -134,7 +140,7 @@ export async function reconcileTranscripts(
   transcriptsDir: string,
   roots: readonly string[],
   signatures: Map<string, TranscriptSignature>,
-  onStale: (path: string) => Promise<boolean>,
+  onStale: (path: string) => Promise<void>,
   logger: TranscriptLogger,
 ): Promise<void> {
   for (const path of await listTranscriptFiles(transcriptsDir, roots)) {
@@ -168,8 +174,8 @@ export interface TranscriptWatcher {
   ready: Promise<void>;
   /** Runs one reconciliation pass immediately, without waiting for `reconcileMs`'s own
    *  schedule. `transcripts.test.ts` uses this as its deterministic driver in place of
-   *  waiting on chokidar's native delivery, which is confirmed to drop events outright under
-   *  contention rather than merely deliver them late (decisions.md). */
+   *  waiting on chokidar's native delivery, which real chokidar has been observed to drop
+   *  outright under contention rather than merely deliver it late. */
   reconcileNow(): Promise<void>;
   close(): Promise<void>;
 }
@@ -210,32 +216,27 @@ export function watchTranscripts(
   const warnedFiles = new Set<string>();
   const signatures = new Map<string, TranscriptSignature>();
 
-  // Resolves true/false rather than void so a caller — here, the reconciliation backstop
-  // below — can tell whether this call did its own read; the coalescer's own call site still
-  // fires and forgets, same as before. Every successful read records its own signature,
-  // regardless of which path (native watch or reconciliation) triggered it, so the two share
-  // one accurate cache instead of only reconciliation's own reads being remembered.
-  async function reread(path: string): Promise<boolean> {
-    let parsed: TranscriptParse;
+  // Every successful read records its own signature, regardless of which path (native watch
+  // or reconciliation) triggered it, so the two share one accurate cache instead of only
+  // reconciliation's own reads being remembered. The signature cached is the one
+  // readTranscriptRecord stamped the read with — taken before the read, never a fresh stat
+  // taken after dispatch — so it can only be behind what was actually read, never ahead of
+  // it; a failed read caches nothing, so it's retried on the next reconciliation pass.
+  async function reread(path: string): Promise<void> {
+    let parsed: TranscriptParse & { signature: TranscriptSignature };
     try {
       parsed = await readTranscriptRecord(path);
     } catch (error) {
       logger.error(`failed to read transcript ${path}: ${(error as Error).message}`);
-      return false;
+      return;
     }
-    const { record, skipped } = parsed;
+    const { record, skipped, signature } = parsed;
     if (skipped > 0 && !warnedFiles.has(path)) {
       warnedFiles.add(path);
       logger.warn(`skipped ${skipped} unparseable line(s) in ${path}`);
     }
     onEvent({ type: 'transcript-changed', path, record });
-    try {
-      signatures.set(path, await stat(path));
-    } catch {
-      // Vanished between the read that just succeeded and this stat — reconciliation's own
-      // listing on its next tick will simply no longer include it either.
-    }
-    return true;
+    signatures.set(path, signature);
   }
 
   const coalescer = createCoalescer((path) => void reread(path), debounceMs);

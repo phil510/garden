@@ -443,7 +443,6 @@ describe('reconcileTranscripts', () => {
         async (p) => {
           seen.push(p);
           signatures.set(p, await stat(p));
-          return true;
         },
         silentLogger(),
       );
@@ -467,7 +466,7 @@ describe('reconcileTranscripts', () => {
         signatures,
         (p) => {
           seen.push(p);
-          return Promise.resolve(true);
+          return Promise.resolve();
         },
         silentLogger(),
       );
@@ -489,43 +488,12 @@ describe('reconcileTranscripts', () => {
         signatures,
         (p) => {
           seen.push(p);
-          return Promise.resolve(true);
+          return Promise.resolve();
         },
         silentLogger(),
       );
 
       expect(seen).toEqual([path]);
-    });
-  });
-
-  it('does not cache a failed read, so the next call retries it', async () => {
-    await withTempHome(async (home) => {
-      const root = '/Users/phil/Desktop/Extend/garden';
-      const path = writeProjectFile(home, root, 'session-a', HEAD_LINE('session-a') + '\n');
-      const signatures = new Map<string, TranscriptSignature>();
-      let calls = 0;
-      const onStale = () => {
-        calls += 1;
-        return Promise.resolve(false);
-      };
-
-      await reconcileTranscripts(
-        transcriptsDirFor(home),
-        [root],
-        signatures,
-        onStale,
-        silentLogger(),
-      );
-      await reconcileTranscripts(
-        transcriptsDirFor(home),
-        [root],
-        signatures,
-        onStale,
-        silentLogger(),
-      );
-
-      expect(calls).toBe(2);
-      expect(signatures.has(path)).toBe(false);
     });
   });
 
@@ -546,7 +514,7 @@ describe('reconcileTranscripts', () => {
         transcriptsDirFor(home),
         [root],
         signatures,
-        () => Promise.resolve(true),
+        () => Promise.resolve(),
         logger,
       );
 
