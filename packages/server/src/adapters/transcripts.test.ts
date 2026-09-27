@@ -465,6 +465,55 @@ describe('watchTranscripts', () => {
     });
   });
 
+  it('emits no event for a transcript that already existed before the watch started', async () => {
+    await withTempHome(async (home) => {
+      const root = '/Users/phil/Desktop/Extend/garden';
+      // Written before watchTranscripts is even called, so only the initial scan — not a
+      // write the watcher is armed to see — could ever produce an event for this file.
+      writeProjectFile(home, root, 'session-a', HEAD_LINE('session-a') + '\n');
+      // A production transcript already existing at boot was last written well before the
+      // watch starts. macOS FSEvents can otherwise replay a write from the same instant the
+      // watch attaches as a native 'change' — a race this margin avoids, distinct from the
+      // initial-scan 'add' burst ignoreInitial suppresses.
+      await new Promise((resolve) => setTimeout(resolve, 250));
+
+      const events: TranscriptChangedEvent[] = [];
+      const debounceMs = 50;
+      const watcher = watchTranscripts(
+        transcriptsDirFor(home),
+        [root],
+        (event) => events.push(event),
+        silentLogger(),
+        debounceMs,
+      );
+      try {
+        await watcher.ready;
+
+        // A file created after `ready` proves the watcher itself is live; native chokidar
+        // delivery has been observed to drop events under contention (see the file-level
+        // comment above), so each vi.waitFor attempt appends a fresh line rather than
+        // relying on a single write's event arriving.
+        const pathB = writeProjectFile(home, root, 'session-b', HEAD_LINE('session-b') + '\n');
+        await vi.waitFor(
+          () => {
+            appendFileSync(pathB, '\n', 'utf8');
+            expect(events.some((event) => event.record.sessionId === 'session-b')).toBe(true);
+          },
+          { timeout: 5000, interval: 100 },
+        );
+
+        // B's dispatch proves the watcher is live and debounced writes have settled; if
+        // ignoreInitial were dropped, A's initial-scan-triggered reread would have fired
+        // well within this margin, ahead of or alongside B's own write-triggered one.
+        await new Promise((resolve) => setTimeout(resolve, debounceMs + 100));
+
+        expect(events.some((event) => event.record.sessionId === 'session-a')).toBe(false);
+      } finally {
+        await watcher.close();
+      }
+    });
+  });
+
   it("logs the watcher's error events instead of swallowing them", async () => {
     await withTempHome(async (home) => {
       const root = '/Users/phil/Desktop/Extend/garden';
