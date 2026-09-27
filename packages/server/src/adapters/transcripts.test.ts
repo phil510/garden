@@ -351,6 +351,14 @@ describe('watchTranscripts', () => {
   it('logs an unparseable line once per file across repeated re-reads', async () => {
     await withTempHome(async (home) => {
       const root = '/Users/phil/Desktop/Extend/garden';
+      class FakeWatcher extends EventEmitter {
+        close(): Promise<void> {
+          return Promise.resolve();
+        }
+      }
+      const fake = new FakeWatcher();
+      vi.mocked(watch).mockImplementationOnce(() => fake as unknown as ReturnType<typeof watch>);
+
       const events: TranscriptChangedEvent[] = [];
       const warnings: string[] = [];
       const logger: TranscriptLogger = { warn: (m) => warnings.push(m), error: () => {} };
@@ -359,19 +367,21 @@ describe('watchTranscripts', () => {
         [root],
         (event) => events.push(event),
         logger,
-        20,
+        5,
       );
       try {
-        await watcher.ready;
         const path = writeProjectFile(
           home,
           root,
           'session-a',
           `not json\n${HEAD_LINE('session-a')}\n`,
         );
-        await watcher.reconcileNow();
+        fake.emit('add', path);
+        await vi.waitFor(() => expect(events[0]).toBeDefined());
+
         appendFileSync(path, `${TITLE_LINE}\n`, 'utf8');
-        await watcher.reconcileNow();
+        fake.emit('change', path);
+        await vi.waitFor(() => expect(events[1]).toBeDefined());
 
         expect(warnings).toHaveLength(1);
       } finally {
