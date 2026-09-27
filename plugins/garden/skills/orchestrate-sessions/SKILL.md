@@ -70,9 +70,11 @@ cause of whatever breaks.
 **Ask for a report in the brief.** Tell the peer to message `<your session name>` when it
 finishes, and immediately if blocked, with a pointer to the result, its state, and what it needs
 from you. Spell your own name out; the peer cannot derive it. Without that contract a peer goes
-silent on completion or returns the whole story. Include the run folder's absolute path too, and
-tell the peer to maintain its own file there at milestones — see "Write the run down" below for
-what that means. `message-session` covers the rest of the brief.
+silent on completion or returns the whole story. Include the run folder's absolute path too, plus
+the peer's own tmux name from `garden new`'s `{id, tmuxName}` return — the peer has no other way
+to learn it, and needs it to name its own file — and tell the peer to maintain that file at
+milestones. See "Write the run down" below for what that means. `message-session` covers the rest
+of the brief.
 
 **Settle merge/approval policy in the brief.** Naming the approver and the merge policy before
 the peer starts is what keeps an `ask`-style gate from stalling later. Relaying an
@@ -171,9 +173,11 @@ session picking the run up, not live status.
 
 `<session-name>.md` belongs to one member and no one else writes it. Name it after the session's
 garden/tmux name, not its Claude Code messaging name (see "Two naming systems" above): the
-messaging name changes on every resume, so a peer resuming after compaction comes back under a
-different messaging name and, named that way, would either lose its own file or fork a new one.
-It's a short snapshot of that member's goal, decisions, state, and next step — updated at
+messaging name changes on every resume, so a peer whose context fills and gets resumed comes back
+under a different messaging name and, named that way, would either lose its own file or fork a new
+one. The tmux name doesn't change across a resume, and you already have it from `garden new`'s
+return — pass it to the peer in the brief (see "Dispatch" above) so it knows what to call its own
+file. It's a short snapshot of that member's goal, decisions, state, and next step — updated at
 milestones (assignment accepted, a material decision, a blocker, completion), not every turn.
 
 After a compaction, reread `run.md` and every member's file before acting — they're the head start
@@ -301,6 +305,8 @@ no separate invocation needed. `garden handoff --to` has no file-carrying counte
 session that already exists, so point it at the handoff yourself in the message you send.
 
 Winding down one peer or replacing yourself both leave the run folder in place — the swarm is still
-running and other members still need their files. Only when the whole swarm winds down, with no
-successor to hand it to, remove `.orchestration/<run>/`: nothing left in the run needs it, and
-nothing else will clean it up.
+running and other members still need their files. Remove `.orchestration/<run>/` only once every
+member is wound down, no successor is taking over, and you are ending your own run too: with the
+whole swarm gone, nothing left will read the folder, and nothing else will clean it up. Don't
+delete it while any peer might still be running — a peer mid-write to its own file has no way to
+know its file just disappeared.
