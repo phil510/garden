@@ -79,6 +79,35 @@ export async function readTranscriptRecord(
 /** Coalesces the run of writes one turn produces on disk into a single re-read. */
 export const DEBOUNCE_MS = 200;
 
+/**
+ * Collapses repeated `schedule(key)` calls into a single `run(key)` once `debounceMs`
+ * has passed with no further call for that key — restarting the wait on every call,
+ * like `watchTranscripts`'s own re-read debounce. Kept as pure `setTimeout` bookkeeping,
+ * decoupled from chokidar, so it can be proven deterministically with fake timers rather
+ * than by racing real filesystem delivery (`docs/testing.md` reserves that for the
+ * chokidar-timing path itself, which this isn't).
+ */
+export function createCoalescer(run: (key: string) => void, debounceMs: number) {
+  const timers = new Map<string, NodeJS.Timeout>();
+  return {
+    schedule(key: string): void {
+      const existing = timers.get(key);
+      if (existing !== undefined) clearTimeout(existing);
+      timers.set(
+        key,
+        setTimeout(() => {
+          timers.delete(key);
+          run(key);
+        }, debounceMs),
+      );
+    },
+    clear(): void {
+      for (const timer of timers.values()) clearTimeout(timer);
+      timers.clear();
+    },
+  };
+}
+
 export interface TranscriptWatcher {
   /** Resolves once chokidar's initial scan of `transcriptsDir` completes and its
    *  underlying OS watch is armed. Production has no immediate-write race to guard —
@@ -121,11 +150,9 @@ export function watchTranscripts(
   // fs.watch needs the directory to already exist; Claude Code creates it on first
   // use, but a garden started before that has nothing to attach a watch to otherwise.
   mkdirSync(transcriptsDir, { recursive: true });
-  const timers = new Map<string, NodeJS.Timeout>();
   const warnedFiles = new Set<string>();
 
   async function reread(path: string): Promise<void> {
-    timers.delete(path);
     let parsed: TranscriptParse;
     try {
       parsed = await readTranscriptRecord(path);
@@ -141,27 +168,19 @@ export function watchTranscripts(
     onEvent({ type: 'transcript-changed', path, record });
   }
 
-  function scheduleReread(path: string): void {
-    const existing = timers.get(path);
-    if (existing !== undefined) clearTimeout(existing);
-    timers.set(
-      path,
-      setTimeout(() => void reread(path), debounceMs),
-    );
-  }
+  const coalescer = createCoalescer((path) => void reread(path), debounceMs);
 
   const watcher = watch(transcriptsDir, {
     ignored: (path) => !isWatchedPath(transcriptsDir, roots, path),
   });
   const ready = new Promise<void>((resolve) => watcher.once('ready', resolve));
-  watcher.on('add', scheduleReread);
-  watcher.on('change', scheduleReread);
+  watcher.on('add', (path) => coalescer.schedule(path));
+  watcher.on('change', (path) => coalescer.schedule(path));
 
   return {
     ready,
     close: async () => {
-      for (const timer of timers.values()) clearTimeout(timer);
-      timers.clear();
+      coalescer.clear();
       await watcher.close();
     },
   };

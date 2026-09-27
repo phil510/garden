@@ -1,10 +1,15 @@
 import { appendFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { slugify } from '../domain/slug.js';
 import type { GardenEvent } from '../domain/types.js';
-import { listTranscriptFiles, readTranscriptRecord, watchTranscripts } from './transcripts.js';
+import {
+  createCoalescer,
+  listTranscriptFiles,
+  readTranscriptRecord,
+  watchTranscripts,
+} from './transcripts.js';
 import type { TranscriptLogger } from './transcripts.js';
 
 /** Polls until `predicate` holds or the deadline passes, failing with the last observation. */
@@ -281,23 +286,21 @@ describe('watchTranscripts', () => {
         40,
       );
       try {
+        await watcher.ready;
         const path = writeProjectFile(home, root, 'session-a', HEAD_LINE('session-a') + '\n');
         appendFileSync(path, TITLE_LINE + '\n', 'utf8');
         appendFileSync(path, LAST_PROMPT_LINE + '\n', 'utf8');
 
+        // Whether these three writes reach chokidar as one 'add' notification or several is
+        // real filesystem timing (docs/testing.md), so this only asserts the settled outcome:
+        // one coalesced event carrying the final content. The coalescing math itself — that
+        // repeated schedules for one path collapse into a single re-read — is proven
+        // deterministically below, in `describe('createCoalescer', ...)`.
         await until(
           () => events,
           (list) => list.length > 0,
           'the writes to be picked up',
         );
-        await expect(
-          until(
-            () => events.length,
-            (count) => count > 1,
-            'a second, undebounced event',
-            300,
-          ),
-        ).rejects.toThrow();
 
         expect(events).toHaveLength(1);
         expect(events[0]?.record.lastPrompt).toBe('do the thing');
@@ -345,5 +348,80 @@ describe('watchTranscripts', () => {
         await watcher.close();
       }
     });
+  });
+});
+
+describe('createCoalescer', () => {
+  it('collapses repeated schedules for one key into a single run after debounceMs of quiet', () => {
+    vi.useFakeTimers();
+    try {
+      const runs: string[] = [];
+      const coalescer = createCoalescer((key) => runs.push(key), 100);
+
+      coalescer.schedule('a');
+      vi.advanceTimersByTime(50);
+      coalescer.schedule('a'); // restarts the wait
+      vi.advanceTimersByTime(99);
+      expect(runs).toEqual([]);
+
+      vi.advanceTimersByTime(1);
+      expect(runs).toEqual(['a']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('tracks each key independently', () => {
+    vi.useFakeTimers();
+    try {
+      const runs: string[] = [];
+      const coalescer = createCoalescer((key) => runs.push(key), 100);
+
+      coalescer.schedule('a');
+      vi.advanceTimersByTime(50);
+      coalescer.schedule('b');
+      vi.advanceTimersByTime(50);
+      expect(runs).toEqual(['a']);
+
+      vi.advanceTimersByTime(50);
+      expect(runs).toEqual(['a', 'b']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('schedules a fresh run for a key whose previous run already fired', () => {
+    vi.useFakeTimers();
+    try {
+      const runs: string[] = [];
+      const coalescer = createCoalescer((key) => runs.push(key), 100);
+
+      coalescer.schedule('a');
+      vi.advanceTimersByTime(100);
+      expect(runs).toEqual(['a']);
+
+      coalescer.schedule('a');
+      vi.advanceTimersByTime(100);
+      expect(runs).toEqual(['a', 'a']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('clear() cancels every pending run', () => {
+    vi.useFakeTimers();
+    try {
+      const runs: string[] = [];
+      const coalescer = createCoalescer((key) => runs.push(key), 100);
+
+      coalescer.schedule('a');
+      coalescer.schedule('b');
+      coalescer.clear();
+      vi.advanceTimersByTime(200);
+
+      expect(runs).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
