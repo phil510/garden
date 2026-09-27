@@ -7,7 +7,6 @@ import { resolveTopLevelSwarmId } from './groupSwarms';
 import type { SidebarGroup } from './groupSessions';
 import { hideDeadLabel } from './hideDeadLabel';
 import { SessionRow } from './SessionRow';
-import { resolveSuccessorName } from './successorName';
 import {
   capDeadSessions,
   hiddenCappedDeadCount,
@@ -100,7 +99,6 @@ export function RepoGroup({
             focused={focusedSessionId === session.id}
             now={now}
             onSelect={onSelectSession}
-            successorName={resolveSuccessorName(placements, sessions, session.id)}
             currentSwarmId={resolveTopLevelSwarmId(placements, session.id)}
             activeSwarms={activeSwarms}
           />

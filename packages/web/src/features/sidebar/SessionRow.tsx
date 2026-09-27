@@ -33,9 +33,6 @@ interface SessionRowProps {
   focused: boolean;
   now: number;
   onSelect: (id: string) => void;
-  /** The successor's `claudeSessionName`, resolved by the caller via `resolveSuccessorName`
-   *  — null when this session has no successor. */
-  successorName: string | null;
   /** This session's current swarm, resolved by the caller via `resolveTopLevelSwarmId` —
    *  undefined when it's solo. Drives whether the row menu offers "Remove from swarm". */
   currentSwarmId?: string | undefined;
@@ -61,7 +58,6 @@ export function SessionRow({
   focused,
   now,
   onSelect,
-  successorName,
   currentSwarmId,
   activeSwarms,
   hasChildren = false,
@@ -222,9 +218,6 @@ export function SessionRow({
           </Fragment>
         ))}
       </div>
-      {successorName !== null && (
-        <div className="handoff-note">handed off &rarr; {successorName}</div>
-      )}
       {hovered && rowEl !== null && contextMenuPoint === null && (
         <HoverCard title={title} session={session} anchor={rowEl} now={now} />
       )}

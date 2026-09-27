@@ -4,7 +4,6 @@ import { CSS } from '@dnd-kit/utilities';
 import type { ActiveSwarmOption, SwarmTreeNode } from './groupSwarms';
 import { resolveTopLevelSwarmId } from './groupSwarms';
 import { SessionRow } from './SessionRow';
-import { resolveSuccessorName } from './successorName';
 
 interface SwarmTreeProps {
   nodes: SwarmTreeNode[];
@@ -90,7 +89,6 @@ function SwarmTreeRow({
         focused={focusedSessionId === session.id}
         now={now}
         onSelect={onSelectSession}
-        successorName={resolveSuccessorName(placements, sessions, session.id)}
         currentSwarmId={resolveTopLevelSwarmId(placements, session.id)}
         activeSwarms={activeSwarms}
         hasChildren={node.children.length > 0}
