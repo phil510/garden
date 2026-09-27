@@ -24,13 +24,26 @@ import {
 } from './transcripts.js';
 import type { TranscriptLogger, TranscriptSignature } from './transcripts.js';
 
-// Wraps the real implementation by default, so every existing test still exercises real
-// chokidar/fs timing (docs/testing.md) — only the one test below that needs a synthetic
-// 'error' event overrides it, and only for that one call.
-vi.mock('chokidar', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('chokidar')>();
-  return { ...actual, watch: vi.fn(actual.watch) };
-});
+// The unit tier fakes chokidar to test garden's own logic — the debounce coalescing, the
+// warn-once bookkeeping, the ignore predicate, the reconciliation interval — deterministically
+// and without real fs watch timing. tests/integration/fake-claude.test.ts covers real chokidar
+// delivery end to end.
+vi.mock('chokidar', () => ({ watch: vi.fn() }));
+
+class FakeWatcher extends EventEmitter {
+  close(): Promise<void> {
+    return Promise.resolve();
+  }
+}
+
+/** Makes the next `watchTranscripts()` call receive this fake in place of a real chokidar
+ *  watcher. Each call to `watchTranscripts` consumes one `mockImplementationOnce`, so a test
+ *  driving two watchers in sequence would call this twice. */
+function useFakeChokidar(): FakeWatcher {
+  const fake = new FakeWatcher();
+  vi.mocked(watch).mockImplementationOnce(() => fake as unknown as ReturnType<typeof watch>);
+  return fake;
+}
 
 function silentLogger(): TranscriptLogger {
   return { warn: () => {}, error: () => {} };
@@ -201,9 +214,9 @@ describe('watchTranscripts', () => {
     // in/out-of-scope behavior deterministically with no filesystem writes or timing at all.
     await withTempHome(async (home) => {
       const root = '/Users/phil/Desktop/Extend/garden';
+      useFakeChokidar();
       const watcher = watchTranscripts(transcriptsDirFor(home), [root], () => {}, silentLogger());
       try {
-        await watcher.ready;
         const options = vi.mocked(watch).mock.calls.at(-1)?.[1];
         const ignored = options?.ignored as (path: string) => boolean;
         const dir = projectDirFor(home, root);
@@ -224,13 +237,7 @@ describe('watchTranscripts', () => {
   it('logs an unparseable line once per file across repeated re-reads', async () => {
     await withTempHome(async (home) => {
       const root = '/Users/phil/Desktop/Extend/garden';
-      class FakeWatcher extends EventEmitter {
-        close(): Promise<void> {
-          return Promise.resolve();
-        }
-      }
-      const fake = new FakeWatcher();
-      vi.mocked(watch).mockImplementationOnce(() => fake as unknown as ReturnType<typeof watch>);
+      const fake = useFakeChokidar();
 
       const events: TranscriptChangedEvent[] = [];
       const warnings: string[] = [];
@@ -266,17 +273,10 @@ describe('watchTranscripts', () => {
   it('runs a reconciliation pass on its own configured interval and dispatches what it finds', async () => {
     await withTempHome(async (home) => {
       const root = '/Users/phil/Desktop/Extend/garden';
-      // A stand-in for chokidar's FSWatcher that never emits, same as the error-logging test
-      // below: this test is about the setInterval -> reconcileTranscripts -> dispatch wiring
-      // inside watchTranscripts, not chokidar's own delivery, so faking chokidar away keeps
-      // the two concerns separate and lets fake timers drive the interval deterministically.
-      class FakeWatcher extends EventEmitter {
-        close(): Promise<void> {
-          return Promise.resolve();
-        }
-      }
-      const fake = new FakeWatcher();
-      vi.mocked(watch).mockImplementationOnce(() => fake as unknown as ReturnType<typeof watch>);
+      // This test is about the setInterval -> reconcileTranscripts -> dispatch wiring inside
+      // watchTranscripts, not chokidar's own delivery, so the fake watcher never emits and
+      // fake timers drive the interval deterministically.
+      useFakeChokidar();
 
       // Written before the watcher even exists, so nothing but a reconciliation tick could
       // ever find it — the fake watcher has no 'add'/'change' to emit.
@@ -314,17 +314,8 @@ describe('watchTranscripts', () => {
   it("dispatches a transcript-changed event when the native watcher emits 'add' or 'change'", async () => {
     await withTempHome(async (home) => {
       const root = '/Users/phil/Desktop/Extend/garden';
-      // A stand-in for chokidar's FSWatcher, same technique as the error-logging test below:
-      // this drives watcher.on('add'|'change', ...) directly, which none of the
-      // reconcileNow()-driven tests above ever touch — they read straight off disk and never
-      // reach these listeners at all.
-      class FakeWatcher extends EventEmitter {
-        close(): Promise<void> {
-          return Promise.resolve();
-        }
-      }
-      const fake = new FakeWatcher();
-      vi.mocked(watch).mockImplementationOnce(() => fake as unknown as ReturnType<typeof watch>);
+      // Drives watcher.on('add'|'change', ...) directly, which no other test reaches.
+      const fake = useFakeChokidar();
 
       const events: TranscriptChangedEvent[] = [];
       const watcher = watchTranscripts(
@@ -351,16 +342,7 @@ describe('watchTranscripts', () => {
   it("logs the watcher's error events instead of swallowing them", async () => {
     await withTempHome(async (home) => {
       const root = '/Users/phil/Desktop/Extend/garden';
-      // A minimal stand-in for chokidar's FSWatcher: real chokidar has no fast, reliable
-      // way to be made to emit a real 'error' from test code, so this proves the wiring —
-      // logger.error gets called — without exercising real FS timing.
-      class FakeWatcher extends EventEmitter {
-        close(): Promise<void> {
-          return Promise.resolve();
-        }
-      }
-      const fake = new FakeWatcher();
-      vi.mocked(watch).mockImplementationOnce(() => fake as unknown as ReturnType<typeof watch>);
+      const fake = useFakeChokidar();
 
       const errors: string[] = [];
       const logger: TranscriptLogger = { warn: () => {}, error: (m) => errors.push(m) };
