@@ -154,7 +154,7 @@ describe('writeOverlayState', () => {
         groups: { '/repo': { pinned: true, order: 0, collapsed: false, hideDead: true } },
         stage: { preset: 'two-across', slots: ['session-1', null], focusedSlot: 0, layout: {} },
         swarms: [{ id: 'swarm-1', name: 'A swarm', archived: false }],
-        placements: { 'session-1': { swarmId: 'swarm-1', successor: 'session-2' } },
+        placements: { 'session-1': { swarmId: 'swarm-1' } },
         swarmOrder: ['swarm-1'],
         collapsedSwarms: ['swarm-1'],
         hideDeadSwarms: ['swarm-1'],

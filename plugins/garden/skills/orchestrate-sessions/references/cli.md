@@ -1,6 +1,6 @@
 # garden CLI reference
 
-The six session-lifecycle subcommands, read through `--json` rather than the human-readable
+The five session-lifecycle subcommands, read through `--json` rather than the human-readable
 text the CLI prints by default.
 
 ## Precondition
@@ -41,26 +41,6 @@ garden new <dir> --json
 garden passes no permission-mode or model flag, so the session gets whatever the local `claude`
 would use on its own. `GARDEN_CLAUDE_COMMAND` pins the whole command server-wide.
 
-### `--handoff`
-
-```
-garden new <dir> --handoff --json
-```
-
-One `POST /sessions` that both spawns `<dir>`'s session and hands off the caller's place in its
-swarm to it, in one request rather than a spawn plus a separate `handoff`: the caller's
-`parent`/`swarmId` moves to the new session, the caller's own children move to it, and the caller
-gets `successor` set to the new session's id. Requires `GARDEN_SESSION_ID` in the calling
-session's own environment — unset, this fails the same way as `handoff`/`adopt` below (exit 1,
-`garden: GARDEN_SESSION_ID is not set`) and spawns nothing. Output is the same
-`{ "id": "...", "tmuxName": "..." }` shape as a plain `new`.
-
-Add `--handoff-file <path>` alongside `--handoff` to point the new session at a written
-`.handoffs/*.md` file — its own first prompt becomes "Continue from the handoff at `<path>`.",
-which the `session-pickup` skill's existing trigger prose picks up automatically, no separate
-invocation needed. Only valid together with `--handoff`: given alone, or with a `<path>` that
-doesn't exist on disk, `garden new` fails fast (exit 1, stderr) and spawns nothing.
-
 ## List sessions
 
 ```
@@ -87,7 +67,6 @@ Output is a **bare array** of `SessionState` objects — not `{"sessions": [...]
 | `lastActivity` | epoch ms of the last timestamped transcript line                                      |
 | `parent`       | id of the session this one was spawned/adopted under, absent if it has none           |
 | `swarmId`      | id of the swarm this session is a top-level member of, absent if it has none          |
-| `successor`    | id of the session this one handed off to, absent unless it has                        |
 
 A session is placed in at most one of `parent`/`swarmId` at a time — never both. Walk `parent` up
 to find a top-level ancestor's `swarmId` if you need the whole swarm a descendant belongs to
@@ -131,24 +110,13 @@ garden resume <id> --json
 Output: `{ "id": "...", "tmuxName": "..." }` — same shape as create. The session id survives;
 the tmux name may not.
 
-## Hand off a session
-
-```
-garden handoff --to <id> --json
-```
-
-Moves the calling session's place in its swarm to `<id>`: `<id>` takes over the caller's
-`parent`/`swarmId` and its children, and the caller gets `successor` set to `<id>`. Requires
-`GARDEN_SESSION_ID` in the calling session's own environment — unset, this fails with exit 1 and
-`garden: GARDEN_SESSION_ID is not set` on stderr, and moves nothing. A handoff that would create a
-cycle, or that targets a session already in a different swarm, is rejected the same way every
-other failure is: exit 1, `garden: <message>` on stderr. Output: `{ "ok": true }`.
-
 ## Adopt a session
 
 ```
 garden adopt <id> --json
 ```
 
-Sets `<id>`'s `parent` to the calling session. Same `GARDEN_SESSION_ID` requirement, unset-caller
-failure, and cycle-rejection behavior as `handoff` above. Output: `{ "ok": true }`.
+Sets `<id>`'s `parent` to the calling session. Requires `GARDEN_SESSION_ID` in the calling
+session's own environment — unset, this fails with exit 1 and `garden: GARDEN_SESSION_ID is not
+set` on stderr, and moves nothing. An adopt that would create a cycle is rejected the same way
+every other failure is: exit 1, `garden: <message>` on stderr. Output: `{ "ok": true }`.

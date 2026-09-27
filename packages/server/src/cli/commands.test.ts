@@ -1,4 +1,3 @@
-import { fileURLToPath } from 'node:url';
 import type {
   CreateSessionResponse,
   OkResponse,
@@ -8,11 +7,7 @@ import type {
 } from '@garden/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { CliClient, Io } from './commands.js';
-import { runAdopt, runHandoff, runKill, runLs, runNew, runResume } from './commands.js';
-
-/** A path guaranteed to exist on disk, for tests of the --handoff-file existence check —
- *  this file itself, rather than a temp-file fixture neither the check nor the assertion needs. */
-const AN_EXISTING_FILE = fileURLToPath(import.meta.url);
+import { runAdopt, runKill, runLs, runNew, runResume } from './commands.js';
 
 function collectingIo(): { io: Io; stdout: string[]; stderr: string[] } {
   const stdout: string[] = [];
@@ -59,7 +54,6 @@ function throwingClient(error: Error): CliClient {
     createSession: () => Promise.reject(error),
     resumeSession: () => Promise.reject(error),
     killSession: () => Promise.reject(error),
-    handoffSession: () => Promise.reject(error),
     placeSession: () => Promise.reject(error),
   };
 }
@@ -152,170 +146,6 @@ describe('runNew', () => {
     expect(exitCode).toBe(1);
     expect(stdout).toEqual([]);
     expect(stderr).toEqual(['garden: garden server is not running\n']);
-  });
-
-  it('passes handoff: true through to createSession when --handoff is set and a caller is present', async () => {
-    process.env.GARDEN_SESSION_ID = 'caller-1';
-    const { io } = collectingIo();
-    const response: CreateSessionResponse = { id: 'abc', tmuxName: 'repo' };
-    const calls: Array<[string, string | undefined, boolean | undefined]> = [];
-    const client: CliClient = {
-      ...throwingClient(new Error('unused')),
-      createSession: (cwd, callerSessionId, handoff) => {
-        calls.push([cwd, callerSessionId, handoff]);
-        return Promise.resolve(response);
-      },
-    };
-
-    const exitCode = await runNew(io, '/repo', false, client, true);
-
-    expect(exitCode).toBe(0);
-    expect(calls).toEqual([['/repo', 'caller-1', true]]);
-  });
-
-  it('fails with exit 1 and creates no relationship when --handoff is set but GARDEN_SESSION_ID is unset', async () => {
-    delete process.env.GARDEN_SESSION_ID;
-    const { io, stdout, stderr } = collectingIo();
-    const calls: unknown[] = [];
-    const client: CliClient = {
-      ...throwingClient(new Error('unused')),
-      createSession: (...args) => {
-        calls.push(args);
-        return Promise.resolve({ id: 'abc', tmuxName: 'repo' });
-      },
-    };
-
-    const exitCode = await runNew(io, '/repo', false, client, true);
-
-    expect(exitCode).toBe(1);
-    expect(calls).toEqual([]);
-    expect(stdout).toEqual([]);
-    expect(stderr).toEqual(['garden: GARDEN_SESSION_ID is not set\n']);
-  });
-
-  it('passes handoffFilePath through to createSession when --handoff and an existing --handoff-file are both given', async () => {
-    process.env.GARDEN_SESSION_ID = 'caller-1';
-    const { io } = collectingIo();
-    const response: CreateSessionResponse = { id: 'abc', tmuxName: 'repo' };
-    const calls: Array<[string, string | undefined, boolean | undefined, string | undefined]> = [];
-    const client: CliClient = {
-      ...throwingClient(new Error('unused')),
-      createSession: (cwd, callerSessionId, handoff, handoffFilePath) => {
-        calls.push([cwd, callerSessionId, handoff, handoffFilePath]);
-        return Promise.resolve(response);
-      },
-    };
-
-    const exitCode = await runNew(io, '/repo', false, client, true, AN_EXISTING_FILE);
-
-    expect(exitCode).toBe(0);
-    expect(calls).toEqual([['/repo', 'caller-1', true, AN_EXISTING_FILE]]);
-  });
-
-  it('fails with exit 1 and makes no client call when --handoff-file is given without --handoff', async () => {
-    process.env.GARDEN_SESSION_ID = 'caller-1';
-    const { io, stdout, stderr } = collectingIo();
-    const calls: unknown[] = [];
-    const client: CliClient = {
-      ...throwingClient(new Error('unused')),
-      createSession: (...args) => {
-        calls.push(args);
-        return Promise.resolve({ id: 'abc', tmuxName: 'repo' });
-      },
-    };
-
-    const exitCode = await runNew(io, '/repo', false, client, false, AN_EXISTING_FILE);
-
-    expect(exitCode).toBe(1);
-    expect(calls).toEqual([]);
-    expect(stdout).toEqual([]);
-    expect(stderr).toEqual(['garden: --handoff-file requires --handoff\n']);
-  });
-
-  it('fails with exit 1 and makes no client call when --handoff-file does not exist', async () => {
-    process.env.GARDEN_SESSION_ID = 'caller-1';
-    const { io, stdout, stderr } = collectingIo();
-    const calls: unknown[] = [];
-    const missingPath = '/definitely/does/not/exist/handoff.md';
-    const client: CliClient = {
-      ...throwingClient(new Error('unused')),
-      createSession: (...args) => {
-        calls.push(args);
-        return Promise.resolve({ id: 'abc', tmuxName: 'repo' });
-      },
-    };
-
-    const exitCode = await runNew(io, '/repo', false, client, true, missingPath);
-
-    expect(exitCode).toBe(1);
-    expect(calls).toEqual([]);
-    expect(stdout).toEqual([]);
-    expect(stderr).toEqual([`garden: handoff file not found: ${missingPath}\n`]);
-  });
-});
-
-describe('runHandoff', () => {
-  let originalSessionId: string | undefined;
-
-  beforeEach(() => {
-    originalSessionId = process.env.GARDEN_SESSION_ID;
-  });
-
-  afterEach(() => {
-    if (originalSessionId === undefined) delete process.env.GARDEN_SESSION_ID;
-    else process.env.GARDEN_SESSION_ID = originalSessionId;
-  });
-
-  it('hands off from GARDEN_SESSION_ID to the named target on success', async () => {
-    process.env.GARDEN_SESSION_ID = 'caller-1';
-    const { io, stdout } = collectingIo();
-    const calls: Array<[string, string]> = [];
-    const client: CliClient = {
-      ...throwingClient(new Error('unused')),
-      handoffSession: (fromId, to) => {
-        calls.push([fromId, to]);
-        return Promise.resolve({ ok: true });
-      },
-    };
-
-    const exitCode = await runHandoff(io, 'target-1', false, client);
-
-    expect(exitCode).toBe(0);
-    expect(calls).toEqual([['caller-1', 'target-1']]);
-    expect(stdout).toEqual(['handed off\n']);
-  });
-
-  it('fails with exit 1 and creates no relationship when GARDEN_SESSION_ID is unset', async () => {
-    delete process.env.GARDEN_SESSION_ID;
-    const { io, stdout, stderr } = collectingIo();
-    const calls: unknown[] = [];
-    const client: CliClient = {
-      ...throwingClient(new Error('unused')),
-      handoffSession: (...args) => {
-        calls.push(args);
-        return Promise.resolve({ ok: true });
-      },
-    };
-
-    const exitCode = await runHandoff(io, 'target-1', false, client);
-
-    expect(exitCode).toBe(1);
-    expect(calls).toEqual([]);
-    expect(stdout).toEqual([]);
-    expect(stderr).toEqual(['garden: GARDEN_SESSION_ID is not set\n']);
-  });
-
-  it('surfaces a cycle/cross-swarm rejection from the server on stderr, exit 1', async () => {
-    process.env.GARDEN_SESSION_ID = 'caller-1';
-    const { io, stderr } = collectingIo();
-    const client = throwingClient(
-      new Error('would create a cycle: target-1 is already an ancestor'),
-    );
-
-    const exitCode = await runHandoff(io, 'target-1', false, client);
-
-    expect(exitCode).toBe(1);
-    expect(stderr).toEqual(['garden: would create a cycle: target-1 is already an ancestor\n']);
   });
 });
 

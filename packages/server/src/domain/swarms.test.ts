@@ -2,7 +2,6 @@ import type { SwarmRecord } from '@garden/shared';
 import { describe, expect, it } from 'vitest';
 import type { OverlayState } from './overlay.js';
 import {
-  computeHandoff,
   pruneOverlay,
   resolveSwarmId,
   validatePlacement,
@@ -122,146 +121,6 @@ describe('validatePlacement', () => {
   });
 });
 
-describe('computeHandoff', () => {
-  it('B takes A place: swarmId moves, children move, A gets parent+successor set to B', () => {
-    const overlay = anOverlay({
-      placements: {
-        a: { swarmId: 'swarm-1' },
-        childOfA: { parent: 'a' },
-      },
-    });
-
-    const result = computeHandoff(overlay, 'a', 'b');
-
-    expect(result).toEqual({
-      ok: true,
-      placements: {
-        a: { parent: 'b', successor: 'b' },
-        b: { swarmId: 'swarm-1' },
-        childOfA: { parent: 'b' },
-      },
-    });
-  });
-
-  it('moves a parent placement (not just a swarmId one) the same way', () => {
-    const overlay = anOverlay({
-      placements: {
-        orchestrator: {},
-        a: { parent: 'orchestrator' },
-      },
-    });
-
-    const result = computeHandoff(overlay, 'a', 'b');
-
-    expect(result).toEqual({
-      ok: true,
-      placements: {
-        orchestrator: {},
-        a: { parent: 'b', successor: 'b' },
-        b: { parent: 'orchestrator' },
-      },
-    });
-  });
-
-  it('rejects a handoff to a session already in a different swarm', () => {
-    const overlay = anOverlay({
-      placements: {
-        a: { swarmId: 'swarm-1' },
-        b: { swarmId: 'swarm-2' },
-      },
-    });
-
-    expect(computeHandoff(overlay, 'a', 'b')).toMatchObject({
-      ok: false,
-      code: 'cross-swarm',
-    });
-  });
-
-  it('allows a handoff to a solo session even though fromId is in a swarm', () => {
-    const overlay = anOverlay({ placements: { a: { swarmId: 'swarm-1' } } });
-
-    expect(computeHandoff(overlay, 'a', 'b').ok).toBe(true);
-  });
-
-  it('allows a solo fromId handing off to a solo toId', () => {
-    const overlay = anOverlay();
-    expect(computeHandoff(overlay, 'a', 'b').ok).toBe(true);
-  });
-
-  it('rejects a solo fromId handing off into a different occupied swarm', () => {
-    const overlay = anOverlay({ placements: { b: { swarmId: 'swarm-1' } } });
-    expect(computeHandoff(overlay, 'a', 'b')).toMatchObject({
-      ok: false,
-      code: 'cross-swarm',
-    });
-  });
-
-  it('rejects handoff to own descendant (toId already below fromId)', () => {
-    const overlay = anOverlay({
-      placements: {
-        mid: { parent: 'a' },
-        toId: { parent: 'mid' },
-      },
-    });
-
-    expect(computeHandoff(overlay, 'a', 'toId')).toMatchObject({
-      ok: false,
-      code: 'cycle',
-    });
-  });
-
-  it('rejects handoff to own parent (direct 2-cycle)', () => {
-    const overlay = anOverlay({ placements: { a: { parent: 'b' } } });
-
-    expect(computeHandoff(overlay, 'a', 'b')).toMatchObject({
-      ok: false,
-      code: 'cycle',
-    });
-  });
-
-  it('rejects handoff to own grandparent', () => {
-    const overlay = anOverlay({
-      placements: {
-        a: { parent: 'mid' },
-        mid: { parent: 'b' },
-      },
-    });
-
-    expect(computeHandoff(overlay, 'a', 'b')).toMatchObject({
-      ok: false,
-      code: 'cycle',
-    });
-  });
-
-  it('rejects a handoff from a session that already has a successor', () => {
-    const overlay = anOverlay({ placements: { a: { successor: 'prior' } } });
-    expect(computeHandoff(overlay, 'a', 'b')).toMatchObject({
-      ok: false,
-      code: 'existing-successor',
-    });
-  });
-
-  it('rejects a handoff to a session that already has a successor', () => {
-    const overlay = anOverlay({ placements: { b: { successor: 'someone' } } });
-    expect(computeHandoff(overlay, 'a', 'b')).toMatchObject({
-      ok: false,
-      code: 'existing-successor',
-    });
-  });
-
-  it('preserves an unrelated third session placement untouched', () => {
-    const overlay = anOverlay({
-      placements: {
-        a: { swarmId: 'swarm-1' },
-        unrelated: { swarmId: 'swarm-2' },
-      },
-    });
-
-    const result = computeHandoff(overlay, 'a', 'b');
-    expect(result.ok && result.placements['unrelated']).toEqual({ swarmId: 'swarm-2' });
-  });
-});
-
 describe('pruneOverlay', () => {
   it('drops placements for unknown session ids', () => {
     const overlay = anOverlay({ placements: { known: {}, gone: { swarmId: 'swarm-1' } } });
@@ -299,19 +158,6 @@ describe('pruneOverlay', () => {
     const result = pruneOverlay(overlay, new Set(['survivor']));
 
     expect(result.placements).toEqual({ survivor: { swarmId: 'swarm-1' } });
-  });
-
-  it('clears a successor field naming a dropped id', () => {
-    // The shape computeHandoff actually produces: a handed off to `gone`, so `gone` holds
-    // its own (empty) entry too — a bare `successor: 'gone'` with no entry for `gone` at all
-    // cannot arise from a real handoff.
-    const overlay = anOverlay({
-      placements: { a: { parent: 'gone', successor: 'gone' }, gone: {} },
-    });
-
-    const result = pruneOverlay(overlay, new Set(['a']));
-
-    expect(result.placements).toEqual({ a: {} });
   });
 
   it('deletes a swarm left with zero resolving members', () => {

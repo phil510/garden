@@ -3,30 +3,13 @@ import type { ParseArgsConfig } from 'node:util';
 import type { SessionsFilter } from '@garden/shared';
 import { isStatus, parseNonNegativeInt } from '@garden/shared';
 import type { CliClient, Io } from './commands.js';
-import {
-  defaultClient,
-  runAdopt,
-  runHandoff,
-  runKill,
-  runLs,
-  runNew,
-  runResume,
-} from './commands.js';
+import { defaultClient, runAdopt, runKill, runLs, runNew, runResume } from './commands.js';
 import { writeAll } from './io.js';
 import { SERVER_DETACHED_FLAG } from './start.js';
 import { defaultStopAllDeps, runStop, runStopAll, type StopAllDeps } from './stop.js';
 import { runUninstall } from './uninstall.js';
 
-const CLI_COMMANDS = [
-  'new',
-  'ls',
-  'kill',
-  'resume',
-  'handoff',
-  'adopt',
-  'stop',
-  'uninstall',
-] as const;
+const CLI_COMMANDS = ['new', 'ls', 'kill', 'resume', 'adopt', 'stop', 'uninstall'] as const;
 export type CliCommand = (typeof CLI_COMMANDS)[number];
 
 export function isCliCommand(command: string | undefined): command is CliCommand {
@@ -35,8 +18,8 @@ export function isCliCommand(command: string | undefined): command is CliCommand
 
 export function usageLines(): string {
   return (
-    'usage: garden [new <dir> [--handoff] [--handoff-file <path>] | ls | kill <id> | ' +
-    'resume <id> | handoff --to <id> | adopt <id> | stop [--all] | uninstall]\n'
+    'usage: garden [new <dir> | ls | kill <id> | ' +
+    'resume <id> | adopt <id> | stop [--all] | uninstall]\n'
   );
 }
 
@@ -181,9 +164,6 @@ export async function runCli(
       'max-recap-chars': { type: 'string' },
       live: { type: 'boolean', default: false },
       status: { type: 'string' },
-      handoff: { type: 'boolean', default: false },
-      'handoff-file': { type: 'string' },
-      to: { type: 'string' },
       swarm: { type: 'string' },
     },
     allowPositionals: true,
@@ -196,7 +176,7 @@ export async function runCli(
     case 'new':
       return positionals[0] === undefined
         ? usage(io, 'garden new <dir>')
-        : runNew(io, positionals[0], json, client, values.handoff === true, values['handoff-file']);
+        : runNew(io, positionals[0], json, client);
     case 'ls': {
       const parsed = parseLsFilter({
         'since-days': values['since-days'],
@@ -215,10 +195,6 @@ export async function runCli(
       return positionals[0] === undefined
         ? usage(io, 'garden resume <id>')
         : runResume(io, positionals[0], json, client);
-    case 'handoff':
-      return values.to === undefined
-        ? usage(io, 'garden handoff --to <id>')
-        : runHandoff(io, values.to, json, client);
     case 'adopt':
       return positionals[0] === undefined
         ? usage(io, 'garden adopt <id>')

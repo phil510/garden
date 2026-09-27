@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { filterBySwarm, mergePlacements } from './placements.js';
 
 describe('mergePlacements', () => {
-  it('merges parent/swarmId/successor onto a placed session', () => {
+  it('merges parent/swarmId onto a placed session', () => {
     const session = aSession({ id: 'a' });
     const [merged] = mergePlacements([session], { a: { swarmId: 'swarm-1' } });
 
@@ -18,11 +18,11 @@ describe('mergePlacements', () => {
     expect(merged && 'parent' in merged).toBe(false);
   });
 
-  it('merges every placement field present on the entry', () => {
+  it('merges a parent field onto a placed session', () => {
     const session = aSession({ id: 'a' });
-    const [merged] = mergePlacements([session], { a: { parent: 'b', successor: 'c' } });
+    const [merged] = mergePlacements([session], { a: { parent: 'b' } });
 
-    expect(merged).toEqual({ ...session, parent: 'b', successor: 'c' });
+    expect(merged).toEqual({ ...session, parent: 'b' });
   });
 });
 

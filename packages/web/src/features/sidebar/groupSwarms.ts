@@ -71,22 +71,20 @@ export const SOLO_BUCKET_ID = 'solo';
 /** Removes dead leaves bottom-up: a node survives if it has any surviving child (a live
  *  descendant of a hidden dead predecessor must still show, so the predecessor stays too —
  *  only a node that is *both* dead and childless after filtering its own children is
- *  actually a leaf worth hiding), or if it has a `successor` (AC7's handoff-trail
- *  exception), or if hide-dead is off. Applied uniformly to top-level roots and nested
- *  children alike, so a genuinely leaf-and-dead top-level member hides same as any other. */
+ *  actually a leaf worth hiding), or if hide-dead is off. Applied uniformly to top-level
+ *  roots and nested children alike, so a genuinely leaf-and-dead top-level member hides
+ *  same as any other. */
 function filterDeadLeaves(
   node: SwarmTreeNode,
   sessions: SessionMap,
-  placements: Record<string, SessionPlacement>,
   hideDead: boolean,
 ): SwarmTreeNode | null {
   const children = node.children
-    .map((child) => filterDeadLeaves(child, sessions, placements, hideDead))
+    .map((child) => filterDeadLeaves(child, sessions, hideDead))
     .filter((child): child is SwarmTreeNode => child !== null);
   if (!hideDead || children.length > 0) return { ...node, children };
   const session = sessions[node.sessionId];
-  const hasSuccessor = placements[node.sessionId]?.successor !== undefined;
-  if (session?.liveness === 'dead' && !hasSuccessor) return null;
+  if (session?.liveness === 'dead') return null;
   return { ...node, children };
 }
 
@@ -187,7 +185,7 @@ export function groupSwarms(sessions: SessionMap, uiState: SwarmsUiState): Group
       recency,
       roots: sortedRoots(swarm.id)
         .map((session) => buildNode(session.id))
-        .map((node) => filterDeadLeaves(node, sessions, uiState.placements, hideDead))
+        .map((node) => filterDeadLeaves(node, sessions, hideDead))
         .filter((node): node is SwarmTreeNode => node !== null),
     };
   });
@@ -211,7 +209,7 @@ export function groupSwarms(sessions: SessionMap, uiState: SwarmsUiState): Group
   const soloRoots = sortedRoots(SOLO_BUCKET_ID).map((session) => buildNode(session.id));
   const soloHideDead = hideDeadSwarms.has(SOLO_BUCKET_ID);
   const solo = soloRoots
-    .map((node) => filterDeadLeaves(node, sessions, uiState.placements, soloHideDead))
+    .map((node) => filterDeadLeaves(node, sessions, soloHideDead))
     .filter((node): node is SwarmTreeNode => node !== null);
 
   return { swarms, solo, soloTotal: soloRoots.length, soloHideDead };

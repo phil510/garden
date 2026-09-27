@@ -7,9 +7,7 @@ import { SessionNotFoundError } from './sessions.js';
 import {
   archiveSwarm,
   createSwarm,
-  CrossSwarmHandoffError,
   deleteSwarm,
-  handoffSession,
   placeSession,
   pruneKnownSessions,
   recordSpawn,
@@ -222,22 +220,6 @@ describe('placeSession', () => {
 
     expect(current().placements['a']).toEqual({ swarmId: 's1' });
   });
-
-  it('preserves an existing successor field on the entry being placed', () => {
-    const overlay: OverlayState = {
-      ...emptyOverlay,
-      swarms: [{ id: 's1', name: 'A', archived: false }],
-      placements: { a: { swarmId: 's1', successor: 'b' } },
-    };
-    const { projection, current } = fakeProjection(overlay, [
-      aSession({ id: 'a' }),
-      aSession({ id: 'b' }),
-    ]);
-
-    placeSession({ projection }, { sessionId: 'a', placement: { type: 'none' } });
-
-    expect(current().placements['a']).toEqual({ successor: 'b' });
-  });
 });
 
 describe('recordSpawn', () => {
@@ -281,25 +263,6 @@ describe('recordSpawn', () => {
     });
   });
 
-  it('preserves an existing successor field on the caller when minting a new swarm', () => {
-    // A `successor` with no `parent`/`swarmId` alongside it arises from `placeSession`
-    // resetting a session to `type: 'none'` after a handoff — the placement move clears
-    // `parent`, but the historical `successor` survives it (see `placeSession`).
-    const overlay: OverlayState = {
-      ...emptyOverlay,
-      placements: { caller: { successor: 'retired-to' } },
-    };
-    const { projection, current } = fakeProjection(overlay, [
-      aSession({ id: 'caller' }),
-      aSession({ id: 'child' }),
-    ]);
-
-    recordSpawn({ projection }, { callerId: 'caller', childId: 'child', callerTitle: 'Caller' });
-
-    const swarm = current().swarms[0]!;
-    expect(current().placements['caller']).toEqual({ swarmId: swarm.id, successor: 'retired-to' });
-  });
-
   it("preserves a caller's pre-existing parent placement instead of minting a swarm over it", () => {
     // `caller` was placed under `other-top-level` via the placement endpoint independently
     // of any swarm — `other-top-level` has no placement entry of its own, so
@@ -341,156 +304,6 @@ describe('recordSpawn', () => {
     expect(() =>
       recordSpawn({ projection }, { callerId: 'ghost', childId: 'child', callerTitle: null }),
     ).toThrow(SessionNotFoundError);
-    expect(writes).toEqual([]);
-  });
-});
-
-describe('handoffSession', () => {
-  it('throws SessionNotFoundError and performs no write for an unknown fromId or toId', () => {
-    const { projection, writes } = fakeProjection(emptyOverlay, [aSession({ id: 'a' })]);
-
-    expect(() => handoffSession({ projection }, { fromId: 'ghost', toId: 'a' })).toThrow(
-      SessionNotFoundError,
-    );
-    expect(() => handoffSession({ projection }, { fromId: 'a', toId: 'ghost' })).toThrow(
-      SessionNotFoundError,
-    );
-    expect(writes).toEqual([]);
-  });
-
-  it('throws CrossSwarmHandoffError and performs no write for a cross-swarm handoff', () => {
-    const overlay: OverlayState = {
-      ...emptyOverlay,
-      placements: { a: { swarmId: 's1' }, b: { swarmId: 's2' } },
-    };
-    const { projection, writes } = fakeProjection(overlay, [
-      aSession({ id: 'a' }),
-      aSession({ id: 'b' }),
-    ]);
-
-    expect(() => handoffSession({ projection }, { fromId: 'a', toId: 'b' })).toThrow(
-      CrossSwarmHandoffError,
-    );
-    expect(writes).toEqual([]);
-  });
-
-  it('throws SwarmCycleError and performs no write for a handoff to a descendant', () => {
-    const overlay: OverlayState = {
-      ...emptyOverlay,
-      placements: { mid: { parent: 'a' }, b: { parent: 'mid' } },
-    };
-    const { projection, writes } = fakeProjection(overlay, [
-      aSession({ id: 'a' }),
-      aSession({ id: 'mid' }),
-      aSession({ id: 'b' }),
-    ]);
-
-    expect(() => handoffSession({ projection }, { fromId: 'a', toId: 'b' })).toThrow(
-      SwarmCycleError,
-    );
-    expect(writes).toEqual([]);
-  });
-
-  it('applies the three-edge placements computeHandoff returns on success', () => {
-    const overlay: OverlayState = {
-      ...emptyOverlay,
-      placements: { a: { swarmId: 's1' }, childOfA: { parent: 'a' } },
-    };
-    const { projection, current } = fakeProjection(overlay, [
-      aSession({ id: 'a' }),
-      aSession({ id: 'b' }),
-      aSession({ id: 'childOfA' }),
-    ]);
-
-    handoffSession({ projection }, { fromId: 'a', toId: 'b' });
-
-    expect(current().placements).toEqual({
-      a: { parent: 'b', successor: 'b' },
-      b: { swarmId: 's1' },
-      childOfA: { parent: 'b' },
-    });
-  });
-
-  it('mints a swarm for a fully unplaced caller instead of leaving the successor in Solo', () => {
-    // The ordinary first-handoff path: `a` has never spawned a child or been placed.
-    const { projection, current } = fakeProjection(emptyOverlay, [
-      aSession({ id: 'a', title: 'Caller' }),
-      aSession({ id: 'b' }),
-    ]);
-
-    handoffSession({ projection }, { fromId: 'a', toId: 'b' });
-
-    expect(current().swarms).toHaveLength(1);
-    const swarm = current().swarms[0]!;
-    expect(swarm.name).toBe('Caller');
-    expect(current().placements).toEqual({
-      a: { parent: 'b', successor: 'b' },
-      b: { swarmId: swarm.id },
-    });
-  });
-
-  it('moves every child of an unplaced caller under the new swarm, not just the caller', () => {
-    const overlay: OverlayState = { ...emptyOverlay, placements: { childOfA: { parent: 'a' } } };
-    const { projection, current } = fakeProjection(overlay, [
-      aSession({ id: 'a' }),
-      aSession({ id: 'b' }),
-      aSession({ id: 'childOfA' }),
-    ]);
-
-    handoffSession({ projection }, { fromId: 'a', toId: 'b' });
-
-    const swarm = current().swarms[0]!;
-    expect(current().placements).toEqual({
-      a: { parent: 'b', successor: 'b' },
-      b: { swarmId: swarm.id },
-      childOfA: { parent: 'b' },
-    });
-  });
-
-  it('falls back to "Untitled swarm" when the unplaced caller has no title', () => {
-    const { projection, current } = fakeProjection(emptyOverlay, [
-      aSession({ id: 'a', title: null }),
-      aSession({ id: 'b' }),
-    ]);
-
-    handoffSession({ projection }, { fromId: 'a', toId: 'b' });
-
-    expect(current().swarms[0]?.name).toBe('Untitled swarm');
-  });
-
-  it('preserves a pre-existing parent placement on the caller instead of minting a swarm over it', () => {
-    // Same asymmetric case `recordSpawn` guards against: `a` is a child of `orchestrator`
-    // via the placement endpoint, and that chain doesn't resolve to a swarm either — still
-    // not the "isn't placed at all" case.
-    const overlay: OverlayState = {
-      ...emptyOverlay,
-      placements: { a: { parent: 'orchestrator' } },
-    };
-    const { projection, current } = fakeProjection(overlay, [
-      aSession({ id: 'a' }),
-      aSession({ id: 'b' }),
-      aSession({ id: 'orchestrator' }),
-    ]);
-
-    handoffSession({ projection }, { fromId: 'a', toId: 'b' });
-
-    expect(current().swarms).toEqual([]);
-    expect(current().placements).toEqual({
-      a: { parent: 'b', successor: 'b' },
-      b: { parent: 'orchestrator' },
-    });
-  });
-
-  it('still rejects an unplaced caller that already has a successor, minting no swarm', () => {
-    const overlay: OverlayState = { ...emptyOverlay, placements: { a: { successor: 'prior' } } };
-    const { projection, writes } = fakeProjection(overlay, [
-      aSession({ id: 'a' }),
-      aSession({ id: 'b' }),
-    ]);
-
-    expect(() => handoffSession({ projection }, { fromId: 'a', toId: 'b' })).toThrow(
-      SwarmCycleError,
-    );
     expect(writes).toEqual([]);
   });
 });

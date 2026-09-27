@@ -3,7 +3,6 @@ import type {
   CreateSessionRequest,
   CreateSessionResponse,
   ErrorResponse,
-  HandoffRequest,
   OkResponse,
   Placement,
   PlacementRequest,
@@ -59,14 +58,10 @@ export function listSessions(filter?: SessionsFilter): Promise<SessionsResponse>
 export function createSession(
   cwd: string,
   callerSessionId?: string,
-  handoff?: boolean,
-  handoffFilePath?: string,
 ): Promise<CreateSessionResponse> {
   const body: CreateSessionRequest = {
     cwd,
     ...(callerSessionId === undefined ? {} : { callerSessionId }),
-    ...(handoff === true ? { handoff: true } : {}),
-    ...(handoffFilePath === undefined ? {} : { handoffFilePath }),
   };
   return request('/sessions', {
     method: 'POST',
@@ -81,15 +76,6 @@ export function resumeSession(id: string): Promise<CreateSessionResponse> {
 
 export function killSession(id: string): Promise<OkResponse> {
   return request(`/sessions/${encodeURIComponent(id)}/kill`, { method: 'POST' });
-}
-
-export function handoffSession(fromId: string, to: string): Promise<OkResponse> {
-  const body: HandoffRequest = { to };
-  return request(`/sessions/${encodeURIComponent(fromId)}/handoff`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-  });
 }
 
 export function placeSession(id: string, placement: Placement): Promise<OkResponse> {
