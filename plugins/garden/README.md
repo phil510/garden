@@ -32,14 +32,13 @@ drifts out of sync without anything failing.
 
 Garden spawns every session at the model's native context window (up to 1M tokens on models that
 support it) unless the user's own Claude Code configuration says otherwise — garden's spawn path
-passes no compaction-related flag or env var, so there's nothing here to change per session.
+passes no compaction-related flag or env var, so garden has no per-session lever for this.
 
 To make sessions auto-compact earlier — 200K tokens, say, instead of near the full window — set
-`autoCompactWindow: 200000` in `~/.claude/settings.json` (accepted range 100K–1M; also settable via
-the `CLAUDE_CODE_AUTO_COMPACT_WINDOW` env var or the `--autocompact`/`/autocompact` command, which
-take precedence over the settings-file value). `autoCompactEnabled` is the master on/off switch the
-threshold is gated by. This can't be shipped as a plugin default: a plugin's `settings.json` (manifest
-key or plugin-root file) only applies its `agent` and `subagentStatusLine` keys — every other key,
-including these two, is dropped at load. See
+`autoCompactWindow: 200000` in `~/.claude/settings.json`. An env var, flag, and command exist too
+and win over the settings-file value; see
 [Set the auto-compact window](https://code.claude.com/docs/en/model-config#set-the-auto-compact-window)
-and [Default settings](https://code.claude.com/docs/en/plugins/components#default-settings).
+for the specifics. It can't be shipped as a plugin default either: a plugin's `settings.json`
+(manifest key or plugin-root file) only applies its `agent` and `subagentStatusLine` keys — every
+other key is dropped at load. See
+[Default settings](https://code.claude.com/docs/en/plugins/components#default-settings).
