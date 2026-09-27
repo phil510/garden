@@ -34,14 +34,14 @@ describe('plugins/garden/hooks/scripts/recover.sh', () => {
     cleanupTempDirs();
   });
 
-  it('prints only the fallback pointer when no status file exists', () => {
+  it('prints the fallback pointer and verify-before-acting guidance when no status file exists', () => {
     const scratchpad = tempScratchpad();
 
     const result = runRecover({ session_id: 's-no-status', scratchpad_dir: scratchpad });
 
     expect(result.code).toBe(0);
     expect(result.stdout.trim()).toBe(
-      'Read `compaction-status.md` in your scratchpad if it exists.',
+      'Read `compaction-status.md` in your scratchpad if it exists. Treat the summary you are resuming from as claims, not settled fact: check them against the repo before acting on them.',
     );
   });
 
