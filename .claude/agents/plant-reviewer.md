@@ -151,8 +151,9 @@ decides whether a fix round runs at all.
    **Dispatch.** One parallel batch via the `Agent` tool. **Pass
    `model` on every dispatch** — `sonnet` unless you escalated that
    agent. The standing pair pins `opus` in frontmatter, so omitting
-   `model` silently pays opus prices on a diff that didn't ask for it. Brief every agent with step 2's scope — the brief's
-   claims, the dependency contracts you traced, the baseline — because
+   `model` silently pays opus prices on a diff that didn't ask for it.
+   Brief every agent with step 2's scope — the brief's claims, the
+   dependency contracts you traced, the baseline — because
    an agent handed only a diff can only find what is in the diff.
    Merge all findings: dedup, classify by severity, drop anything a
    prior round already addressed.
