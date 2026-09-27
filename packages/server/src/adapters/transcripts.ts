@@ -263,9 +263,13 @@ export function watchTranscripts(
     ready,
     close: async () => {
       clearInterval(reconcileTimer);
+      // Closing the watcher first removes its listeners synchronously (chokidar's own
+      // close() calls removeAllListeners() before doing anything async), so an event that
+      // arrives during the awaits below can't schedule a fresh coalescer timer that would
+      // otherwise fire — and dispatch — after this function has already resolved.
+      await watcher.close();
       coalescer.clear();
       await reconciling;
-      await watcher.close();
     },
   };
 }
