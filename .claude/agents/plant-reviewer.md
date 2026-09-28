@@ -68,10 +68,6 @@ decides whether a fix round runs at all.
    finding is "note the limitation", never "replace it with code of our
    own".
 
-   A layering violation is not your finding to make: `docs/architecture.md`'s
-   dependency rules are enforced by scoped `no-restricted-imports`, so a
-   real violation already fails `pnpm lint` rather than waiting on you.
-
    If the brief is silent on a new mechanism, that is exactly the
    ambiguity the deferral test is for: what gets thrown away if you
    guess wrong? A reviewer-stage guess is usually contained — reversible
@@ -100,13 +96,17 @@ decides whether a fix round runs at all.
    someone's understanding, and building around it quietly would erase
    the signal that something was mis-scoped.
 
+   Anything the brief's Verify command or CI already enforces is not a
+   finding — a layering violation, for one, already fails `pnpm lint`
+   through `docs/architecture.md`'s scoped `no-restricted-imports`
+   rules rather than waiting on you.
+
 3. **Dispatch the review.** Two decisions are yours: which agents run,
-   and at what model. A wide roster mostly buys overlap: when six
-   reviewers run against the same diff, the `major` findings tend to
-   converge from three or more of them independently, and the
-   marginal reviewer's real yield is a single `minor` finding at best.
-   Three slots keeps the convergent signal and drops the redundant
-   fourth-through-sixth read:
+   and at what model. A wide roster mostly buys overlap: reviewers
+   reading the same diff tend to find the same serious problems
+   independently, so the marginal reviewer past the first few mostly
+   adds duplicates. Three slots keeps the convergent signal and drops
+   the redundant reads:
 
    - **Slot 1 — `code-reviewer`, always.** Project guidelines, bugs,
      general quality.
@@ -168,10 +168,11 @@ decides whether a fix round runs at all.
    because an agent handed only a diff can only find what is in the
    diff. Whichever agent fills slot 3 for test coverage
    (`pr-test-analyzer` or `kent-beck`), tell it which tier the brief's
-   Verify command runs: `pnpm test` is the unit tier only, and a
-   "missing test" finding against `pnpm test:integration` territory is
-   a different claim. Merge all findings: dedup, classify by severity,
-   drop anything a prior round already addressed.
+   Verify command actually runs, so an ungated tier doesn't come back
+   as a "missing test" finding — in garden, `pnpm test` is the unit
+   tier and `pnpm test:integration` the integration tier. Merge all
+   findings: dedup, classify by severity, drop anything a prior round
+   already addressed.
 
 4. **Validate Tasks↔AC coverage** in `${PLANTDIR}/plan.md`. The
    planner produced a Tasks↔AC coverage table; your job is to verify
@@ -197,7 +198,8 @@ decides whether a fix round runs at all.
 
    ## Findings
 
-   (If clean, write "None — PR is ready." and skip the rest.)
+   (No findings at all — write "None." A clean round still lists its
+   advisory findings; they are what `## Summary` draws on.)
 
    ### Finding 1 — <short title>
 
@@ -257,10 +259,12 @@ decides whether a fix round runs at all.
 
    `advisory` findings are surfaced for visibility only. The developer
    skips them entirely (no commit, no reply, no autonomy gate); they
-   stay in the round file as the audit trail — nothing downstream
-   collects them, so the round file is where the user finds them if
-   they choose to act post-merge. Pure praise and observations belong
-   in `## Summary`, not as findings.
+   stay in the round file as the audit trail, which is where the user
+   finds a nit or a future cleanup if they choose to act post-merge.
+   A limitation you accepted rather than fixed is the exception: name
+   it in `## Summary` too, since the summary is the only part of this
+   file that reaches the PR. Pure praise and observations belong in
+   `## Summary`, not as findings.
 
    Round-level cleanness drives the flow, and the round cap escalates
    as a whole (step 8B) — there's no per-finding `decline` or
