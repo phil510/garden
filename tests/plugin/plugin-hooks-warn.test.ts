@@ -1,11 +1,13 @@
 // Exercises plugins/garden/hooks/scripts/warn.sh as a real subprocess against fixture
 // transcripts and a per-test temp scratchpad — see docs/testing.md: execFile is never mocked,
 // so the argument-building and guard logic here can only be proven by actually running it.
-import { existsSync, mkdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   cleanupTempDirs,
+  compactBoundaryLine,
   fillerLines,
   GLOB_ROOT_ENV,
   markerExists,
@@ -20,7 +22,30 @@ import {
 } from './support/plugin-hooks.js';
 
 function runWarn(input: Record<string, unknown>, envOverrides: NodeJS.ProcessEnv = {}) {
-  return runScript(WARN_SH, input, envOverrides);
+  return runScript(WARN_SH, { hook_event_name: 'PostToolUse', ...input }, envOverrides);
+}
+
+const HOOKS_JSON = join(
+  dirname(fileURLToPath(import.meta.url)),
+  '..',
+  '..',
+  'plugins',
+  'garden',
+  'hooks',
+  'hooks.json',
+);
+
+/** Every event hooks.json wires to warn.sh, read from the file so an event the script's
+ * allowlist rejects can't be registered without failing here. */
+function warnEvents(): string[] {
+  const { hooks } = JSON.parse(readFileSync(HOOKS_JSON, 'utf8')) as {
+    hooks: Record<string, { hooks: { command: string }[] }[]>;
+  };
+  return Object.entries(hooks)
+    .filter(([, groups]) =>
+      groups.some((group) => group.hooks.some((hook) => hook.command.endsWith('/warn.sh'))),
+    )
+    .map(([event]) => event);
 }
 
 describe('plugins/garden/hooks/scripts/warn.sh', () => {
@@ -197,5 +222,123 @@ describe('plugins/garden/hooks/scripts/warn.sh', () => {
     expect(result.code).toBe(0);
     expect(parseHookOutput(result.stdout).hookSpecificOutput.hookEventName).toBe('PostToolUse');
     expect(existsSync(join(scratchpad, '.compaction-warned'))).toBe(true);
+  });
+
+  it('registers warn.sh on PostToolUse, UserPromptSubmit and Stop', () => {
+    expect(warnEvents().sort()).toEqual(['PostToolUse', 'Stop', 'UserPromptSubmit']);
+  });
+
+  it.each(warnEvents())('delivers the warning on %s, echoing the event name', (event) => {
+    const scratchpad = tempScratchpad();
+    const transcript = writeTranscript(scratchpad, [usageLine(180000)]);
+
+    const result = runWarn({
+      hook_event_name: event,
+      session_id: `s-event-${event}`,
+      transcript_path: transcript,
+      scratchpad_dir: scratchpad,
+    });
+
+    expect(result.code).toBe(0);
+    expect(parseHookOutput(result.stdout).hookSpecificOutput.hookEventName).toBe(event);
+    expect(markerExists(scratchpad)).toBe(true);
+  });
+
+  it('warns once per cycle across events', () => {
+    const scratchpad = tempScratchpad();
+    const transcript = writeTranscript(scratchpad, [usageLine(180000)]);
+    const input = {
+      session_id: 's-cross',
+      transcript_path: transcript,
+      scratchpad_dir: scratchpad,
+    };
+
+    const first = runWarn({ ...input, hook_event_name: 'UserPromptSubmit' });
+    expect(parseHookOutput(first.stdout).hookSpecificOutput.hookEventName).toBe('UserPromptSubmit');
+
+    expect(runWarn({ ...input, hook_event_name: 'Stop' }).stdout).toBe('');
+    expect(runWarn({ ...input, hook_event_name: 'PostToolUse' }).stdout).toBe('');
+  });
+
+  it.each([undefined, 'PreCompact'])(
+    'exits 0 silently and leaves the marker untouched for hook_event_name %s',
+    (event) => {
+      const scratchpad = tempScratchpad();
+      const transcript = writeTranscript(scratchpad, [usageLine(200000)]);
+
+      const result = runWarn({
+        hook_event_name: event,
+        session_id: 's-bad-event',
+        transcript_path: transcript,
+        scratchpad_dir: scratchpad,
+      });
+
+      expect(result.code).toBe(0);
+      expect(result.stdout).toBe('');
+      expect(markerExists(scratchpad)).toBe(false);
+    },
+  );
+
+  it('stays quiet when a compact boundary follows the last usage line', () => {
+    const scratchpad = tempScratchpad();
+    const transcript = writeTranscript(scratchpad, [usageLine(190000), compactBoundaryLine()]);
+
+    const result = runWarn({
+      hook_event_name: 'UserPromptSubmit',
+      session_id: 's-boundary',
+      transcript_path: transcript,
+      scratchpad_dir: scratchpad,
+    });
+
+    expect(result.code).toBe(0);
+    expect(result.stdout).toBe('');
+    expect(markerExists(scratchpad)).toBe(false);
+  });
+
+  it('stays quiet on a boundary even when the last usage line is outside the tail window', () => {
+    const scratchpad = tempScratchpad();
+    const transcript = writeTranscript(scratchpad, [
+      usageLine(190000),
+      ...fillerLines(200),
+      compactBoundaryLine(),
+    ]);
+
+    const result = runWarn({
+      session_id: 's-boundary-tail',
+      transcript_path: transcript,
+      scratchpad_dir: scratchpad,
+    });
+
+    expect(result.stdout).toBe('');
+    expect(markerExists(scratchpad)).toBe(false);
+  });
+
+  it('warns on a usage line past 175K that comes after a compact boundary', () => {
+    const scratchpad = tempScratchpad();
+    const transcript = writeTranscript(scratchpad, [compactBoundaryLine(), usageLine(180000)]);
+
+    const result = runWarn({
+      session_id: 's-after-boundary',
+      transcript_path: transcript,
+      scratchpad_dir: scratchpad,
+    });
+
+    expect(parseHookOutput(result.stdout).hookSpecificOutput.hookEventName).toBe('PostToolUse');
+    expect(markerExists(scratchpad)).toBe(true);
+  });
+
+  it('asks the agent to record skills in the status file', () => {
+    const scratchpad = tempScratchpad();
+    const transcript = writeTranscript(scratchpad, [usageLine(180000)]);
+
+    const result = runWarn({
+      session_id: 's-skills',
+      transcript_path: transcript,
+      scratchpad_dir: scratchpad,
+    });
+
+    expect(parseHookOutput(result.stdout).hookSpecificOutput.additionalContext).toContain(
+      'skills the user called out',
+    );
   });
 });

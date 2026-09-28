@@ -32,6 +32,7 @@ describe('shared occupancy definition (warn.sh vs. context_tokens.sh)', () => {
     expect(reported).toBe('190000');
 
     const warned = runScript(WARN_SH, {
+      hook_event_name: 'PostToolUse',
       session_id: 's-shared-filter',
       transcript_path: transcript,
       scratchpad_dir: scratchpad,
