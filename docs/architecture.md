@@ -148,10 +148,9 @@ So the startup sequence is a replay, not a restore:
 1. Read `config.json` and `state.json`.
 2. Start the transcript watcher — before any dispatch below, so a write landing anywhere in
    this sequence still reaches it instead of being lost until the next unrelated event or a
-   restart. Its own initial scan dispatches nothing (`ignoreInitial`); the existing corpus is
-   read once, by step 5, not twice. The one gap this leaves: a file created while the scan is
-   still running, after step 5 has already listed files, is picked up within one
-   reconciliation interval rather than immediately.
+   restart. Its own initial scan dispatches nothing (`ignoreInitial`), so the existing corpus is
+   read once during boot, by step 5, rather than by the watcher's own scan as well — see the
+   reconciliation paragraph below for what that trades away.
 3. Dispatch `{ type: 'store-loaded' }` — the projection now knows the id-to-name map and the
    UI preferences, and nothing else.
 4. Dispatch a full `tmux-snapshot`.

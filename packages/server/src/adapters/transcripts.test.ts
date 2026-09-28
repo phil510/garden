@@ -534,9 +534,11 @@ describe('watchTranscripts', () => {
       try {
         await watcher.ready;
 
-        // This is the production path for a write landing during boot: the watcher is
-        // armed (via `ready`) before replay's scan runs. A is the pre-existing file a
-        // reconciliation pass would otherwise be the only thing to catch; C is new.
+        // Models a write landing during boot, before replay's scan reads this file. Production
+        // creates the watcher before calling replay() but never awaits `ready` itself; readiness
+        // settles in well under the time replay's own tmux/store reads take, in practice. A is
+        // the pre-existing file a reconciliation pass would otherwise be the only thing to
+        // catch; C is new.
         appendFileSync(pathA, TITLE_LINE + '\n', 'utf8');
         const pathC = writeProjectFile(home, root, 'session-c', HEAD_LINE('session-c') + '\n');
 
