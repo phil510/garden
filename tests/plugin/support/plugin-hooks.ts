@@ -62,6 +62,12 @@ export function usageLine(tokens: number): string {
   );
 }
 
+/** The system line Claude Code appends when compaction completes; no usage line follows until
+ * the model's next reply. */
+export function compactBoundaryLine(): string {
+  return JSON.stringify({ type: 'system', subtype: 'compact_boundary' }) + '\n';
+}
+
 /** A non-assistant filler line, for padding a transcript past a tail window. */
 function fillerLine(): string {
   return JSON.stringify({ type: 'user', message: { content: 'filler' } }) + '\n';
@@ -83,15 +89,15 @@ export interface ScriptResult {
   stdout: string;
 }
 
-export interface PostToolUseHookOutput {
+export interface WarnHookOutput {
   hookSpecificOutput: {
     hookEventName: string;
     additionalContext: string;
   };
 }
 
-export function parseHookOutput(stdout: string): PostToolUseHookOutput {
-  return JSON.parse(stdout) as PostToolUseHookOutput;
+export function parseHookOutput(stdout: string): WarnHookOutput {
+  return JSON.parse(stdout) as WarnHookOutput;
 }
 
 /** Runs a hook script directly (as Claude Code itself would, via the command string in

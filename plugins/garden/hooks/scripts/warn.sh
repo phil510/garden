@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
-# PostToolUse hook: once per compaction cycle, when the main session's context reaches 175K
-# tokens, ask the agent to write a compaction-status file the SessionStart(compact) recovery
-# hook (recover.sh) can inject back in after compaction happens.
+# PostToolUse / UserPromptSubmit / Stop hook: once per compaction cycle, when the main session's
+# context reaches 175K tokens, ask the agent to write a compaction-status file the
+# SessionStart(compact) recovery hook (recover.sh) can inject back in after compaction happens.
+#
+# Whichever registered event first sees the crossing delivers the warning and sets the marker.
+# Only events that can carry `additionalContext` are allowed: an event that can't deliver the
+# warning must not set the marker, or it would silence the ones that can.
 #
 # Every guard below is an early, silent `exit 0` — a hook that fails the session over a
 # missing tool or an unreadable transcript is worse than one that occasionally stays quiet.
@@ -18,6 +22,12 @@ input=$(cat)
 # only inside a subagent, so this is what tells the two apart.
 agent_id=$(printf '%s' "$input" | jq -r '.agent_id // empty' 2>/dev/null)
 [ -n "$agent_id" ] && exit 0
+
+event=$(printf '%s' "$input" | jq -r '.hook_event_name // empty' 2>/dev/null)
+case "$event" in
+  PostToolUse | UserPromptSubmit | Stop) ;;
+  *) exit 0 ;;
+esac
 
 # Prefer the documented scratchpad_dir input field; fall back to the glob for an older CLI or
 # any case where the harness omits it. Both this script and recover.sh resolve the same way,
@@ -44,8 +54,12 @@ marker="$scratchpad_dir/.compaction-warned"
 transcript=$(printf '%s' "$input" | jq -r '.transcript_path // empty' 2>/dev/null)
 [ -n "$transcript" ] && [ -f "$transcript" ] || exit 0
 
+# Emits each assistant turn's occupancy, plus "boundary" for a compaction boundary line, and
+# keeps the last. Right after compaction the transcript ends in a boundary with no new usage
+# line until the model replies, so the last usage line is still the pre-compaction figure;
+# "boundary" is non-numeric and falls out at the digits check below.
 last_usage_in() {
-  jq -r -f "$usage_filter_file" 2>/dev/null | tail -n 1
+  jq -r "(select(.type == \"system\" and .subtype == \"compact_boundary\") | \"boundary\"), ($(cat "$usage_filter_file"))" 2>/dev/null | tail -n 1
 }
 
 # This hook runs on every tool call, so read only the transcript's tail rather than the whole
@@ -59,7 +73,7 @@ if [ -z "$tokens" ]; then
 fi
 [ -n "$tokens" ] || exit 0
 
-# usage_filter's arithmetic can only ever emit a number, but guard it anyway: a non-numeric
+# The filter can only ever emit a number (or "boundary"), but guard it anyway: a non-numeric
 # value reaching the `-ge` test below would make bash print an "integer expression expected"
 # diagnostic to stderr, which breaks this hook's exit-0-silently contract even though the exit
 # code itself would still be 0.
@@ -68,16 +82,18 @@ case "$tokens" in
 esac
 [ "$tokens" -ge 175000 ] || exit 0
 
-touch "$marker"
+# On Stop an unset marker would make every turn continue, so a failed touch must stay silent.
+touch "$marker" || exit 0
 
-jq -n '{
+jq -n --arg event "$event" '{
   hookSpecificOutput: {
-    hookEventName: "PostToolUse",
+    hookEventName: $event,
     additionalContext: (
       "Context is at or past 175K tokens; compaction may happen soon. Before doing more work, " +
       "write (or overwrite) `compaction-status.md` in your scratchpad directory, capped at " +
       "roughly 40 lines: the goal you are working toward, the key decisions made so far and " +
-      "why, the current state, the concrete next step, and pointers to durable workstream " +
+      "why, any skills the user called out by name or that you are relying on for this work, " +
+      "the current state, the concrete next step, and pointers to durable workstream " +
       "files (plan, spec, ticket, PR) rather than a log of what happened. This file is what " +
       "gets restored after compaction, so write it for a reader with no memory of this " +
       "conversation."

@@ -26,7 +26,7 @@ function runRecover(input: Record<string, unknown>, envOverrides: NodeJS.Process
 }
 
 function runWarn(input: Record<string, unknown>) {
-  return runScript(WARN_SH, input);
+  return runScript(WARN_SH, { hook_event_name: 'PostToolUse', ...input });
 }
 
 describe('plugins/garden/hooks/scripts/recover.sh', () => {
@@ -40,9 +40,10 @@ describe('plugins/garden/hooks/scripts/recover.sh', () => {
     const result = runRecover({ session_id: 's-no-status', scratchpad_dir: scratchpad });
 
     expect(result.code).toBe(0);
-    expect(result.stdout.trim()).toBe(
-      'Compaction happened, but no `compaction-status.md` was written before it, so there is no on-disk summary of your prior state. Whatever summary Claude Code itself resumed you with is still just claims, not settled fact: check them against the repo before acting on them.',
-    );
+    expect(result.stdout).toContain('no `compaction-status.md` was written before it');
+    expect(result.stdout).toContain('check them against the repo before acting on them');
+    expect(result.stdout).toContain('invoke every one that matches your task');
+    expect(result.stdout).toContain('the user named earlier');
   });
 
   it('prints verify-before-acting guidance plus the file content when a status file exists', () => {
@@ -53,6 +54,8 @@ describe('plugins/garden/hooks/scripts/recover.sh', () => {
 
     expect(result.code).toBe(0);
     expect(result.stdout).toContain('check them against the repo');
+    expect(result.stdout).toContain('invoke every one that matches your task');
+    expect(result.stdout).toContain('the user named earlier');
     expect(result.stdout).toContain('Goal: ship the hooks');
     expect(result.stdout).toContain('Next step: open the PR');
   });
@@ -64,11 +67,11 @@ describe('plugins/garden/hooks/scripts/recover.sh', () => {
     const result = runRecover({ session_id: 's-oversized', scratchpad_dir: scratchpad });
 
     expect(result.code).toBe(0);
-    // The guidance preamble plus the capped content: the file's own contribution to the
-    // output must itself be short of 10,000 characters, whatever the preamble adds on top.
+    // Claude Code caps hook stdout as a whole at 10,000 characters and spills anything over to
+    // a file, so the preamble plus the capped content must fit, with most of the file kept.
+    expect(result.stdout.length).toBeLessThan(10_000);
     const bodyOnly = result.stdout.replace(/^[\s\S]*?\n\n/, '');
-    expect(bodyOnly.length).toBeLessThan(10_000);
-    expect(bodyOnly.length).toBeGreaterThan(9_000);
+    expect(bodyOnly.length).toBeGreaterThan(8_500);
   });
 
   it('deletes the marker when a status file was found', () => {
