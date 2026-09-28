@@ -176,6 +176,11 @@ function isWatchedPath(transcriptsDir: string, roots: readonly string[], path: s
  * Watches every in-scope `<slug>/*.jsonl` file and emits a debounced `transcript-changed`
  * event per file, re-reading it with `readTranscriptRecord`. An unparseable line is logged
  * once per file — the first time it is seen, not on every subsequent re-read.
+ *
+ * The initial scan (`ignoreInitial`) dispatches nothing for files that already exist when the
+ * watch starts — boot replay reads those. `signatures` therefore starts empty, so the first
+ * reconciliation pass reads every in-scope file once to populate it; later passes are
+ * incremental as usual.
  */
 export function watchTranscripts(
   transcriptsDir: string,
@@ -216,6 +221,10 @@ export function watchTranscripts(
 
   const watcher = watch(transcriptsDir, {
     ignored: (path) => !isWatchedPath(transcriptsDir, roots, path),
+    // Files that already exist when the watch starts are boot replay's job, not the
+    // watcher's — without this, chokidar's initial scan emits 'add' for every one of them
+    // and schedules a reread of the whole corpus a few hundred ms into boot.
+    ignoreInitial: true,
   });
   watcher.on('add', (path) => coalescer.schedule(path));
   watcher.on('change', (path) => coalescer.schedule(path));

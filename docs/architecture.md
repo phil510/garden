@@ -148,9 +148,13 @@ So the startup sequence is a replay, not a restore:
 1. Read `config.json` and `state.json`.
 2. Start the transcript watcher — before any dispatch below, so a write landing anywhere in
    this sequence still reaches it instead of being lost until the next unrelated event or a
-   restart. A `transcript-changed` dispatch from the watcher's own initial scan racing the boot
-   scan's dispatch for the same path (step 5) is expected and harmless: `reduce()` folds the
-   same fact idempotently.
+   restart. Its own initial scan dispatches nothing (`ignoreInitial`), so the existing corpus is
+   read once during boot, by step 5, rather than by the watcher's own scan as well — see the
+   reconciliation paragraph below for what that trades away. One gap: a file created while that
+   scan is still walking the tree, after step 5 has already taken its own listing, is discovered
+   by the scan rather than as a live event, so `ignoreInitial` suppresses it too — neither step 5
+   nor the watcher dispatches it, and it surfaces on the first reconciliation pass instead, up to
+   ~10s later rather than immediately.
 3. Dispatch `{ type: 'store-loaded' }` — the projection now knows the id-to-name map and the
    UI preferences, and nothing else.
 4. Dispatch a full `tmux-snapshot`.
@@ -172,7 +176,10 @@ gap in chokidar's own guarantees — its `'ready'` event proves the transcripts 
 watch is registered, but not that every session subdirectory's watch is armed too, because
 chokidar scans a newly created directory's contents before it registers that directory's own
 native watch handle. A rapid write landing in that narrower window would otherwise go unnoticed
-until something else touches the file or the server restarts.
+until something else touches the file or the server restarts. Because the initial scan no
+longer seeds this cache, it starts empty at boot, so the first reconciliation pass (~10s in,
+after HTTP is already serving) reads every in-scope file once; later passes are incremental as
+usual.
 
 ### 4.3 What goes in `http/`
 

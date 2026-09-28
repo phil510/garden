@@ -218,9 +218,8 @@ export async function main(detached: boolean): Promise<void> {
   // Started before replay() rather than after — including before its store-loaded and
   // tmux-snapshot dispatches, not just before its transcript scan — so a write landing
   // anywhere in that window still reaches the watch instead of being lost until the next
-  // unrelated event or a restart. A transcript-changed dispatch racing the boot scan's own
-  // dispatch for the same path is expected and harmless: reduce() folds the same fact
-  // idempotently.
+  // unrelated event or a restart. The watcher's own initial scan dispatches nothing
+  // (ignoreInitial), so this only affects files written during boot, not the existing corpus.
   const watcher = transcripts.watch((event) => {
     projection.dispatch(event);
   });
