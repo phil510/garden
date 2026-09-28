@@ -165,11 +165,6 @@ async function withFakeClaudeSession(
   });
 
   try {
-    // ignoreInitial suppresses the watcher's own initial scan; a transcript written before
-    // that scan finishes would otherwise go unseen until the next reconciliation pass. The
-    // fake claude session below writes its transcript almost immediately, so it needs the
-    // watcher armed first.
-    await watcher.ready;
     await app.listen({ port: 0, host: '127.0.0.1' });
     const { port } = app.server.address() as AddressInfo;
 

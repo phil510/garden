@@ -58,10 +58,8 @@ async function readWindow(path: string, position: number, length: number): Promi
  * possibly cut off — a single line longer than a window is dropped entirely, which is
  * why a returned record can be missing a title or a recap without that being an error.
  *
- * The returned `signature` is the `stat()` taken here, before anything is read, so it is
- * always a valid lower bound on what the parse below actually saw: a write landing after
- * this call only makes the cached signature stale (one harmless extra re-read later), never
- * ahead of the dispatched content.
+ * The returned `signature` is the `stat()` taken here, before anything is read, so a write
+ * landing after this call only makes it stale — never ahead of what was actually parsed.
  */
 export async function readTranscriptRecord(
   path: string,
@@ -94,12 +92,9 @@ export interface TranscriptSignature {
 }
 
 /**
- * Collapses repeated `schedule(key)` calls into a single `run(key)` once `debounceMs`
- * has passed with no further call for that key — restarting the wait on every call,
- * like `watchTranscripts`'s own re-read debounce. Kept as pure `setTimeout` bookkeeping,
- * decoupled from chokidar, so it can be proven deterministically with fake timers rather
- * than by racing real filesystem delivery (`docs/testing.md` reserves that for the
- * chokidar-timing path itself, which this isn't).
+ * Collapses repeated `schedule(key)` calls into a single `run(key)` once `debounceMs` has
+ * passed with no further call for that key. Pure `setTimeout` bookkeeping, decoupled from
+ * chokidar, so the debounce math is provable with fake timers rather than real fs timing.
  */
 export function createCoalescer(run: (key: string) => void, debounceMs: number) {
   const timers = new Map<string, NodeJS.Timeout>();
@@ -124,17 +119,11 @@ export function createCoalescer(run: (key: string) => void, debounceMs: number) 
 
 /**
  * Diffs a fresh listing of in-scope transcript files against `signatures` and invokes
- * `onStale` for any path that's new or whose `(size, mtimeMs)` no longer matches what was
- * last cached — the reconciliation backstop for whatever the native watch missed (chokidar
- * scans a newly created directory before it registers that directory's own watch handle, so
- * a rapid write can land in that gap and never produce a native event again). `signatures` is
- * shared with the native watch path, and `onStale` owns recording its own success there — this
- * function only decides whether to call it — so the cache reflects whichever path last read a
- * file, not only this backstop's own reads. A `stat` failure is isolated per file, the same
- * way `reread()` isolates its own per-file read failures: `ENOENT` (vanished between the
- * listing and this stat — session cleanup, a rename) is expected and silent, anything else is
- * logged so a file that persistently fails to stat for another reason doesn't go stale forever
- * with no trace.
+ * `onStale` for any path that's new or changed. Backstops chokidar's native watch, which can
+ * miss a write landing before a newly created directory's own watch handle is registered
+ * (docs/architecture.md §4.2). `onStale` owns recording its own success in `signatures`,
+ * shared with the native watch path, so the cache reflects whichever path last read a file.
+ * A vanished-file stat (`ENOENT`) is silent; any other stat failure is logged.
  */
 export async function reconcileTranscripts(
   transcriptsDir: string,
@@ -163,20 +152,6 @@ export async function reconcileTranscripts(
 }
 
 export interface TranscriptWatcher {
-  /** Resolves once `transcriptsDir`'s own native watch is registered — not that every
-   *  subdirectory's watch is armed too. chokidar scans a newly created directory's
-   *  contents before it registers *that directory's own* watch handle, so a write
-   *  landing in that narrower window can still go unseen; the reconciliation backstop
-   *  below is what covers that gap. Production has no immediate-write race this barrier
-   *  needs to guard — Claude Code's own writes always arrive well after startup — but a
-   *  test that writes right after calling `watchTranscripts` needs it, or the write can
-   *  land before `transcriptsDir`'s watch exists to see it. */
-  ready: Promise<void>;
-  /** Runs one reconciliation pass immediately, without waiting for `reconcileMs`'s own
-   *  schedule. `transcripts.test.ts` uses this as its deterministic driver in place of
-   *  waiting on chokidar's native delivery, which real chokidar has been observed to drop
-   *  outright under contention rather than merely deliver it late. */
-  reconcileNow(): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -221,12 +196,10 @@ export function watchTranscripts(
   const warnedFiles = new Set<string>();
   const signatures = new Map<string, TranscriptSignature>();
 
-  // Every successful read records its own signature, regardless of which path (native watch
-  // or reconciliation) triggered it, so the two share one accurate cache instead of only
-  // reconciliation's own reads being remembered. The signature cached is the one
-  // readTranscriptRecord stamped the read with — taken before the read, never a fresh stat
-  // taken after dispatch — so it can only be behind what was actually read, never ahead of
-  // it; a failed read caches nothing, so it's retried on the next reconciliation pass.
+  // Records its own signature regardless of which path (native watch or reconciliation)
+  // triggered the read, so both share one accurate cache. The signature is the one
+  // readTranscriptRecord stamped the read with, taken before the read — never a stat taken
+  // after — so a failed read caches nothing and is retried on the next reconciliation pass.
   async function reread(path: string): Promise<void> {
     let parsed: TranscriptParse & { signature: TranscriptSignature };
     try {
@@ -253,7 +226,6 @@ export function watchTranscripts(
     // and schedules a reread of the whole corpus a few hundred ms into boot.
     ignoreInitial: true,
   });
-  const ready = new Promise<void>((resolve) => watcher.once('ready', resolve));
   watcher.on('add', (path) => coalescer.schedule(path));
   watcher.on('change', (path) => coalescer.schedule(path));
   // Otherwise silent: an EMFILE under fd pressure produces the same "ready, then no more
@@ -268,8 +240,7 @@ export function watchTranscripts(
   let reconciling: Promise<void> | undefined;
   function runReconciliationTick(): Promise<void> {
     // Skips this tick rather than queuing — a slow reconciliation pass (many files, a
-    // contended disk) should never stack a second one behind it. reconcileNow() shares this
-    // guard too, so calling it while a tick is already in flight just awaits that one.
+    // contended disk) should never stack a second one behind it.
     if (reconciling) return reconciling;
     reconciling = reconcileTranscripts(transcriptsDir, roots, signatures, reread, logger)
       .catch((error: unknown) => {
@@ -285,8 +256,6 @@ export function watchTranscripts(
   const reconcileTimer = setInterval(() => void runReconciliationTick(), reconcileMs);
 
   return {
-    ready,
-    reconcileNow: runReconciliationTick,
     close: async () => {
       clearInterval(reconcileTimer);
       // Closing the watcher first removes its listeners synchronously (chokidar's own
