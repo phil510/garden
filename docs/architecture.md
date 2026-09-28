@@ -150,7 +150,11 @@ So the startup sequence is a replay, not a restore:
    this sequence still reaches it instead of being lost until the next unrelated event or a
    restart. Its own initial scan dispatches nothing (`ignoreInitial`), so the existing corpus is
    read once during boot, by step 5, rather than by the watcher's own scan as well — see the
-   reconciliation paragraph below for what that trades away.
+   reconciliation paragraph below for what that trades away. One gap: a file created while that
+   scan is still walking the tree, after step 5 has already taken its own listing, is discovered
+   by the scan rather than as a live event, so `ignoreInitial` suppresses it too — neither step 5
+   nor the watcher dispatches it, and it surfaces on the first reconciliation pass instead, up to
+   ~10s later rather than immediately.
 3. Dispatch `{ type: 'store-loaded' }` — the projection now knows the id-to-name map and the
    UI preferences, and nothing else.
 4. Dispatch a full `tmux-snapshot`.
