@@ -102,12 +102,11 @@ decides whether a fix round runs at all.
    rules rather than waiting on you.
 
 3. **Dispatch the review.** Two decisions are yours: which agents run,
-   and at what model. A wide roster mostly buys overlap: when six
-   reviewers run against the same diff, the `major` findings tend to
-   converge from three or more of them independently, and the
-   marginal reviewer's real yield is a single `minor` finding at best.
-   Three slots keeps the convergent signal and drops the redundant
-   fourth-through-sixth read:
+   and at what model. A wide roster mostly buys overlap: reviewers
+   reading the same diff tend to find the same serious problems
+   independently, so the marginal reviewer past the first few mostly
+   adds duplicates. Three slots keeps the convergent signal and drops
+   the redundant reads:
 
    - **Slot 1 — `code-reviewer`, always.** Project guidelines, bugs,
      general quality.
