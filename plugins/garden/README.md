@@ -5,10 +5,15 @@ through garden's CLI, and `message-session` resolves a session's messaging addre
 the marketplace manifest at the repo root, `.claude-plugin/marketplace.json`.
 
 It also ships two hooks (`hooks/hooks.json`), active as soon as the plugin is enabled — no
-configuration needed. A `PostToolUse` hook warns once per compaction cycle when the session's
-context reaches 175K tokens, asking the agent to write a `compaction-status.md` in its
-scratchpad. A `SessionStart` hook fires right after compaction and injects that file back into
-context, so the agent picks up with a summary of its own prior state instead of nothing.
+configuration needed. `warn.sh` runs after every tool call, on each prompt submission and at the
+end of each main-agent turn, and warns once per compaction cycle, on whichever of those events
+first sees the session's context reach 175K tokens. It asks the agent to write a
+`compaction-status.md` in its scratchpad, recording the goal, decisions, state, next step and any
+skills the user called out. When the warning fires at end of turn it arrives as Stop hook
+feedback, which resumes the turn once so the agent can write the file. A `SessionStart` hook
+fires right after compaction and injects that file back into context, along with an instruction
+to re-check the available skills and invoke any that match, so the agent picks up with a summary
+of its own prior state instead of nothing.
 
 ## There is no `version` field, on purpose
 
