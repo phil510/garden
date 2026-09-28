@@ -1,5 +1,13 @@
 import { execFile } from 'node:child_process';
-import { mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
+import {
+  appendFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -20,6 +28,7 @@ import type { OverlayState, StorePort, TmuxPort } from '../../src/app/ports.js';
 import { createProjection, type Projection } from '../../src/app/projection.js';
 import { createSession } from '../../src/app/sessions.js';
 import { slugify } from '../../src/domain/slug.js';
+import type { GardenEvent } from '../../src/domain/types.js';
 import { createServer as createGardenServer } from '../../src/http/server.js';
 import { until } from './support/poll.js';
 import { withTmuxServer } from './support/tmux-server.js';
@@ -318,5 +327,112 @@ describe('a real fake-claude process spawned into a tmux pane', () => {
         expect(session.watcherComplaints).toEqual([]);
       });
     });
+  });
+});
+
+type TranscriptChangedEvent = Extract<GardenEvent, { type: 'transcript-changed' }>;
+
+function headLine(sessionId: string, cwd: string): string {
+  return (
+    JSON.stringify({
+      type: 'user',
+      sessionId,
+      cwd,
+      timestamp: '2026-01-01T00:00:00.000Z',
+      message: { content: 'hello' },
+    }) + '\n'
+  );
+}
+
+/**
+ * Boot's own watch has no `ready` to await (#218 removed it), so a write meant to land
+ * "after the watch started" instead retries until an event for it arrives — a dropped native
+ * event (docs/testing.md § Flake policy) gets a fresh write on the next attempt rather than
+ * hanging.
+ */
+function writeTranscript(path: string, sessionId: string, cwd: string): void {
+  writeFileSync(path, headLine(sessionId, cwd), 'utf8');
+}
+
+describe('watchTranscripts against a real chokidar watch', () => {
+  it('emits no event for a transcript that already existed before the watch started', async () => {
+    const cwd = realpathSync(mkdtempSync(join(tmpdir(), 'garden-watch-cwd-')));
+    const transcriptsDir = realpathSync(mkdtempSync(join(tmpdir(), 'garden-watch-transcripts-')));
+    const projectDir = join(transcriptsDir, slugify(cwd));
+    mkdirSync(projectDir, { recursive: true });
+    const existingPath = join(projectDir, 'session-existing.jsonl');
+    writeTranscript(existingPath, 'session-existing', cwd);
+    // macOS FSEvents can replay a write from the same instant a watch attaches as a native
+    // 'change', bypassing ignoreInitial (which only suppresses the readdir-based scan's own
+    // 'add's) — see decisions.md 2026-09-27T23:45Z. Production transcripts already exist well
+    // before boot's watch starts, so this settle wait matches that real-world timing.
+    await new Promise((resolve) => setTimeout(resolve, 250));
+
+    const events: TranscriptChangedEvent[] = [];
+    const complaints: string[] = [];
+    const watcher = watchTranscripts(
+      transcriptsDir,
+      [cwd],
+      (event) => events.push(event),
+      { warn: (m) => complaints.push(m), error: (m) => complaints.push(m) },
+      50,
+    );
+    try {
+      const newPath = join(projectDir, 'session-new.jsonl');
+      await until(
+        'a transcript created after the watch started to reach the projection',
+        () => {
+          writeTranscript(newPath, 'session-new', cwd);
+          return Promise.resolve(events.some((event) => event.path === newPath));
+        },
+        (arrived) => arrived,
+      );
+
+      // Covers a reread of the pre-existing file still in flight when the new one's event
+      // landed — its own dispatch, if any, would arrive within one more debounce window.
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(events.some((event) => event.path === existingPath)).toBe(false);
+      expect(complaints).toEqual([]);
+    } finally {
+      await watcher.close();
+      rmSync(cwd, { recursive: true, force: true });
+      rmSync(transcriptsDir, { recursive: true, force: true });
+    }
+  });
+
+  it('dispatches for a write to a pre-existing transcript and for a brand-new one, both landing after the watch starts', async () => {
+    const cwd = realpathSync(mkdtempSync(join(tmpdir(), 'garden-watch-cwd-')));
+    const transcriptsDir = realpathSync(mkdtempSync(join(tmpdir(), 'garden-watch-transcripts-')));
+    const projectDir = join(transcriptsDir, slugify(cwd));
+    mkdirSync(projectDir, { recursive: true });
+    const existingPath = join(projectDir, 'session-existing.jsonl');
+    writeTranscript(existingPath, 'session-existing', cwd);
+    const newPath = join(projectDir, 'session-new.jsonl');
+
+    const events: TranscriptChangedEvent[] = [];
+    const watcher = watchTranscripts(
+      transcriptsDir,
+      [cwd],
+      (event) => events.push(event),
+      { warn: () => {}, error: () => {} },
+      50,
+    );
+    try {
+      await until(
+        'a write to the pre-existing transcript and a brand-new one to both reach the projection',
+        () => {
+          appendFileSync(existingPath, JSON.stringify({ type: 'last-prompt' }) + '\n', 'utf8');
+          writeTranscript(newPath, 'session-new', cwd);
+          const sawExisting = events.some((event) => event.path === existingPath);
+          const sawNew = events.some((event) => event.path === newPath);
+          return Promise.resolve(sawExisting && sawNew);
+        },
+        (arrived) => arrived,
+      );
+    } finally {
+      await watcher.close();
+      rmSync(cwd, { recursive: true, force: true });
+      rmSync(transcriptsDir, { recursive: true, force: true });
+    }
   });
 });

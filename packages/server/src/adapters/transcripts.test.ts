@@ -222,20 +222,6 @@ describe('watchTranscripts', () => {
     });
   });
 
-  it('configures chokidar to skip its own initial scan, leaving the existing corpus to boot replay', async () => {
-    await withTempHome(async (home) => {
-      const root = '/Users/phil/Desktop/Extend/garden';
-      useFakeChokidar();
-      const watcher = watchTranscripts(transcriptsDirFor(home), [root], () => {}, silentLogger());
-      try {
-        const options = vi.mocked(watch).mock.calls.at(-1)?.[1];
-        expect(options?.ignoreInitial).toBe(true);
-      } finally {
-        await watcher.close();
-      }
-    });
-  });
-
   it('logs an unparseable line once per file across repeated re-reads', async () => {
     await withTempHome(async (home) => {
       const root = '/Users/phil/Desktop/Extend/garden';
