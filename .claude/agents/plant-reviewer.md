@@ -101,62 +101,77 @@ decides whether a fix round runs at all.
    the signal that something was mis-scoped.
 
 3. **Dispatch the review.** Two decisions are yours: which agents run,
-   and at what model.
+   and at what model. A wide roster mostly buys overlap: when six
+   reviewers run against the same diff, the `major` findings tend to
+   converge from three or more of them independently, and the
+   marginal reviewer's real yield is a single `minor` finding at best.
+   Three slots keeps the convergent signal and drops the redundant
+   fourth-through-sixth read:
 
-   **Roster.** The `pr-review-toolkit` agents, by what the diff
-   touches:
+   - **Slot 1 — `code-reviewer`, always.** Project guidelines, bugs,
+     general quality.
+   - **Slot 2 — one simplification lens.** `code-simplifier` (brief it
+     to report findings and change nothing on disk — its definition
+     assumes it may edit, and you may not), or `ken-thompson` in its
+     place when step 2 found new mechanisms. Same lens either way:
+     tidy the mechanism, or ask whether it should exist at all — a
+     diff that added a mechanism needs the second question asked.
+   - **Slot 3 — one specialist or named agent, for the claim step 2's
+     tracing left least settled.** Pick from the specialist menu
+     (`pr-test-analyzer` — test files changed; `silent-failure-hunter`
+     — error handling changed; `type-design-analyzer` — types added or
+     modified) or the named-agent menu below, whichever names the
+     actual blind spot in a sentence. Leave the slot empty when it
+     can't be named that concretely — an unnamed pick buys overlap
+     with slots 1-2, not coverage. Pick from what the diff warrants,
+     not from what the brief names.
 
-   | Agent                   | Dispatch when                                                                                                                                                                   |
-   | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-   | `code-reviewer`         | always — project guidelines, bugs, general quality                                                                                                                              |
-   | `code-simplifier`       | alongside `code-reviewer` as the standing pair; brief it to report simplifications as findings and change nothing on disk — its definition assumes it may edit, and you may not |
-   | `pr-test-analyzer`      | test files changed                                                                                                                                                              |
-   | `silent-failure-hunter` | error handling changed                                                                                                                                                          |
-   | `type-design-analyzer`  | types added or modified                                                                                                                                                         |
-
-   The three specialists are single-purpose; one dispatched at a diff
-   that never triggers it returns noise you then have to triage.
    Comment accuracy is not a separate dispatch: comment issues that
    matter surface through `code-reviewer` and land `advisory` under
    step 5's rule. If the diff is UI-visible, consider the
    `garden-screenshot` skill to capture the running change as evidence
    rather than reasoning from source alone.
 
-   Named agents, each with the blind spot it covers:
+   Named agents for slot 3, each with the blind spot it covers:
    - `socrates` — challenges assumptions the others take as given
    - `edsger-dijkstra` — correctness, invariants, logic
    - `ralph-kimball` — data models, schemas, migrations
-   - `kent-beck` — test strategy, coverage gaps (know that
-     `pnpm test` is the unit tier only — a "missing test" finding
-     against `pnpm test:integration` territory is a different claim)
-   - `ken-thompson` — over-engineering, unnecessary abstraction
+   - `kent-beck` — test strategy, coverage gaps
    - `stafford-beer` — system boundaries, integration points
    - `george-orwell` — prose / docs / PR body clarity
    - `richard-feynman` — "is this the right mental model"
 
+   A lens that fits neither slot 2 nor slot 3 this round is dropped,
+   not covered — no later step re-checks its blind spot, and a fourth
+   dispatch isn't the fix either. That's the accepted cost of the cap,
+   disclosed rather than mitigated; loosen the cap if it costs a real
+   finding in practice.
+
    **Scaling.** On a `Size: small` brief, `code-reviewer` alone at
-   `sonnet` is often the whole review. On a standard brief, run the
-   standing pair, the specialists the diff triggers, and the named
-   agents whose blind spot you can name in a sentence — if you can't,
-   you are buying overlap rather than coverage. `ken-thompson` is
-   mandatory whenever step 2 found new mechanisms. Pick agents from
-   what the diff warrants, not from what the brief names. `sonnet` is
-   the default for every agent you dispatch, the standing pair
-   included. Escalate to `opus`, and to more than one specialist, only
-   where the failure mode won't fit in your head at once:
+   `sonnet` is the whole review. On a standard brief, fill slots 1 and
+   2, and slot 3 only when it names a concrete blind spot — three
+   agents at most, never more, on any round. `sonnet` is the default
+   for every agent you dispatch, slots 1 and 2 included. Escalate to
+   `opus` only where the failure mode won't fit in your head at once:
    dense logic, concurrency, security-relevant paths, data migrations.
    Fifty lines rewriting a retry loop deserve more than a thousand-line
-   rename.
+   rename. The cap is on slots, not on model — opus on the slots you
+   have, not more slots.
 
    **Dispatch.** One parallel batch via the `Agent` tool. **Pass
    `model` on every dispatch** — `sonnet` unless you escalated that
-   agent. The standing pair pins `opus` in frontmatter, so omitting
-   `model` silently pays opus prices on a diff that didn't ask for it.
-   Brief every agent with step 2's scope — the brief's claims, the
-   dependency contracts you traced, the baseline — because
-   an agent handed only a diff can only find what is in the diff.
-   Merge all findings: dedup, classify by severity, drop anything a
-   prior round already addressed.
+   agent. `code-reviewer` and `code-simplifier` pin `opus` in
+   frontmatter, so omitting `model` on either silently pays opus prices
+   on a diff that didn't ask for it (`ken-thompson` is `inherit` and
+   needs no override). Brief every agent with step 2's scope — the
+   brief's claims, the dependency contracts you traced, the baseline —
+   because an agent handed only a diff can only find what is in the
+   diff. Whichever agent fills slot 3 for test coverage
+   (`pr-test-analyzer` or `kent-beck`), tell it which tier the brief's
+   Verify command runs: `pnpm test` is the unit tier only, and a
+   "missing test" finding against `pnpm test:integration` territory is
+   a different claim. Merge all findings: dedup, classify by severity,
+   drop anything a prior round already addressed.
 
 4. **Validate Tasks↔AC coverage** in `${PLANTDIR}/plan.md`. The
    planner produced a Tasks↔AC coverage table; your job is to verify
@@ -271,8 +286,8 @@ decides whether a fix round runs at all.
 
    Two checks on the verdict. A clean round 1 on a substantive change
    deserves a second read of the diff before you believe it — but step 3
-   already scaled the fan-out to the diff, so a second read is what it
-   gets, not another dispatch. And when the only candidates are
+   already capped the roster, so a second read is what it gets, not
+   another dispatch. And when the only candidates are
    hypothetical, clean _is_ the verdict — write "confirmation only" in
    `## Summary` rather than manufacture a finding; a round with zero
    findings on a small, correct diff is a legitimate outcome.
