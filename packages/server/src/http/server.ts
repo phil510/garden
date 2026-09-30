@@ -1,6 +1,8 @@
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Fastify, { type FastifyInstance } from 'fastify';
+import { errorHandler } from './errors.js';
+import { fastifyLogger } from './logger.js';
 import type { AttachSocketDeps } from './ws/attach.js';
 import type { FilesystemDeps } from '../app/filesystem.js';
 import type { Logger } from '../app/ports.js';
@@ -31,16 +33,24 @@ export type ServerDeps = SessionsDeps &
  *  working unchanged — only `main.ts` and tests that assert logging behavior pass a real one. */
 const noopLogger: Logger = { warn: () => undefined, error: () => undefined };
 
+/** A Fastify instance with the logger and the error handler every route inherits. Routes
+ *  and everything else are `createServer`'s to mount. */
+export function createApp(logger: Logger = noopLogger): FastifyInstance {
+  const app = Fastify({ loggerInstance: fastifyLogger(logger) });
+  app.setErrorHandler(errorHandler);
+  return app;
+}
+
 /** Builds the Fastify instance and mounts the routes. Listening is main.ts's job. */
 export function createServer(deps: ServerDeps, logger: Logger = noopLogger): FastifyInstance {
-  const app = Fastify();
+  const app = createApp(logger);
   app.register(healthRoutes);
   app.register((instance) => hookRoutes(instance, deps));
-  app.register((instance) => sessionRoutes(instance, deps, logger));
+  app.register((instance) => sessionRoutes(instance, deps));
   app.register((instance) => repoRoutes(instance, deps));
   app.register((instance) => settingsRoutes(instance, deps));
   app.register((instance) => uiStateRoutes(instance, deps));
-  app.register((instance) => swarmRoutes(instance, deps, logger));
+  app.register((instance) => swarmRoutes(instance, deps));
   app.register((instance) => fsRoutes(instance, deps));
 
   const clientDir = resolveClientDir(dirname(fileURLToPath(import.meta.url)));
