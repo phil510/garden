@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# SessionStart(compact) hook: after compaction wipes context, inject the compaction-status
-# file warn.sh asked the agent to write before it happened, and reset the marker so the next
-# 175K crossing warns again.
+# SessionStart(compact) hook: after compaction wipes context, point the agent at the
+# compaction-status file warn.sh asked it to write before it happened, and reset the marker so
+# the next 175K crossing warns again.
 #
 # The hooks.json matcher already restricts this to firing only on a post-compaction
 # SessionStart, so there is no need to re-check the start reason here.
@@ -39,15 +39,16 @@ if [ ! -f "$status_file" ]; then
   echo "Compaction happened, but no \`compaction-status.md\` was written before it, so there is no on-disk summary of your prior state. Whatever summary Claude Code itself resumed you with is still just claims, not settled fact: check them against the repo before acting on them."
   echo "$skills_directive"
 else
-  cat <<'EOF'
-Compaction happened. The section below is what you wrote about your own state just before it —
-treat it as a set of claims, not settled fact: check them against the repo and the workstream
-files it points to before acting on them, since the world may have moved since you wrote it.
+  cat <<EOF
+Compaction happened. Just before it, you wrote what you knew about your own state to:
+$status_file
+
+Treat its contents as a set of claims, not settled fact: check them against the repo and the
+workstream files it points to before acting on them, since the world may have moved since you
+wrote it. Read the file in full before doing anything else, unless a complete copy of it is
+already in your context from the harness's restore.
 EOF
   echo "$skills_directive"
-  echo
-  # Hook stdout is capped at 10,000 characters as a whole; leave room for the preamble.
-  head -c 9000 "$status_file"
 fi
 
 # Reset the marker in both the found and not-found cases, so the next 175K crossing warns
