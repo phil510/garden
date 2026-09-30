@@ -58,8 +58,10 @@ it under you after the fact. Brief it the same way you would a fresh spawn (run 
 member-file name, report contract) — tell the peer its member file is `<its own $GARDEN_SESSION_ID>.md`,
 the same id you just adopted it with; adoption changes who placed the session, not what it owes the run.
 
-Give a peer somewhere of its own to work: a worktree per task, not a shared checkout. Two sessions
-in one working directory fight over the index and the branch, and neither will report that as the
+Where a peer works is set by the work it runs, not by orchestration: a pipeline that creates its own
+worktree (plant) has to be spawned in the checkout it branches from. If the work sets up no
+directory of its own, your brief is its workflow and the choice is yours — but two sessions sharing
+one working directory fight over the index and the branch, and neither will report that as the
 cause of whatever breaks.
 
 **Ask for a report in the brief.** Tell the peer to message `<your session name>` when it
@@ -145,8 +147,12 @@ merge: ask-human (approver: <name>) · create-issue: auto · swarm: 6f1c9e2a-3b7
 - user: proxy through the server after all (supersedes client-only — CORS blocked the direct read)
 ```
 
-`swarm` is your own `swarmId` from `garden ls` — dispatching your first peer mints you one
-automatically (see "Dispatch" above), so it's there to record by the time you write the header.
+`swarm` is your own `swarmId` from `garden ls`, and only a top-level session has one: if you are
+top-level, dispatching your first peer mints you one (see "Dispatch" above), so it's there to record
+by the time you write the header. If you were spawned or adopted yourself you have a `parent` and are
+never given a swarm — record your top-level ancestor's. The same holds for peers: a child shows
+`parent` set and no `swarmId` (`jq '.swarmId'` prints `null`), which is the normal shape, not a
+failed attach. Find its swarm by following `parent` up, or with `garden ls --json --swarm <id>`.
 
 Blocked records the event that unblocks, not a status — "waiting on your user", "answered but
 the peer hasn't been told" and "peer has it and is working" look alike in a status field and need
