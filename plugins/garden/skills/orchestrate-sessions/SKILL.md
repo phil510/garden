@@ -224,26 +224,30 @@ You are not the reviewer. Don't add code-shape requirements to a "go" or reopen 
 its stop condition; review from here only for a reason you can state, and keep it targeted. The
 gate you hold is merge.
 
-## Wait by subscribing, never by polling
+## Wait on reports, never by polling
 
-A subscription costs the peer nothing and buys you one notice, delivered when that session next
-ends a turn with nothing queued — the same moment that sets `status` to `waiting` — or exits,
-which sets it to `null` instead.
+The brief's report contract is how you wait: a peer messages you when it finishes or blocks, and
+that message carries the substance. A subscription adds a signal a report can't, and only for a
+peer whose next idle or exit means something.
+
+A subscription buys one notice, delivered when that session next ends a turn with nothing queued
+— the same moment that sets `status` to `waiting` — or exits, which sets it to `null` instead.
 `SendMessage({to: "<name>", notify_when_idle: true})` with `message` omitted subscribes without
-delivering anything; include one to do both at once. Three properties decide how to use it:
+delivering anything; include one to do both at once. Properties that decide when to use it:
 
-- **It carries no content.** The notice says _when_ to look, never _what_ happened; substance
-  comes from the peer's own report, which is why the brief asks for one. Use the subscription
-  as the backstop for the peer that dies, or goes idle without reporting — and subscribe while
-  it is still `working`. It fires on the _next_ idle transition, so a peer already `waiting` is
-  one you read, not one you wait on.
-- **It is one-shot.** A session that goes idle, receives another message, and works again will
-  not notify you a second time — that notice fired and is spent, so a later round needs its own
-  subscription — spend it again only where a report won't already cover it: where the brief
-  mandates a report, the notice lands beside a report you already have and adds nothing; where
-  the peer might go silent instead of reporting, that notice is the only signal you'll get.
+- **It is one-shot, and fires on the next idle or exit, whichever comes first.** A peer that ends
+  a turn at every internal handoff — any pipeline, plant included — fires it within minutes with
+  nothing to say, and its exit never gets caught because an idle comes first. Don't subscribe to
+  that peer; its reports are the wait. Subscribe when the next idle or exit _is_ the finish: work
+  that fits a single turn, or a peer expected to end by exiting. There the notice backs up a
+  report the peer might forget, and its exit case is the one signal a dead peer can't send.
+- **It carries no content.** The notice says _when_ to look, never _what_ happened. Subscribe
+  while the peer is still `working`: a peer already `waiting` is one you read, not one you wait on.
 - **It can expire**, and says so when it does. That means "no news", not "still working" —
   re-subscribe, or read `recap`, before concluding anything.
+
+A pipeline peer that dies sends no report. When one you expected is overdue, a single
+`garden ls --json --live` check of its `liveness` settles it (see "Winding down").
 
 Dispatch and subscribe from the main thread: a subagent's messages go out under its parent's
 address, so replies land in the parent's conversation rather than its own. And don't loop on
