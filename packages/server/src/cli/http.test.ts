@@ -137,6 +137,22 @@ describe('createSession', () => {
       tmuxName: 'repo',
     });
   });
+
+  it('includes model and effort in the body when provided', async () => {
+    await startServer((request, response) => {
+      void (async () => {
+        expect(JSON.parse(await readBody(request))).toEqual({
+          cwd: '/repo',
+          model: 'opus',
+          effort: 'high',
+        });
+        sendJson(response, 200, { id: 'abc', tmuxName: 'repo' });
+      })();
+    });
+    await expect(
+      createSession('/repo', undefined, { model: 'opus', effort: 'high' }),
+    ).resolves.toEqual({ id: 'abc', tmuxName: 'repo' });
+  });
 });
 
 describe('placeSession', () => {
@@ -164,6 +180,19 @@ describe('resumeSession', () => {
       sendJson(response, 200, { id: 'a/b', tmuxName: 'repo' });
     });
     await expect(resumeSession('a/b')).resolves.toEqual({ id: 'a/b', tmuxName: 'repo' });
+  });
+
+  it('sends model and effort as a JSON body', async () => {
+    await startServer((request, response) => {
+      void (async () => {
+        expect(JSON.parse(await readBody(request))).toEqual({ model: 'opus', effort: 'max' });
+        sendJson(response, 200, { id: 'a', tmuxName: 'repo' });
+      })();
+    });
+    await expect(resumeSession('a', { model: 'opus', effort: 'max' })).resolves.toEqual({
+      id: 'a',
+      tmuxName: 'repo',
+    });
   });
 });
 

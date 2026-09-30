@@ -6,8 +6,10 @@ import type {
   OkResponse,
   Placement,
   PlacementRequest,
+  ResumeSessionRequest,
   SessionsFilter,
   SessionsResponse,
+  SpawnOptions,
 } from '@garden/shared';
 import { ensureConfigFile, loadConfig } from '../config.js';
 
@@ -55,13 +57,22 @@ export function listSessions(filter?: SessionsFilter): Promise<SessionsResponse>
   return request(`/sessions${filter === undefined ? '' : sessionsQuery(filter)}`);
 }
 
+function definedSpawnOptions({ model, effort }: SpawnOptions): SpawnOptions {
+  return {
+    ...(model === undefined ? {} : { model }),
+    ...(effort === undefined ? {} : { effort }),
+  };
+}
+
 export function createSession(
   cwd: string,
   callerSessionId?: string,
+  options: SpawnOptions = {},
 ): Promise<CreateSessionResponse> {
   const body: CreateSessionRequest = {
     cwd,
     ...(callerSessionId === undefined ? {} : { callerSessionId }),
+    ...definedSpawnOptions(options),
   };
   return request('/sessions', {
     method: 'POST',
@@ -70,8 +81,16 @@ export function createSession(
   });
 }
 
-export function resumeSession(id: string): Promise<CreateSessionResponse> {
-  return request(`/sessions/${encodeURIComponent(id)}/resume`, { method: 'POST' });
+export function resumeSession(
+  id: string,
+  options: SpawnOptions = {},
+): Promise<CreateSessionResponse> {
+  const body: ResumeSessionRequest = definedSpawnOptions(options);
+  return request(`/sessions/${encodeURIComponent(id)}/resume`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
 }
 
 export function killSession(id: string): Promise<OkResponse> {

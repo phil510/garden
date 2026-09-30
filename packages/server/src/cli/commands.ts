@@ -4,6 +4,7 @@ import type {
   Placement,
   SessionsFilter,
   SessionsResponse,
+  SpawnOptions,
 } from '@garden/shared';
 import { resolve } from 'node:path';
 import * as http from './http.js';
@@ -21,8 +22,12 @@ const NO_CALLER_SESSION = 'GARDEN_SESSION_ID is not set';
 /** The calls a subcommand needs. `./http.ts`'s exports satisfy this by shape. */
 export interface CliClient {
   listSessions(filter?: SessionsFilter): Promise<SessionsResponse>;
-  createSession(cwd: string, callerSessionId?: string): Promise<CreateSessionResponse>;
-  resumeSession(id: string): Promise<CreateSessionResponse>;
+  createSession(
+    cwd: string,
+    callerSessionId?: string,
+    options?: SpawnOptions,
+  ): Promise<CreateSessionResponse>;
+  resumeSession(id: string, options?: SpawnOptions): Promise<CreateSessionResponse>;
   killSession(id: string): Promise<OkResponse>;
   placeSession(id: string, placement: Placement): Promise<OkResponse>;
 }
@@ -59,6 +64,7 @@ export function runNew(
   dir: string,
   json: boolean,
   client: CliClient = defaultClient,
+  options: SpawnOptions = {},
 ): Promise<0 | 1> {
   const callerSessionId = process.env.GARDEN_SESSION_ID;
   // The server's cwd is not the caller's, so a relative dir must be resolved here.
@@ -66,7 +72,7 @@ export function runNew(
   return runCommand(
     io,
     json,
-    () => client.createSession(absoluteDir, callerSessionId),
+    () => client.createSession(absoluteDir, callerSessionId, options),
     (result) => `${result.id}\t${result.tmuxName}`,
   );
 }
@@ -95,11 +101,12 @@ export function runResume(
   id: string,
   json: boolean,
   client: CliClient = defaultClient,
+  options: SpawnOptions = {},
 ): Promise<0 | 1> {
   return runCommand(
     io,
     json,
-    () => client.resumeSession(id),
+    () => client.resumeSession(id, options),
     (result) => `${result.id}\t${result.tmuxName}`,
   );
 }

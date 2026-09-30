@@ -1,7 +1,13 @@
 import { parseArgs } from 'node:util';
 import type { ParseArgsConfig } from 'node:util';
-import type { SessionsFilter } from '@garden/shared';
-import { isStatus, parseNonNegativeInt } from '@garden/shared';
+import type { SessionsFilter, SpawnOptions } from '@garden/shared';
+import {
+  EFFORT_LEVELS,
+  isEffortLevel,
+  isModelName,
+  isStatus,
+  parseNonNegativeInt,
+} from '@garden/shared';
 import type { CliClient, Io } from './commands.js';
 import { defaultClient, runAdopt, runKill, runLs, runNew, runResume } from './commands.js';
 import { writeAll } from './io.js';
@@ -129,6 +135,28 @@ function parseLsFilter(values: {
   return { ok: true, filter: hasAny ? filter : undefined };
 }
 
+type SpawnOptionsResult = { ok: true; options: SpawnOptions } | { ok: false };
+
+/** `--model` / `--effort` for `new` and `resume`, checked before any request is made so a bad
+ *  value never reaches the server. */
+function parseSpawnOptions(values: {
+  model?: string | undefined;
+  effort?: string | undefined;
+}): SpawnOptionsResult {
+  const { model, effort } = values;
+  if (model !== undefined && !isModelName(model)) return { ok: false };
+  if (effort !== undefined && !isEffortLevel(effort)) return { ok: false };
+  return {
+    ok: true,
+    options: {
+      ...(model === undefined ? {} : { model }),
+      ...(effort === undefined ? {} : { effort }),
+    },
+  };
+}
+
+const SPAWN_FLAGS_USAGE = `[--model <model>] [--effort <${EFFORT_LEVELS.join('|')}>]`;
+
 /** `parseArgs` throws synchronously — not a rejected promise a caller can inspect — when a
  *  string-typed option is the last token with no following value (e.g. a trailing
  *  `--since-days` with nothing after it). Wrapping every call here turns that into the same
@@ -165,6 +193,8 @@ export async function runCli(
       live: { type: 'boolean', default: false },
       status: { type: 'string' },
       swarm: { type: 'string' },
+      model: { type: 'string' },
+      effort: { type: 'string' },
     },
     allowPositionals: true,
   });
@@ -173,10 +203,13 @@ export async function runCli(
   const json = values.json === true;
 
   switch (command) {
-    case 'new':
-      return positionals[0] === undefined
-        ? usage(io, 'garden new <dir>')
-        : runNew(io, positionals[0], json, client);
+    case 'new': {
+      if (positionals[0] === undefined) return usage(io, 'garden new <dir>');
+      const spawn = parseSpawnOptions(values);
+      return spawn.ok
+        ? runNew(io, positionals[0], json, client, spawn.options)
+        : usage(io, `garden new <dir> ${SPAWN_FLAGS_USAGE}`);
+    }
     case 'ls': {
       const parsed = parseLsFilter({
         'since-days': values['since-days'],
@@ -191,10 +224,13 @@ export async function runCli(
       return positionals[0] === undefined
         ? usage(io, 'garden kill <id>')
         : runKill(io, positionals[0], json, client);
-    case 'resume':
-      return positionals[0] === undefined
-        ? usage(io, 'garden resume <id>')
-        : runResume(io, positionals[0], json, client);
+    case 'resume': {
+      if (positionals[0] === undefined) return usage(io, 'garden resume <id>');
+      const spawn = parseSpawnOptions(values);
+      return spawn.ok
+        ? runResume(io, positionals[0], json, client, spawn.options)
+        : usage(io, `garden resume <id> ${SPAWN_FLAGS_USAGE}`);
+    }
     case 'adopt':
       return positionals[0] === undefined
         ? usage(io, 'garden adopt <id>')
