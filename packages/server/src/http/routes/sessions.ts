@@ -30,7 +30,8 @@ function hasValidSpawnOptions(record: Record<string, unknown>): boolean {
 /** A missing body is valid: the web client resumes without one. */
 function isResumeSessionRequest(body: unknown): body is ResumeSessionRequest | undefined {
   if (body === undefined || body === null) return true;
-  return typeof body === 'object' && hasValidSpawnOptions(body as Record<string, unknown>);
+  if (typeof body !== 'object' || Array.isArray(body)) return false;
+  return hasValidSpawnOptions(body as Record<string, unknown>);
 }
 
 interface SessionsQuerystring {

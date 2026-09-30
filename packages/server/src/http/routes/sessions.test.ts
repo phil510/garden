@@ -599,7 +599,11 @@ describe('POST /sessions/:id/resume', () => {
     expect(response.json()).toEqual({ id: 'sid-1', tmuxName: 'garden' });
   });
 
-  it('rejects an unknown effort without touching tmux', async () => {
+  it.each([
+    ['an unknown effort', { effort: 'extreme' }],
+    ['a null model', { model: null }],
+    ['an array body', ['opus']],
+  ])('rejects %s without touching tmux', async (_label, payload) => {
     const respawned: unknown[] = [];
     const deadSession = aSession({ id: 'sid-1', cwd: '/Users/dev/garden', tmuxName: 'garden' });
     const app = buildApp({
@@ -620,7 +624,7 @@ describe('POST /sessions/:id/resume', () => {
     const response = await app.inject({
       method: 'POST',
       url: '/sessions/sid-1/resume',
-      payload: { effort: 'extreme' },
+      payload,
     });
 
     expect(response.statusCode).toBe(400);

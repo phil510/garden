@@ -49,7 +49,7 @@ Leave `--model` and `--effort` off by default: which model and how much effort a
 deserves is the user's cost-versus-quality call, and a bare `garden new` gives the peer what a
 `claude` the user started themselves would get. Set them when the user named a model or effort for
 the work, or the brief you are relaying pins one — and pass them again on `garden resume`, because
-garden doesn't remember them and a bare resume drops back to the default.
+garden doesn't store them and a bare resume sends none.
 
 Check `GARDEN_SESSION_ID` is set in your own environment before that first spawn — a session
 started by an older garden, or never started by garden at all, has it unset. `garden new` still exits 0

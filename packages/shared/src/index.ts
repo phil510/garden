@@ -178,10 +178,10 @@ export type EffortLevel = (typeof EFFORT_LEVELS)[number];
 export function isEffortLevel(value: string): value is EffortLevel {
   return (EFFORT_LEVELS as readonly string[]).includes(value);
 }
-/** A model alias or full name. A leading `-` is rejected so a value can't be read as a `claude` flag. */
+/** A model alias or full name. Surrounding whitespace and a leading `-` are rejected, so a
+ *  value can't be read as a `claude` flag or fail to resolve once spawned. */
 export function isModelName(value: string): boolean {
-  const trimmed = value.trim();
-  return trimmed !== '' && !trimmed.startsWith('-');
+  return value !== '' && value === value.trim() && !value.startsWith('-');
 }
 /** Passed through to the spawned `claude` as its own `--model` / `--effort`. */
 export interface SpawnOptions {

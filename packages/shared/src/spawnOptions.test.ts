@@ -21,9 +21,10 @@ describe('isModelName', () => {
     expect(isModelName('claude-opus-5-5')).toBe(true);
   });
 
-  it('rejects empty and whitespace-only values', () => {
+  it('rejects empty and whitespace-padded values', () => {
     expect(isModelName('')).toBe(false);
     expect(isModelName('  ')).toBe(false);
+    expect(isModelName(' opus')).toBe(false);
   });
 
   it('rejects a value that would parse as a claude flag', () => {
