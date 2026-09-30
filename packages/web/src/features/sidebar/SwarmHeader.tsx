@@ -19,10 +19,7 @@ import {
 } from './swarmHeaderMenuItems';
 
 interface SwarmHeaderProps {
-  swarm: Pick<
-    SwarmGroup,
-    'swarmId' | 'name' | 'repoCount' | 'attention' | 'collapsed' | 'archived'
-  >;
+  swarm: Pick<SwarmGroup, 'swarmId' | 'name' | 'liveCount' | 'collapsed' | 'archived'>;
   onToggle: () => void;
   className?: string;
   /** `useSortable`'s drag attributes/listeners for an active swarm, spread onto the header
@@ -32,8 +29,7 @@ interface SwarmHeaderProps {
 }
 
 /** The swarm-header row shared by an active swarm and a Finished-section entry: chevron,
- *  name (double-click, or the header's own context menu, to rename in place), repo count,
- *  attention badge. Finished entries pass no drag props and fold in their own `finished`
+ *  name (double-click, or the header's own context menu, to rename in place), live count. Finished entries pass no drag props and fold in their own `finished`
  *  class via `className`. */
 export function SwarmHeader({
   swarm,
@@ -173,10 +169,9 @@ export function SwarmHeader({
           {swarm.name}
         </span>
       )}
-      <span className="swarm-repos mono">
-        {swarm.repoCount} repo{swarm.repoCount === 1 ? '' : 's'}
+      <span className={`repo-count mono${swarm.liveCount > 0 ? ' live' : ''}`}>
+        {swarm.liveCount} live
       </span>
-      {swarm.attention > 0 && <span className="swarm-attn-badge">{swarm.attention}</span>}
       {contextMenuPoint !== null && (
         <ContextMenu
           x={contextMenuPoint.x}
