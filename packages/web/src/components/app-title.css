@@ -1,0 +1,11 @@
+.app-title {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  line-height: 0;
+  color: var(--accent);
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+}

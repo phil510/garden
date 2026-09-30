@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { connectEventSocket } from './api/eventSocket';
+import { AppTitle } from './components/AppTitle';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ResizeHandle } from './components/ResizeHandle';
 import { Toast } from './components/Toast';
@@ -49,6 +50,7 @@ export function App() {
       <div className="app-shell">
         <div className="topbar">
           <PresetSwitcher />
+          <AppTitle />
           <div className="topbar-spacer" />
           <button className="ghost icon-btn" title="Settings" onClick={() => setSettingsOpen(true)}>
             <svg
