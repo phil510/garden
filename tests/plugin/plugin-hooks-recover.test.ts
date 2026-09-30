@@ -46,32 +46,21 @@ describe('plugins/garden/hooks/scripts/recover.sh', () => {
     expect(result.stdout).toContain('the user named earlier');
   });
 
-  it('prints verify-before-acting guidance plus the file content when a status file exists', () => {
+  it('points at the status file with read-first guidance and does not print its content', () => {
     const scratchpad = tempScratchpad();
     writeFileSync(statusFilePath(scratchpad), 'Goal: ship the hooks\nNext step: open the PR\n');
 
     const result = runRecover({ session_id: 's-with-status', scratchpad_dir: scratchpad });
 
     expect(result.code).toBe(0);
+    expect(result.stdout).toContain(statusFilePath(scratchpad));
+    expect(result.stdout).toContain('Read the file in full before doing anything else');
+    expect(result.stdout).toContain('complete copy of it is');
     expect(result.stdout).toContain('check them against the repo');
     expect(result.stdout).toContain('invoke every one that matches your task');
     expect(result.stdout).toContain('the user named earlier');
-    expect(result.stdout).toContain('Goal: ship the hooks');
-    expect(result.stdout).toContain('Next step: open the PR');
-  });
-
-  it('truncates an oversized status file under 10,000 characters', () => {
-    const scratchpad = tempScratchpad();
-    writeFileSync(statusFilePath(scratchpad), 'x'.repeat(20_000));
-
-    const result = runRecover({ session_id: 's-oversized', scratchpad_dir: scratchpad });
-
-    expect(result.code).toBe(0);
-    // Claude Code caps hook stdout as a whole at 10,000 characters and spills anything over to
-    // a file, so the preamble plus the capped content must fit, with most of the file kept.
-    expect(result.stdout.length).toBeLessThan(10_000);
-    const bodyOnly = result.stdout.replace(/^[\s\S]*?\n\n/, '');
-    expect(bodyOnly.length).toBeGreaterThan(8_500);
+    expect(result.stdout).not.toContain('Goal: ship the hooks');
+    expect(result.stdout).not.toContain('Next step: open the PR');
   });
 
   it('deletes the marker when a status file was found', () => {
@@ -135,7 +124,7 @@ describe('plugins/garden/hooks/scripts/recover.sh', () => {
     const result = runRecover({ session_id: sessionId }, { [GLOB_ROOT_ENV]: globRoot });
 
     expect(result.code).toBe(0);
-    expect(result.stdout).toContain('Goal: prove the glob fallback resolves');
+    expect(result.stdout).toContain(statusFilePath(scratchpad));
     expect(existsSync(markerPath(scratchpad))).toBe(false);
   });
 
