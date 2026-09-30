@@ -369,26 +369,6 @@ li.tree-node:not(:last-child)::after {
   color: var(--text);
   padding: 1px 4px;
 }
-.swarm-repos {
-  font-size: 11px;
-  color: var(--text-muted);
-  flex: 0 0 auto;
-}
-.swarm-attn-badge {
-  flex: 0 0 auto;
-  min-width: 15px;
-  height: 15px;
-  padding: 0 4px;
-  border-radius: 99px;
-  background: var(--st-needs-approval);
-  color: var(--ground);
-  font-size: 10px;
-  font-weight: 700;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-mono);
-}
 .swarm-rows.collapsed {
   display: none;
 }

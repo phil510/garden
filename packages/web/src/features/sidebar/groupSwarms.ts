@@ -1,5 +1,4 @@
 import type { SessionMap, SessionPlacement, SessionState, UiState } from '@garden/shared';
-import { isAttentionStatus } from './attentionStatus';
 
 export interface SwarmTreeNode {
   sessionId: string;
@@ -9,8 +8,7 @@ export interface SwarmTreeNode {
 export interface SwarmGroup {
   swarmId: string;
   name: string;
-  repoCount: number;
-  attention: number;
+  liveCount: number;
   collapsed: boolean;
   hideDead: boolean;
   /** The raw record flag — unlike `finished`, doesn't also fold in "every member dead" — for
@@ -161,10 +159,7 @@ export function groupSwarms(sessions: SessionMap, uiState: SwarmsUiState): Group
 
   const swarms: SwarmGroup[] = Array.from(knownSwarms.values(), (swarm) => {
     const memberIds = allSessions.filter((session) => bucketOf.get(session.id) === swarm.id);
-    const repoCount = new Set(
-      memberIds.map((session) => session.repoRoot).filter((root): root is string => root !== null),
-    ).size;
-    const attention = memberIds.filter((session) => isAttentionStatus(session.status)).length;
+    const liveCount = memberIds.filter((session) => session.liveness === 'live').length;
     const finished =
       swarm.archived || (memberIds.length > 0 && memberIds.every((s) => s.liveness === 'dead'));
     const hideDead = hideDeadSwarms.has(swarm.id);
@@ -173,8 +168,7 @@ export function groupSwarms(sessions: SessionMap, uiState: SwarmsUiState): Group
     return {
       swarmId: swarm.id,
       name: swarm.name,
-      repoCount,
-      attention,
+      liveCount,
       // Membership marks a swarm as expanded; a swarm absent from the list (the default)
       // is collapsed — mirrors groupSessions.ts's collapsedRepos/collapsed inversion, kept
       // for consistency with the sibling Repos-mode toggle rather than fixed here.
