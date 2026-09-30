@@ -33,7 +33,7 @@ status_file="$scratchpad_dir/compaction-status.md"
 
 # Skills named earlier in the session are the easiest thing for a summary to drop. One line, so it
 # stays part of the preamble.
-skills_directive='Re-check the available skills now and invoke every one that matches your task, including any the user named earlier in this session, whether or not they appear below or in your resumed summary. Compaction does not cancel an earlier instruction to use a skill.'
+skills_directive='Re-check the available skills now and invoke every one that matches your task, including any the user named earlier in this session, whether or not they appear in any status file or your resumed summary. Compaction does not cancel an earlier instruction to use a skill.'
 
 if [ ! -f "$status_file" ]; then
   echo "Compaction happened, but no \`compaction-status.md\` was written before it, so there is no on-disk summary of your prior state. Whatever summary Claude Code itself resumed you with is still just claims, not settled fact: check them against the repo before acting on them."
