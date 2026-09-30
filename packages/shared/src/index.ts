@@ -173,10 +173,26 @@ export function parseNonNegativeInt(raw: string): number | undefined {
   const value = Number(raw);
   return Number.isInteger(value) && value >= 0 ? value : undefined;
 }
-export interface CreateSessionRequest {
+export const EFFORT_LEVELS = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
+export type EffortLevel = (typeof EFFORT_LEVELS)[number];
+export function isEffortLevel(value: string): value is EffortLevel {
+  return (EFFORT_LEVELS as readonly string[]).includes(value);
+}
+/** A model alias or full name. A leading `-` is rejected so a value can't be read as a `claude` flag. */
+export function isModelName(value: string): boolean {
+  const trimmed = value.trim();
+  return trimmed !== '' && !trimmed.startsWith('-');
+}
+/** Passed through to the spawned `claude` as its own `--model` / `--effort`. */
+export interface SpawnOptions {
+  model?: string;
+  effort?: EffortLevel;
+}
+export interface CreateSessionRequest extends SpawnOptions {
   cwd: string;
   callerSessionId?: string;
 }
+export type ResumeSessionRequest = SpawnOptions;
 export interface CreateSessionResponse {
   id: string;
   tmuxName: string;
