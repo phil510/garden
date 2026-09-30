@@ -661,6 +661,31 @@ describe('POST /sessions/:id/resume', () => {
     );
   });
 
+  it('resumes the session named in the URL even when the body carries another id', async () => {
+    const app = buildApp({
+      tmux: fakeTmux({
+        listPanes: () => Promise.resolve([{ session: 'garden', dead: true, exitCode: 1 }]),
+        respawnPane: () => Promise.resolve(),
+      }),
+      store: fakeStore(),
+      projection: fakeProjection([
+        aSession({ id: 'sid-1', cwd: '/Users/dev/garden', tmuxName: 'garden' }),
+        aSession({ id: 'sid-2', cwd: '/Users/dev/other', tmuxName: 'other' }),
+      ]),
+      serverPort: 4310,
+      settingsPath,
+      readClaudeCommand: () => ['claude'],
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/sessions/sid-1/resume',
+      payload: { id: 'sid-2' },
+    });
+
+    expect(response.json()).toEqual({ id: 'sid-1', tmuxName: 'garden' });
+  });
+
   it('logs a failed resume through the given logger', async () => {
     const deadSession = aSession({ id: 'sid-1', cwd: '/Users/dev/garden', tmuxName: 'garden' });
     const { logger, errors } = spyLogger();

@@ -135,8 +135,8 @@ export function sessionRoutes(app: FastifyInstance, deps: SessionsDeps) {
         .code(400)
         .send({ error: 'invalid resume-session request' } satisfies ErrorResponse);
     const result: CreateSessionResponse = await resumeSession(deps, {
-      id: request.params.id,
       ...body,
+      id: request.params.id,
     });
     return reply.send(result);
   });
