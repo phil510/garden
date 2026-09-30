@@ -273,7 +273,8 @@ A peer's context fills as it works, and a session near the end of its window get
 job before it says anything about it. `<skill base directory>/scripts/context_tokens.sh` — the
 directory announced when this skill loaded — takes a session id or a transcript path, needs `jq`,
 and prints current occupancy in tokens. A number that drops means the session shed detail, not
-that it is healthier.
+that it is healthier. Right after a compaction it exits non-zero with `no assistant turns yet`
+until the session's first reply; that means "just compacted", not a low number or a broken script.
 
 Report a high number to your user with the session's name and what it is working on, and let them
 decide; compacting in place, or starting a fresh session to pick up from the run folder, is their
