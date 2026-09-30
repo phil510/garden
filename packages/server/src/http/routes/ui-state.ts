@@ -50,13 +50,7 @@ export function uiStateRoutes(app: FastifyInstance, deps: UiStateDeps) {
   app.put('/ui-state', (request, reply) => {
     if (!isUiStateRequest(request.body))
       return reply.code(400).send({ error: 'invalid ui-state request' } satisfies ErrorResponse);
-    try {
-      deps.projection.updateUiState(request.body);
-      return reply.send({ ok: true } satisfies OkResponse);
-    } catch (error) {
-      return reply.code(500).send({
-        error: error instanceof Error ? error.message : String(error),
-      } satisfies ErrorResponse);
-    }
+    deps.projection.updateUiState(request.body);
+    return reply.send({ ok: true } satisfies OkResponse);
   });
 }

@@ -1,6 +1,5 @@
 import { aSession } from '@garden/shared/fixtures';
 import type { SessionsFilter, SessionState } from '@garden/shared';
-import Fastify from 'fastify';
 import { describe, expect, it } from 'vitest';
 import type {
   Logger,
@@ -11,9 +10,8 @@ import type {
 } from '../../app/ports.js';
 import type { Projection } from '../../app/projection.js';
 import type { SessionsDeps } from '../../app/sessions.js';
+import { createApp } from '../server.js';
 import { sessionRoutes } from './sessions.js';
-
-const noopLogger: Logger = { warn: () => undefined, error: () => undefined };
 
 function spyLogger(): { logger: Logger; warnings: string[]; errors: string[] } {
   const warnings: string[] = [];
@@ -89,9 +87,9 @@ function fakeProjection(
   };
 }
 
-function buildApp(deps: SessionsDeps, logger: Logger = noopLogger) {
-  const app = Fastify();
-  app.register((instance) => sessionRoutes(instance, deps, logger));
+function buildApp(deps: SessionsDeps, logger?: Logger) {
+  const app = createApp(logger);
+  app.register((instance) => sessionRoutes(instance, deps));
   return app;
 }
 

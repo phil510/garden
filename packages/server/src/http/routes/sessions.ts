@@ -7,15 +7,9 @@ import type {
   SessionsResponse,
 } from '@garden/shared';
 import { isStatus, parseNonNegativeInt } from '@garden/shared';
-import type { FastifyInstance, FastifyReply } from 'fastify';
-import {
-  createSession,
-  killSession,
-  resumeSession,
-  SessionNotFoundError,
-} from '../../app/sessions.js';
+import type { FastifyInstance } from 'fastify';
+import { createSession, killSession, resumeSession } from '../../app/sessions.js';
 import type { SessionsDeps } from '../../app/sessions.js';
-import type { Logger } from '../../app/ports.js';
 
 function isCreateSessionRequest(body: unknown): body is CreateSessionRequest {
   if (typeof body !== 'object' || body === null) return false;
@@ -95,23 +89,7 @@ function parseSessionsFilter(query: SessionsQuerystring): ParsedFilter {
   return { ok: true, filter };
 }
 
-/** `SessionNotFoundError` is the one case a client can act on (the id is stale) — logged at
- *  `warn`, since a stale id is an expected condition, not the failure this route guards
- *  against. Every other failure is an opaque tmux or store error, logged at `error` with
- *  its stack (when it has one) rather than only its message, so root-causing from logs
- *  doesn't need to reproduce the failure to find where it came from; the response body
- *  still carries only the message. */
-function sendError(logger: Logger, reply: FastifyReply, error: unknown): FastifyReply {
-  if (error instanceof SessionNotFoundError) {
-    logger.warn(error.message);
-    return reply.code(404).send({ error: error.message } satisfies ErrorResponse);
-  }
-  const message = error instanceof Error ? error.message : String(error);
-  logger.error(error instanceof Error ? (error.stack ?? message) : message);
-  return reply.code(500).send({ error: message } satisfies ErrorResponse);
-}
-
-export function sessionRoutes(app: FastifyInstance, deps: SessionsDeps, logger: Logger) {
+export function sessionRoutes(app: FastifyInstance, deps: SessionsDeps) {
   app.get<{ Querystring: SessionsQuerystring }>('/sessions', (request, reply) => {
     const parsed = parseSessionsFilter(request.query);
     if (!parsed.ok) return reply.code(400).send({ error: parsed.error } satisfies ErrorResponse);
@@ -125,34 +103,22 @@ export function sessionRoutes(app: FastifyInstance, deps: SessionsDeps, logger: 
       return reply
         .code(400)
         .send({ error: 'invalid create-session request' } satisfies ErrorResponse);
-    try {
-      const result = await createSession(deps, request.body);
-      if (result.unknownCaller === true)
-        logger.warn(`unknown caller session, spawned without placement: ${result.id}`);
-      return reply.send({
-        id: result.id,
-        tmuxName: result.tmuxName,
-      } satisfies CreateSessionResponse);
-    } catch (error) {
-      return sendError(logger, reply, error);
-    }
+    const result = await createSession(deps, request.body);
+    if (result.unknownCaller === true)
+      request.log.warn(`unknown caller session, spawned without placement: ${result.id}`);
+    return reply.send({
+      id: result.id,
+      tmuxName: result.tmuxName,
+    } satisfies CreateSessionResponse);
   });
 
   app.post<{ Params: { id: string } }>('/sessions/:id/resume', async (request, reply) => {
-    try {
-      const result: CreateSessionResponse = await resumeSession(deps, { id: request.params.id });
-      return reply.send(result);
-    } catch (error) {
-      return sendError(logger, reply, error);
-    }
+    const result: CreateSessionResponse = await resumeSession(deps, { id: request.params.id });
+    return reply.send(result);
   });
 
   app.post<{ Params: { id: string } }>('/sessions/:id/kill', async (request, reply) => {
-    try {
-      await killSession(deps, { id: request.params.id });
-      return reply.send({ ok: true } satisfies OkResponse);
-    } catch (error) {
-      return sendError(logger, reply, error);
-    }
+    await killSession(deps, { id: request.params.id });
+    return reply.send({ ok: true } satisfies OkResponse);
   });
 }

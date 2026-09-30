@@ -8,6 +8,7 @@ const API_PATH_PREFIXES = [
   '/hooks',
   '/sessions',
   '/repos',
+  '/swarms',
   '/ui-state',
   '/fs',
   '/events',

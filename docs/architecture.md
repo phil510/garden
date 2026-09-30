@@ -88,6 +88,7 @@ packages/server/src/
   http/
     routes/        fastify route handlers
     ws/            events socket, attach socket
+    errors.ts      error-class-to-status table and the fastify error handler
     server.ts      fastify factory
   config.ts        resolves appDir, transcriptsDir, tmuxSocket, claudeCommand from GARDEN_*
                    env vars, else their ~/.garden / ~/.claude / claude defaults
