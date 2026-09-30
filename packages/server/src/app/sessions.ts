@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { SessionState } from '@garden/shared';
+import type { EffortLevel, SessionState } from '@garden/shared';
 import type { PermissionMode } from '../config.js';
 import { deriveTmuxName } from '../domain/tmuxName.js';
 import { SessionNotFoundError } from './errors.js';
@@ -12,6 +12,8 @@ export { SessionNotFoundError } from './errors.js';
 export interface CreateSessionRequest {
   readonly cwd: string;
   readonly callerSessionId?: string;
+  readonly model?: string;
+  readonly effort?: EffortLevel;
 }
 
 export interface CreateSessionResult {
@@ -25,6 +27,8 @@ export interface CreateSessionResult {
 
 export interface ResumeSessionRequest {
   readonly id: string;
+  readonly model?: string;
+  readonly effort?: EffortLevel;
 }
 
 export interface ResumeSessionResult {
@@ -56,6 +60,17 @@ export interface SessionsDeps {
 /** No flag by default; `'bypassPermissions'` is the only mode that adds one. */
 function permissionFlags(mode: PermissionMode | undefined): readonly string[] {
   return mode === 'bypassPermissions' ? ['--permission-mode', 'bypassPermissions'] : [];
+}
+
+/** `--model` / `--effort` for the spawned `claude`, each only when given. */
+function spawnFlags(request: {
+  readonly model?: string;
+  readonly effort?: EffortLevel;
+}): readonly string[] {
+  return [
+    ...(request.model === undefined ? [] : ['--model', request.model]),
+    ...(request.effort === undefined ? [] : ['--effort', request.effort]),
+  ];
 }
 
 export function findSession(projection: Projection, id: string): SessionState {
@@ -123,6 +138,7 @@ export async function createSession(
       '--session-id',
       id,
       ...permissionFlags(permissionMode),
+      ...spawnFlags(request),
       '--settings',
       settingsPath,
     ],
@@ -175,6 +191,7 @@ export async function resumeSession(
     '--resume',
     request.id,
     ...permissionFlags(permissionMode),
+    ...spawnFlags(request),
     '--settings',
     settingsPath,
   ];
