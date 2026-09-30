@@ -38,7 +38,7 @@ the PRs, not in your window.
 
 `garden new <dir> --json` places the new peer under you as it spawns: the CLI reads your own
 `GARDEN_SESSION_ID` and hands it to the server as the caller, which records the child's `parent`
-as you — minting you a swarm on the first dispatch if you don't already have one — so the
+as you — minting you a swarm on the first dispatch if you're top-level — so the
 relationship lands in garden's own swarm data with no second call. Neither `id` nor `tmuxName` is
 the address you send messages to — see "Two naming systems" below. The id exists before the peer
 does, so a resolve that misses right after `new` means not-yet-started: retry before concluding
@@ -58,10 +58,6 @@ it under you after the fact. Brief it the same way you would a fresh spawn (run 
 member-file name, report contract) — tell the peer its member file is `<its own $GARDEN_SESSION_ID>.md`,
 the same id you just adopted it with; adoption changes who placed the session, not what it owes the run.
 
-Give a peer somewhere of its own to work: a worktree per task, not a shared checkout. Two sessions
-in one working directory fight over the index and the branch, and neither will report that as the
-cause of whatever breaks.
-
 **Ask for a report in the brief.** Tell the peer to message `<your session name>` when it
 finishes, and immediately if blocked, with a pointer to the result, its state, and what it needs
 from you. Spell your own name out; the peer cannot derive it. Without that contract a peer goes
@@ -72,18 +68,27 @@ just returned. It opens with a line naming the peer's task and stays maintained 
 of the brief.
 
 **Settle merge/approval policy in the brief.** Naming the approver and the merge policy before
-the peer starts is what keeps an `ask`-style gate from stalling later. Relaying an
-approval only sequences the decision; it doesn't authorize it, because the gate isn't yours to
-close by relay. A peer that refuses a relayed approval is the anti-laundering boundary working as
-intended, not a bug to route around.
+the peer starts is what keeps an `ask`-style gate from stalling later. So is saying which
+decisions a relayed answer can close:
+
+- **A relayed answer is enough** for decisions about the work itself — scope, design choices,
+  answers to a question the peer is blocked on.
+- **The user directly**, in the peer's pane or as a public record the peer can check, for merge,
+  anything irreversible or outside the peer's repo (an edit to unversioned files, say), and
+  permission grants (see "Status does not mean what it looks like"). Here a relay only sequences
+  the decision; it doesn't authorize it, and a peer that refuses one is the anti-laundering
+  boundary working, not a bug to route around.
+
+For the first kind the user may answer in either channel, the peer's pane or through you. Tell the
+peer to report back an answer it got in its pane.
 
 **Merge and create-issue are two separate autonomy switches**, each `auto` or `ask-human`, not one
 combined setting — they differ in timing and in reversibility. Never dispatch a peer with either
 switch more autonomous than your own: an orchestrator under a human gate that dispatches a peer
 able to merge on its own hasn't delegated that decision, it has deleted it, and nothing in the
 system reports that it's gone. Merging a peer's PR yourself, under your own policy, and then
-telling the peer closes its gate — the same rule as above, not an exception: an approval leaves a
-peer nothing to check, only your word to trust or refuse, while a merge leaves a public record it
+telling the peer closes its gate — the same rule as above, not an exception: a relayed merge approval
+leaves a peer nothing to check, only your word to trust or refuse, while a merge leaves a public record it
 can confirm instead. Cleanup (worktree, branch) stays with whichever session is alive and holding
 the PR; you inherit it only if that peer died while holding.
 
@@ -145,8 +150,10 @@ merge: ask-human (approver: <name>) · create-issue: auto · swarm: 6f1c9e2a-3b7
 - user: proxy through the server after all (supersedes client-only — CORS blocked the direct read)
 ```
 
-`swarm` is your own `swarmId` from `garden ls` — dispatching your first peer mints you one
-automatically (see "Dispatch" above), so it's there to record by the time you write the header.
+`swarm` is your own `swarmId` from `garden ls`, and only a top-level session has one: if you are
+top-level, dispatching your first peer mints you one (see "Dispatch" above), so it's there to record
+by the time you write the header. A child shows `parent` set and no `swarmId`, which is the normal shape, not a
+failed attach. Find its swarm by following `parent` up, or with `garden ls --json --swarm <id>`.
 
 Blocked records the event that unblocks, not a status — "waiting on your user", "answered but
 the peer hasn't been told" and "peer has it and is working" look alike in a status field and need
@@ -205,24 +212,25 @@ You are not the reviewer. Don't add code-shape requirements to a "go" or reopen 
 its stop condition; review from here only for a reason you can state, and keep it targeted. The
 gate you hold is merge.
 
-## Wait by subscribing, never by polling
+## Wait on reports, never by polling
 
-A subscription costs the peer nothing and buys you one notice, delivered when that session next
-ends a turn with nothing queued — the same moment that sets `status` to `waiting` — or exits,
-which sets it to `null` instead.
+The brief's report contract is how you wait: a peer messages you when it finishes or blocks, and
+that message carries the substance. A subscription adds a signal a report can't, and only for a
+peer whose next idle or exit means something.
+
+A subscription buys one notice, delivered when that session next ends a turn with nothing queued
+— the same moment that sets `status` to `waiting` — or exits, which sets it to `null` instead.
 `SendMessage({to: "<name>", notify_when_idle: true})` with `message` omitted subscribes without
-delivering anything; include one to do both at once. Three properties decide how to use it:
+delivering anything; include one to do both at once. Properties that decide when to use it:
 
-- **It carries no content.** The notice says _when_ to look, never _what_ happened; substance
-  comes from the peer's own report, which is why the brief asks for one. Use the subscription
-  as the backstop for the peer that dies, or goes idle without reporting — and subscribe while
-  it is still `working`. It fires on the _next_ idle transition, so a peer already `waiting` is
-  one you read, not one you wait on.
-- **It is one-shot.** A session that goes idle, receives another message, and works again will
-  not notify you a second time — that notice fired and is spent, so a later round needs its own
-  subscription — spend it again only where a report won't already cover it: where the brief
-  mandates a report, the notice lands beside a report you already have and adds nothing; where
-  the peer might go silent instead of reporting, that notice is the only signal you'll get.
+- **It is one-shot, and fires on the next idle or exit, whichever comes first.** A peer that ends
+  a turn at every internal handoff — any pipeline, plant included — fires it within minutes with
+  nothing to say, and its exit never gets caught because an idle comes first. Don't subscribe to
+  that peer; its reports are the wait. Subscribe when the next idle or exit _is_ the finish: work
+  that fits a single turn, or a peer expected to end by exiting. There the notice backs up a
+  report the peer might forget, and its exit case is the one signal a dead peer can't send.
+- **It carries no content.** The notice says _when_ to look, never _what_ happened. Subscribe
+  while the peer is still `working`: a peer already `waiting` is one you read, not one you wait on.
 - **It can expire**, and says so when it does. That means "no news", not "still working" —
   re-subscribe, or read `recap`, before concluding anything.
 
@@ -265,7 +273,8 @@ A peer's context fills as it works, and a session near the end of its window get
 job before it says anything about it. `<skill base directory>/scripts/context_tokens.sh` — the
 directory announced when this skill loaded — takes a session id or a transcript path, needs `jq`,
 and prints current occupancy in tokens. A number that drops means the session shed detail, not
-that it is healthier.
+that it is healthier. Right after a compaction it exits non-zero with `no assistant turns yet`
+until the session's first reply; that means "just compacted", not a low number or a broken script.
 
 Report a high number to your user with the session's name and what it is working on, and let them
 decide; compacting in place, or starting a fresh session to pick up from the run folder, is their

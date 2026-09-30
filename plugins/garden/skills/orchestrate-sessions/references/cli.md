@@ -68,9 +68,10 @@ Output is a **bare array** of `SessionState` objects — not `{"sessions": [...]
 | `parent`       | id of the session this one was spawned/adopted under, absent if it has none           |
 | `swarmId`      | id of the swarm this session is a top-level member of, absent if it has none          |
 
-A session is placed in at most one of `parent`/`swarmId` at a time — never both. Walk `parent` up
-to find a top-level ancestor's `swarmId` if you need the whole swarm a descendant belongs to
-rather than filtering server-side with `--swarm` below.
+A session has at most one of `parent`/`swarmId` — never both. An absent key reads as `null`
+through jq's `.parent` or `.swarmId`, so `null` there means "none", not a failed lookup. To find
+the swarm a descendant belongs to, walk `parent` up to a top-level ancestor's `swarmId`, or filter
+server-side with `--swarm` below.
 
 ### Filters
 
