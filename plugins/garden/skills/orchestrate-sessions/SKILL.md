@@ -58,12 +58,6 @@ it under you after the fact. Brief it the same way you would a fresh spawn (run 
 member-file name, report contract) — tell the peer its member file is `<its own $GARDEN_SESSION_ID>.md`,
 the same id you just adopted it with; adoption changes who placed the session, not what it owes the run.
 
-Where a peer works is set by the work it runs, not by orchestration: a pipeline that creates its own
-worktree (plant) has to be spawned in the checkout it branches from. If the work sets up no
-directory of its own, your brief is its workflow and the choice is yours — but two sessions sharing
-one working directory fight over the index and the branch, and neither will report that as the
-cause of whatever breaks.
-
 **Ask for a report in the brief.** Tell the peer to message `<your session name>` when it
 finishes, and immediately if blocked, with a pointer to the result, its state, and what it needs
 from you. Spell your own name out; the peer cannot derive it. Without that contract a peer goes
@@ -75,22 +69,18 @@ of the brief.
 
 **Settle merge/approval policy in the brief.** Naming the approver and the merge policy before
 the peer starts is what keeps an `ask`-style gate from stalling later. So is saying which
-decisions a relayed answer can close. The line falls on reversibility: a decision can be relayed
-when it is reversible and a later gate (review, merge) would catch a wrong one; it needs the user
-directly when it is irreversible or nothing downstream checks it.
+decisions a relayed answer can close:
 
 - **A relayed answer is enough** for decisions about the work itself — scope, design choices,
-  answers to a question the peer is blocked on, and create-issue (an issue can be closed) — when
-  you pass them on attributed to the user. The peer should act on them, not refuse them.
+  answers to a question the peer is blocked on.
 - **The user directly**, in the peer's pane or as a public record the peer can check, for merge,
   anything irreversible or outside the peer's repo (an edit to unversioned files, say), and
   permission grants (see "Status does not mean what it looks like"). Here a relay only sequences
   the decision; it doesn't authorize it, and a peer that refuses one is the anti-laundering
   boundary working, not a bug to route around.
 
-The user may answer in either channel — the peer's pane or through you — and neither is the wrong
-one. Tell the peer to report back an answer it got in its pane, and record it in `run.md`'s
-Decisions like any other, as the peer's report of what the user said.
+For the first kind the user may answer in either channel, the peer's pane or through you. Tell the
+peer to report back an answer it got in its pane.
 
 **Merge and create-issue are two separate autonomy switches**, each `auto` or `ask-human`, not one
 combined setting — they differ in timing and in reversibility. Never dispatch a peer with either
@@ -162,9 +152,7 @@ merge: ask-human (approver: <name>) · create-issue: auto · swarm: 6f1c9e2a-3b7
 
 `swarm` is your own `swarmId` from `garden ls`, and only a top-level session has one: if you are
 top-level, dispatching your first peer mints you one (see "Dispatch" above), so it's there to record
-by the time you write the header. If you were spawned or adopted yourself you have a `parent` and are
-never given a swarm — record your top-level ancestor's. The same holds for peers: a child shows
-`parent` set and no `swarmId` (`jq '.swarmId'` prints `null`), which is the normal shape, not a
+by the time you write the header. A child shows `parent` set and no `swarmId`, which is the normal shape, not a
 failed attach. Find its swarm by following `parent` up, or with `garden ls --json --swarm <id>`.
 
 Blocked records the event that unblocks, not a status — "waiting on your user", "answered but
@@ -245,9 +233,6 @@ delivering anything; include one to do both at once. Properties that decide when
   while the peer is still `working`: a peer already `waiting` is one you read, not one you wait on.
 - **It can expire**, and says so when it does. That means "no news", not "still working" —
   re-subscribe, or read `recap`, before concluding anything.
-
-A pipeline peer that dies sends no report. When one you expected is overdue, a single
-`garden ls --json --live` check of its `liveness` settles it (see "Status does not mean what it looks like").
 
 Dispatch and subscribe from the main thread: a subagent's messages go out under its parent's
 address, so replies land in the parent's conversation rather than its own. And don't loop on
