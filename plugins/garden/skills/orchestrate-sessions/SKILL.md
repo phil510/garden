@@ -38,7 +38,7 @@ the PRs, not in your window.
 
 `garden new <dir> --json` places the new peer under you as it spawns: the CLI reads your own
 `GARDEN_SESSION_ID` and hands it to the server as the caller, which records the child's `parent`
-as you — minting you a swarm on the first dispatch if you don't already have one — so the
+as you — minting you a swarm on the first dispatch if you're top-level — so the
 relationship lands in garden's own swarm data with no second call. Neither `id` nor `tmuxName` is
 the address you send messages to — see "Two naming systems" below. The id exists before the peer
 does, so a resolve that misses right after `new` means not-yet-started: retry before concluding
@@ -90,15 +90,15 @@ directly when it is irreversible or nothing downstream checks it.
 
 The user may answer in either channel — the peer's pane or through you — and neither is the wrong
 one. Tell the peer to report back an answer it got in its pane, and record it in `run.md`'s
-Decisions like any other.
+Decisions like any other, as the peer's report of what the user said.
 
 **Merge and create-issue are two separate autonomy switches**, each `auto` or `ask-human`, not one
 combined setting — they differ in timing and in reversibility. Never dispatch a peer with either
 switch more autonomous than your own: an orchestrator under a human gate that dispatches a peer
 able to merge on its own hasn't delegated that decision, it has deleted it, and nothing in the
 system reports that it's gone. Merging a peer's PR yourself, under your own policy, and then
-telling the peer closes its gate — the same rule as above, not an exception: an approval leaves a
-peer nothing to check, only your word to trust or refuse, while a merge leaves a public record it
+telling the peer closes its gate — the same rule as above, not an exception: a relayed merge approval
+leaves a peer nothing to check, only your word to trust or refuse, while a merge leaves a public record it
 can confirm instead. Cleanup (worktree, branch) stays with whichever session is alive and holding
 the PR; you inherit it only if that peer died while holding.
 
@@ -247,7 +247,7 @@ delivering anything; include one to do both at once. Properties that decide when
   re-subscribe, or read `recap`, before concluding anything.
 
 A pipeline peer that dies sends no report. When one you expected is overdue, a single
-`garden ls --json --live` check of its `liveness` settles it (see "Winding down").
+`garden ls --json --live` check of its `liveness` settles it (see "Status does not mean what it looks like").
 
 Dispatch and subscribe from the main thread: a subagent's messages go out under its parent's
 address, so replies land in the parent's conversation rather than its own. And don't loop on
