@@ -25,7 +25,7 @@ export function AppTitle() {
       setCollides(
         titleCollides(
           barRect.left + barRect.width / 2,
-          title.offsetWidth,
+          title.getBoundingClientRect().width,
           neighbours.map((el) => el.getBoundingClientRect()),
           GAP_PX,
         ),
