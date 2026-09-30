@@ -1,0 +1,21 @@
+.app-title {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent);
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Below this the centred title would run into the preset buttons on the left: they end at
+ *  188px and the title is ~64px wide, so it needs 2 * 188 + 64 + a 16px gap each side. */
+@media (max-width: 479px) {
+  .app-title {
+    display: none;
+  }
+}
