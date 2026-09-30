@@ -57,4 +57,20 @@ describe('registerStaticRoutes', () => {
       await app.close();
     }
   });
+
+  it('answers 404 without the SPA shell for an unmatched swarms route', async () => {
+    clientDir = mkdtempSync(join(tmpdir(), 'garden-static-'));
+    writeFileSync(join(clientDir, 'index.html'), '<div id="root">shell</div>');
+
+    const app = Fastify();
+    registerStaticRoutes(app, clientDir);
+    try {
+      const response = await app.inject({ method: 'GET', url: '/swarms/does-not-exist' });
+
+      expect(response.statusCode).toBe(404);
+      expect(response.body).not.toContain('shell');
+    } finally {
+      await app.close();
+    }
+  });
 });
