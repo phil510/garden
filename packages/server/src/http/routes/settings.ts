@@ -2,7 +2,6 @@ import type { ErrorResponse, OkResponse, SettingsRequest, SettingsResponse } fro
 import type { FastifyInstance } from 'fastify';
 import { getSettings, updateSettings } from '../../app/settings.js';
 import type { SettingsDeps } from '../../app/settings.js';
-import { ConfigWriteRefusedError } from '../../app/ports.js';
 import { isClaudeCommand } from '../../config.js';
 export type { SettingsDeps } from '../../app/settings.js';
 
@@ -19,14 +18,7 @@ export function settingsRoutes(app: FastifyInstance, deps: SettingsDeps) {
   app.put('/settings', (request, reply) => {
     if (!isSettingsRequest(request.body))
       return reply.code(400).send({ error: 'invalid settings request' } satisfies ErrorResponse);
-    try {
-      updateSettings(deps, request.body);
-      return reply.send({ ok: true } satisfies OkResponse);
-    } catch (error) {
-      const code = error instanceof ConfigWriteRefusedError ? 409 : 500;
-      return reply.code(code).send({
-        error: error instanceof Error ? error.message : String(error),
-      } satisfies ErrorResponse);
-    }
+    updateSettings(deps, request.body);
+    return reply.send({ ok: true } satisfies OkResponse);
   });
 }

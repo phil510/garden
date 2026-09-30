@@ -1,7 +1,7 @@
 import type { UiState, UiStateRequest } from '@garden/shared';
-import Fastify from 'fastify';
 import { describe, expect, it } from 'vitest';
 import type { Projection } from '../../app/projection.js';
+import { createApp } from '../server.js';
 import { uiStateRoutes } from './ui-state.js';
 import type { UiStateDeps } from './ui-state.js';
 
@@ -40,7 +40,7 @@ function fakeProjection(overrides: Partial<Projection> = {}): Projection {
 }
 
 function buildApp(deps: UiStateDeps) {
-  const app = Fastify();
+  const app = createApp();
   app.register((instance) => uiStateRoutes(instance, deps));
   return app;
 }

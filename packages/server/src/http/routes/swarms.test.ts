@@ -1,13 +1,11 @@
-import Fastify from 'fastify';
 import { describe, expect, it } from 'vitest';
 import type { Logger, OverlayState } from '../../app/ports.js';
 import type { Projection } from '../../app/projection.js';
 import { SessionNotFoundError } from '../../app/sessions.js';
 import { SwarmCycleError, SwarmNotFoundError } from '../../app/swarms.js';
 import type { SwarmsDeps } from '../../app/swarms.js';
+import { createApp } from '../server.js';
 import { swarmRoutes } from './swarms.js';
-
-const noopLogger: Logger = { warn: () => undefined, error: () => undefined };
 
 const emptyOverlay: OverlayState = {
   version: 1,
@@ -45,9 +43,9 @@ function fakeProjection(overrides: Partial<Projection> = {}): Projection {
   };
 }
 
-function buildApp(deps: SwarmsDeps, logger: Logger = noopLogger) {
-  const app = Fastify();
-  app.register((instance) => swarmRoutes(instance, deps, logger));
+function buildApp(deps: SwarmsDeps, logger?: Logger) {
+  const app = createApp(logger);
+  app.register((instance) => swarmRoutes(instance, deps));
   return app;
 }
 
