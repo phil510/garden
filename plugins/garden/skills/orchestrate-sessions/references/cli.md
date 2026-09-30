@@ -42,8 +42,10 @@ error before anything spawns. Output:
 { "id": "...", "tmuxName": "..." }
 ```
 
-garden passes no permission-mode flag, and without `--model` or `--effort` the session gets
-whatever the local `claude` would use on its own. `GARDEN_CLAUDE_COMMAND` pins the whole command
+Permission mode comes from `permissionMode` in `~/.garden/config.json`: `default` (the shipped
+value) passes no flag, `bypassPermissions` passes `--permission-mode bypassPermissions`. Check the
+`claude` process's flags to see which is in effect. Without `--model` or `--effort` the session
+gets whatever the local `claude` would use on its own. `GARDEN_CLAUDE_COMMAND` pins the whole command
 server-wide.
 
 ## List sessions
