@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import './app-title.css';
 import { titleCollides } from './titleCollision';
+import { WORDMARK_PATH } from './wordmarkPath';
 
 const GAP_PX = 16;
 
@@ -41,21 +42,30 @@ export function AppTitle() {
   return (
     <div ref={ref} className="app-title" style={collides ? { visibility: 'hidden' } : undefined}>
       <svg
-        width="15"
-        height="15"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden="true"
+        width="68.43"
+        height="18"
+        viewBox="0 0 68.43 18"
+        fill="currentColor"
+        role="img"
+        aria-label="garden"
       >
-        <path d="M12 22V11" />
-        <path d="M12 11C12 7 9 4 4 4c0 4 3 7 8 7Z" />
-        <path d="M12 14c0-3 2-5 7-5 0 3-2 5-7 5Z" />
+        <svg
+          y="1.5"
+          width="15"
+          height="15"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M12 22V11" />
+          <path d="M12 11C12 7 9 4 4 4c0 4 3 7 8 7Z" />
+          <path d="M12 14c0-3 2-5 7-5 0 3-2 5-7 5Z" />
+        </svg>
+        <path transform="translate(21 0)" d={WORDMARK_PATH} />
       </svg>
-      <span>garden</span>
     </div>
   );
 }
