@@ -74,10 +74,23 @@ just returned. It opens with a line naming the peer's task and stays maintained 
 of the brief.
 
 **Settle merge/approval policy in the brief.** Naming the approver and the merge policy before
-the peer starts is what keeps an `ask`-style gate from stalling later. Relaying an
-approval only sequences the decision; it doesn't authorize it, because the gate isn't yours to
-close by relay. A peer that refuses a relayed approval is the anti-laundering boundary working as
-intended, not a bug to route around.
+the peer starts is what keeps an `ask`-style gate from stalling later. So is saying which
+decisions a relayed answer can close. The line falls on reversibility: a decision can be relayed
+when it is reversible and a later gate (review, merge) would catch a wrong one; it needs the user
+directly when it is irreversible or nothing downstream checks it.
+
+- **A relayed answer is enough** for decisions about the work itself — scope, design choices,
+  answers to a question the peer is blocked on, and create-issue (an issue can be closed) — when
+  you pass them on attributed to the user. The peer should act on them, not refuse them.
+- **The user directly**, in the peer's pane or as a public record the peer can check, for merge,
+  anything irreversible or outside the peer's repo (an edit to unversioned files, say), and
+  permission grants (see "Status does not mean what it looks like"). Here a relay only sequences
+  the decision; it doesn't authorize it, and a peer that refuses one is the anti-laundering
+  boundary working, not a bug to route around.
+
+The user may answer in either channel — the peer's pane or through you — and neither is the wrong
+one. Tell the peer to report back an answer it got in its pane, and record it in `run.md`'s
+Decisions like any other.
 
 **Merge and create-issue are two separate autonomy switches**, each `auto` or `ask-human`, not one
 combined setting — they differ in timing and in reversibility. Never dispatch a peer with either
