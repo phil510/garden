@@ -27,10 +27,8 @@ else
   [ -n "$transcript" ] || die "no transcript found for session $arg"
 fi
 
-turns=$(jq -r -f "$usage_filter_file" "$transcript" 2>/dev/null) ||
+tokens=$(jq -n -r -f "$usage_filter_file" "$transcript" 2>/dev/null) ||
   die "could not read $transcript as JSON lines"
-
-tokens=$(printf '%s\n' "$turns" | tail -1)
 
 [ -n "$tokens" ] || die "no assistant turns yet in $transcript"
 echo "$tokens"

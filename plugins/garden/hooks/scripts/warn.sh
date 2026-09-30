@@ -54,12 +54,9 @@ marker="$scratchpad_dir/.compaction-warned"
 transcript=$(printf '%s' "$input" | jq -r '.transcript_path // empty' 2>/dev/null)
 [ -n "$transcript" ] && [ -f "$transcript" ] || exit 0
 
-# Emits each assistant turn's occupancy, plus "boundary" for a compaction boundary line, and
-# keeps the last. Right after compaction the transcript ends in a boundary with no new usage
-# line until the model replies, so the last usage line is still the pre-compaction figure;
-# "boundary" is non-numeric and falls out at the digits check below.
+# The shared filter emits nothing for a transcript that ends in a compact boundary.
 last_usage_in() {
-  jq -r "(select(.type == \"system\" and .subtype == \"compact_boundary\") | \"boundary\"), ($(cat "$usage_filter_file"))" 2>/dev/null | tail -n 1
+  jq -n -r -f "$usage_filter_file" 2>/dev/null
 }
 
 # This hook runs on every tool call, so read only the transcript's tail rather than the whole
@@ -73,7 +70,7 @@ if [ -z "$tokens" ]; then
 fi
 [ -n "$tokens" ] || exit 0
 
-# The filter can only ever emit a number (or "boundary"), but guard it anyway: a non-numeric
+# The filter can only ever emit a number, but guard it anyway: a non-numeric
 # value reaching the `-ge` test below would make bash print an "integer expression expected"
 # diagnostic to stderr, which breaks this hook's exit-0-silently contract even though the exit
 # code itself would still be 0.

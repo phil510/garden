@@ -80,10 +80,10 @@ describe('groupSwarms', () => {
     expect(swarms).toEqual([]);
   });
 
-  it('counts attention across every session resolving to the swarm', () => {
-    const root = aSession({ id: 'root', status: 'working' });
-    const child1 = aSession({ id: 'child1', status: 'needs-approval' });
-    const child2 = aSession({ id: 'child2', status: 'waiting' });
+  it('counts live members across every session resolving to the swarm', () => {
+    const root = aSession({ id: 'root', liveness: 'live' });
+    const child1 = aSession({ id: 'child1', liveness: 'live' });
+    const child2 = aSession({ id: 'child2', liveness: 'dead' });
     const sessions = asMap(root, child1, child2);
     const placements: Record<string, SessionPlacement> = {
       root: { swarmId: 'swarm-1' },
@@ -94,26 +94,7 @@ describe('groupSwarms', () => {
 
     const { swarms } = groupSwarms(sessions, uiState);
 
-    expect(swarms[0]!.attention).toBe(2);
-  });
-
-  it('counts distinct repo roots across the swarm, ignoring a null repoRoot', () => {
-    const root = aSession({ id: 'root', repoRoot: '/repo-a' });
-    const child1 = aSession({ id: 'child1', repoRoot: '/repo-b' });
-    const child2 = aSession({ id: 'child2', repoRoot: '/repo-a' });
-    const child3 = aSession({ id: 'child3', repoRoot: null });
-    const sessions = asMap(root, child1, child2, child3);
-    const placements: Record<string, SessionPlacement> = {
-      root: { swarmId: 'swarm-1' },
-      child1: { parent: 'root' },
-      child2: { parent: 'root' },
-      child3: { parent: 'root' },
-    };
-    const uiState = anUiState({ swarms: [swarmRecord()], placements });
-
-    const { swarms } = groupSwarms(sessions, uiState);
-
-    expect(swarms[0]!.repoCount).toBe(2);
+    expect(swarms[0]!.liveCount).toBe(2);
   });
 
   it('is finished when archived, regardless of liveness', () => {
@@ -389,8 +370,7 @@ function aSwarmGroup(overrides: Partial<SwarmGroup> = {}): SwarmGroup {
   return {
     swarmId: 'swarm-1',
     name: 'A swarm',
-    repoCount: 1,
-    attention: 0,
+    liveCount: 0,
     collapsed: false,
     hideDead: false,
     archived: false,

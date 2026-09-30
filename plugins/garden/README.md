@@ -11,9 +11,10 @@ first sees the session's context reach 175K tokens. It asks the agent to write a
 `compaction-status.md` in its scratchpad, recording the goal, decisions, state, next step and any
 skills the user called out. When the warning fires at end of turn it arrives as Stop hook
 feedback, which resumes the turn once so the agent can write the file. A `SessionStart` hook
-fires right after compaction and injects that file back into context, along with an instruction
-to re-check the available skills and invoke any that match, so the agent picks up with a summary
-of its own prior state instead of nothing.
+fires right after compaction and points the agent at that file to read in full, along with an
+instruction to re-check the available skills and invoke any that match, so the agent picks up with
+a summary of its own prior state instead of nothing. The file is read rather than injected so a
+long one is never truncated and never duplicated when the harness restores it too.
 
 ## There is no `version` field, on purpose
 
