@@ -413,6 +413,63 @@ describe('POST /sessions', () => {
     expect(calls).toEqual([]);
   });
 
+  it.each([
+    ['an unknown effort', { effort: 'extreme' }],
+    ['an empty model', { model: '' }],
+  ])('rejects %s without touching tmux', async (_label, extra) => {
+    const calls: TmuxNewSessionRequest[] = [];
+    const app = buildApp({
+      tmux: fakeTmux({
+        newSession: (request) => {
+          calls.push(request);
+          return Promise.resolve();
+        },
+      }),
+      store: fakeStore(),
+      projection: fakeProjection(),
+      serverPort: 4310,
+      settingsPath,
+      readClaudeCommand: () => ['claude'],
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/sessions',
+      payload: { cwd: '/Users/dev/garden', ...extra },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(calls).toEqual([]);
+  });
+
+  it('passes model and effort through to the spawned command', async () => {
+    const calls: TmuxNewSessionRequest[] = [];
+    const app = buildApp({
+      tmux: fakeTmux({
+        newSession: (request) => {
+          calls.push(request);
+          return Promise.resolve();
+        },
+      }),
+      store: fakeStore(),
+      projection: fakeProjection(),
+      serverPort: 4310,
+      settingsPath,
+      readClaudeCommand: () => ['claude'],
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/sessions',
+      payload: { cwd: '/Users/dev/garden', model: 'opus', effort: 'high' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(calls[0]?.command).toEqual(
+      expect.arrayContaining(['--model', 'opus', '--effort', 'high']),
+    );
+  });
+
   it('creates a session and answers with its id and tmux name', async () => {
     const app = buildApp({
       tmux: fakeTmux({ newSession: () => Promise.resolve() }),
@@ -540,6 +597,64 @@ describe('POST /sessions/:id/resume', () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ id: 'sid-1', tmuxName: 'garden' });
+  });
+
+  it('rejects an unknown effort without touching tmux', async () => {
+    const respawned: unknown[] = [];
+    const deadSession = aSession({ id: 'sid-1', cwd: '/Users/dev/garden', tmuxName: 'garden' });
+    const app = buildApp({
+      tmux: fakeTmux({
+        listPanes: () => Promise.resolve([{ session: 'garden', dead: true, exitCode: 1 }]),
+        respawnPane: (request) => {
+          respawned.push(request);
+          return Promise.resolve();
+        },
+      }),
+      store: fakeStore(),
+      projection: fakeProjection([deadSession]),
+      serverPort: 4310,
+      settingsPath,
+      readClaudeCommand: () => ['claude'],
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/sessions/sid-1/resume',
+      payload: { effort: 'extreme' },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(respawned).toEqual([]);
+  });
+
+  it('passes model and effort from the body to the resumed command', async () => {
+    const respawned: { command: readonly string[] }[] = [];
+    const deadSession = aSession({ id: 'sid-1', cwd: '/Users/dev/garden', tmuxName: 'garden' });
+    const app = buildApp({
+      tmux: fakeTmux({
+        listPanes: () => Promise.resolve([{ session: 'garden', dead: true, exitCode: 1 }]),
+        respawnPane: (request) => {
+          respawned.push(request);
+          return Promise.resolve();
+        },
+      }),
+      store: fakeStore(),
+      projection: fakeProjection([deadSession]),
+      serverPort: 4310,
+      settingsPath,
+      readClaudeCommand: () => ['claude'],
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/sessions/sid-1/resume',
+      payload: { model: 'opus', effort: 'low' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(respawned[0]?.command).toEqual(
+      expect.arrayContaining(['--model', 'opus', '--effort', 'low']),
+    );
   });
 
   it('logs a failed resume through the given logger', async () => {
