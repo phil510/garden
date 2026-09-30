@@ -26,10 +26,11 @@ together.
 The one thing to hold onto: **a garden session is a peer, not a subagent.** It has its own
 context window, its own permission boundary, and its own user. You cannot await it, you do not
 see its transcript by default, and it inherits nothing from you — not your permission mode, not
-your model or effort. The permission mode comes from garden's server config (`permissionMode` in
-`~/.garden/config.json`, read at server start), not from you or the peer's `settings.json`; the
-model and effort are whatever the local `claude` would use alone unless you pass `--model` or
-`--effort` to `garden new`.
+your model or effort. The permission mode is set by garden's server config (`permissionMode` in
+`~/.garden/config.json`, read at server start): `bypassPermissions` passes the flag, while `default`
+passes none, so the peer falls back to its own Claude Code settings. Either way it never comes from
+you. The model and effort are whatever the local `claude` would use alone unless you pass `--model`
+or `--effort` to `garden new`.
 
 The second thing: **your context only grows.** Every brief you send and every report you receive
 is re-read on each later turn for the rest of the run, and nothing already in the window gets

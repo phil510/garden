@@ -43,7 +43,7 @@ error before anything spawns. Output:
 ```
 
 Permission mode comes from `permissionMode` in `~/.garden/config.json`: `default` (the shipped
-value) passes no flag, `bypassPermissions` passes `--permission-mode bypassPermissions`. Check the
+value) passes no flag, so the peer's own Claude Code settings decide; `bypassPermissions` passes `--permission-mode bypassPermissions`. Check the
 `claude` process's flags to see which is in effect. Without `--model` or `--effort` the session
 gets whatever the local `claude` would use on its own. `GARDEN_CLAUDE_COMMAND` pins the whole command
 server-wide.
