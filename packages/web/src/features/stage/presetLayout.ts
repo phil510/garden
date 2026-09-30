@@ -1,4 +1,4 @@
-import type { StagePreset } from '@garden/shared';
+import { PRESET_ARRANGEMENTS, type StagePreset } from '@garden/shared';
 import { Orientation, type SerializedDockview } from 'dockview-core';
 
 type GridNode = SerializedDockview['grid']['root'];
@@ -8,10 +8,6 @@ type GridNode = SerializedDockview['grid']['root'];
  *  real pixels. */
 const LAYOUT_WIDTH = 1000;
 const LAYOUT_HEIGHT = 1000;
-
-/** The mock's TRACK_DEFAULTS: every preset splits its axes evenly except the large left column
- *  of `three`. */
-const THREE_LEFT_WIDTH = LAYOUT_WIDTH * 0.55;
 
 export const PANE_COMPONENT = 'pane';
 export const EMPTY_SLOT_COMPONENT = 'empty-slot';
@@ -62,55 +58,35 @@ function branch(size: number, children: GridNode[]): GridNode {
   return { type: 'branch', size, data: children };
 }
 
-/** Child sizes run along their parent's axis and alternate with depth, so a leaf under a
- *  `HORIZONTAL` root carries a width and a leaf one level deeper carries a height. */
+/** Child sizes run along their parent's axis and alternate with depth, so a track under a
+ *  `HORIZONTAL` root carries a width and a leaf inside a multi-slot track carries a height. */
 function gridForPreset(preset: StagePreset, panelId: (slot: number) => string) {
-  const horizontal = {
-    width: LAYOUT_WIDTH,
-    height: LAYOUT_HEIGHT,
-    orientation: Orientation.HORIZONTAL,
-  };
-  const vertical = {
-    width: LAYOUT_WIDTH,
-    height: LAYOUT_HEIGHT,
-    orientation: Orientation.VERTICAL,
-  };
-  const halfWidth = LAYOUT_WIDTH / 2;
-  const halfHeight = LAYOUT_HEIGHT / 2;
+  const { split, tracks } = PRESET_ARRANGEMENTS[preset];
+  const horizontal = split === 'across';
+  const rootLength = horizontal ? LAYOUT_WIDTH : LAYOUT_HEIGHT;
+  const crossLength = horizontal ? LAYOUT_HEIGHT : LAYOUT_WIDTH;
+  const totalWeight = tracks.reduce((sum, track) => sum + (track.weight ?? 1), 0);
 
-  switch (preset) {
-    case 'single':
-      return { ...horizontal, root: branch(LAYOUT_HEIGHT, [leaf(panelId(0), LAYOUT_WIDTH)]) };
-    case 'two-across':
-      return {
-        ...horizontal,
-        root: branch(LAYOUT_HEIGHT, [leaf(panelId(0), halfWidth), leaf(panelId(1), halfWidth)]),
-      };
-    case 'two-stacked':
-      return {
-        ...vertical,
-        root: branch(LAYOUT_WIDTH, [leaf(panelId(0), halfHeight), leaf(panelId(1), halfHeight)]),
-      };
-    case 'three':
-      return {
-        ...horizontal,
-        root: branch(LAYOUT_HEIGHT, [
-          leaf(panelId(0), THREE_LEFT_WIDTH),
-          branch(LAYOUT_WIDTH - THREE_LEFT_WIDTH, [
-            leaf(panelId(1), halfHeight),
-            leaf(panelId(2), halfHeight),
-          ]),
-        ]),
-      };
-    case 'grid-2x2':
-      return {
-        ...vertical,
-        root: branch(LAYOUT_WIDTH, [
-          branch(halfHeight, [leaf(panelId(0), halfWidth), leaf(panelId(1), halfWidth)]),
-          branch(halfHeight, [leaf(panelId(2), halfWidth), leaf(panelId(3), halfWidth)]),
-        ]),
-      };
-  }
+  let slot = 0;
+  const children = tracks.map((track) => {
+    const size = ((track.weight ?? 1) / totalWeight) * rootLength;
+    const first = slot;
+    slot += track.slots;
+    if (track.slots === 1) return leaf(panelId(first), size);
+    return branch(
+      size,
+      Array.from({ length: track.slots }, (_, i) =>
+        leaf(panelId(first + i), crossLength / track.slots),
+      ),
+    );
+  });
+
+  return {
+    width: LAYOUT_WIDTH,
+    height: LAYOUT_HEIGHT,
+    orientation: horizontal ? Orientation.HORIZONTAL : Orientation.VERTICAL,
+    root: branch(crossLength, children),
+  };
 }
 
 export function collectViews(node: GridNode): string[] {

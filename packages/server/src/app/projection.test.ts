@@ -245,6 +245,29 @@ describe('ui state', () => {
     expect(projection.uiState().focusedSlot).toBe(1);
   });
 
+  describe('a stored stage that disagrees with its preset', () => {
+    const unfitted: OverlayState = {
+      ...emptyOverlay,
+      stage: { preset: 'single', slots: ['sid-1', 'sid-2'], focusedSlot: 1, layout: {} },
+    };
+
+    it('reads back fitted before any patch', () => {
+      const projection = createProjection(fakeStore(unfitted).port);
+
+      expect(projection.uiState().slots).toEqual(['sid-1']);
+      expect(projection.uiState().focusedSlot).toBe(0);
+    });
+
+    it('stays fitted after an overlay write that leaves the stage alone', () => {
+      const projection = createProjection(fakeStore(unfitted).port);
+
+      projection.updateOverlay((base) => ({ ...base, swarms: [] }));
+
+      expect(projection.uiState().slots).toEqual(['sid-1']);
+      expect(projection.uiState().focusedSlot).toBe(0);
+    });
+  });
+
   it('writes a reordered group list back as store orders', () => {
     const store = fakeStore(overlay);
     const projection = createProjection(store.port);

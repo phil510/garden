@@ -36,8 +36,15 @@ export interface Projection {
   placementOf(sessionId: string): ResolvedPlacement | undefined;
 }
 
-/** The store keys groups by repo root; the client works in three flat lists. */
+/** The store keys groups by repo root; the client works in three flat lists. The stage is fitted
+ *  to its preset on the way out, so every read of it is consistent even when the stored copy is
+ *  not — the store isn't rewritten to match. */
 function toUiState(overlay: OverlayState): UiState {
+  const { slots, focusedSlot } = switchPreset(
+    overlay.stage.slots,
+    overlay.stage.focusedSlot,
+    overlay.stage.preset,
+  );
   const entries = Object.entries(overlay.groups).sort((a, b) => a[1].order - b[1].order);
   return {
     groupOrder: entries.map(([path]) => path),
@@ -45,8 +52,8 @@ function toUiState(overlay: OverlayState): UiState {
     collapsedRepos: entries.filter(([, group]) => group.collapsed).map(([path]) => path),
     hideDeadRepos: entries.filter(([, group]) => group.hideDead).map(([path]) => path),
     preset: overlay.stage.preset,
-    slots: [...overlay.stage.slots],
-    focusedSlot: overlay.stage.focusedSlot,
+    slots,
+    focusedSlot,
     layout: overlay.stage.layout,
     swarms: [...overlay.swarms],
     placements: { ...overlay.placements },
