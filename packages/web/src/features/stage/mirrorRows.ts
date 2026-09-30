@@ -33,10 +33,10 @@ export function resolveRowMirror(
 
 /**
  * The four leaf group ids of a grid-2x2 layout — [top-left, top-right, bottom-left, bottom-right]
- * — derived directly from `slots`, matching `presetLayout.ts`'s `grid-2x2` branch order. Row
- * membership comes from slot position: `presetLayout(preset, slots)` lays slots 0-3 out as
- * top-left, top-right, bottom-left, bottom-right, and `group-<panelId>` is the id `leaf()` gives
- * each of those groups.
+ * — derived directly from `slots`. The order is the running slot counter over
+ * `PRESET_ARRANGEMENTS['grid-2x2']` in @garden/shared: `presetLayout(preset, slots)` lays slots
+ * 0-3 out as top-left, top-right, bottom-left, bottom-right, and `group-<panelId>` is the id
+ * `leaf()` gives each of those groups.
  */
 export function groupIdsFromSlots(
   slots: readonly (string | null)[],

@@ -12,6 +12,35 @@ export function isStatus(value: string): value is Status {
 export const STAGE_PRESETS = ['single', 'two-across', 'two-stacked', 'three', 'grid-2x2'] as const;
 export type StagePreset = (typeof STAGE_PRESETS)[number];
 
+/**
+ * How a preset arranges its slots. Tracks run along the root axis (`across` is side by side,
+ * `stacked` is top to bottom) and each track splits evenly on the other axis. Slot indices are
+ * implicit in reading order, so capacity and layout can't disagree. `weight` is relative to the
+ * other tracks and defaults to an even share.
+ */
+export interface PresetArrangement {
+  split: 'across' | 'stacked';
+  tracks: { weight?: number; slots: number }[];
+}
+
+export const PRESET_ARRANGEMENTS: Record<StagePreset, PresetArrangement> = {
+  single: { split: 'across', tracks: [{ slots: 1 }] },
+  'two-across': { split: 'across', tracks: [{ slots: 1 }, { slots: 1 }] },
+  'two-stacked': { split: 'stacked', tracks: [{ slots: 1 }, { slots: 1 }] },
+  three: {
+    split: 'across',
+    tracks: [
+      { weight: 0.55, slots: 1 },
+      { weight: 0.45, slots: 2 },
+    ],
+  },
+  'grid-2x2': { split: 'stacked', tracks: [{ slots: 2 }, { slots: 2 }] },
+};
+
+export function presetCapacity(preset: StagePreset): number {
+  return PRESET_ARRANGEMENTS[preset].tracks.reduce((sum, track) => sum + track.slots, 0);
+}
+
 export interface SessionState {
   id: string;
   cwd: string;
