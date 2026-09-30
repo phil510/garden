@@ -31,8 +31,8 @@ fi
 
 status_file="$scratchpad_dir/compaction-status.md"
 
-# Skills named earlier in the session are the easiest thing for a summary to drop. One line, no
-# blank lines, so it sits inside the status-file preamble.
+# Skills named earlier in the session are the easiest thing for a summary to drop. One line, so it
+# stays part of the preamble.
 skills_directive='Re-check the available skills now and invoke every one that matches your task, including any the user named earlier in this session, whether or not they appear below or in your resumed summary. Compaction does not cancel an earlier instruction to use a skill.'
 
 if [ ! -f "$status_file" ]; then
