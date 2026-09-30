@@ -26,7 +26,11 @@ together.
 The one thing to hold onto: **a garden session is a peer, not a subagent.** It has its own
 context window, its own permission boundary, and its own user. You cannot await it, you do not
 see its transcript by default, and it inherits nothing from you — not your permission mode, not
-your model, both of which are whatever the local `claude` would use alone.
+your model or effort. The permission mode is set by garden's server config (`permissionMode` in
+`~/.garden/config.json`, read at server start): `bypassPermissions` passes the flag, while `default`
+passes none, so the peer falls back to its own Claude Code settings. Either way it never comes from
+you. The model and effort are whatever the local `claude` would use alone unless you pass `--model`
+or `--effort` to `garden new`.
 
 The second thing: **your context only grows.** Every brief you send and every report you receive
 is re-read on each later turn for the rest of the run, and nothing already in the window gets
@@ -43,6 +47,12 @@ relationship lands in garden's own swarm data with no second call. Neither `id` 
 the address you send messages to — see "Two naming systems" below. The id exists before the peer
 does, so a resolve that misses right after `new` means not-yet-started: retry before concluding
 anything.
+
+Leave `--model` and `--effort` off by default: which model and how much effort a piece of work
+deserves is the user's cost-versus-quality call, and a bare `garden new` gives the peer what a
+`claude` the user started themselves would get. Set them when the user named a model or effort for
+the work, or the brief you are relaying pins one — and pass them again on `garden resume`, because
+garden doesn't store them and a bare resume sends none.
 
 Check `GARDEN_SESSION_ID` is set in your own environment before that first spawn — a session
 started by an older garden, or never started by garden at all, has it unset. `garden new` still exits 0

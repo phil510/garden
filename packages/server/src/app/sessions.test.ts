@@ -234,6 +234,50 @@ describe('createSession', () => {
     ]);
   });
 
+  it('adds --model and --effort ahead of --settings, each independently', async () => {
+    const calls: TmuxNewSessionRequest[] = [];
+    const tmux = fakeTmux({
+      newSession: (request) => {
+        calls.push(request);
+        return Promise.resolve();
+      },
+    });
+    const { projection } = fakeProjection();
+    const { store } = fakeStore();
+    const deps = {
+      tmux,
+      store,
+      projection,
+      serverPort: 4310,
+      settingsPath: '/home/.garden/claude-settings.json',
+      readClaudeCommand: () => ['claude'],
+    };
+
+    const both = await createSession(deps, {
+      cwd: '/Users/dev/garden',
+      model: 'opus',
+      effort: 'high',
+    });
+    await createSession(deps, { cwd: '/Users/dev/garden', model: 'sonnet' });
+    await createSession(deps, { cwd: '/Users/dev/garden', effort: 'max' });
+
+    expect(calls[0]?.command).toEqual([
+      'claude',
+      '--session-id',
+      both.id,
+      '--model',
+      'opus',
+      '--effort',
+      'high',
+      '--settings',
+      '/home/.garden/claude-settings.json',
+    ]);
+    expect(calls[1]?.command.slice(3, 5)).toEqual(['--model', 'sonnet']);
+    expect(calls[1]?.command).not.toContain('--effort');
+    expect(calls[2]?.command.slice(3, 5)).toEqual(['--effort', 'max']);
+    expect(calls[2]?.command).not.toContain('--model');
+  });
+
   it('derives a name unique against every tmux name the projection already knows', async () => {
     const tmux = fakeTmux({ newSession: () => Promise.resolve() });
     const { projection } = fakeProjection([aSession({ tmuxName: 'garden' })]);
@@ -443,6 +487,48 @@ describe('resumeSession', () => {
           'sid-1',
           '--permission-mode',
           'bypassPermissions',
+          '--settings',
+          settingsPath,
+        ],
+      },
+    ]);
+  });
+
+  it('adds --model and --effort to the resume command', async () => {
+    const respawned: unknown[] = [];
+    const tmux = fakeTmux({
+      listPanes: () => Promise.resolve([{ session: 'garden', dead: true, exitCode: 1 }]),
+      respawnPane: (request) => {
+        respawned.push(request);
+        return Promise.resolve();
+      },
+    });
+    const { projection } = fakeProjection([deadSession]);
+    const { store } = fakeStore();
+
+    await resumeSession(
+      {
+        tmux,
+        store,
+        projection,
+        serverPort: 4310,
+        settingsPath,
+        readClaudeCommand: () => ['claude'],
+      },
+      { id: 'sid-1', model: 'opus', effort: 'xhigh' },
+    );
+
+    expect(respawned).toEqual([
+      {
+        name: 'garden',
+        command: [
+          'claude',
+          '--resume',
+          'sid-1',
+          '--model',
+          'opus',
+          '--effort',
+          'xhigh',
           '--settings',
           settingsPath,
         ],

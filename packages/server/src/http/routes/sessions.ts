@@ -3,10 +3,11 @@ import type {
   CreateSessionResponse,
   ErrorResponse,
   OkResponse,
+  ResumeSessionRequest,
   SessionsFilter,
   SessionsResponse,
 } from '@garden/shared';
-import { isStatus, parseNonNegativeInt } from '@garden/shared';
+import { isEffortLevel, isModelName, isStatus, parseNonNegativeInt } from '@garden/shared';
 import type { FastifyInstance } from 'fastify';
 import { createSession, killSession, resumeSession } from '../../app/sessions.js';
 import type { SessionsDeps } from '../../app/sessions.js';
@@ -15,7 +16,22 @@ function isCreateSessionRequest(body: unknown): body is CreateSessionRequest {
   if (typeof body !== 'object' || body === null) return false;
   const record = body as Record<string, unknown>;
   if (typeof record.cwd !== 'string') return false;
-  return record.callerSessionId === undefined || typeof record.callerSessionId === 'string';
+  if (record.callerSessionId !== undefined && typeof record.callerSessionId !== 'string')
+    return false;
+  return hasValidSpawnOptions(record);
+}
+
+function hasValidSpawnOptions(record: Record<string, unknown>): boolean {
+  const { model, effort } = record;
+  if (model !== undefined && (typeof model !== 'string' || !isModelName(model))) return false;
+  return effort === undefined || (typeof effort === 'string' && isEffortLevel(effort));
+}
+
+/** A missing body is valid: the web client resumes without one. */
+function isResumeSessionRequest(body: unknown): body is ResumeSessionRequest | undefined {
+  if (body === undefined || body === null) return true;
+  if (typeof body !== 'object' || Array.isArray(body)) return false;
+  return hasValidSpawnOptions(body as Record<string, unknown>);
 }
 
 interface SessionsQuerystring {
@@ -113,7 +129,15 @@ export function sessionRoutes(app: FastifyInstance, deps: SessionsDeps) {
   });
 
   app.post<{ Params: { id: string } }>('/sessions/:id/resume', async (request, reply) => {
-    const result: CreateSessionResponse = await resumeSession(deps, { id: request.params.id });
+    const body: unknown = request.body;
+    if (!isResumeSessionRequest(body))
+      return reply
+        .code(400)
+        .send({ error: 'invalid resume-session request' } satisfies ErrorResponse);
+    const result: CreateSessionResponse = await resumeSession(deps, {
+      ...body,
+      id: request.params.id,
+    });
     return reply.send(result);
   });
 

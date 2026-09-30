@@ -29,17 +29,24 @@ alone:
 ## Create a session
 
 ```
-garden new <dir> --json
+garden new <dir> [--model <model>] [--effort <level>] --json
 ```
 
-`<dir>` is the only argument — there is no flag for repo, branch, or stage preset. Output:
+`<dir>` is the only positional argument — there is no flag for repo, branch, or stage preset.
+`--model` takes an alias (`opus`, `sonnet`) or a full model name and is passed to `claude` as its
+own `--model`. `--effort` takes `low`, `medium`, `high`, `xhigh` or `max` and is passed as
+`claude --effort`. Each is optional on its own. An empty or unknown value exits 1 with a usage
+error before anything spawns. Output:
 
 ```json
 { "id": "...", "tmuxName": "..." }
 ```
 
-garden passes no permission-mode or model flag, so the session gets whatever the local `claude`
-would use on its own. `GARDEN_CLAUDE_COMMAND` pins the whole command server-wide.
+Permission mode comes from `permissionMode` in `~/.garden/config.json`: `default` (the shipped
+value) passes no flag, so the peer's own Claude Code settings decide; `bypassPermissions` passes `--permission-mode bypassPermissions`. Check the
+`claude` process's flags to see which is in effect. Without `--model` or `--effort` the session
+gets whatever the local `claude` would use on its own. `GARDEN_CLAUDE_COMMAND` pins the whole command
+server-wide.
 
 ## List sessions
 
@@ -105,11 +112,14 @@ Output: `{ "ok": true }`.
 ## Resume a session
 
 ```
-garden resume <id> --json
+garden resume <id> [--model <model>] [--effort <level>] --json
 ```
 
 Output: `{ "id": "...", "tmuxName": "..." }` — same shape as create. The session id survives;
 the tmux name may not.
+
+`--model` and `--effort` take the same values as on create and are validated the same way. garden
+stores neither, so pass them again on each resume that should keep them.
 
 ## Adopt a session
 

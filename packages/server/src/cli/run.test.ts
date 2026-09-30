@@ -1,4 +1,9 @@
-import type { CreateSessionResponse, OkResponse, SessionsResponse } from '@garden/shared';
+import type {
+  CreateSessionResponse,
+  OkResponse,
+  SessionsResponse,
+  SpawnOptions,
+} from '@garden/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { CliClient, Io } from './commands.js';
 import type { StopAllDeps } from './stop.js';
@@ -30,6 +35,12 @@ function collectingIo(): { io: Io; stdout: string[]; stderr: string[] } {
   return { io, stdout, stderr };
 }
 
+/** Empty when no option is set, so calls without flags keep their plain form. */
+function spawnSuffix(options: SpawnOptions | undefined): string {
+  const set = Object.entries(options ?? {});
+  return set.length === 0 ? '' : `:${JSON.stringify(Object.fromEntries(set))}`;
+}
+
 function recordingClient(): { client: CliClient; calls: string[] } {
   const calls: string[] = [];
   const sessions: SessionsResponse = { sessions: [] };
@@ -40,12 +51,12 @@ function recordingClient(): { client: CliClient; calls: string[] } {
       calls.push(filter === undefined ? 'ls' : `ls:${JSON.stringify(filter)}`);
       return Promise.resolve(sessions);
     },
-    createSession: (cwd, callerSessionId) => {
-      calls.push(`new:${cwd}:${callerSessionId ?? ''}`);
+    createSession: (cwd, callerSessionId, options) => {
+      calls.push(`new:${cwd}:${callerSessionId ?? ''}${spawnSuffix(options)}`);
       return Promise.resolve(created);
     },
-    resumeSession: (id) => {
-      calls.push(`resume:${id}`);
+    resumeSession: (id, options) => {
+      calls.push(`resume:${id}${spawnSuffix(options)}`);
       return Promise.resolve(created);
     },
     killSession: (id) => {
@@ -166,6 +177,52 @@ describe('runCli', () => {
     expect(exitCode).toBe(0);
     expect(calls).toEqual(['new:/repo:caller-1']);
   });
+
+  it('forwards --model and --effort on "new", each independently', async () => {
+    const { io } = collectingIo();
+    const { client, calls } = recordingClient();
+
+    expect(await runCli('new', ['/repo', '--model', 'opus', '--effort', 'high'], io, client)).toBe(
+      0,
+    );
+    expect(await runCli('new', ['/repo', '--effort', 'max'], io, client)).toBe(0);
+
+    expect(calls).toEqual([
+      'new:/repo:caller-1:{"model":"opus","effort":"high"}',
+      'new:/repo:caller-1:{"effort":"max"}',
+    ]);
+  });
+
+  it('forwards --model and --effort on "resume"', async () => {
+    const { io } = collectingIo();
+    const { client, calls } = recordingClient();
+
+    expect(
+      await runCli('resume', ['abc', '--model', 'sonnet', '--effort', 'low'], io, client),
+    ).toBe(0);
+
+    expect(calls).toEqual(['resume:abc:{"model":"sonnet","effort":"low"}']);
+  });
+
+  it.each([
+    ['new', ['/repo', '--effort', 'extreme'], 'garden new <dir>'],
+    ['new', ['/repo', '--model=-x'], 'garden new <dir>'],
+    ['resume', ['abc', '--effort', 'bogus'], 'garden resume <id>'],
+    ['resume', ['abc', '--model='], 'garden resume <id>'],
+  ] as const)(
+    'rejects a bad flag value on "%s" before calling the server',
+    async (command, args, form) => {
+      const { io, stderr } = collectingIo();
+      const { client, calls } = recordingClient();
+
+      expect(await runCli(command, args, io, client)).toBe(1);
+
+      expect(stderr).toEqual([
+        `garden: usage: ${form} [--model <model>] [--effort <low|medium|high|xhigh|max>]\n`,
+      ]);
+      expect(calls).toEqual([]);
+    },
+  );
 
   it('dispatches "ls" with no positionals required', async () => {
     const { io } = collectingIo();
