@@ -5,6 +5,7 @@ import type {
   SessionState,
   SessionsResponse,
 } from '@garden/shared';
+import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { CliClient, Io } from './commands.js';
 import { runAdopt, runKill, runLs, runNew, runResume } from './commands.js';
@@ -106,6 +107,24 @@ describe('runNew', () => {
 
     expect(exitCode).toBe(0);
     expect(calls).toEqual([['/repo', undefined]]);
+  });
+
+  it('resolves a relative dir against the CLI cwd before sending it', async () => {
+    const { io } = collectingIo();
+    const sent: string[] = [];
+    const client: CliClient = {
+      ...throwingClient(new Error('unused')),
+      createSession: (cwd) => {
+        sent.push(cwd);
+        return Promise.resolve({ id: 'abc', tmuxName: 'repo' });
+      },
+    };
+
+    await runNew(io, '.', false, client);
+    await runNew(io, 'sub/dir', false, client);
+    await runNew(io, '/abs/../repo/', false, client);
+
+    expect(sent).toEqual([process.cwd(), resolve(process.cwd(), 'sub/dir'), '/repo']);
   });
 
   it('prints the minted id and tmux name on success', async () => {

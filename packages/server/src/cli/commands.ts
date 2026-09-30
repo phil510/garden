@@ -5,6 +5,7 @@ import type {
   SessionsFilter,
   SessionsResponse,
 } from '@garden/shared';
+import { resolve } from 'node:path';
 import * as http from './http.js';
 import { writeAll, type WritableLike } from './io.js';
 
@@ -60,10 +61,12 @@ export function runNew(
   client: CliClient = defaultClient,
 ): Promise<0 | 1> {
   const callerSessionId = process.env.GARDEN_SESSION_ID;
+  // The server's cwd is not the caller's, so a relative dir must be resolved here.
+  const absoluteDir = resolve(dir);
   return runCommand(
     io,
     json,
-    () => client.createSession(dir, callerSessionId),
+    () => client.createSession(absoluteDir, callerSessionId),
     (result) => `${result.id}\t${result.tmuxName}`,
   );
 }
