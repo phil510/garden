@@ -29,23 +29,22 @@ protecting it.
 
 ### 1.1 Invariants
 
-Three decisions shape the whole system and are expensive to reverse. Each has a reason; check it
-before changing the decision.
+Three decisions shape the whole system and are expensive to reverse. Check the reason before
+changing one.
 
 - **tmux is the supervisor; garden is disposable.** Every Claude Code process runs in a tmux
   session on garden's own socket (`tmux -L garden`, started with the conf `appdir.ts` writes).
   Killing the server or closing the browser never touches a session. Had garden owned the ptys,
   every session would die with the server, and you could not reach a session from another
-  terminal with `tmux -L garden attach -t <name>`. Reversing this rewrites the process model, resume
-  and the liveness derivation.
+  terminal with `tmux -L garden attach -t <name>`. Reversing this rewrites the process model,
+  resume and the liveness derivation.
 - **Pure overlay on Claude Code.** The garden server reads transcripts and receives hook calls,
-  but writes nothing under `~/.claude/`; everything it writes lives in `appDir`. Hooks reach
+  but writes nothing under `~/.claude/`; everything it writes lives in `appDir`. Its hooks reach
   Claude Code per process, through `--settings <appDir>/claude-settings.json` on the spawn
-  command, never by editing `~/.claude/settings.json`. That keeps the server's footprint inside
-  `appDir` and its hooks out of sessions garden did not start. The opt-in plugin in
-  `plugins/garden`, whose hooks run in every session once enabled, is installed by Claude Code
-  and is separate from this. If a server task seems to need a write under `~/.claude/`, stop and
-  ask — there is no silent fallback.
+  command, rather than through `~/.claude/settings.json`, so they stay out of sessions garden did
+  not start. The opt-in plugin in `plugins/garden`, whose hooks run in every session once enabled,
+  is installed by Claude Code and is separate from this. If a server task seems to need a write
+  under `~/.claude/`, stop and ask — there is no silent fallback.
 - **Loopback only, no auth.** The server listens on `127.0.0.1`; `HOST` in `config.ts` is a
   constant, not a setting. Nothing authenticates a request, and the `/fs` endpoints serve file
   contents scoped only by session cwd, which is not strong enough to expose to a network.
@@ -53,8 +52,8 @@ before changing the decision.
 
 ### 1.2 What a session's state is made of
 
-Each fact has a primary source, with the exceptions noted below the table. The projection
-(`domain/reduce.ts`) merges them; nothing else computes a session fact.
+Each fact has one primary source, with three exceptions below the table. `domain/reduce.ts`
+merges them; nothing else computes a session fact.
 
 | Fact                                 | Source                                                                                                      |
 | ------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
@@ -68,11 +67,11 @@ Each fact has a primary source, with the exceptions noted below the table. The p
 | Claude-side name                     | Claude Code's session registry, `~/.claude/sessions` (read only)                                            |
 | shown                                | garden's stage state in `state.json`, not a session fact at all                                             |
 
-Three exceptions to the single source. `session-registered` is how resume revives an ended
-session: a process was just started under that id, so `ended` no longer applies. It also supplies
-the cwd, as does a hook payload when the cwd is still empty. And a hook for an id garden has not
-seen creates the session (`blank(id)`), so a session started outside garden appears on its first
-hook before its transcript is read.
+The exceptions: `session-registered` clears `ended` because a process was just started under that
+id, which is how resume revives an ended session. It also supplies the cwd, as does a hook payload
+when the cwd is still empty. And a hook for an id garden has not seen creates the session
+(`blank(id)`), so a session started outside garden appears on its first hook, before its
+transcript is read.
 
 Whether a pane socket is open for a session is not session state. It is bookkeeping in
 `app/attach.ts` that refuses a second concurrent attach; the client learns a session is already
@@ -80,19 +79,18 @@ on stage from `shown`.
 
 The recap comes from the transcript only, though a `Stop` hook carries `last_assistant_message`
 and would be cheaper. One source makes the recap the same for a session garden started, one it
-did not, and one it sees for the first time after a restart. A hook-fed recap would exist for
+did not, and one it sees for the first time after a restart; a hook-fed recap would exist for
 some sessions and not others, by a rule no reader could predict. `reduce` ignores the hook field.
 
-A session has three axes. Status exists only for live sessions (`reduce.ts` sets it to null when
-the session is dead); `shown` is independent of both:
+A session has three axes. Status depends on liveness; shown is independent of both.
 
 - **Liveness**, `live` or `dead`: does tmux report a live pane for this session? garden asks tmux
   and believes the answer. A session garden never started, or whose tmux session is gone, is
   `dead` and offered Resume. `exitCode` and `tmuxName` are fields of a dead session, not states:
   the exit code exists only while tmux still holds the dead pane (`remain-on-exit`), and a held
-  tmux session is what lets Resume reuse the pane.
-- **Status**, only while live. A dead session has no status (null), not `unknown`. `unknown`
-  means live but no hook heard since the server started, and clears on the next one.
+  tmux session is what lets Resume reuse the pane (§4.5).
+- **Status**, only while live: `reduce.ts` sets a dead session's status to null, not `unknown`.
+  `unknown` means live but no hook heard since the server started, and clears on the next one.
 - **Shown**: whether the session sits in a stage slot. A dead session can be shown (its pane
   renders a dead placeholder with a Resume button), and a live one can be unshown.
 
@@ -271,8 +269,8 @@ in `cli/tmux.ts`. `garden ls` is a `GET /sessions`.
 
 ### 4.5 Create, resume, kill
 
-`app/sessions.ts` holds the three commands. Create and resume run tmux first, then dispatch `session-registered`; kill relies on the next
-tmux snapshot.
+`app/sessions.ts` holds the three commands. Create and resume follow §4.1's order: tmux first,
+then dispatch `session-registered`. Kill dispatches nothing and relies on the next tmux snapshot.
 
 - **Create** mints the session id and passes it to `claude --session-id`, so garden knows the id
   before any transcript exists. The transcript watcher picks the session up once Claude Code
@@ -430,7 +428,7 @@ where you are putting it.
 
 - **DDD entities, aggregates, repositories.** Nothing here has invariants to defend.
 - **A DI container.** One composition root in `main.ts` is enough.
-- **garden-owned ptys, or hooks installed in `~/.claude/settings.json`.** See section 1.1.
+- **garden-owned ptys, or hooks installed in `~/.claude/settings.json`.** See §1.1.
 - **A time-based `external` liveness.** Guessing from recent transcript activity that a session
   runs in a terminal garden does not own left the most recently used sessions unresumable after a
   reboot, and made the fold depend on the clock.

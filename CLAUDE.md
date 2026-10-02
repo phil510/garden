@@ -6,7 +6,7 @@ Runbook for Claude Code sessions working in this repo. Read this first; load oth
 
 garden is a local web console for running many Claude Code sessions at once across many repos and worktrees. tmux owns the Claude Code processes; garden is a viewport and control surface over them — it never becomes the thing keeping a session alive.
 
-`docs/architecture.md` is the doc to read first, and before writing server or web code, not only when a task is explicitly about structure. It is canonical for where code goes (the layering, the dependency rules between layers, the state projection at the centre of the server) and for the design invariants and rejected alternatives behind them. Its boundaries are enforced by scoped `no-restricted-imports` rules, so crossing one fails `pnpm lint` instead of starting a design conversation — when that happens, the layering is what's wrong, not the lint config. Planned and in-flight work lives in GitHub issues.
+`docs/architecture.md` is canonical for where code goes — the layering, the dependency rules between layers, the state projection at the centre of the server — and for the design invariants and rejected alternatives behind them. Read it before writing server or web code, not only when a task is explicitly about structure. Its boundaries are enforced by scoped `no-restricted-imports` rules, so crossing one fails `pnpm lint` instead of starting a design conversation — when that happens, the layering is what's wrong, not the lint config. Planned and in-flight work lives in GitHub issues.
 
 ## Environment and tests
 

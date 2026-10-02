@@ -104,10 +104,9 @@ function lastCwd(lines: Line[]): string | null {
 }
 
 /**
- * Every field of the record is optional: line types like `ai-title` and `away_summary` are not
- * guaranteed in every install, so a missing one is never an error. A transcript also carries no
- * end-of-session marker, so nothing here says whether the session is still running; that comes
- * from tmux and the hook-driven `ended` flag (`deriveLiveness`).
+ * Every record field is optional: line types like `ai-title` and `away_summary` are not in every
+ * install. A transcript has no end-of-session marker, so liveness comes from tmux and the
+ * hook-driven `ended` flag instead (`deriveLiveness`).
  */
 export function parseTranscript(text: string): TranscriptParse {
   const lines: Line[] = [];
