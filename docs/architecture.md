@@ -1,7 +1,8 @@
 # garden — architecture
 
-How this codebase is organised and why. Read this before adding code. It describes structure
-and boundaries, not features — for what garden does, see `docs/specs/2026-09-03-garden-v1-design.md`.
+How this codebase is organised and why. Read this before adding code. It describes structure,
+boundaries and the invariants behind them, not features: what garden does is in the code and
+`packages/shared`, and planned work is in GitHub issues.
 
 ## 1. The model everything follows from
 
@@ -25,6 +26,69 @@ attached. The server restarts and has to re-associate session ids to tmux names.
 `working` lands after tmux has already seen the pane die. Keeping that folding logic in one pure,
 testable place is the central architectural decision here, and most of the rules below follow from
 protecting it.
+
+### 1.1 Invariants
+
+Three decisions shape the whole system and are expensive to reverse. Each has a reason; check it
+before changing the decision.
+
+- **tmux is the supervisor; garden is disposable.** Every Claude Code process runs in a tmux
+  session on garden's own socket (`tmux -L garden`, started with the conf `appdir.ts` writes).
+  Killing the server or closing the browser never touches a session. Had garden owned the ptys,
+  every session would die with the server, and you could not reach a session from another
+  terminal with `tmux -L garden attach -t <name>`. Reversing this rewrites the process model, resume
+  and the liveness derivation.
+- **Pure overlay on Claude Code.** garden reads transcripts and receives hook calls, but writes
+  nothing under `~/.claude/`; everything it writes lives in `appDir`. Hooks reach Claude Code
+  per process, through `--settings <appDir>/claude-settings.json` on the spawn command, never
+  by editing `~/.claude/settings.json`. That keeps removing garden a matter of deleting `appDir`,
+  and keeps garden's hooks out of sessions garden did not start. If a task seems to need a write
+  under `~/.claude/`, stop and ask — there is no silent fallback.
+- **Loopback only, no auth.** The server listens on `127.0.0.1`; `HOST` in `config.ts` is a
+  constant, not a setting. Nothing authenticates a request, and the `/fs` endpoints serve file
+  contents scoped only by session cwd, which is not strong enough to expose to a network.
+  Supporting remote access means designing authentication first.
+
+### 1.2 What a session's state is made of
+
+Each fact has one source. The projection merges them; nothing else computes a session fact.
+
+| Fact                                 | Source                                                                                                      |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| id, cwd, title, recap, last activity | transcript (a just-spawned session exists from its `session-registered` event until the transcript appears) |
+| tmux name                            | the id-to-name map in `state.json`, set when garden creates or resumes the session                          |
+| liveness, exit code                  | tmux pane facts (`pane_dead`, `pane_dead_status`), overridden to dead by `ended`                            |
+| `ended`                              | hooks: `SessionEnd` sets it, `SessionStart` clears it                                                       |
+| status, reason                       | hooks (`domain/status.ts` holds the event-to-status mapping)                                                |
+| branch                               | a live git lookup by cwd (`app/branches.ts`), re-asked each tick for live sessions                          |
+| repo root                            | `git rev-parse --git-common-dir` on the cwd (`app/repoRoots.ts`), so worktrees fold into their main repo    |
+| Claude-side name                     | Claude Code's session registry, `~/.claude/sessions` (read only)                                            |
+| shown                                | garden's stage state in `state.json`, not a session fact at all                                             |
+
+Whether a pane socket is open for a session is not session state. It is bookkeeping in
+`app/attach.ts` that refuses a second concurrent attach; the client learns a session is already
+on stage from `shown`.
+
+The recap comes from the transcript only, though a `Stop` hook carries `last_assistant_message`
+and would be cheaper. One source makes the recap the same for a session garden started, one it
+did not, and one it sees for the first time after a restart. A hook-fed recap would exist for
+some sessions and not others, by a rule no reader could predict. `reduce` ignores the hook field.
+
+A session has three independent axes. Every combination is reachable and none derives from another:
+
+- **Liveness**, `live` or `dead`: does tmux report a live pane for this session? garden asks tmux
+  and believes the answer. A session garden never started, or whose tmux session is gone, is
+  `dead` and offered Resume. `exitCode` and `tmuxName` are fields of a dead session, not states:
+  the exit code exists only while tmux still holds the dead pane (`remain-on-exit`), and a held
+  tmux session is what lets Resume reuse the pane.
+- **Status**, only while live. A dead session has no status (null), not `unknown`. `unknown`
+  means live but no hook heard since the server started, and clears on the next one.
+- **Shown**: whether the session sits in a stage slot. A dead session can be shown (its pane
+  renders a dead placeholder with a Resume button), and a live one can be unshown.
+
+The accepted cost of asking tmux alone: a session running in a terminal garden does not own
+reads `dead` and offers Resume, and taking it leaves two `claude --resume` processes appending to
+one transcript. That is rare, and the user's discipline to keep.
 
 ## 2. Shape
 
@@ -102,11 +166,12 @@ Repo grouping and pin ordering are not server-side: that logic lives in
 
 The server ships as a single esbuild bundle, which constrains one adapter: `node-pty` has a
 native addon that cannot be bundled — the build succeeds and then fails at runtime looking for
-`pty.node` relative to the bundle. `adapters/pty.ts` is wired into `main.ts`, `node-pty` is a
-dependency, and the bundle marks it external. What is still undecided is how the native addon
-reaches `dist/` — shipping `node_modules` alongside, or copying the platform's `prebuilds/`
-directory into it. It is a distribution decision, not a layering one, but it is cheaper to know
-now than to discover at attach time.
+`pty.node` relative to the bundle. `adapters/pty.ts` is wired into `main.ts`, `node-pty` is a dependency, and
+`packages/server/build.ts` marks it external. `node-pty` finds `pty.node` and `spawn-helper`
+relative to its own package directory, so `dist/` only runs where `node_modules/node-pty` resolves
+from it. In practice that is the checkout after `pnpm install`, with the `garden` bin linked from
+it (README, "Dev loop"). Nothing copies `prebuilds/` into `dist/`, so a relocatable install would
+have to. The version is pinned exactly; `pnpm-workspace.yaml` says why.
 
 ### 4.1 The projection is the spine
 
@@ -197,6 +262,23 @@ each has to work with the garden server dead (`uninstall` after it stops the ser
 `stop --all` as the last step of the same hard stop). Both share the one `killTmuxServer` call,
 in `cli/tmux.ts`. `garden ls` is a `GET /sessions`.
 
+### 4.5 Create, resume, kill
+
+`app/sessions.ts` holds the three commands. Each runs tmux first and dispatches the resulting fact.
+
+- **Create** mints the session id and passes it to `claude --session-id`, so garden knows the id
+  before any transcript exists. The transcript watcher picks the session up once Claude Code
+  writes it.
+- **Resume** runs `claude --resume <id>` by one of two mechanisms, chosen by whether tmux still
+  holds the session. If it does (a dead pane kept by `remain-on-exit`), `respawn-pane` restarts it
+  in place, keeping the tmux name, any attached pane and the stored mapping, so a pane on stage
+  comes back where it sits. If not (a historical session, a killed one, a restarted tmux server),
+  it creates a tmux session at the recorded cwd under a fresh name. The session id never changes,
+  so the card keeps its identity either way, and the UI offers one Resume action for both.
+- **Kill** kills the tmux session and drops the id-to-name mapping. The next snapshot reports the
+  session gone, so it is `dead` with no exit code through the ordinary path. The transcript
+  remains, so the session stays listed and resumable.
+
 ## 5. Client
 
 ```
@@ -224,6 +306,9 @@ there is no reconciliation code to get wrong. On localhost the round trip is a m
 Two rules that follow: nothing outside `applyDelta` writes to `sessionStore`, and nothing
 outside `api/` calls `fetch`.
 
+Status colour is the only colour that carries meaning, and it is the same in the sidebar and the
+pane headers (the `--st-*` tokens in `styles/tokens.css`). Do not spend it on decoration.
+
 Note that this covers more than it first appears. Stage preset, slot assignments, focused
 slot, group order, pins, and collapsed groups all live in the server's `state.json`, so
 dragging a group or switching preset is a command that round-trips like any other. Only
@@ -239,6 +324,10 @@ socket and clears the screen.
 So they live in `terminals/registry.ts`: a module-level map keyed by session id, outside
 React's tree. React renders an empty container div; the registry attaches a terminal to it.
 Panes hidden by maximise are hidden with CSS, never unmounted.
+
+The stage layout is dockview rather than a hand-rolled CSS grid or react-mosaic. dockview's
+`fromJSON(..., { reuseExistingPanels: true })` keeps a surviving pane's xterm and socket across a
+preset switch, and its resize keeps proportions. react-mosaic remounts a tile when it changes depth.
 
 This is a real exception to declarative rendering, and it is named rather than hidden.
 Confining it to one module is what keeps the rest of the client boring. Do not add a second
@@ -336,6 +425,19 @@ where you are putting it.
 
 - **DDD entities, aggregates, repositories.** Nothing here has invariants to defend.
 - **A DI container.** One composition root in `main.ts` is enough.
+- **garden-owned ptys, or hooks installed in `~/.claude/settings.json`.** See section 1.1.
+- **A time-based `external` liveness.** The first model had four liveness values, one of them
+  `external`: a session with transcript activity in the last 10 minutes was assumed to be running
+  in a terminal garden does not own, and offered no Resume. It was removed. It failed the case that
+  mattered: after a reboot the most recently used sessions read `external` and had no actions, while
+  idle ones read `dead` and resumed fine. It also made the fold depend on the clock, which cost a
+  clock port, a timestamp on every event and a periodic `tick` whose only job was ageing sessions
+  out. And it guarded against a rare mistake the user would rather own.
+- **A hand-rolled stateful UI, or no framework.** Where a maintained library removes stateful UI
+  code (dockview, zustand, xterm.js), use it; garden runs on localhost, so bundle size does not
+  argue otherwise.
+- **tmux control mode in place of node-pty.** It would mean writing a multiplexer client for an
+  under-documented protocol.
 - **Optimistic client writes.** They buy latency hiding on a localhost socket and cost a
   second copy of every state transition.
 - **Parsing terminal output.** For anything, ever.
