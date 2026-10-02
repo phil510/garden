@@ -146,12 +146,12 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
   }
 
   function onMenuKeyDown(event: ReactKeyboardEvent) {
-    // Keys typed into the submenu's filter input are its own.
-    if (event.target instanceof Element && event.target.closest('.context-submenu') !== null) {
-      return;
-    }
     if (event.key === 'Tab') {
       onCloseRef.current();
+      return;
+    }
+    // Other keys typed into the submenu's filter input are its own.
+    if (event.target instanceof Element && event.target.closest('.context-submenu') !== null) {
       return;
     }
     const step = event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0;
@@ -160,10 +160,15 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
     // Unhandled, arrows and Space would scroll an ancestor, which the scroll listener
     // above would read as a dismissal.
     event.preventDefault();
+    // Also stopped from bubbling: the menu renders inside its owner (SwarmHeader's own
+    // Enter/Space handler would otherwise toggle the swarm).
+    event.stopPropagation();
     if (step !== 0) {
       setFocusedIndex((index) => (index + step + items.length) % items.length);
       return;
     }
+    // Auto-repeat would carry one held Enter through a two-step confirm.
+    if (event.repeat) return;
     const item = items[focusedIndex];
     if (item !== undefined && item.submenu === undefined) item.onSelect();
   }
