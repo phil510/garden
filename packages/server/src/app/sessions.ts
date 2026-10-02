@@ -126,6 +126,7 @@ export async function createSession(
   const takenNames = takenTmuxNames(projection, panes);
   const id = randomUUID();
   const tmuxName = deriveTmuxName(request.cwd, takenNames);
+  // A user-set claudeCommand carrying `--bare` would skip hooks and silence every status update.
   const claudeCommand = readClaudeCommand();
 
   await tmux.newSession({
