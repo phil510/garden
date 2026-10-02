@@ -3,7 +3,10 @@ import { WebLinksAddon } from '@xterm/addon-web-links';
 import { Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 import { connectPaneSocket, type PaneSize } from '../api/paneSocket.js';
+import { resolvePathLineTarget } from '../features/filetree/projectPaths.js';
+import { getCachedRepoList } from '../features/sidebar/repoListCache.js';
 import { useLocalStore } from '../state/localStore.js';
+import { useSessionStore } from '../state/sessionStore.js';
 import { openExternalLink } from './hyperlinks.js';
 import { findMarkdownLinks } from './markdownLinks.js';
 import { findPathLineLinks } from './pathLineLinks.js';
@@ -46,6 +49,24 @@ function hasSize(element: HTMLElement): boolean {
  *  requests them, and forwards the resulting reports back through the same `onData` stream a
  *  keypress would use — there is nothing beyond a normally-configured terminal to wire up for
  *  CC's wheel scrolling to work. */
+/** Opens a clicked `path:line` in the file panel: re-rooting it onto the project containing the
+ *  file, or showing it through the session when no listed project does. */
+function openPathLine(sessionId: string, path: string, line: number): void {
+  const cwd = useSessionStore.getState().sessions[sessionId]?.cwd;
+  if (cwd === undefined) return;
+  const target = resolvePathLineTarget(getCachedRepoList() ?? [], cwd, sessionId, path, line);
+  if (target === null) return;
+  const store = useLocalStore.getState();
+  if (target.kind === 'session') {
+    store.requestOpenFile({ kind: 'session', sessionId }, target.path, target.line);
+    return;
+  }
+  store.setPanelRoot(target.root);
+  store.setOpenFile(target.root, target.path);
+  store.setPanelTab(target.root, 'editor');
+  store.requestOpenFile({ kind: 'root', root: target.root }, target.path, target.line);
+}
+
 function createPane(sessionId: string, container: HTMLElement, epoch: number): PaneHandle {
   // `unicode` is one of xterm.js's proposed (non-stable) APIs, gated behind allowProposedApi —
   // without it, terminal.unicode throws at runtime instead of at the type level.
@@ -121,9 +142,7 @@ function createPane(sessionId: string, container: HTMLElement, epoch: number): P
           end: { x: link.index + link.length + 1, y: bufferLineNumber },
         },
         activate: () => {
-          useLocalStore
-            .getState()
-            .requestOpenFile({ kind: 'session', sessionId }, link.path, link.line);
+          openPathLine(sessionId, link.path, link.line);
         },
       }));
       callback(links.length > 0 ? links : undefined);
