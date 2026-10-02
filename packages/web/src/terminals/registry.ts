@@ -4,7 +4,7 @@ import { Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 import { connectPaneSocket, type PaneSize } from '../api/paneSocket.js';
 import { resolvePathLineTarget } from '../features/filetree/projectPaths.js';
-import { getCachedRepoList } from '../features/sidebar/repoListCache.js';
+import { refreshRepoList } from '../features/sidebar/repoListCache.js';
 import { useLocalStore } from '../state/localStore.js';
 import { useSessionStore } from '../state/sessionStore.js';
 import { openExternalLink } from './hyperlinks.js';
@@ -51,10 +51,10 @@ function hasSize(element: HTMLElement): boolean {
  *  CC's wheel scrolling to work. */
 /** Opens a clicked `path:line` in the file panel: re-rooting it onto the project containing the
  *  file, or showing it through the session when no listed project does. */
-function openPathLine(sessionId: string, path: string, line: number): void {
+async function openPathLine(sessionId: string, path: string, line: number): Promise<void> {
   const cwd = useSessionStore.getState().sessions[sessionId]?.cwd;
   if (cwd === undefined) return;
-  const target = resolvePathLineTarget(getCachedRepoList() ?? [], cwd, sessionId, path, line);
+  const target = resolvePathLineTarget((await refreshRepoList()) ?? [], cwd, sessionId, path, line);
   if (target === null) return;
   const store = useLocalStore.getState();
   if (target.kind === 'session') {
@@ -142,7 +142,7 @@ function createPane(sessionId: string, container: HTMLElement, epoch: number): P
           end: { x: link.index + link.length + 1, y: bufferLineNumber },
         },
         activate: () => {
-          openPathLine(sessionId, link.path, link.line);
+          void openPathLine(sessionId, link.path, link.line);
         },
       }));
       callback(links.length > 0 ? links : undefined);

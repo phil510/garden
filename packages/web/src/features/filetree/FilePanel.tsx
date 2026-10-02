@@ -1,11 +1,11 @@
 import type { RepoEntry } from '@garden/shared';
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
-import { getFileTree, listRepos } from '../../api/client';
+import { getFileTree } from '../../api/client';
 import { chooseStartupRoot, type FilePanelTab } from '../../state/filePanelPersistence';
 import { useLocalStore } from '../../state/localStore';
 import { useSessionStore } from '../../state/sessionStore';
 import { useUiStore } from '../../state/uiStore';
-import { getCachedRepoList, setCachedRepoList } from '../sidebar/repoListCache';
+import { getCachedRepoList, refreshRepoList } from '../sidebar/repoListCache';
 import { mostSpecificEntry } from './projectPaths';
 import { TreeRow } from './TreeRow';
 import { visibleTreeRows } from './treeRows';
@@ -51,15 +51,19 @@ export function FilePanel() {
   const [repos, setRepos] = useState<RepoEntry[] | null>(getCachedRepoList);
   useEffect(() => {
     let cancelled = false;
-    listRepos()
-      .then((response) => {
-        if (cancelled) return;
-        setCachedRepoList(response.repos);
-        setRepos(response.repos);
-      })
-      .catch(() => undefined);
+    const refresh = () => {
+      void refreshRepoList().then((list) => {
+        if (!cancelled && list !== null) setRepos(list);
+      });
+    };
+    refresh();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    document.addEventListener('visibilitychange', onVisible);
     return () => {
       cancelled = true;
+      document.removeEventListener('visibilitychange', onVisible);
     };
   }, [connectionEpoch]);
 
