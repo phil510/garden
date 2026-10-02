@@ -222,6 +222,7 @@ export function FilePanel() {
               <TreeRow
                 key={row.entry.path}
                 row={row}
+                root={root}
                 selected={!transientShown && row.entry.path === openFilePath}
                 onToggleDir={toggleDir}
                 onOpenFile={openFile}
