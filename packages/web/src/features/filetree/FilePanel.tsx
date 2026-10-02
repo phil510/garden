@@ -22,9 +22,6 @@ export function FilePanel() {
     sessionId === null ? undefined : state.sessions[sessionId],
   );
 
-  // The narrow signal that the session did something a file tree could have changed under.
-  const lastActivity = session?.lastActivity ?? null;
-
   const expandedPaths = useLocalStore((state) =>
     session === undefined
       ? EMPTY_EXPANDED
@@ -42,13 +39,19 @@ export function FilePanel() {
   // resets on this function's identity, so it must change exactly when the session does: keying
   // it on anything else (cwd included) would drop the loaded tree while `expandedPaths` survives.
   const loadDir = useCallback(
-    (path: string) =>
+    (path: string, refresh?: string) =>
       sessionId === null
         ? Promise.reject(new Error('no session'))
-        : getFileTree({ sessionId }, path),
+        : getFileTree({ sessionId }, path, refresh),
     [sessionId],
   );
-  const { childrenByPath, loadPath } = useFileTree(session?.cwd ?? null, lastActivity, loadDir);
+  const fsRefreshEpoch = useLocalStore((state) => state.fsRefreshEpoch);
+  const { childrenByPath, loadPath } = useFileTree(
+    sessionId,
+    expandedPaths,
+    fsRefreshEpoch,
+    loadDir,
+  );
 
   useEffect(() => {
     setActiveTab('files');

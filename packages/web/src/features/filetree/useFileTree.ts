@@ -1,83 +1,79 @@
 import type { TreeEntry, TreeResponse } from '@garden/shared';
 import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react';
 
-/** Long enough to collapse a burst of hook events into one refetch, short enough that a
- *  file edited mid-turn shows up without the user having to do anything. It is the interval
- *  between refreshes, not a quiet period: activity during a turn never stops arriving, so a
- *  window that reset on each event would leave the tree stale for the whole turn. */
-const REFRESH_INTERVAL_MS = 500;
-
-/** Loaded directories, tagged with the fetcher they came from. A tree load is in flight across
- *  a source change often enough to matter, and the tag is what lets a response from a
- *  superseded fetcher be dropped instead of landing in the new fetcher's tree. */
+/** Loaded directories, tagged with the root they belong to. A root change drops them, and the
+ *  tag keeps the render between the change and that drop from showing the old root's tree. */
 interface TreeState {
-  readonly loadDir: (path: string) => Promise<TreeResponse>;
+  readonly root: string | null;
   readonly childrenByPath: Record<string, readonly TreeEntry[]>;
 }
 
-/** Lazily-expanded directory tree under `root`; `null` means nothing to load. `refreshTrigger`
- *  is any value whose change asks for a throttled refetch of every loaded directory, and `null`
- *  means none. `loadDir` resolves a root-relative path, and the hook doesn't care how. A new
- *  `loadDir` identity starts a fresh tree; `root` only gates loading, since `root` can change
- *  under a live session whose loaded directories are still the ones to refresh. */
+/** Lazily-expanded directory tree for one project root; `null` means nothing to load.
+ *  `loadDir` resolves a root-relative path against that root and the hook doesn't care how.
+ *
+ *  A root change starts a fresh tree and loads `''` plus every path in `expanded`, so folders
+ *  restored from storage don't render open-but-empty. A `refreshEpoch` change refetches every
+ *  loaded path as one round sharing a single fresh `refresh` token. Fetches carry a sequence
+ *  number and a response older than one already applied to the same path is dropped, so an
+ *  out-of-order round can't regress the tree. */
 export function useFileTree(
   root: string | null,
-  refreshTrigger: number | null,
-  loadDir: (path: string) => Promise<TreeResponse>,
+  expanded: readonly string[],
+  refreshEpoch: number,
+  loadDir: (path: string, refresh?: string) => Promise<TreeResponse>,
 ): {
   childrenByPath: Readonly<Record<string, readonly TreeEntry[]>>;
   loadPath: (path: string) => void;
 } {
-  const [tree, setTree] = useState<TreeState>({ loadDir, childrenByPath: {} });
-  const refreshTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const [tree, setTree] = useState<TreeState>({ root, childrenByPath: {} });
+  const generation = useRef(0);
+  const nextSeq = useRef(0);
+  const appliedSeq = useRef<Record<string, number>>({});
+  const lastEpoch = useRef(refreshEpoch);
 
-  const loadPath = useCallback(
-    (path: string) => {
-      loadDir(path)
+  const fetchPath = useCallback(
+    (path: string, refresh?: string) => {
+      const fetchGeneration = generation.current;
+      const seq = ++nextSeq.current;
+      loadDir(path, refresh)
         .then((response) => {
-          setTree((current) =>
-            current.loadDir === loadDir
-              ? {
-                  ...current,
-                  childrenByPath: { ...current.childrenByPath, [path]: response.entries },
-                }
-              : current,
-          );
+          if (generation.current !== fetchGeneration) return;
+          if (seq < (appliedSeq.current[path] ?? 0)) return;
+          appliedSeq.current[path] = seq;
+          setTree((current) => ({
+            ...current,
+            childrenByPath: { ...current.childrenByPath, [path]: response.entries },
+          }));
         })
         .catch(() => undefined);
     },
     [loadDir],
   );
 
-  useEffect(() => {
-    setTree({ loadDir, childrenByPath: {} });
-    return () => {
-      clearTimeout(refreshTimer.current);
-      refreshTimer.current = undefined;
-    };
-  }, [loadDir]);
+  const loadPath = useCallback((path: string) => fetchPath(path), [fetchPath]);
 
-  useEffect(() => {
-    if (root !== null) loadPath('');
-  }, [root, loadPath]);
-
-  // Reads the current tree without depending on it: its own writes would otherwise retrigger the
-  // throttle effect below and turn the refresh into an unconditional poll.
-  const refreshLoaded = useEffectEvent(() => {
-    for (const path of Object.keys(tree.childrenByPath)) loadPath(path);
+  const loadInitial = useEffectEvent(() => {
+    fetchPath('');
+    for (const path of expanded) if (path !== '') fetchPath(path);
   });
 
-  // Throttled, not debounced: the first trigger since the last refresh schedules the next one,
-  // and everything arriving before it fires is absorbed into it. `loadPath` is a dependency only
-  // to re-arm the timer that the reset effect's cleanup cleared when `loadDir` changed.
   useEffect(() => {
-    if (root === null || refreshTrigger === null) return;
-    if (refreshTimer.current !== undefined) return;
-    refreshTimer.current = setTimeout(() => {
-      refreshTimer.current = undefined;
-      refreshLoaded();
-    }, REFRESH_INTERVAL_MS);
-  }, [root, loadPath, refreshTrigger]);
+    generation.current += 1;
+    appliedSeq.current = {};
+    setTree({ root, childrenByPath: {} });
+    if (root !== null) loadInitial();
+  }, [root]);
 
-  return { childrenByPath: tree.childrenByPath, loadPath };
+  const refreshLoaded = useEffectEvent(() => {
+    const token = crypto.randomUUID();
+    for (const path of Object.keys(tree.childrenByPath)) fetchPath(path, token);
+  });
+
+  useEffect(() => {
+    if (lastEpoch.current === refreshEpoch) return;
+    lastEpoch.current = refreshEpoch;
+    if (root !== null) refreshLoaded();
+  }, [root, refreshEpoch]);
+
+  return { childrenByPath: tree.root === root ? tree.childrenByPath : {}, loadPath };
 }
