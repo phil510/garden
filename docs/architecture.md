@@ -261,11 +261,9 @@ violation fails `pnpm lint` with a message naming the rule. They are not honour-
 guidance — the value of "the core is pure" disappears the first time someone imports
 `child_process` into it for one convenience.
 
-The `app/` filesystem carve-out is the exception: lint does not police `node:fs` there, so
-review upholds the one-shot-reads line.
-
-One row is enforced only in part: the lint rules block node builtins and the sibling layers
-out of `domain/`, but an arbitrary npm import into `domain/` still passes, because catching
+Some rows are enforced only in part. In `app/`, lint does not police `node:fs`, so review
+upholds the one-shot-reads line. In `domain/`, the lint rules block node builtins and the sibling layers,
+but an arbitrary npm import into `domain/` still passes, because catching
 that needs an allowlist of every permitted specifier. Treat "no libraries in `domain/`" as a
 rule review has to hold up, and revisit the allowlist if it starts being broken.
 
