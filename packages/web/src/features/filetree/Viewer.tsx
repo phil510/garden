@@ -4,6 +4,7 @@ import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { getFile } from '../../api/client';
+import { isUnresolvablePath } from '../../api/unresolvablePath';
 import { commandFailureMessage } from '../../api/reportCommandFailure';
 import { useLocalStore, type OpenFileRequest } from '../../state/localStore';
 import { tokenizeFile } from './highlighter';
@@ -182,7 +183,9 @@ export function Viewer({
         if (!cancelled) show({ kind: 'file', file: response }, line);
       })
       .catch((error: unknown) => {
-        if (!cancelled) show({ kind: 'error', message: commandFailureMessage(error) }, null);
+        // A `path:line` the server can't resolve is a false-positive match in terminal output.
+        if (cancelled || isUnresolvablePath(error)) return;
+        show({ kind: 'error', message: commandFailureMessage(error) }, null);
       });
     return () => {
       cancelled = true;

@@ -18,7 +18,11 @@ import type {
 
 /** The server answered with a non-2xx status, or the response body was not JSON. */
 export class ApiError extends Error {
-  constructor(message: string, options?: ErrorOptions) {
+  constructor(
+    message: string,
+    readonly status?: number,
+    options?: ErrorOptions,
+  ) {
     super(message, options);
     this.name = 'ApiError';
   }
@@ -28,7 +32,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, init);
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as ErrorResponse | null;
-    throw new ApiError(body?.error ?? `garden server returned ${String(response.status)}`);
+    throw new ApiError(
+      body?.error ?? `garden server returned ${String(response.status)}`,
+      response.status,
+    );
   }
   return (await response.json()) as T;
 }
