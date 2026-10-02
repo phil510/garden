@@ -1,8 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { getFileTree } from '../../api/client';
+import type { RepoEntry } from '@garden/shared';
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
+import { getFileTree, listRepos } from '../../api/client';
+import { chooseStartupRoot, type FilePanelTab } from '../../state/filePanelPersistence';
 import { useLocalStore } from '../../state/localStore';
 import { useSessionStore } from '../../state/sessionStore';
 import { useUiStore } from '../../state/uiStore';
+import { getCachedRepoList, setCachedRepoList } from '../sidebar/repoListCache';
+import { mostSpecificEntry } from './projectPaths';
 import { TreeRow } from './TreeRow';
 import { visibleTreeRows } from './treeRows';
 import { useFileTree } from './useFileTree';
@@ -11,107 +15,181 @@ import './filetree.css';
 
 const EMPTY_EXPANDED: readonly string[] = [];
 
-/** Toggleable right panel bound to the focused pane's session, rooted at that session's
- *  cwd. Directories are fetched lazily as they are expanded and refreshed on the focused
- *  session's own activity; both live in `useFileTree`. */
+function repoLabel(repo: RepoEntry): string {
+  const hint = repo.isWorktree ? `worktree${repo.branch ? `: ${repo.branch}` : ''}` : repo.branch;
+  return hint ? `${repo.name} (${hint})` : repo.name;
+}
+
+/** Toggleable right panel that browses one `/repos` project at a time. The shown root changes
+ *  only through the project dropdown, the jump button or a terminal `path:line` click; session
+ *  focus feeds the jump button's target and nothing else. */
 export function FilePanel() {
   const slots = useUiStore((state) => state.uiState.slots);
   const focusedSlot = useUiStore((state) => state.uiState.focusedSlot);
-  const sessionId = slots[focusedSlot] ?? null;
-  const session = useSessionStore((state) =>
-    sessionId === null ? undefined : state.sessions[sessionId],
+  const hydrated = useUiStore((state) => state.hydrated);
+  const focusedId = slots[focusedSlot] ?? null;
+  const focusedCwd = useSessionStore((state) =>
+    focusedId === null ? null : (state.sessions[focusedId]?.cwd ?? null),
   );
 
-  const expandedPaths = useLocalStore((state) =>
-    session === undefined
-      ? EMPTY_EXPANDED
-      : (state.filePanel.byRoot[session.cwd]?.expanded ?? EMPTY_EXPANDED),
-  );
-  const toggleExpandedPath = useLocalStore((state) => state.toggleExpandedPath);
-  const requestOpenFile = useLocalStore((state) => state.requestOpenFile);
-  const openFileRequest = useLocalStore((state) => state.openFileRequest);
-
-  const [showGitignored, setShowGitignored] = useState(false);
-  const [activeTab, setActiveTab] = useState<'files' | 'editor'>('files');
-  const [openedName, setOpenedName] = useState<string | null>(null);
-
-  // `/fs/tree` only resolves by session today, so the session binding lives here. `useFileTree`
-  // resets on this function's identity, so it must change exactly when the session does: keying
-  // it on anything else (cwd included) would drop the loaded tree while `expandedPaths` survives.
-  const loadDir = useCallback(
-    (path: string, refresh?: string) =>
-      sessionId === null
-        ? Promise.reject(new Error('no session'))
-        : getFileTree({ sessionId }, path, refresh),
-    [sessionId],
-  );
+  const filePanel = useLocalStore((state) => state.filePanel);
   const fsRefreshEpoch = useLocalStore((state) => state.fsRefreshEpoch);
-  const { childrenByPath, loadPath } = useFileTree(
-    sessionId,
-    expandedPaths,
-    fsRefreshEpoch,
-    loadDir,
-  );
+  const connectionEpoch = useLocalStore((state) => state.connectionEpoch);
+  const setPanelRoot = useLocalStore((state) => state.setPanelRoot);
+  const toggleExpandedPath = useLocalStore((state) => state.toggleExpandedPath);
+  const setOpenFile = useLocalStore((state) => state.setOpenFile);
+  const setPanelTab = useLocalStore((state) => state.setPanelTab);
+  const setShowGitignored = useLocalStore((state) => state.setShowGitignored);
+  const requestOpenFile = useLocalStore((state) => state.requestOpenFile);
+  const bumpFsRefresh = useLocalStore((state) => state.bumpFsRefresh);
+
+  const { root, showGitignored } = filePanel;
+  const rootState = root === null ? undefined : filePanel.byRoot[root];
+  const expanded = rootState?.expanded ?? EMPTY_EXPANDED;
+  const openFilePath = rootState?.openFile ?? null;
+
+  const [repos, setRepos] = useState<RepoEntry[] | null>(getCachedRepoList);
+  useEffect(() => {
+    let cancelled = false;
+    listRepos()
+      .then((response) => {
+        if (cancelled) return;
+        setCachedRepoList(response.repos);
+        setRepos(response.repos);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [connectionEpoch]);
+
+  // Picks the first root once both the repo list and the focused session are known. Marked done
+  // only when a root was applied or the stored one confirmed listed, so an empty first `/repos`
+  // answer doesn't leave the panel rootless for good. Later focus changes never re-run it.
+  const startupDone = useRef(false);
+  const chooseRoot = useEffectEvent((listed: RepoEntry[]) => {
+    const chosen = chooseStartupRoot(root, listed, focusedCwd);
+    if (chosen === null) return;
+    if (chosen !== root) setPanelRoot(chosen);
+    startupDone.current = true;
+  });
+  useEffect(() => {
+    if (startupDone.current || !hydrated || repos === null) return;
+    chooseRoot(repos);
+  }, [hydrated, repos]);
+
+  const jumpTarget =
+    focusedCwd === null || repos === null ? null : mostSpecificEntry(repos, focusedCwd);
 
   useEffect(() => {
-    setActiveTab('files');
-    setOpenedName(null);
-  }, [sessionId]);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') bumpFsRefresh();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [bumpFsRefresh]);
 
-  const expandedSet = useMemo(() => new Set(expandedPaths), [expandedPaths]);
+  // Without a root there is nowhere to persist the tab, so a session-fallback file's tab switch
+  // lives here.
+  const [localTab, setLocalTab] = useState<FilePanelTab>('files');
+  const activeTab = rootState?.tab ?? (root === null ? localTab : 'files');
+  const setTab = useCallback(
+    (tab: FilePanelTab) => {
+      if (root === null) setLocalTab(tab);
+      else setPanelTab(root, tab);
+    },
+    [root, setPanelTab],
+  );
+
+  const [shownPath, setShownPath] = useState<string | null>(null);
+
+  const loadDir = useCallback(
+    (path: string, refresh?: string) =>
+      root === null ? Promise.reject(new Error('no root')) : getFileTree({ root }, path, refresh),
+    [root],
+  );
+  const { childrenByPath, loadPath } = useFileTree(root, expanded, fsRefreshEpoch, loadDir);
+
+  const expandedSet = useMemo(() => new Set(expanded), [expanded]);
   const rows =
-    sessionId === null
+    root === null
       ? []
       : visibleTreeRows(childrenByPath[''], childrenByPath, expandedSet, showGitignored);
 
   function toggleDir(path: string) {
-    if (session === undefined) return;
+    if (root === null) return;
     const willExpand = !expandedSet.has(path);
-    toggleExpandedPath(session.cwd, path);
+    toggleExpandedPath(root, path);
     if (willExpand && childrenByPath[path] === undefined) loadPath(path);
   }
 
   function openFile(path: string) {
-    if (sessionId !== null) requestOpenFile({ kind: 'session', sessionId }, path, null);
+    if (root === null) return;
+    setOpenFile(root, path);
+    setPanelTab(root, 'editor');
+    // Also tells the viewer to drop a session-sourced file when this path is already open.
+    requestOpenFile({ kind: 'root', root }, path, null);
   }
 
-  // Memoized so Viewer's effect that calls this on a fresh fetch can depend on it without an
-  // inline arrow here forcing that effect to re-run — and refetch — on every render.
-  const onFileOpened = useCallback((path: string) => {
-    setOpenedName(path);
-    setActiveTab('editor');
-  }, []);
-
-  if (sessionId === null || session === undefined) {
-    return (
-      <>
-        <div className="fp-header">
-          <div className="fp-session muted">No session focused</div>
-        </div>
-        <div className="fp-none">Focus a pane on stage to browse its files.</div>
-      </>
-    );
-  }
+  const onSessionFileOpened = useCallback(() => setTab('editor'), [setTab]);
 
   return (
     <>
       <div className="fp-header">
-        <div className="fp-session">{session.title ?? session.cwd}</div>
-        <div className="fp-cwd">{session.cwd}</div>
+        <select
+          className="fp-project"
+          aria-label="Project"
+          value={root ?? ''}
+          title={root ?? undefined}
+          onChange={(event) => setPanelRoot(event.target.value)}
+        >
+          {root === null && (
+            <option value="" disabled>
+              Select a project
+            </option>
+          )}
+          {repos?.map((repo) => (
+            <option key={repo.path} value={repo.path}>
+              {repoLabel(repo)}
+            </option>
+          ))}
+        </select>
+        <button
+          className="ghost icon-btn"
+          title="Jump to the focused session's project"
+          aria-label="Jump to the focused session's project"
+          disabled={jumpTarget === null}
+          onClick={() => {
+            if (jumpTarget !== null) setPanelRoot(jumpTarget.path);
+          }}
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <circle cx="12" cy="12" r="8" />
+            <circle cx="12" cy="12" r="2" />
+            <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
+          </svg>
+        </button>
       </div>
       <div className="fp-tabs">
         <button
           className={`fp-tab${activeTab === 'files' ? ' active' : ''}`}
-          onClick={() => setActiveTab('files')}
+          onClick={() => setTab('files')}
         >
           Files
         </button>
         <button
           className={`fp-tab${activeTab === 'editor' ? ' active' : ''}`}
-          title={openedName ?? undefined}
-          onClick={() => setActiveTab('editor')}
+          title={shownPath ?? undefined}
+          onClick={() => setTab('editor')}
         >
-          {openedName ?? 'Editor'}
+          {shownPath ?? 'Editor'}
         </button>
       </div>
       <div className="fp-tab-content" hidden={activeTab !== 'files'}>
@@ -119,30 +197,35 @@ export function FilePanel() {
           <span className="upper faint">Files</span>
           <button
             className={`toggle-pill${showGitignored ? ' on' : ''}`}
-            onClick={() => setShowGitignored((value) => !value)}
+            onClick={() => setShowGitignored(!showGitignored)}
           >
             <span className="dot" />
             <span>Show gitignored</span>
           </button>
         </div>
         <div className="fp-tree">
-          {rows.map((row) => (
-            <TreeRow
-              key={row.entry.path}
-              row={row}
-              selected={
-                openFileRequest?.source.kind === 'session' &&
-                openFileRequest.source.sessionId === sessionId &&
-                openFileRequest.path === row.entry.path
-              }
-              onToggleDir={toggleDir}
-              onOpenFile={openFile}
-            />
-          ))}
+          {root === null ? (
+            <div className="fp-none">No project selected.</div>
+          ) : (
+            rows.map((row) => (
+              <TreeRow
+                key={row.entry.path}
+                row={row}
+                selected={row.entry.path === openFilePath}
+                onToggleDir={toggleDir}
+                onOpenFile={openFile}
+              />
+            ))
+          )}
         </div>
       </div>
       <div className="fp-tab-content" hidden={activeTab !== 'editor'}>
-        <Viewer sessionId={sessionId} onFileOpened={onFileOpened} />
+        <Viewer
+          root={root}
+          openFile={openFilePath}
+          onSessionFileOpened={onSessionFileOpened}
+          onShownPathChange={setShownPath}
+        />
       </div>
     </>
   );

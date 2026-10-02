@@ -1,20 +1,31 @@
 import type { FileResponse } from '@garden/shared';
 import type { ThemedToken } from 'shiki';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { getFile } from '../../api/client';
-import { useLocalStore } from '../../state/localStore';
+import { useLocalStore, type OpenFileRequest } from '../../state/localStore';
 import { tokenizeFile } from './highlighter';
 import { isMarkdownFile } from './markdown';
 import { MarkdownCodeBlock } from './MarkdownCodeBlock';
 import { tokenStyle } from './tokenStyle';
 import { resetModeForOpenedFile, type ViewMode } from './viewMode';
+import {
+  activeSource,
+  sameFileContent,
+  sourceKey,
+  sourceScope,
+  type TransientFile,
+} from './viewerSource';
 
 interface ViewerProps {
-  sessionId: string;
-  /** Called once a requested file has actually loaded, so the tab above can pick up its name. */
-  onFileOpened: (path: string) => void;
+  /** The panel's shown project root, and that root's persisted open file (root-relative). */
+  root: string | null;
+  openFile: string | null;
+  /** Called once a session-sourced request has loaded, so the panel can bring this tab forward. */
+  onSessionFileOpened: () => void;
+  /** The path of the file currently displayed, or null; the tab above takes its name from it. */
+  onShownPathChange: (path: string | null) => void;
 }
 
 /** Every link renders as inert text — the viewer has no route to resolve a relative link's
@@ -56,22 +67,24 @@ const markdownComponents: Components = {
   img: MarkdownImage,
 };
 
-/** Per-file dismissal of the size-cap gate, so switching sessions or files re-shows it —
- *  a decision made about one large file says nothing about the next one. */
-function openAnywayKey(sessionId: string, path: string): string {
-  return `${sessionId} ${path}`;
-}
-
 /**
- * Read-only, one file at a time, no tabs of its own. Reacts to `openFileRequest` — set by
- * either a tree row click or a `path:line` link clicked in a pane's terminal — by fetching
- * that file scoped to this session's cwd; a request for a different session is not this
- * viewer's to show, and a path the server can't resolve is a no-op: the viewer is left exactly
- * as it was.
+ * Read-only, one file at a time, no tabs of its own. Shows the panel root's persisted open file,
+ * unless a `path:line` click from a pane with no containing project put a session-sourced file
+ * on top of it (transient: dropped when the root or open file changes, never persisted). Both
+ * refetch on every refresh epoch. A file the server can't resolve is a no-op: the viewer is left
+ * exactly as it was.
  */
-export function Viewer({ sessionId, onFileOpened }: ViewerProps) {
+export function Viewer({ root, openFile, onSessionFileOpened, onShownPathChange }: ViewerProps) {
   const openFileRequest = useLocalStore((state) => state.openFileRequest);
-  const [file, setFile] = useState<FileResponse | null>(null);
+  const fsRefreshEpoch = useLocalStore((state) => state.fsRefreshEpoch);
+  const [transient, setTransient] = useState<TransientFile | null>(null);
+  const [loaded, setLoaded] = useState<{ key: string; file: FileResponse } | null>(null);
+  const source = activeSource(root, openFile, transient);
+  const key = source === null ? null : sourceKey(source);
+  // A file fetched for another source is never shown, so a root switch can't flash the old file.
+  const file = loaded !== null && loaded.key === key ? loaded.file : null;
+  // Set when a request has just loaded the file for `key`, so the fetch effect doesn't repeat it.
+  const justLoadedKey = useRef<string | null>(null);
   const [tokens, setTokens] = useState<ThemedToken[][] | null>(null);
   const [pendingLine, setPendingLine] = useState<number | null>(null);
   const [openAnyway, setOpenAnyway] = useState<ReadonlySet<string>>(new Set());
@@ -93,35 +106,76 @@ export function Viewer({ sessionId, onFileOpened }: ViewerProps) {
   }
   const bodyRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    setFile(null);
-    setTokens(null);
-    setPendingLine(null);
-  }, [sessionId]);
+  // Keeps the current file when a refetch brought nothing new, so a refresh doesn't reset the
+  // view mode or re-tokenize.
+  const keepIfSame = (nextKey: string, response: FileResponse) =>
+    setLoaded((current) =>
+      current !== null && current.key === nextKey && sameFileContent(current.file, response)
+        ? current
+        : { key: nextKey, file: response },
+    );
 
-  useEffect(() => {
-    if (openFileRequest === null || openFileRequest.source.kind !== 'session') return;
-    if (openFileRequest.source.sessionId !== sessionId) return;
-    const { path, line } = openFileRequest;
+  const fetchShown = useEffectEvent(() => {
+    if (source === null || key === null) return () => undefined;
+    if (justLoadedKey.current === key) {
+      justLoadedKey.current = null;
+      return () => undefined;
+    }
     let cancelled = false;
-    getFile({ sessionId }, path)
+    getFile(sourceScope(source), source.path)
       .then((response) => {
-        if (cancelled) return;
-        setFile(response);
-        setPendingLine(line);
-        onFileOpened(response.path);
+        if (!cancelled) keepIfSame(key, response);
       })
       .catch(() => undefined);
     return () => {
       cancelled = true;
     };
-  }, [openFileRequest, sessionId, onFileOpened]);
+  });
+
+  useEffect(() => fetchShown(), [key, fsRefreshEpoch]);
+
+  const handleRequest = useEffectEvent((request: OpenFileRequest) => {
+    const { source: requested, path, line } = request;
+    if (requested.kind === 'root') {
+      // The root's open file drives the fetch; this only carries the line to it, and drops a
+      // session-sourced file that would otherwise stay on top of it.
+      if (requested.root !== root) return () => undefined;
+      setTransient(null);
+      if (line === null) return () => undefined;
+      setPendingLine(line);
+      if (showMarkdown) setMode('source');
+      return () => undefined;
+    }
+    let cancelled = false;
+    getFile({ sessionId: requested.sessionId }, path)
+      .then((response) => {
+        if (cancelled) return;
+        const next: TransientFile = { sessionId: requested.sessionId, path, root, openFile };
+        const nextKey = sourceKey({ kind: 'session', sessionId: next.sessionId, path });
+        if (nextKey !== key) justLoadedKey.current = nextKey;
+        setTransient(next);
+        keepIfSame(nextKey, response);
+        setPendingLine(line);
+        onSessionFileOpened();
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  });
+
+  useEffect(
+    () => (openFileRequest === null ? undefined : handleRequest(openFileRequest)),
+    [openFileRequest],
+  );
+
+  const shownPath = file?.path ?? null;
+  useEffect(() => {
+    onShownPathChange(shownPath);
+  }, [shownPath, onShownPathChange]);
 
   const gated =
-    file !== null &&
-    file.kind === 'text' &&
-    file.truncated &&
-    !openAnyway.has(openAnywayKey(sessionId, file.path));
+    file !== null && file.kind === 'text' && file.truncated && key !== null && !openAnyway.has(key);
   const [imageFailed, setImageFailed] = useState(false);
 
   useEffect(() => {
@@ -214,11 +268,9 @@ export function Viewer({ sessionId, onFileOpened }: ViewerProps) {
             <span>This file is large — showing it may be slow.</span>
             <button
               className="primary"
-              onClick={() =>
-                setOpenAnyway((current) =>
-                  new Set(current).add(openAnywayKey(sessionId, file.path)),
-                )
-              }
+              onClick={() => {
+                if (key !== null) setOpenAnyway((current) => new Set(current).add(key));
+              }}
             >
               Open anyway
             </button>
