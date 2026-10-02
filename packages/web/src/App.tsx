@@ -27,7 +27,8 @@ export function App() {
     const sessionStore = useSessionStore.getState();
     const uiStore = useUiStore.getState();
     const localStore = useLocalStore.getState();
-    return connectEventSocket({
+    let connectedBefore = false;
+    const controller = connectEventSocket({
       onSnapshot: (message) => {
         sessionStore.setSnapshot(message.sessions);
         uiStore.setUiState(message.uiState);
@@ -38,9 +39,26 @@ export function App() {
       onUiState: (message) => {
         uiStore.setUiState(message.uiState);
       },
-      onConnect: localStore.noteConnected,
+      onFsChanged: (root) => {
+        if (root === useLocalStore.getState().filePanel.root) localStore.bumpFsRefresh();
+      },
+      onConnect: () => {
+        localStore.noteConnected();
+        // `fs-changed` messages sent while disconnected are lost, so a reconnect refetches.
+        if (connectedBefore) localStore.bumpFsRefresh();
+        connectedBefore = true;
+      },
       onShutdown: () => setStopped(true),
     });
+    // `subscribe` doesn't fire with the current value, so the initial root is watched by hand.
+    controller.watch(useLocalStore.getState().filePanel.root);
+    const unsubscribe = useLocalStore.subscribe((state, previous) => {
+      if (state.filePanel.root !== previous.filePanel.root) controller.watch(state.filePanel.root);
+    });
+    return () => {
+      unsubscribe();
+      controller.stop();
+    };
   }, []);
 
   if (stopped) return <ShutdownOverlay />;

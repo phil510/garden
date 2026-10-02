@@ -13,3 +13,16 @@ export function resetModeForOpenedFile(
 ): ViewMode {
   return showMarkdown && pendingLine !== null ? 'source' : 'rendered';
 }
+
+/**
+ * Whether a new `file` object should reset the view mode. A refetch of the same source brings a
+ * new object when its content changed, and must not undo the user's choice; a different source,
+ * or a pending line request that picks its own mode, does reset it.
+ */
+export function shouldResetMode(
+  previousKey: string | null,
+  nextKey: string | null,
+  pendingLine: number | null,
+): boolean {
+  return previousKey !== nextKey || pendingLine !== null;
+}

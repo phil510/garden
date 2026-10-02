@@ -77,13 +77,23 @@ button {
 button:hover {
   border-color: var(--border-strong);
 }
+button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+button:disabled:hover {
+  border-color: var(--border);
+}
 button.ghost {
   background: transparent;
   border-color: transparent;
 }
-button.ghost:hover {
+button.ghost:hover:not(:disabled) {
   background: var(--raised);
   border-color: var(--border);
+}
+button.ghost:disabled:hover {
+  border-color: transparent;
 }
 button.danger:hover {
   border-color: var(--danger);
