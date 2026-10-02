@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { defaultFilePanel } from './filePanelPersistence';
 import { useLocalStore } from './localStore';
 
 beforeEach(() => {
   useLocalStore.setState({
     scrollOffsets: {},
-    expandedPaths: {},
+    filePanel: defaultFilePanel(),
+    fsRefreshEpoch: 0,
     openFileRequest: null,
     sidebarWidth: 280,
     filePanelWidth: 320,
@@ -13,9 +15,8 @@ beforeEach(() => {
 });
 
 describe('localStore', () => {
-  it('starts with no scroll offsets or expanded paths', () => {
+  it('starts with no scroll offsets', () => {
     expect(useLocalStore.getState().scrollOffsets).toEqual({});
-    expect(useLocalStore.getState().expandedPaths).toEqual({});
   });
 
   it('records a scroll offset under its key', () => {
@@ -30,52 +31,103 @@ describe('localStore', () => {
     expect(useLocalStore.getState().scrollOffsets).toEqual({ sidebar: 200, filetree: 40 });
   });
 
-  it('expands a collapsed path', () => {
-    useLocalStore.getState().toggleExpandedPath('sid-1', 'src');
-    expect(useLocalStore.getState().expandedPaths).toEqual({ 'sid-1': ['src'] });
+  it('expands a collapsed path under its root', () => {
+    useLocalStore.getState().toggleExpandedPath('/a', 'src');
+    expect(useLocalStore.getState().filePanel.byRoot['/a']?.expanded).toEqual(['src']);
   });
 
   it('collapses an expanded path', () => {
-    useLocalStore.getState().toggleExpandedPath('sid-1', 'src');
-    useLocalStore.getState().toggleExpandedPath('sid-1', 'src');
-    expect(useLocalStore.getState().expandedPaths).toEqual({ 'sid-1': [] });
+    useLocalStore.getState().toggleExpandedPath('/a', 'src');
+    useLocalStore.getState().toggleExpandedPath('/a', 'src');
+    expect(useLocalStore.getState().filePanel.byRoot['/a']?.expanded).toEqual([]);
   });
 
-  it('keeps expanded paths scoped to their own session', () => {
-    useLocalStore.getState().toggleExpandedPath('sid-1', 'src');
-    useLocalStore.getState().toggleExpandedPath('sid-2', 'lib');
-    expect(useLocalStore.getState().expandedPaths).toEqual({
-      'sid-1': ['src'],
-      'sid-2': ['lib'],
+  it('keeps expanded paths scoped to their own root', () => {
+    useLocalStore.getState().toggleExpandedPath('/a', 'src');
+    useLocalStore.getState().toggleExpandedPath('/b', 'lib');
+    const { byRoot } = useLocalStore.getState().filePanel;
+    expect(byRoot['/a']?.expanded).toEqual(['src']);
+    expect(byRoot['/b']?.expanded).toEqual(['lib']);
+  });
+
+  it('keeps both roots entries when the shown root switches', () => {
+    useLocalStore.getState().setPanelRoot('/a');
+    useLocalStore.getState().setOpenFile('/a', 'x.ts');
+    useLocalStore.getState().setPanelRoot('/b');
+    useLocalStore.getState().setPanelTab('/b', 'editor');
+    const { root, byRoot } = useLocalStore.getState().filePanel;
+    expect(root).toBe('/b');
+    expect(byRoot['/a']).toEqual({ expanded: [], openFile: 'x.ts', tab: 'files' });
+    expect(byRoot['/b']).toEqual({ expanded: [], openFile: null, tab: 'editor' });
+  });
+
+  it('records the open file without touching the root expanded folders', () => {
+    useLocalStore.getState().toggleExpandedPath('/a', 'src');
+    useLocalStore.getState().setOpenFile('/a', 'src/x.ts');
+    useLocalStore.getState().setOpenFile('/a', null);
+    expect(useLocalStore.getState().filePanel.byRoot['/a']).toEqual({
+      expanded: ['src'],
+      openFile: null,
+      tab: 'files',
     });
   });
 
+  it('holds showGitignored globally, defaulting to true', () => {
+    expect(useLocalStore.getState().filePanel.showGitignored).toBe(true);
+    useLocalStore.getState().toggleExpandedPath('/a', 'src');
+    useLocalStore.getState().setShowGitignored(false);
+    expect(useLocalStore.getState().filePanel.showGitignored).toBe(false);
+    expect(useLocalStore.getState().filePanel.byRoot['/a']?.expanded).toEqual(['src']);
+  });
+
+  it('counts refresh requests', () => {
+    useLocalStore.getState().bumpFsRefresh();
+    useLocalStore.getState().bumpFsRefresh();
+    expect(useLocalStore.getState().fsRefreshEpoch).toBe(2);
+  });
+
   it('records a requested file open', () => {
-    useLocalStore.getState().requestOpenFile('sid-1', 'src/foo.ts', 42);
+    useLocalStore
+      .getState()
+      .requestOpenFile({ kind: 'session', sessionId: 'sid-1' }, 'src/foo.ts', 42);
     expect(useLocalStore.getState().openFileRequest).toEqual({
-      sessionId: 'sid-1',
+      source: { kind: 'session', sessionId: 'sid-1' },
       path: 'src/foo.ts',
       line: 42,
     });
   });
 
   it('overwrites a pending open request with the latest one', () => {
-    useLocalStore.getState().requestOpenFile('sid-1', 'src/foo.ts', 42);
-    useLocalStore.getState().requestOpenFile('sid-2', 'src/bar.ts', 7);
+    useLocalStore
+      .getState()
+      .requestOpenFile({ kind: 'session', sessionId: 'sid-1' }, 'src/foo.ts', 42);
+    useLocalStore.getState().requestOpenFile({ kind: 'root', root: '/b' }, 'src/bar.ts', 7);
     expect(useLocalStore.getState().openFileRequest).toEqual({
-      sessionId: 'sid-2',
+      source: { kind: 'root', root: '/b' },
       path: 'src/bar.ts',
       line: 7,
     });
   });
 
   it('records a requested file open with no line target', () => {
-    useLocalStore.getState().requestOpenFile('sid-1', 'src/foo.ts', null);
+    useLocalStore
+      .getState()
+      .requestOpenFile({ kind: 'session', sessionId: 'sid-1' }, 'src/foo.ts', null);
     expect(useLocalStore.getState().openFileRequest).toEqual({
-      sessionId: 'sid-1',
+      source: { kind: 'session', sessionId: 'sid-1' },
       path: 'src/foo.ts',
       line: null,
     });
+  });
+
+  it('treats a repeated click on the same path with a new line as a new request', () => {
+    const source = { kind: 'root', root: '/a' } as const;
+    useLocalStore.getState().requestOpenFile(source, 'foo.ts', 10);
+    const first = useLocalStore.getState().openFileRequest;
+    useLocalStore.getState().requestOpenFile(source, 'foo.ts', 80);
+    const second = useLocalStore.getState().openFileRequest;
+    expect(second).not.toBe(first);
+    expect(second?.line).toBe(80);
   });
 
   it('gives every connection its own epoch, so a pane can tell a reconnect from a redraw', () => {

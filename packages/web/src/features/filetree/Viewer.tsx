@@ -100,7 +100,8 @@ export function Viewer({ sessionId, onFileOpened }: ViewerProps) {
   }, [sessionId]);
 
   useEffect(() => {
-    if (openFileRequest === null || openFileRequest.sessionId !== sessionId) return;
+    if (openFileRequest === null || openFileRequest.source.kind !== 'session') return;
+    if (openFileRequest.source.sessionId !== sessionId) return;
     const { path, line } = openFileRequest;
     let cancelled = false;
     getFile(sessionId, path)

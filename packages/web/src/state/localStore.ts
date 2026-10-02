@@ -1,7 +1,16 @@
 import { create } from 'zustand';
+import {
+  FILE_PANEL_STORAGE_KEY,
+  parseFilePanel,
+  type FilePanelTab,
+  type PersistedFilePanel,
+  type PersistedRootState,
+} from './filePanelPersistence';
 
+/** A `path:line` request for the viewer. `root` paths are root-relative to a listed project;
+ *  `session` paths are relative to that session's cwd and are never persisted. */
 export interface OpenFileRequest {
-  sessionId: string;
+  source: { kind: 'root'; root: string } | { kind: 'session'; sessionId: string };
   path: string;
   /** Null means "no jump target" — a plain tree click, as opposed to a real `path:line` link. */
   line: number | null;
@@ -18,6 +27,25 @@ const FILE_PANEL_WIDTH_MAX = 640;
  *  to a sliver — see `resizeSidebarBy`/`resizeFilePanelBy`. */
 const STAGE_MIN_WIDTH = 200;
 
+function readStorage(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+const emptyRootState = (): PersistedRootState => ({ expanded: [], openFile: null, tab: 'files' });
+
+function withRootState(
+  panel: PersistedFilePanel,
+  root: string,
+  patch: (current: PersistedRootState) => Partial<PersistedRootState>,
+): PersistedFilePanel {
+  const current = panel.byRoot[root] ?? emptyRootState();
+  return { ...panel, byRoot: { ...panel.byRoot, [root]: { ...current, ...patch(current) } } };
+}
+
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
 export type SidebarMode = 'repos' | 'swarms';
@@ -32,10 +60,17 @@ interface LocalStore {
    *  UiState). */
   sidebarMode: SidebarMode;
   setSidebarMode: (mode: SidebarMode) => void;
-  /** Expanded directory paths per session, since each session's file tree is rooted at its
-   *  own cwd. */
-  expandedPaths: Record<string, readonly string[]>;
-  toggleExpandedPath: (sessionId: string, path: string) => void;
+  /** The file panel's shown root and per-root browsing state. The only field here that
+   *  survives a reload (see the subscription below). */
+  filePanel: PersistedFilePanel;
+  setPanelRoot: (root: string | null) => void;
+  toggleExpandedPath: (root: string, path: string) => void;
+  setOpenFile: (root: string, path: string | null) => void;
+  setPanelTab: (root: string, tab: FilePanelTab) => void;
+  setShowGitignored: (show: boolean) => void;
+  /** Bumped to ask the tree and viewer to refetch what they have loaded. */
+  fsRefreshEpoch: number;
+  bumpFsRefresh: () => void;
   /** Drag-resized sidebar widths, clamped to a usable range. Reset to their defaults on reload
    *  like every other field here — not round-tripped through server state. */
   sidebarWidth: number;
@@ -49,10 +84,10 @@ interface LocalStore {
   resizeSidebarBy: (deltaPx: number, viewportWidth: number, otherPanelReserved: number) => void;
   filePanelWidth: number;
   resizeFilePanelBy: (deltaPx: number, viewportWidth: number, otherPanelReserved: number) => void;
-  /** A `path:line` clicked in a pane's terminal output, resolved against the session's cwd by
-   *  whichever endpoint later opens it. Null once nothing is pending. */
+  /** A `path:line` clicked in a pane's terminal output. Each call stores a fresh object, so a
+   *  second click on the same path with another line is still a new request. */
   openFileRequest: OpenFileRequest | null;
-  requestOpenFile: (sessionId: string, path: string, line: number | null) => void;
+  requestOpenFile: (source: OpenFileRequest['source'], path: string, line: number | null) => void;
   /** Counts connections of the event socket. A pane keys its attach on this and opens a fresh
    *  socket on reconnect — the failure modes that drop this socket (server restart, sleep/wake)
    *  usually take pane attaches with them, and rebuilding a pane that was still fine costs only
@@ -71,15 +106,26 @@ export const useLocalStore = create<LocalStore>((set) => ({
     set((state) => ({ scrollOffsets: { ...state.scrollOffsets, [key]: offset } })),
   sidebarMode: 'repos',
   setSidebarMode: (mode) => set({ sidebarMode: mode }),
-  expandedPaths: {},
-  toggleExpandedPath: (sessionId, path) =>
-    set((state) => {
-      const current = state.expandedPaths[sessionId] ?? [];
-      const next = current.includes(path)
-        ? current.filter((entry) => entry !== path)
-        : [...current, path];
-      return { expandedPaths: { ...state.expandedPaths, [sessionId]: next } };
-    }),
+  filePanel: parseFilePanel(readStorage(FILE_PANEL_STORAGE_KEY)),
+  setPanelRoot: (root) => set((state) => ({ filePanel: { ...state.filePanel, root } })),
+  toggleExpandedPath: (root, path) =>
+    set((state) => ({
+      filePanel: withRootState(state.filePanel, root, ({ expanded }) => ({
+        expanded: expanded.includes(path)
+          ? expanded.filter((entry) => entry !== path)
+          : [...expanded, path],
+      })),
+    })),
+  setOpenFile: (root, path) =>
+    set((state) => ({
+      filePanel: withRootState(state.filePanel, root, () => ({ openFile: path })),
+    })),
+  setPanelTab: (root, tab) =>
+    set((state) => ({ filePanel: withRootState(state.filePanel, root, () => ({ tab })) })),
+  setShowGitignored: (show) =>
+    set((state) => ({ filePanel: { ...state.filePanel, showGitignored: show } })),
+  fsRefreshEpoch: 0,
+  bumpFsRefresh: () => set((state) => ({ fsRefreshEpoch: state.fsRefreshEpoch + 1 })),
   sidebarWidth: 280,
   resizeSidebarBy: (deltaPx, viewportWidth, otherPanelReserved) =>
     set((state) => {
@@ -100,9 +146,18 @@ export const useLocalStore = create<LocalStore>((set) => ({
       };
     }),
   openFileRequest: null,
-  requestOpenFile: (sessionId, path, line) => set({ openFileRequest: { sessionId, path, line } }),
+  requestOpenFile: (source, path, line) => set({ openFileRequest: { source, path, line } }),
   connectionEpoch: 0,
   noteConnected: () => set((state) => ({ connectionEpoch: state.connectionEpoch + 1 })),
   selectedSwarmId: null,
   setSelectedSwarmId: (id) => set({ selectedSwarmId: id }),
 }));
+
+useLocalStore.subscribe((state, previous) => {
+  if (state.filePanel === previous.filePanel) return;
+  try {
+    localStorage.setItem(FILE_PANEL_STORAGE_KEY, JSON.stringify(state.filePanel));
+  } catch {
+    // Storage is unavailable or full; the panel state just stops surviving reloads.
+  }
+});

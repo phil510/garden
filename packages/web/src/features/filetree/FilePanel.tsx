@@ -26,7 +26,9 @@ export function FilePanel() {
   const lastActivity = session?.lastActivity ?? null;
 
   const expandedPaths = useLocalStore((state) =>
-    sessionId === null ? EMPTY_EXPANDED : (state.expandedPaths[sessionId] ?? EMPTY_EXPANDED),
+    session === undefined
+      ? EMPTY_EXPANDED
+      : (state.filePanel.byRoot[session.cwd]?.expanded ?? EMPTY_EXPANDED),
   );
   const toggleExpandedPath = useLocalStore((state) => state.toggleExpandedPath);
   const requestOpenFile = useLocalStore((state) => state.requestOpenFile);
@@ -58,14 +60,14 @@ export function FilePanel() {
       : visibleTreeRows(childrenByPath[''], childrenByPath, expandedSet, showGitignored);
 
   function toggleDir(path: string) {
-    if (sessionId === null) return;
+    if (session === undefined) return;
     const willExpand = !expandedSet.has(path);
-    toggleExpandedPath(sessionId, path);
+    toggleExpandedPath(session.cwd, path);
     if (willExpand && childrenByPath[path] === undefined) loadPath(path);
   }
 
   function openFile(path: string) {
-    if (sessionId !== null) requestOpenFile(sessionId, path, null);
+    if (sessionId !== null) requestOpenFile({ kind: 'session', sessionId }, path, null);
   }
 
   // Memoized so Viewer's effect that calls this on a fresh fetch can depend on it without an
@@ -124,7 +126,9 @@ export function FilePanel() {
               key={row.entry.path}
               row={row}
               selected={
-                openFileRequest?.sessionId === sessionId && openFileRequest.path === row.entry.path
+                openFileRequest?.source.kind === 'session' &&
+                openFileRequest.source.sessionId === sessionId &&
+                openFileRequest.path === row.entry.path
               }
               onToggleDir={toggleDir}
               onOpenFile={openFile}

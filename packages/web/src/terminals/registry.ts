@@ -121,7 +121,9 @@ function createPane(sessionId: string, container: HTMLElement, epoch: number): P
           end: { x: link.index + link.length + 1, y: bufferLineNumber },
         },
         activate: () => {
-          useLocalStore.getState().requestOpenFile(sessionId, link.path, link.line);
+          useLocalStore
+            .getState()
+            .requestOpenFile({ kind: 'session', sessionId }, link.path, link.line);
         },
       }));
       callback(links.length > 0 ? links : undefined);
