@@ -20,10 +20,11 @@ import { swarmRoutes } from './routes/swarms.js';
 import { uiStateRoutes } from './routes/ui-state.js';
 import { registerStaticRoutes, resolveClientDir } from './static.js';
 import { registerAttachSocket } from './ws/attach.js';
-import { registerEventsSocket } from './ws/events.js';
+import { registerEventsSocket, type EventsDeps } from './ws/events.js';
 
 export type ServerDeps = SessionsDeps & { readonly repos: RepoCatalog } & FilesystemDeps &
   AttachSocketDeps &
+  EventsDeps &
   SettingsDeps &
   SwarmsDeps;
 

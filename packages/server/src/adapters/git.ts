@@ -83,10 +83,18 @@ export async function branch(cwd: string): Promise<string> {
  * NUL-separated records — new path first, original second — so the original is
  * dropped by consuming it alongside its own entry. `--ignored=matching` adds a `!!`
  * entry for every ignored path, reported as a whole directory rather than each file
- * inside it once an entire directory is ignored.
+ * inside it once an entire directory is ignored. `--no-optional-locks` keeps `status` from
+ * opportunistically rewriting `.git/index`, which the filesystem watch would report back as a
+ * change to refresh.
  */
 export async function status(cwd: string): Promise<GitStatusEntry[]> {
-  const stdout = await run(cwd, ['status', '--porcelain', '-z', '--ignored=matching']);
+  const stdout = await run(cwd, [
+    '--no-optional-locks',
+    'status',
+    '--porcelain',
+    '-z',
+    '--ignored=matching',
+  ]);
   const records = stdout.split('\0').filter((record) => record !== '');
   const entries: GitStatusEntry[] = [];
   for (let i = 0; i < records.length; i += 1) {

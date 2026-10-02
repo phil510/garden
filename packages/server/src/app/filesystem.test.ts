@@ -236,6 +236,116 @@ describe('readTree', () => {
   });
 });
 
+/** Each `status` call reports a different mark for `a.ts` (` M`, then `A `, ...), so a test can
+ *  tell which run a listing was decorated from, not only how many ran. `gate` holds a run open
+ *  until released. */
+function countingGit(gates: Array<Promise<void>> = []) {
+  const marks = [' M', 'A ', 'D '];
+  const calls = { status: 0, workTreePrefix: 0 };
+  const git: FilesystemGit = {
+    workTreePrefix: () => {
+      calls.workTreePrefix += 1;
+      return Promise.resolve('');
+    },
+    status: async () => {
+      const run = calls.status;
+      calls.status += 1;
+      await gates[run];
+      return [
+        { path: 'a.ts', status: marks[run]! },
+        { path: 'x/a.ts', status: marks[run]! },
+      ];
+    },
+  };
+  return { git, calls };
+}
+
+describe('readTree git status per refresh', () => {
+  let dir: string | undefined;
+
+  afterEach(() => {
+    if (dir !== undefined) rmSync(dir, { recursive: true, force: true });
+    dir = undefined;
+  });
+
+  function setup(git: FilesystemGit) {
+    dir = mkdtempSync(join(tmpdir(), 'garden-fs-'));
+    mkdirSync(join(dir, 'x'));
+    mkdirSync(join(dir, 'y'));
+    writeFileSync(join(dir, 'a.ts'), 'a');
+    writeFileSync(join(dir, 'x', 'a.ts'), 'a');
+    const session = aSession({ cwd: dir });
+    const deps = { projection: fakeProjection([session]), repos: noRepos, git };
+    const tree = async (path: string, refresh?: string) =>
+      (
+        await readTree(deps, {
+          sessionId: session.id,
+          path,
+          ...(refresh === undefined ? {} : { refresh }),
+        })
+      ).entries.find((entry) => entry.name === 'a.ts')?.gitStatus;
+    return { tree };
+  }
+
+  it('runs git status once for several folders loaded under one refresh', async () => {
+    const { git, calls } = countingGit();
+    const { tree } = setup(git);
+
+    const served = [await tree('', 'r1'), await tree('x', 'r1'), await tree('y', 'r1')];
+
+    expect(calls).toEqual({ status: 1, workTreePrefix: 1 });
+    expect(served).toEqual([' M', ' M', undefined]);
+  });
+
+  it('runs git status again for a new refresh and serves its result', async () => {
+    const { git, calls } = countingGit();
+    const { tree } = setup(git);
+
+    await tree('', 'r1');
+    const second = await tree('', 'r2');
+
+    expect(calls.status).toBe(2);
+    expect(second).toBe('A ');
+  });
+
+  it('serves a new refresh its own run while the previous refresh is still running', async () => {
+    let release!: () => void;
+    const first = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const { git, calls } = countingGit([first]);
+    const { tree } = setup(git);
+
+    const stale = tree('', 'r1');
+    await vi.waitFor(() => expect(calls.status).toBe(1));
+    const fresh = await tree('', 'r2');
+    release();
+
+    expect(calls.status).toBe(2);
+    expect(fresh).toBe('A ');
+    expect(await stale).toBe(' M');
+  });
+
+  it('gives a request without a refresh token its own run, joining nothing', async () => {
+    let release!: () => void;
+    const first = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const { git, calls } = countingGit([first]);
+    const { tree } = setup(git);
+
+    const tokened = tree('', 'r1');
+    await vi.waitFor(() => expect(calls.status).toBe(1));
+    const untokened = await tree('');
+    release();
+    await tokened;
+    await tree('');
+
+    expect(calls.status).toBe(3);
+    expect(untokened).toBe('A ');
+  });
+});
+
 describe('readFile', () => {
   let dir: string | undefined;
 

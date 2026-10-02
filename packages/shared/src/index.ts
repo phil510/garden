@@ -229,6 +229,10 @@ export interface TreeEntry {
   kind: 'file' | 'dir';
   gitStatus: string | null;
 }
+/** `GET /fs/tree` takes an optional `refresh` token. Requests for the same project that carry
+ *  the same token share one `git status`, so send a fresh, globally unique token (a UUID) per
+ *  refresh, backstop refetches included: a reused token is served its earlier status, which
+ *  can predate the change being refetched. Without a token every request runs its own status. */
 export interface TreeResponse {
   path: string;
   entries: TreeEntry[];
@@ -243,11 +247,21 @@ export type FileResponse =
   | { path: string; kind: 'binary' };
 export type UiStateRequest = Partial<UiState>;
 
-/** `WS /events`: a snapshot on connect, then deltas. */
+/** `WS /events`: a snapshot on connect, then deltas. `fs-changed` is the exception to
+ *  projection-only: it goes only to the connection that sent `watch`, and `root` echoes the
+ *  spelling that connection sent. */
 export type ServerMessage =
   | { type: 'snapshot'; sessions: SessionState[]; uiState: UiState }
   | { type: 'deltas'; deltas: Delta[] }
-  | { type: 'ui-state'; uiState: UiState };
+  | { type: 'ui-state'; uiState: UiState }
+  | { type: 'fs-changed'; root: string };
+
+/** `WS /events`, client to server: replaces this connection's filesystem watch. `root` is a
+ *  `RepoEntry.path`. */
+export interface EventsClientMessage {
+  type: 'watch';
+  root: string;
+}
 
 /** `WS /attach/:id`: bytes are binary frames, resize is JSON. */
 export interface PaneResizeMessage {

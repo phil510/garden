@@ -14,7 +14,9 @@ garden has four sources of truth about the outside world:
 - **clients** — the browser and the CLI issue commands.
 
 All four fold into one thing: a map of session id to session state. That map streams to
-browsers as a snapshot on connect, then as deltas.
+browsers as a snapshot on connect, then as deltas. The one exception is a client's inbound `watch`
+message and the `fs-changed` it earns: a per-connection filesystem watch, answered to that
+connection only.
 
 Every layer in this codebase exists to serve that sentence. Adapters turn the outside world
 into events. One pure function folds events into state. One diff turns state changes into
@@ -147,16 +149,19 @@ packages/server/src/
     tmux.ts        execFile wrapper: list, new-session, respawn-pane, kill, version check
     git.ts         git-common-dir, branch, status --porcelain, worktree prefix
     transcripts.ts chokidar watch + read
+    fsWatch.ts     native recursive fs.watch on one root, debounced, .git/ filtered
     pty.ts         node-pty attach
     store.ts       <appDir>/state.json, atomic writes (overlay only)
     logger.ts
   app/
-    ports.ts       interfaces app requires: TmuxPort, StorePort, TranscriptPort, PtyPort, GitPort
+    ports.ts       interfaces app requires: TmuxPort, StorePort, TranscriptPort, PtyPort, GitPort,
+                   FsWatchPort
     projection.ts  owns current state; dispatch(event); subscribe(fn)
     sessions.ts    create / resume / kill use cases
     hooks.ts
     filesystem.ts
     repos.ts
+    rootWatch.ts   one watch per /events connection, swapped on a new root
   http/
     routes/        fastify route handlers
     ws/            events socket, attach socket
@@ -192,6 +197,11 @@ Adapters never touch state. They emit events:
 - the transcript watcher emits `{ type: 'transcript-changed', path, record }`
 - the hook route emits `{ type: 'hook', payload }`
 - a tmux poll emits `{ type: 'tmux-snapshot', sessions }`
+
+`/events` is projection-only except for one pair of messages. A client sends `{ type: 'watch', root }`
+to watch a project root, and the server answers `{ type: 'fs-changed', root }` to that connection
+alone. Those travel beside the projection (`app/rootWatch.ts`, via `adapters/fsWatch.ts`) and never go
+through `reduce`: a file change is a hint to refetch, not session state.
 
 Nothing in `domain/` reads the current time. The only timestamp any event carries is the one the
 transcript's own last timestamped line holds, and that is display data no derivation reads. Liveness asks

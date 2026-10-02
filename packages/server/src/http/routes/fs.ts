@@ -7,6 +7,7 @@ interface FsQuerystring {
   readonly session?: string;
   readonly root?: string;
   readonly path?: string;
+  readonly refresh?: string;
 }
 
 /** Exactly one of `?session=` / `?root=`; anything else (neither, both, a repeated key) is
@@ -30,7 +31,16 @@ export function fsRoutes(app: FastifyInstance, deps: FilesystemDeps) {
       return reply
         .code(400)
         .send({ error: 'path query parameter must be a single value' } satisfies ErrorResponse);
-    const result: TreeResponse = await readTree(deps, { ...scope, path });
+    const { refresh } = request.query;
+    if (refresh !== undefined && typeof refresh !== 'string')
+      return reply
+        .code(400)
+        .send({ error: 'refresh query parameter must be a single value' } satisfies ErrorResponse);
+    const result: TreeResponse = await readTree(deps, {
+      ...scope,
+      path,
+      ...(refresh === undefined ? {} : { refresh }),
+    });
     return reply.send(result);
   });
 

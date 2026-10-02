@@ -61,6 +61,16 @@ export interface TranscriptPort {
   ): TranscriptWatcher;
 }
 
+export interface FsWatch {
+  close(): void;
+}
+
+/** Watches one directory tree recursively. `onChange` is already debounced: one call per
+ *  quiet period, and none after `close()`. */
+export interface FsWatchPort {
+  watch(root: string, onChange: () => void): FsWatch;
+}
+
 export interface PaneSize {
   readonly cols: number;
   readonly rows: number;

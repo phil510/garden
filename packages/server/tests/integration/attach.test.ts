@@ -30,6 +30,7 @@ import { createProjection } from '../../src/app/projection.js';
 import { createServer } from '../../src/http/server.js';
 import { until } from './support/poll.js';
 import { withTmuxServer } from './support/tmux-server.js';
+import { noRootWatches } from './support/noRootWatches.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -154,6 +155,7 @@ describe('WS /attach/:id against a real tmux pane and a real pty', () => {
       projection.dispatch({ type: 'session-registered', id, tmuxName, cwd });
 
       const app = createServer({
+        rootWatches: noRootWatches,
         tmux: tmuxPort(target),
         store: fakeStore(),
         projection,
@@ -243,6 +245,7 @@ describe('WS /attach/:id against a real tmux pane and a real pty', () => {
       projection.dispatch({ type: 'session-registered', id, tmuxName, cwd });
 
       const app = createServer({
+        rootWatches: noRootWatches,
         tmux: tmuxPort(target),
         store: fakeStore(),
         projection,
