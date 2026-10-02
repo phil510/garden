@@ -1,34 +1,19 @@
-import type { TreeEntry } from '@garden/shared';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getFileTree } from '../../api/client';
 import { useLocalStore } from '../../state/localStore';
 import { useSessionStore } from '../../state/sessionStore';
 import { useUiStore } from '../../state/uiStore';
 import { TreeRow } from './TreeRow';
 import { visibleTreeRows } from './treeRows';
+import { useFileTree } from './useFileTree';
 import { Viewer } from './Viewer';
 import './filetree.css';
 
-/** Long enough to collapse a burst of hook events into one refetch, short enough that a
- *  file edited mid-turn shows up without the user having to do anything. It is the interval
- *  between refreshes, not a quiet period: activity during a turn never stops arriving, so a
- *  window that reset on each event would leave the tree stale for the whole turn. */
-const REFRESH_INTERVAL_MS = 500;
-
 const EMPTY_EXPANDED: readonly string[] = [];
 
-/** Loaded directories, tagged with the session they were fetched for. A tree load is in flight
- *  across a focus change often enough to matter, and the tag is what lets its response be
- *  dropped instead of landing in the newly focused session's tree. */
-interface TreeState {
-  readonly sessionId: string | null;
-  readonly childrenByPath: Record<string, readonly TreeEntry[]>;
-}
-
 /** Toggleable right panel bound to the focused pane's session, rooted at that session's
- *  cwd. Directories are fetched lazily into `tree` as they are expanded; there is no `/fs`
- *  filesystem watch, so a throttled effect on the focused session's own activity stands in for
- *  one, refetching every path already loaded. */
+ *  cwd. Directories are fetched lazily as they are expanded and refreshed on the focused
+ *  session's own activity; both live in `useFileTree`. */
 export function FilePanel() {
   const slots = useUiStore((state) => state.uiState.slots);
   const focusedSlot = useUiStore((state) => state.uiState.focusedSlot);
@@ -47,69 +32,34 @@ export function FilePanel() {
   const requestOpenFile = useLocalStore((state) => state.requestOpenFile);
   const openFileRequest = useLocalStore((state) => state.openFileRequest);
 
-  const [tree, setTree] = useState<TreeState>({ sessionId: null, childrenByPath: {} });
   const [showGitignored, setShowGitignored] = useState(false);
   const [activeTab, setActiveTab] = useState<'files' | 'editor'>('files');
   const [openedName, setOpenedName] = useState<string | null>(null);
 
-  const refreshTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const loadedPaths = useRef<readonly string[]>([]);
-
-  const loadPath = useCallback((id: string, path: string) => {
-    getFileTree(id, path)
-      .then((response) => {
-        setTree((current) =>
-          current.sessionId === id
-            ? {
-                sessionId: id,
-                childrenByPath: { ...current.childrenByPath, [path]: response.entries },
-              }
-            : current,
-        );
-      })
-      .catch(() => undefined);
-  }, []);
+  // `/fs/tree` only resolves by session today, so the session binding lives here.
+  const loadDir = useCallback(
+    (path: string) =>
+      sessionId === null ? Promise.reject(new Error('no session')) : getFileTree(sessionId, path),
+    [sessionId],
+  );
+  const { childrenByPath, loadPath } = useFileTree(session?.cwd ?? null, lastActivity, loadDir);
 
   useEffect(() => {
-    setTree({ sessionId, childrenByPath: {} });
     setActiveTab('files');
     setOpenedName(null);
-    if (sessionId !== null) loadPath(sessionId, '');
-    return () => {
-      clearTimeout(refreshTimer.current);
-      refreshTimer.current = undefined;
-    };
-  }, [sessionId, loadPath]);
-
-  // The refresh reads the loaded paths through a ref so that its own writes to `tree` are not a
-  // dependency of the effect below — they would otherwise retrigger it and turn the refresh into
-  // an unconditional poll.
-  useEffect(() => {
-    loadedPaths.current = Object.keys(tree.childrenByPath);
-  }, [tree]);
-
-  // Throttled, not debounced: the first activity since the last refresh schedules the next one,
-  // and everything arriving before it fires is absorbed into it.
-  useEffect(() => {
-    if (sessionId === null || lastActivity === null) return;
-    if (refreshTimer.current !== undefined) return;
-    refreshTimer.current = setTimeout(() => {
-      refreshTimer.current = undefined;
-      for (const path of loadedPaths.current) loadPath(sessionId, path);
-    }, REFRESH_INTERVAL_MS);
-  }, [sessionId, lastActivity, loadPath]);
+  }, [sessionId]);
 
   const expandedSet = useMemo(() => new Set(expandedPaths), [expandedPaths]);
   const rows =
     sessionId === null
       ? []
-      : visibleTreeRows(tree.childrenByPath[''], tree.childrenByPath, expandedSet, showGitignored);
+      : visibleTreeRows(childrenByPath[''], childrenByPath, expandedSet, showGitignored);
 
   function toggleDir(path: string) {
     if (sessionId === null) return;
     const willExpand = !expandedSet.has(path);
     toggleExpandedPath(sessionId, path);
-    if (willExpand && tree.childrenByPath[path] === undefined) loadPath(sessionId, path);
+    if (willExpand && childrenByPath[path] === undefined) loadPath(path);
   }
 
   function openFile(path: string) {
