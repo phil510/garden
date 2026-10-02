@@ -104,7 +104,7 @@ export function Viewer({ sessionId, onFileOpened }: ViewerProps) {
     if (openFileRequest.source.sessionId !== sessionId) return;
     const { path, line } = openFileRequest;
     let cancelled = false;
-    getFile(sessionId, path)
+    getFile({ sessionId }, path)
       .then((response) => {
         if (cancelled) return;
         setFile(response);

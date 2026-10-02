@@ -65,13 +65,24 @@ export function updateSettings(patch: SettingsRequest): Promise<OkResponse> {
   });
 }
 
-export function getFileTree(sessionId: string, path: string): Promise<TreeResponse> {
-  const query = new URLSearchParams({ session: sessionId, path });
+/** Which project an fs request resolves against: a listed `/repos` root or a session's cwd. */
+export type FsScope = { root: string } | { sessionId: string };
+
+function scopeParams(scope: FsScope): URLSearchParams {
+  return new URLSearchParams('root' in scope ? { root: scope.root } : { session: scope.sessionId });
+}
+
+/** `refresh` is a fresh token per refresh round; see `TreeResponse`. */
+export function getFileTree(scope: FsScope, path: string, refresh?: string): Promise<TreeResponse> {
+  const query = scopeParams(scope);
+  query.set('path', path);
+  if (refresh !== undefined) query.set('refresh', refresh);
   return request(`/fs/tree?${query.toString()}`);
 }
 
-export function getFile(sessionId: string, path: string): Promise<FileResponse> {
-  const query = new URLSearchParams({ session: sessionId, path });
+export function getFile(scope: FsScope, path: string): Promise<FileResponse> {
+  const query = scopeParams(scope);
+  query.set('path', path);
   return request(`/fs/file?${query.toString()}`);
 }
 

@@ -1,4 +1,4 @@
-import { EVENTS_CLOSE_CODES, type ServerMessage } from '@garden/shared';
+import { EVENTS_CLOSE_CODES, type EventsClientMessage, type ServerMessage } from '@garden/shared';
 
 export interface EventSocketHandlers {
   onSnapshot: (message: Extract<ServerMessage, { type: 'snapshot' }>) => void;
@@ -7,6 +7,8 @@ export interface EventSocketHandlers {
   /** Fires on every successful (re)connection, including the first. A dropped connection
    *  loses every pane attach with it, so this is what tells on-stage panes to reattach. */
   onConnect: () => void;
+  /** A watched root changed on disk. `root` echoes the spelling `watch` sent. */
+  onFsChanged: (root: string) => void;
   /** The server is stopping deliberately. Reconnecting would only spin forever, so this is
    *  the app's cue to render a terminal state instead. */
   onShutdown?: () => void;
@@ -35,18 +37,34 @@ function eventsUrl(): string {
   return `${protocol}//${location.host}/events`;
 }
 
+export interface EventSocketController {
+  /** Closes the socket and stops reconnecting. */
+  stop: () => void;
+  /** Remembers the root to watch and sends it when the socket is open. The server drops a watch
+   *  with its connection, so the remembered root is re-sent on every reconnect. `null` forgets
+   *  it; the server keeps the old watch until the connection ends or another root replaces it. */
+  watch: (root: string | null) => void;
+}
+
 /** Connects `WS /events` and dispatches messages to `handlers`, reconnecting with backoff
- *  after every drop. Returns a function that closes the socket and stops reconnecting. */
-export function connectEventSocket(handlers: EventSocketHandlers): () => void {
+ *  after every drop. */
+export function connectEventSocket(handlers: EventSocketHandlers): EventSocketController {
   let attempt = 0;
   let socket: WebSocket | null = null;
   let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
   let stopped = false;
+  let watchedRoot: string | null = null;
+
+  function sendWatch() {
+    if (watchedRoot === null || socket?.readyState !== WebSocket.OPEN) return;
+    socket.send(JSON.stringify({ type: 'watch', root: watchedRoot } satisfies EventsClientMessage));
+  }
 
   function connect() {
     socket = new WebSocket(eventsUrl());
     socket.addEventListener('open', () => {
       attempt = 0;
+      sendWatch();
       handlers.onConnect();
     });
     socket.addEventListener('message', (event) => {
@@ -54,6 +72,7 @@ export function connectEventSocket(handlers: EventSocketHandlers): () => void {
       if (message.type === 'snapshot') handlers.onSnapshot(message);
       else if (message.type === 'deltas') handlers.onDeltas(message);
       else if (message.type === 'ui-state') handlers.onUiState(message);
+      else handlers.onFsChanged(message.root);
     });
     socket.addEventListener('close', (event) => {
       if (stopped) return;
@@ -69,9 +88,15 @@ export function connectEventSocket(handlers: EventSocketHandlers): () => void {
 
   connect();
 
-  return () => {
-    stopped = true;
-    clearTimeout(reconnectTimer);
-    socket?.close();
+  return {
+    stop: () => {
+      stopped = true;
+      clearTimeout(reconnectTimer);
+      socket?.close();
+    },
+    watch: (root) => {
+      watchedRoot = root;
+      sendWatch();
+    },
   };
 }

@@ -43,7 +43,9 @@ export function FilePanel() {
   // it on anything else (cwd included) would drop the loaded tree while `expandedPaths` survives.
   const loadDir = useCallback(
     (path: string) =>
-      sessionId === null ? Promise.reject(new Error('no session')) : getFileTree(sessionId, path),
+      sessionId === null
+        ? Promise.reject(new Error('no session'))
+        : getFileTree({ sessionId }, path),
     [sessionId],
   );
   const { childrenByPath, loadPath } = useFileTree(session?.cwd ?? null, lastActivity, loadDir);
