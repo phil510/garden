@@ -10,13 +10,22 @@ import { listRepos } from '../../api/client';
  * `docs/architecture.md` §5 scopes `localStore.ts` to the latter only.
  */
 let cached: RepoEntry[] | null = null;
+const listeners = new Set<() => void>();
 
 export function getCachedRepoList(): RepoEntry[] | null {
   return cached;
 }
 
+/** Calls `listener` whenever the cached list is replaced, so a long-mounted reader (the file
+ *  panel) tracks refreshes triggered elsewhere. Returns the unsubscribe function. */
+export function subscribeRepoList(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
 export function setCachedRepoList(repos: RepoEntry[]): void {
   cached = repos;
+  for (const listener of listeners) listener();
 }
 
 /** Fetches the list fresh and caches it; on failure returns the cached list, or null. */
@@ -25,7 +34,7 @@ export async function refreshRepoList(
 ): Promise<RepoEntry[] | null> {
   try {
     const { repos } = await fetchRepos();
-    cached = repos;
+    setCachedRepoList(repos);
     return repos;
   } catch {
     return cached;

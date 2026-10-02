@@ -1,5 +1,10 @@
-import { describe, expect, it } from 'vitest';
-import { getCachedRepoList, refreshRepoList, setCachedRepoList } from './repoListCache';
+import { describe, expect, it, vi } from 'vitest';
+import {
+  getCachedRepoList,
+  refreshRepoList,
+  setCachedRepoList,
+  subscribeRepoList,
+} from './repoListCache';
 
 describe('repoListCache', () => {
   it('starts with no cached repo list', () => {
@@ -27,5 +32,17 @@ describe('repoListCache', () => {
     setCachedRepoList(repos);
     await expect(refreshRepoList(() => Promise.reject(new Error('down')))).resolves.toEqual(repos);
     expect(getCachedRepoList()).toEqual(repos);
+  });
+
+  it('notifies subscribers when a refresh replaces the list, until they unsubscribe', async () => {
+    const listener = vi.fn();
+    const unsubscribe = subscribeRepoList(listener);
+    const repos = [{ path: '/repo-e', name: 'repo-e', branch: 'main', isWorktree: false }];
+    await refreshRepoList(() => Promise.resolve({ repos }));
+    expect(listener).toHaveBeenCalledTimes(1);
+
+    unsubscribe();
+    setCachedRepoList(repos);
+    expect(listener).toHaveBeenCalledTimes(1);
   });
 });

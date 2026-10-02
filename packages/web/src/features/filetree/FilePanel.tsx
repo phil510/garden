@@ -1,11 +1,19 @@
 import type { RepoEntry } from '@garden/shared';
-import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import { getFileTree } from '../../api/client';
 import { chooseStartupRoot, type FilePanelTab } from '../../state/filePanelPersistence';
 import { useLocalStore } from '../../state/localStore';
 import { useSessionStore } from '../../state/sessionStore';
 import { useUiStore } from '../../state/uiStore';
-import { getCachedRepoList, refreshRepoList } from '../sidebar/repoListCache';
+import { getCachedRepoList, refreshRepoList, subscribeRepoList } from '../sidebar/repoListCache';
 import { effectiveTab, type TabOverride } from './panelTab';
 import { mostSpecificEntry } from './projectPaths';
 import { TreeRow } from './TreeRow';
@@ -49,23 +57,16 @@ export function FilePanel() {
   const expanded = rootState?.expanded ?? EMPTY_EXPANDED;
   const openFilePath = rootState?.openFile ?? null;
 
-  const [repos, setRepos] = useState<RepoEntry[] | null>(getCachedRepoList);
+  // The shared cache is the source of truth: a `path:line` click or the new-session flow refreshing
+  // it updates this list too, not only the fetches below.
+  const repos = useSyncExternalStore(subscribeRepoList, getCachedRepoList);
   useEffect(() => {
-    let cancelled = false;
-    const refresh = () => {
-      void refreshRepoList().then((list) => {
-        if (!cancelled && list !== null) setRepos(list);
-      });
-    };
-    refresh();
+    void refreshRepoList();
     const onVisible = () => {
-      if (document.visibilityState === 'visible') refresh();
+      if (document.visibilityState === 'visible') void refreshRepoList();
     };
     document.addEventListener('visibilitychange', onVisible);
-    return () => {
-      cancelled = true;
-      document.removeEventListener('visibilitychange', onVisible);
-    };
+    return () => document.removeEventListener('visibilitychange', onVisible);
   }, [connectionEpoch]);
 
   // Picks the first root once both the repo list and the focused session are known. Marked done
