@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { activeSource, liveTransient, sameFileContent, sourceKey } from './viewerSource';
+import type { FileResponse } from '@garden/shared';
+import {
+  activeSource,
+  liveTransient,
+  nextLoaded,
+  sameFileContent,
+  sourceKey,
+  type LoadedFile,
+} from './viewerSource';
 
 describe('liveTransient', () => {
   const transient = { sessionId: 's1', path: 'y.ts', root: '/a', openFile: 'x.ts' };
@@ -99,5 +107,31 @@ describe('sameFileContent', () => {
     } as const;
     expect(sameFileContent(image, { ...image })).toBe(true);
     expect(sameFileContent(image, { ...image, data: 'BBB' })).toBe(false);
+  });
+});
+
+describe('nextLoaded', () => {
+  const text: FileResponse = { kind: 'text', path: 'a.ts', text: 'x', truncated: false };
+  const loadedFile: LoadedFile = { key: 'k', result: { kind: 'file', file: text } };
+  const failure = { kind: 'error', message: 'no such path' } as const;
+
+  it('keeps the current reference when a refetch brought the same content', () => {
+    expect(nextLoaded(loadedFile, 'k', { kind: 'file', file: { ...text } })).toBe(loadedFile);
+  });
+
+  it('replaces a file with an error for the same key', () => {
+    expect(nextLoaded(loadedFile, 'k', failure)).toEqual({ key: 'k', result: failure });
+  });
+
+  it('replaces an error with a file for the same key', () => {
+    const errored: LoadedFile = { key: 'k', result: failure };
+    expect(nextLoaded(errored, 'k', { kind: 'file', file: text })).toEqual(loadedFile);
+  });
+
+  it('replaces the current value when the key differs, even with identical content', () => {
+    expect(nextLoaded(loadedFile, 'other', { kind: 'file', file: text })).toEqual({
+      key: 'other',
+      result: { kind: 'file', file: text },
+    });
   });
 });
