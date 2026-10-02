@@ -137,4 +137,19 @@ describe('createRepoCatalog', () => {
 
     await expect(catalog.resolveRoot(repoA)).rejects.toBeInstanceOf(RootNotListedError);
   });
+
+  it('serves list() from the snapshot inside the TTL and rescans after it', async () => {
+    setup();
+    vi.useFakeTimers({ toFake: ['Date'] });
+    const git = fakeGit();
+    const catalog = createRepoCatalog({ git, roots: [dir] });
+
+    await catalog.list();
+    await catalog.list();
+    expect(git.repoRootCalls()).toBe(1);
+
+    vi.setSystemTime(Date.now() + REPO_CACHE_TTL_MS + 1);
+    await catalog.list();
+    expect(git.repoRootCalls()).toBe(2);
+  });
 });

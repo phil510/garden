@@ -14,7 +14,8 @@ export const REPO_CACHE_TTL_MS = 10_000;
 export class RootNotListedError extends Error {}
 
 export interface RepoCatalog {
-  /** A fresh scan of the configured roots; also refreshes the set `resolveRoot` checks. */
+  /** The configured roots' repos from the TTL-bounded snapshot `resolveRoot` checks, rescanned
+   *  only when it is stale or absent. A repo created within the TTL may be missing. */
   list(): Promise<RepoEntry[]>;
   /** The realpath of `requested` if it is the realpath of a listed repo entry, else throws
    *  `RootNotListedError`. Equality, not containment: a subdirectory of a repo is not a root. */
@@ -63,7 +64,7 @@ export function createRepoCatalog(deps: ReposDeps): RepoCatalog {
 
   return {
     async list() {
-      return (await refresh()).entries;
+      return (await fresh()).entries;
     },
 
     async resolveRoot(requested) {
