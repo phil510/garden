@@ -36,7 +36,9 @@ export function FilePanel() {
   const [activeTab, setActiveTab] = useState<'files' | 'editor'>('files');
   const [openedName, setOpenedName] = useState<string | null>(null);
 
-  // `/fs/tree` only resolves by session today, so the session binding lives here.
+  // `/fs/tree` only resolves by session today, so the session binding lives here. `useFileTree`
+  // resets on this function's identity, so it must change exactly when the session does: keying
+  // it on anything else (cwd included) would drop the loaded tree while `expandedPaths` survives.
   const loadDir = useCallback(
     (path: string) =>
       sessionId === null ? Promise.reject(new Error('no session')) : getFileTree(sessionId, path),

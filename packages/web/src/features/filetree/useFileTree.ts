@@ -7,11 +7,10 @@ import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
  *  window that reset on each event would leave the tree stale for the whole turn. */
 const REFRESH_INTERVAL_MS = 500;
 
-/** Loaded directories, tagged with the source they were fetched from. A tree load is in flight
- *  across a source change often enough to matter, and the tag is what lets a response from a
- *  superseded source be dropped instead of landing in the new source's tree. */
+/** Loaded directories, tagged with the fetcher they came from. A tree load is in flight across
+ *  a source change often enough to matter, and the tag is what lets a response from a
+ *  superseded fetcher be dropped instead of landing in the new fetcher's tree. */
 interface TreeState {
-  readonly root: string | null;
   readonly loadDir: (path: string) => Promise<TreeResponse>;
   readonly childrenByPath: Record<string, readonly TreeEntry[]>;
 }
@@ -19,7 +18,8 @@ interface TreeState {
 /** Lazily-expanded directory tree under `root`; `null` means nothing to load. `refreshTrigger`
  *  is any value whose change asks for a throttled refetch of every loaded directory, and `null`
  *  means none. `loadDir` resolves a root-relative path, and the hook doesn't care how. A new
- *  `root` or `loadDir` starts a fresh tree. */
+ *  `loadDir` identity starts a fresh tree; `root` only gates loading, since `root` can change
+ *  under a live session whose loaded directories are still the ones to refresh. */
 export function useFileTree(
   root: string | null,
   refreshTrigger: number | null,
@@ -28,7 +28,7 @@ export function useFileTree(
   childrenByPath: Readonly<Record<string, readonly TreeEntry[]>>;
   loadPath: (path: string) => void;
 } {
-  const [tree, setTree] = useState<TreeState>({ root: null, loadDir, childrenByPath: {} });
+  const [tree, setTree] = useState<TreeState>({ loadDir, childrenByPath: {} });
   const refreshTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const loadPath = useCallback(
@@ -36,7 +36,7 @@ export function useFileTree(
       loadDir(path)
         .then((response) => {
           setTree((current) =>
-            current.root === root && current.loadDir === loadDir
+            current.loadDir === loadDir
               ? {
                   ...current,
                   childrenByPath: { ...current.childrenByPath, [path]: response.entries },
@@ -46,17 +46,20 @@ export function useFileTree(
         })
         .catch(() => undefined);
     },
-    [root, loadDir],
+    [loadDir],
   );
 
   useEffect(() => {
-    setTree({ root, loadDir, childrenByPath: {} });
-    if (root !== null) loadPath('');
+    setTree({ loadDir, childrenByPath: {} });
     return () => {
       clearTimeout(refreshTimer.current);
       refreshTimer.current = undefined;
     };
-  }, [root, loadDir, loadPath]);
+  }, [loadDir]);
+
+  useEffect(() => {
+    if (root !== null) loadPath('');
+  }, [root, loadPath]);
 
   // Reads the current tree without depending on it: its own writes would otherwise retrigger the
   // throttle effect below and turn the refresh into an unconditional poll.
@@ -65,7 +68,8 @@ export function useFileTree(
   });
 
   // Throttled, not debounced: the first trigger since the last refresh schedules the next one,
-  // and everything arriving before it fires is absorbed into it.
+  // and everything arriving before it fires is absorbed into it. `loadPath` is a dependency only
+  // to re-arm the timer that the reset effect's cleanup cleared when `loadDir` changed.
   useEffect(() => {
     if (root === null || refreshTrigger === null) return;
     if (refreshTimer.current !== undefined) return;
