@@ -229,6 +229,10 @@ export interface TreeEntry {
   kind: 'file' | 'dir';
   gitStatus: string | null;
 }
+/** `GET /fs/tree` takes an optional `refresh` token. Requests for the same project that carry
+ *  the same token share one `git status`; send a fresh token per refresh (backstop refetches
+ *  included) so a listing is never decorated with a status older than the change it follows.
+ *  Without a token every request runs its own status. */
 export interface TreeResponse {
   path: string;
   entries: TreeEntry[];

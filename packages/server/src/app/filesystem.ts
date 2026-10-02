@@ -19,7 +19,10 @@ export interface FilesystemDeps {
 /** What a request is scoped to: a live session's cwd, or a project root from the repo list. */
 export type ScopeRequest = { readonly sessionId: string } | { readonly root: string };
 
-export type TreeRequest = ScopeRequest & { readonly path: string };
+/** `refresh` identifies one refresh of a project: every `readTree` carrying the same token for
+ *  the same directory shares one `git status`, and a new token always runs a fresh one. A
+ *  request without a token never shares. */
+export type TreeRequest = ScopeRequest & { readonly path: string; readonly refresh?: string };
 
 export type FileRequest = ScopeRequest & { readonly path: string };
 
@@ -90,13 +93,13 @@ async function scopeDir(deps: FilesystemDeps, request: ScopeRequest): Promise<st
   return findSession(deps.projection, request.sessionId).cwd;
 }
 
-/** One `git status --porcelain` per refresh, re-keyed to the cwd-relative paths tree entries
+/** One `git status --porcelain` per `request.refresh`, re-keyed to the cwd-relative paths tree entries
  *  carry: git reports every path relative to the working tree root, so the prefix `cwd` sits
  *  at is what translates the two. A path outside `cwd` has no entry to decorate and is
  *  dropped; a directory entry's trailing slash is stripped so it matches the same key a tree
  *  entry would look up. A `cwd` outside any git repo decorates nothing rather than failing the
  *  whole listing. */
-async function gitStatusMap(git: FilesystemGit, cwd: string): Promise<Map<string, string>> {
+async function runGitStatusMap(git: FilesystemGit, cwd: string): Promise<Map<string, string>> {
   const map = new Map<string, string>();
   const prefix = await git.workTreePrefix(cwd).catch(() => undefined);
   if (prefix === undefined) return map;
@@ -106,6 +109,34 @@ async function gitStatusMap(git: FilesystemGit, cwd: string): Promise<Map<string
     const path = entry.path.slice(prefix.length);
     map.set(path.endsWith('/') ? path.slice(0, -1) : path, entry.status);
   }
+  return map;
+}
+
+interface TokenedRun {
+  readonly token: string;
+  readonly map: Promise<Map<string, string>>;
+}
+
+/** The latest tokened run per directory, per git port. Only the latest is kept, so the memo is
+ *  bounded by the number of directories, and a new token replaces the run it supersedes without
+ *  waiting on it — a backstop refetch is never served a status that began before its token. */
+const latestRuns = new WeakMap<FilesystemGit, Map<string, TokenedRun>>();
+
+function gitStatusMap(
+  git: FilesystemGit,
+  cwd: string,
+  refresh: string | undefined,
+): Promise<Map<string, string>> {
+  if (refresh === undefined) return runGitStatusMap(git, cwd);
+  let runs = latestRuns.get(git);
+  if (runs === undefined) {
+    runs = new Map();
+    latestRuns.set(git, runs);
+  }
+  const latest = runs.get(cwd);
+  if (latest?.token === refresh) return latest.map;
+  const map = runGitStatusMap(git, cwd);
+  runs.set(cwd, { token: refresh, map });
   return map;
 }
 
@@ -150,7 +181,7 @@ export async function readTree(deps: FilesystemDeps, request: TreeRequest): Prom
   const { absolute, relative: relativePath } = await resolveScoped(dir, request.path);
   const info = await stat(absolute);
   if (!info.isDirectory()) throw new NotADirectoryError(`not a directory: ${request.path}`);
-  const statuses = await gitStatusMap(deps.git, dir);
+  const statuses = await gitStatusMap(deps.git, dir, request.refresh);
   return { path: relativePath, entries: await listEntries(absolute, relativePath, statuses) };
 }
 
