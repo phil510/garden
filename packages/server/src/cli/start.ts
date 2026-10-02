@@ -15,7 +15,7 @@ export function decideStartupAction(pid: PidStatus): 'attach' | 'start' {
 }
 
 /**
- * The one failure the spec names by shape: the port is already held by something else.
+ * The one startup failure with a known shape: the port is already held by something else.
  *
  * Never returns a "garden: "-prefixed string — `runStart` owns that prefix. The child
  * process (`bin/garden.ts`'s `runServer`) writes its own `garden: <message>` to stderr

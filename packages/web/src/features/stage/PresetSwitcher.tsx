@@ -9,7 +9,7 @@ interface PresetButton {
   icon: ReactNode;
 }
 
-/** The mock's preset icons, each a miniature of the arrangement it selects. */
+/** Preset icons, each a miniature of the arrangement it selects. */
 const BUTTONS: Record<StagePreset, PresetButton> = {
   single: {
     label: 'Single pane',

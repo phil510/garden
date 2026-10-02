@@ -44,7 +44,9 @@ const HOOK_COMMAND =
   "curl -s -o /dev/null --max-time 1 -H 'Content-Type: application/json' " +
   '--data-binary @- "http://127.0.0.1:$GARDEN_PORT/hooks" || true';
 
-/** Synchronous, never `async: true`: an async hook is killed when claude exits. */
+/** Synchronous, never `async: true`: an async hook is killed when claude exits, so SessionEnd
+ *  would never land. A down server refuses instantly; `timeout: 1` is Claude Code's own cap,
+ *  matching curl's `--max-time`, on the stall when the server is up but unresponsive. */
 const POST_HOOK: HookCommand = { type: 'command', command: HOOK_COMMAND, timeout: 1 };
 
 const LIFECYCLE_EVENTS = [

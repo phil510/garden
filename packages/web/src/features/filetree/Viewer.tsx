@@ -66,8 +66,8 @@ function openAnywayKey(sessionId: string, path: string): string {
  * Read-only, one file at a time, no tabs of its own. Reacts to `openFileRequest` — set by
  * either a tree row click or a `path:line` link clicked in a pane's terminal — by fetching
  * that file scoped to this session's cwd; a request for a different session is not this
- * viewer's to show, and a path the server can't resolve is left exactly as it was, per the
- * spec's "a missing path is a no-op".
+ * viewer's to show, and a path the server can't resolve is a no-op: the viewer is left exactly
+ * as it was.
  */
 export function Viewer({ sessionId, onFileOpened }: ViewerProps) {
   const openFileRequest = useLocalStore((state) => state.openFileRequest);

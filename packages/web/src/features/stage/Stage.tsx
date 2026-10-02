@@ -83,6 +83,8 @@ export function Stage() {
     if (api === null) return;
     // The only teardown trigger: a panel reused across a `fromJSON` fires nothing here, so a
     // pane keeps its socket, and a panel the new arrangement genuinely dropped fires once.
+    // Never derive layout state from `onDidMovePanel`: it fires for every reused panel during
+    // a `fromJSON`, pointing at a detached temporary group.
     const disposable = api.onDidRemovePanel((panel) => {
       if (!isEmptySlotId(panel.id)) detachPane(panel.id);
     });

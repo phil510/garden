@@ -47,11 +47,11 @@ garden reads `~/.garden/config.json` on startup, writing a default one on first 
 
 ## Dev loop
 
-`pnpm build` builds every package. Linking the `garden` bin globally makes the `garden` command start the server and open the console in a Chrome app window. See the design spec (§8, §9) for the CLI and build shape.
+`pnpm build` builds every package. Linking the `garden` bin globally makes the `garden` command start the server and open the console in a Chrome app window.
 
 For UI work, skip the build. Run `pnpm dev:sandbox:server` in one terminal and `pnpm dev:sandbox:web` in another, then open the URL vite prints. The sandbox is a second, fully isolated garden instance — its own port, tmux socket, app dir, and transcripts dir — so it runs concurrently with an installed `garden` without either one reaching the other's sessions or state. `dev:sandbox:server` runs the server from TypeScript source and writes no pid file, so `garden stop` will not reach it — Ctrl-C stops it. `dev:sandbox:web` serves the client with HMR and proxies the API routes and both WebSockets to the sandbox server, whichever port it's running on.
 
 ## Where to start
 
-- `docs/specs/2026-09-03-garden-v1-design.md` — the full design: scope, architecture, and what's deliberately out for v1.
+- `docs/architecture.md` — the layering, the design invariants, and how session state is sourced.
 - `docs/README.md` — how the docs are organized.

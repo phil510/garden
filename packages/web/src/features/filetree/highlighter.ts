@@ -2,7 +2,7 @@ import { createHighlighterCore, type HighlighterCore, type ThemedToken } from 's
 import { createOnigurumaEngine } from 'shiki/engine/oniguruma';
 import { languageGuess } from './language';
 
-/** VS Code's Dark+ theme — the palette the mock's `--syn-*` tokens imitate. */
+/** VS Code's Dark+ theme — the palette the `--syn-*` tokens in `styles/tokens.css` imitate. */
 const THEME = 'dark-plus';
 
 /**

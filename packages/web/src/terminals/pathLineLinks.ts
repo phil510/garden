@@ -11,7 +11,7 @@ const CANDIDATE = /[\w.\-/]+:(\d+)/g;
 
 /**
  * Finds `path:line` occurrences in a line of terminal output. A trailing `:column` is matched
- * but ignored, since the spec names only `path:line`. A candidate whose path has neither a `.`
+ * but ignored: `path:line` is the only link form. A candidate whose path has neither a `.`
  * nor a `/` is dropped — otherwise `Error:42` or the port half of `host:8080` would read as a
  * link. A candidate containing `//` is dropped too: that is always a URL authority (`http://host`),
  * never a real file path, and would otherwise survive the first filter on the strength of its

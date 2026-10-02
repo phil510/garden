@@ -76,7 +76,8 @@ function recapText(lines: Line[]): string | null {
   return null;
 }
 
-/** Sidecar lines carry no `timestamp`, so the last line is not the last activity. */
+/** Sidecar lines carry no `timestamp`, so the last line is not the last activity. File mtime
+ *  is no substitute: it can advance with nothing appended. */
 function lastTimestamp(lines: Line[]): number | null {
   for (let i = lines.length - 1; i >= 0; i -= 1) {
     const raw = asText(lines[i]?.['timestamp']);
@@ -102,6 +103,11 @@ function lastCwd(lines: Line[]): string | null {
   return null;
 }
 
+/**
+ * Every record field is optional: line types like `ai-title` and `away_summary` are not in every
+ * install. A transcript has no end-of-session marker, so liveness comes from tmux and the
+ * hook-driven `ended` flag instead (`deriveLiveness`).
+ */
 export function parseTranscript(text: string): TranscriptParse {
   const lines: Line[] = [];
   let skipped = 0;

@@ -6,10 +6,7 @@ Runbook for Claude Code sessions working in this repo. Read this first; load oth
 
 garden is a local web console for running many Claude Code sessions at once across many repos and worktrees. tmux owns the Claude Code processes; garden is a viewport and control surface over them — it never becomes the thing keeping a session alive.
 
-Two docs carry the detail, and each has a trigger:
-
-- `docs/specs/2026-09-03-garden-v1-design.md` — canonical for what garden does, what it deliberately doesn't, and why. Load it for any task that touches scope, behavior, or a design decision. If a feature isn't in there, it isn't deferred by accident and it isn't yours to add unasked — ask.
-- `docs/architecture.md` — canonical for where code goes: the layering, the dependency rules between layers, and the state projection at the centre of the server. Read it before writing server or web code, not only when a task is explicitly about structure. Its boundaries are enforced by scoped `no-restricted-imports` rules, so crossing one fails `pnpm lint` instead of starting a design conversation — when that happens, the layering is what's wrong, not the lint config.
+`docs/architecture.md` is canonical for where code goes — the layering, the dependency rules between layers, the state projection at the centre of the server — and for the design invariants and rejected alternatives behind them. Read it before writing server or web code, not only when a task is explicitly about structure. Its boundaries are enforced by scoped `no-restricted-imports` rules, so crossing one fails `pnpm lint` instead of starting a design conversation — when that happens, the layering is what's wrong, not the lint config. Planned and in-flight work lives in GitHub issues.
 
 ## Environment and tests
 

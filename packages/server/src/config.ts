@@ -103,7 +103,8 @@ function envClaudeCommand(env: Record<string, string | undefined>): readonly str
 /** The `claudeCommand` precedence: `GARDEN_CLAUDE_COMMAND` outranks the file, which outranks
  *  the single-element default. `main.ts`'s `readClaudeCommand` binding re-applies this against
  *  a fresh `configPort.read()` on every session spawn so a saved change takes effect without a
- *  restart. */
+ *  restart. A command carrying `--bare` skips hooks, so its sessions send garden no status
+ *  updates. */
 export function resolveClaudeCommand(
   env: Record<string, string | undefined>,
   file: Pick<ConfigFile, 'claudeCommand'>,

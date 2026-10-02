@@ -4,7 +4,7 @@ export interface GitStatusBadge {
 }
 
 /**
- * Collapses a `git status --porcelain` two-character code onto the mock's three-badge
+ * Collapses a `git status --porcelain` two-character code onto a three-badge
  * vocabulary. Untracked is its own case; a staged or unstaged addition, rename or copy
  * reads as "added"; anything else that touched the path (modified or deleted) reads as
  * "modified". Ignored paths and merge conflicts carry no badge.
