@@ -67,7 +67,6 @@ interface LocalStore {
   toggleExpandedPath: (root: string, path: string) => void;
   setOpenFile: (root: string, path: string | null) => void;
   setPanelTab: (root: string, tab: FilePanelTab) => void;
-  setShowGitignored: (show: boolean) => void;
   /** Bumped to ask the tree and viewer to refetch what they have loaded. */
   fsRefreshEpoch: number;
   bumpFsRefresh: () => void;
@@ -122,8 +121,6 @@ export const useLocalStore = create<LocalStore>((set) => ({
     })),
   setPanelTab: (root, tab) =>
     set((state) => ({ filePanel: withRootState(state.filePanel, root, () => ({ tab })) })),
-  setShowGitignored: (show) =>
-    set((state) => ({ filePanel: { ...state.filePanel, showGitignored: show } })),
   fsRefreshEpoch: 0,
   bumpFsRefresh: () => set((state) => ({ fsRefreshEpoch: state.fsRefreshEpoch + 1 })),
   sidebarWidth: 280,

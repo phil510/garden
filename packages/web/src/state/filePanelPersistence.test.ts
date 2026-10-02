@@ -14,8 +14,8 @@ describe('parseFilePanel', () => {
     expect(parseFilePanel(null)).toEqual(defaultFilePanel());
   });
 
-  it('defaults to showing gitignored files with no root', () => {
-    expect(defaultFilePanel()).toEqual({ root: null, showGitignored: true, byRoot: {} });
+  it('defaults to no root and no per-root state', () => {
+    expect(defaultFilePanel()).toEqual({ root: null, byRoot: {} });
   });
 
   it('discards an unreadable value', () => {
@@ -36,7 +36,6 @@ describe('parseFilePanel', () => {
   it('discards the whole value when one root entry has a bad tab', () => {
     const raw = JSON.stringify({
       root: '/a',
-      showGitignored: false,
       byRoot: { '/a': { expanded: [], openFile: null, tab: 'sideways' } },
     });
     expect(parseFilePanel(raw)).toEqual(defaultFilePanel());
@@ -45,7 +44,6 @@ describe('parseFilePanel', () => {
   it('discards the whole value when expanded holds a non-string', () => {
     const raw = JSON.stringify({
       root: null,
-      showGitignored: true,
       byRoot: { '/a': { expanded: [1], openFile: null, tab: 'files' } },
     });
     expect(parseFilePanel(raw)).toEqual(defaultFilePanel());
@@ -54,10 +52,15 @@ describe('parseFilePanel', () => {
   it('round-trips a valid value', () => {
     const value: PersistedFilePanel = {
       root: '/a',
-      showGitignored: false,
       byRoot: { '/a': { expanded: ['src', 'src/lib'], openFile: 'src/x.ts', tab: 'editor' } },
     };
     expect(parseFilePanel(JSON.stringify(value))).toEqual(value);
+  });
+
+  it.each([true, false])('keeps root state from a value saved with showGitignored: %s', (flag) => {
+    const byRoot = { '/a': { expanded: ['src'], openFile: 'src/x.ts', tab: 'editor' } };
+    const raw = JSON.stringify({ root: '/a', showGitignored: flag, byRoot });
+    expect(parseFilePanel(raw)).toEqual({ root: '/a', byRoot });
   });
 });
 

@@ -72,14 +72,6 @@ describe('localStore', () => {
     });
   });
 
-  it('holds showGitignored globally, defaulting to true', () => {
-    expect(useLocalStore.getState().filePanel.showGitignored).toBe(true);
-    useLocalStore.getState().toggleExpandedPath('/a', 'src');
-    useLocalStore.getState().setShowGitignored(false);
-    expect(useLocalStore.getState().filePanel.showGitignored).toBe(false);
-    expect(useLocalStore.getState().filePanel.byRoot['/a']?.expanded).toEqual(['src']);
-  });
-
   it('counts refresh requests', () => {
     useLocalStore.getState().bumpFsRefresh();
     useLocalStore.getState().bumpFsRefresh();
