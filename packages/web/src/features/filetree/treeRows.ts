@@ -4,6 +4,8 @@ export interface FlatTreeRow {
   readonly entry: TreeEntry;
   readonly depth: number;
   readonly expanded: boolean;
+  /** The entry is gitignored, or sits under a gitignored directory (git tags only the topmost). */
+  readonly ignored: boolean;
 }
 
 /** What a directory shows in place of its children when its load failed. */
@@ -38,17 +40,22 @@ export function visibleTreeRows(
     return true;
   }
 
-  function walk(entries: readonly TreeEntry[] | undefined, depth: number): void {
+  function walk(
+    entries: readonly TreeEntry[] | undefined,
+    depth: number,
+    underIgnored: boolean,
+  ): void {
     if (entries === undefined) return;
     for (const entry of entries) {
       const expanded = entry.kind === 'dir' && expandedPaths.has(entry.path);
-      rows.push({ kind: 'entry', entry, depth, expanded });
+      const ignored = underIgnored || entry.gitStatus === '!!';
+      rows.push({ kind: 'entry', entry, depth, expanded, ignored });
       if (expanded && !pushError(entry.path, depth + 1)) {
-        walk(childrenByPath[entry.path], depth + 1);
+        walk(childrenByPath[entry.path], depth + 1, ignored);
       }
     }
   }
 
-  if (!pushError('', 0)) walk(root, 0);
+  if (!pushError('', 0)) walk(root, 0, false);
   return rows;
 }
