@@ -32,6 +32,9 @@ catalog:
   '@xterm/xterm': 6.0.0
   '@xterm/addon-fit': 0.11.0
   '@xterm/addon-web-links': 0.12.0
+  # Exact pin, no caret. 1.1.0 shipped macOS `spawn-helper` with mode 0644, so every spawn
+  # failed with `posix_spawnp failed`; this beta line bakes in the executable bit and carries
+  # the only Linux prebuilds.
   node-pty: 1.2.0-beta.15
   zustand: 5.0.15
   dockview-react: 8.2.0

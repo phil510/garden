@@ -17,9 +17,8 @@ interface NewSwarmPopoverProps {
 }
 
 /** The standalone "New swarm…" form swapped in at the same position as the row's context
- *  menu (plan.md's Notes: a small popover, not a submenu-nested form — ContextMenu's
- *  architecture doesn't support arbitrary child content inside an item). Pre-fills and
- *  selects the session's own title, mirroring the mock's `showNewSwarmForm`. */
+ *  menu. It is a popover rather than a submenu-nested form because ContextMenu can't host
+ *  arbitrary child content inside an item. Pre-fills and selects the session's own title. */
 export function NewSwarmPopover({ x, y, initialName, onCancel, onCreate }: NewSwarmPopoverProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);

@@ -84,8 +84,8 @@ export function SwarmHeader({
   }
 
   function onHeaderClick(event: ReactMouseEvent<HTMLDivElement>) {
-    // Mirrors the mock's own guard: a click landing on the name (or its rename input) never
-    // toggles collapse, whether it's the first or second click of a double-click.
+    // A click landing on the name (or its rename input) never toggles collapse, whether it's
+    // the first or second click of a double-click.
     if (event.target instanceof Element && event.target.closest('[data-rename]') !== null) return;
     onToggle();
   }

@@ -176,9 +176,7 @@
    row's own left edge (an on-stage row's accent border included: they're meant to overlap
    there, not leave a gap to dodge each other).
 
-   Two measured constants keep every corner on one shared line (ported from the linked mock,
-   whose .session-row padding/gap/flex-direction is identical to this file's — re-verified
-   against this component's own markup, not assumed from the mock's DOM):
+   Two measured constants keep every corner on one shared line:
    - x: li::before's -18px offset lands its rail at the row's own left edge (x=0). The
      parent corner's ::after sits on .session-row itself, whose padding edge starts 2px in —
      past the row's own 2px accent border — so it needs left:-2px, not 0, to land on that
