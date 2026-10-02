@@ -1,3 +1,4 @@
+// One-shot node:fs reads are allowed in app/; see the dependency rules in docs/architecture.md.
 import { open, readdir, realpath, stat } from 'node:fs/promises';
 import { extname, join, relative } from 'node:path';
 import type { FileResponse, TreeEntry, TreeResponse } from '@garden/shared';

@@ -246,20 +246,23 @@ escape hatch without a reason as strong as this one.
 
 ## 6. Dependency rules
 
-| Layer          | May import                                 | Never                                                  |
-| -------------- | ------------------------------------------ | ------------------------------------------------------ |
-| `domain/`      | `shared`, other `domain/`                  | node builtins, libraries, `adapters/`, `app/`, `http/` |
-| `adapters/`    | `shared`, `domain/` types, its own library | other adapters, `app/`, `http/`                        |
-| `app/`         | `domain/`, `app/ports.ts`                  | `http/`, `adapters/`                                   |
-| `http/`        | `app/`, `shared`                           | `adapters/`, any business logic                        |
-| `cli/`         | `shared`, an HTTP client                   | `app/`, `adapters/`, `domain/` logic                   |
-| `main.ts`      | everything                                 | —                                                      |
-| `packages/web` | `shared`                                   | node builtins, tmux, the filesystem                    |
+| Layer          | May import                                                                                               | Never                                                                                        |
+| -------------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `domain/`      | `shared`, other `domain/`                                                                                | node builtins, libraries, `adapters/`, `app/`, `http/`                                       |
+| `adapters/`    | `shared`, `domain/` types, its own library                                                               | other adapters, `app/`, `http/`                                                              |
+| `app/`         | `domain/`, `app/ports.ts`, `node:fs/promises` for one-shot reads (`readdir`, `stat`, `realpath`, `open`) | `http/`, `adapters/`, watchers and other long-lived fs resources (those live in `adapters/`) |
+| `http/`        | `app/`, `shared`                                                                                         | `adapters/`, any business logic                                                              |
+| `cli/`         | `shared`, an HTTP client                                                                                 | `app/`, `adapters/`, `domain/` logic                                                         |
+| `main.ts`      | everything                                                                                               | —                                                                                            |
+| `packages/web` | `shared`                                                                                                 | node builtins, tmux, the filesystem                                                          |
 
 These are enforced by scoped `no-restricted-imports` rules in `eslint.config.js`, so a
 violation fails `pnpm lint` with a message naming the rule. They are not honour-system
 guidance — the value of "the core is pure" disappears the first time someone imports
 `child_process` into it for one convenience.
+
+The `app/` filesystem carve-out is the exception: lint does not police `node:fs` there, so
+review upholds the one-shot-reads line.
 
 One row is enforced only in part: the lint rules block node builtins and the sibling layers
 out of `domain/`, but an arbitrary npm import into `domain/` still passes, because catching
