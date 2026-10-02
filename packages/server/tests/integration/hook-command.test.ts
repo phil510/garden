@@ -8,6 +8,7 @@ import { createProjection } from '../../src/app/projection.js';
 import type { OverlayState, StorePort } from '../../src/app/ports.js';
 import { claudeSettings } from '../../src/appdir.js';
 import { createServer as createGardenServer } from '../../src/http/server.js';
+import { noRootWatches } from './support/noRootWatches.js';
 
 function hookCommand(): string {
   const command = claudeSettings().hooks.SessionStart?.[0]?.hooks[0]?.command;
@@ -96,6 +97,7 @@ describe('a real Claude Code hook command against the real /hooks route', () => 
     const projection = createProjection(fakeStore());
     const app = createGardenServer({
       projection,
+      rootWatches: noRootWatches,
       tmux: {
         listPanes: () => Promise.reject(new Error('not used by this test')),
         newSession: () => Promise.reject(new Error('not used by this test')),

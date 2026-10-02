@@ -1,14 +1,32 @@
-import { EVENTS_CLOSE_CODES, type ServerMessage } from '@garden/shared';
+import { EVENTS_CLOSE_CODES, type EventsClientMessage, type ServerMessage } from '@garden/shared';
 import type { FastifyInstance } from 'fastify';
 import { WebSocketServer, type WebSocket } from 'ws';
 import type { Projection } from '../../app/projection.js';
+import type { RootWatches } from '../../app/rootWatch.js';
 
 export interface EventsDeps {
   readonly projection: Projection;
+  readonly rootWatches: RootWatches;
 }
 
+/** A debounced `fs-changed` can land after the client has started closing. */
 function send(socket: WebSocket, message: ServerMessage): void {
+  if (socket.readyState !== socket.OPEN) return;
   socket.send(JSON.stringify(message));
+}
+
+/** A text frame is client input: anything but a `watch` with a string root is dropped. A throw
+ *  in a `message` listener is an uncaught exception, not a socket error. */
+function parseWatch(frame: string): EventsClientMessage | undefined {
+  let message: unknown;
+  try {
+    message = JSON.parse(frame);
+  } catch {
+    return undefined;
+  }
+  if (typeof message !== 'object' || message === null) return undefined;
+  const { type, root } = message as Partial<EventsClientMessage>;
+  return type === 'watch' && typeof root === 'string' ? { type, root } : undefined;
 }
 
 // A graceful `close()` needs the other end to finish its handshake, which is not guaranteed
@@ -49,9 +67,18 @@ export function registerEventsSocket(app: FastifyInstance, deps: EventsDeps): We
     const unsubscribeUiState = deps.projection.subscribeUiState((uiState) => {
       send(socket, { type: 'ui-state', uiState });
     });
+    const rootWatch = deps.rootWatches.connect((root) =>
+      send(socket, { type: 'fs-changed', root }),
+    );
+    socket.on('message', (data: Buffer, isBinary: boolean) => {
+      if (isBinary) return;
+      const message = parseWatch(data.toString('utf8'));
+      if (message !== undefined) void rootWatch.watch(message.root);
+    });
     socket.on('close', () => {
       unsubscribe();
       unsubscribeUiState();
+      rootWatch.close();
     });
   });
 

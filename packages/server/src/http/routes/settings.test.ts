@@ -40,6 +40,7 @@ function fakeConfigPort(overrides: Partial<ConfigPort> = {}): ConfigPort {
 function fakeDeps(overrides: Partial<ServerDeps> = {}): ServerDeps {
   return {
     projection: fakeProjection(),
+    rootWatches: { connect: () => ({ watch: () => Promise.resolve(), close: () => undefined }) },
     tmux: {
       listPanes: () => Promise.reject(new Error('not used by this test')),
       newSession: () => Promise.reject(new Error('not used by this test')),

@@ -4,6 +4,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { WebSocket } from 'ws';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { Projection } from '../../app/projection.js';
+import type { RootWatches } from '../../app/rootWatch.js';
 import { registerEventsSocket } from './events.js';
 
 /** Polls until `predicate` holds or the deadline passes, failing with the last observation. */
@@ -69,6 +70,27 @@ function fakeProjection() {
   return { projection, listeners, uiListeners };
 }
 
+/** Records the roots a connection asked to watch and how many connections are still open. */
+function fakeRootWatches() {
+  const watched: string[] = [];
+  const state = { open: 0 };
+  const rootWatches: RootWatches = {
+    connect: () => {
+      state.open += 1;
+      return {
+        watch: (root) => {
+          watched.push(root);
+          return Promise.resolve();
+        },
+        close: () => {
+          state.open -= 1;
+        },
+      };
+    },
+  };
+  return { rootWatches, watched, state };
+}
+
 describe('registerEventsSocket', () => {
   let app: FastifyInstance | undefined;
   let socket: WebSocket | undefined;
@@ -83,7 +105,10 @@ describe('registerEventsSocket', () => {
   it('unsubscribes from both the delta and ui-state feeds once the socket closes', async () => {
     const { projection, listeners, uiListeners } = fakeProjection();
     app = Fastify();
-    const wss = registerEventsSocket(app, { projection });
+    const wss = registerEventsSocket(app, {
+      projection,
+      rootWatches: fakeRootWatches().rootWatches,
+    });
     // `registerEventsSocket` runs in `noServer` mode; production wiring of the shared
     // `upgrade` listener lives in `http/server.ts`, so this standalone test does it too.
     app.server.on('upgrade', (request, socket, head) => {
@@ -122,7 +147,10 @@ describe('registerEventsSocket', () => {
   it('sends the deliberate-shutdown close code before app.close() resolves', async () => {
     const { projection } = fakeProjection();
     app = Fastify();
-    const wss = registerEventsSocket(app, { projection });
+    const wss = registerEventsSocket(app, {
+      projection,
+      rootWatches: fakeRootWatches().rootWatches,
+    });
     app.server.on('upgrade', (request, socket, head) => {
       wss.handleUpgrade(request, socket, head, (ws) => wss.emit('connection', ws, request));
     });
@@ -144,5 +172,46 @@ describe('registerEventsSocket', () => {
     app = undefined;
 
     expect(await closed).toBe(EVENTS_CLOSE_CODES.DELIBERATE_SHUTDOWN);
+  });
+
+  it('hands a watch frame to the root watch and ignores malformed or other frames', async () => {
+    const { projection } = fakeProjection();
+    const { rootWatches, watched, state } = fakeRootWatches();
+    app = Fastify();
+    const wss = registerEventsSocket(app, { projection, rootWatches });
+    app.server.on('upgrade', (request, socket, head) => {
+      wss.handleUpgrade(request, socket, head, (ws) => wss.emit('connection', ws, request));
+    });
+    await app.listen({ port: 0, host: '127.0.0.1' });
+    const { port } = app.server.address() as AddressInfo;
+
+    socket = new WebSocket(`ws://127.0.0.1:${String(port)}/events`);
+    const firstMessage = new Promise<void>((resolve) => socket?.once('message', () => resolve()));
+    await new Promise<void>((resolve, reject) => {
+      socket?.once('open', resolve);
+      socket?.once('error', reject);
+    });
+    await firstMessage;
+
+    socket.send('not json');
+    socket.send(JSON.stringify({ type: 'resize', cols: 1, rows: 1 }));
+    socket.send(JSON.stringify({ type: 'watch', root: 7 }));
+    socket.send(Buffer.from([1, 2, 3]));
+    socket.send(JSON.stringify({ type: 'watch', root: '/repo/a' }));
+
+    await until(
+      () => watched,
+      (roots) => roots.length > 0,
+      'the watch frame to reach the root watch',
+    );
+    expect(watched).toEqual(['/repo/a']);
+    expect(socket.readyState).toBe(WebSocket.OPEN);
+
+    socket.close();
+    await until(
+      () => state.open,
+      (open) => open === 0,
+      'the root watch to be released after close',
+    );
   });
 });

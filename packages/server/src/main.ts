@@ -1,6 +1,7 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { readClaudeSessionNames } from './adapters/claudeSessions.js';
+import { watchFsRoot } from './adapters/fsWatch.js';
 import { branch, repoRoot, status, workTreePrefix } from './adapters/git.js';
 import { createLogger, guardStderr, type Logger } from './adapters/logger.js';
 import { attachPty } from './adapters/pty.js';
@@ -23,6 +24,7 @@ import { createAttachRegistry, type AttachRegistry } from './app/attach.js';
 import { createBranchSweeper, type BranchSweeper } from './app/branches.js';
 import type {
   ConfigPort,
+  FsWatchPort,
   GitPort,
   PtyPort,
   StorePort,
@@ -32,6 +34,7 @@ import type {
 } from './app/ports.js';
 import { createProjection, type Projection } from './app/projection.js';
 import { createRepoCatalog } from './app/repoCatalog.js';
+import { createRootWatches } from './app/rootWatch.js';
 import { watchRepoRoots } from './app/repoRoots.js';
 import { pruneKnownSessions } from './app/swarms.js';
 import { writeClaudeSettings, writeTmuxConf } from './appdir.js';
@@ -94,6 +97,10 @@ function transcriptPort(config: Config, logger: Logger): TranscriptPort {
     readRecord: (path) => readTranscriptRecord(path),
     watch: (onEvent) => watchTranscripts(config.transcriptsDir, config.roots, onEvent, logger),
   };
+}
+
+function fsWatchPort(logger: Logger): FsWatchPort {
+  return { watch: (root, onChange) => watchFsRoot(root, onChange, logger) };
 }
 
 function gitPort(): GitPort {
@@ -261,6 +268,7 @@ export async function main(detached: boolean): Promise<void> {
     });
   }, TMUX_POLL_INTERVAL_MS);
 
+  const repos = createRepoCatalog({ git, roots: config.roots });
   const app = createServer(
     {
       projection,
@@ -268,7 +276,8 @@ export async function main(detached: boolean): Promise<void> {
       store,
       git,
       attach,
-      repos: createRepoCatalog({ git, roots: config.roots }),
+      repos,
+      rootWatches: createRootWatches({ watcher: fsWatchPort(logger), repos, logger }),
       serverPort: config.port,
       settingsPath,
       readClaudeCommand: readClaudeCommand(configAdapter),
