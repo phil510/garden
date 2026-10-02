@@ -66,3 +66,29 @@ export function sameFileContent(a: FileResponse, b: FileResponse): boolean {
       return true;
   }
 }
+
+/** The outcome of the viewer's last fetch for `key`: the file, or why it couldn't be loaded. */
+export interface LoadedFile {
+  key: string;
+  result: { kind: 'file'; file: FileResponse } | { kind: 'error'; message: string };
+}
+
+/** The value to store after a fetch for `key` resolves. Keeps `current` by reference only when
+ *  both are the same file for the same key with nothing new, so a refresh doesn't reset the
+ *  view mode or re-tokenize; an error always replaces stale content, and vice versa. */
+export function nextLoaded(
+  current: LoadedFile | null,
+  key: string,
+  result: LoadedFile['result'],
+): LoadedFile {
+  if (
+    current !== null &&
+    current.key === key &&
+    current.result.kind === 'file' &&
+    result.kind === 'file' &&
+    sameFileContent(current.result.file, result.file)
+  ) {
+    return current;
+  }
+  return { key, result };
+}
