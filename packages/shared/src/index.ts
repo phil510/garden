@@ -243,11 +243,21 @@ export type FileResponse =
   | { path: string; kind: 'binary' };
 export type UiStateRequest = Partial<UiState>;
 
-/** `WS /events`: a snapshot on connect, then deltas. */
+/** `WS /events`: a snapshot on connect, then deltas. `fs-changed` is the exception to
+ *  projection-only: it goes only to the connection that sent `watch`, and `root` echoes the
+ *  spelling that connection sent. */
 export type ServerMessage =
   | { type: 'snapshot'; sessions: SessionState[]; uiState: UiState }
   | { type: 'deltas'; deltas: Delta[] }
-  | { type: 'ui-state'; uiState: UiState };
+  | { type: 'ui-state'; uiState: UiState }
+  | { type: 'fs-changed'; root: string };
+
+/** `WS /events`, client to server: replaces this connection's filesystem watch. `root` is a
+ *  `RepoEntry.path`. */
+export interface EventsClientMessage {
+  type: 'watch';
+  root: string;
+}
 
 /** `WS /attach/:id`: bytes are binary frames, resize is JSON. */
 export interface PaneResizeMessage {

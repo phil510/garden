@@ -53,7 +53,7 @@ export function connectEventSocket(handlers: EventSocketHandlers): () => void {
       const message = JSON.parse(event.data as string) as ServerMessage;
       if (message.type === 'snapshot') handlers.onSnapshot(message);
       else if (message.type === 'deltas') handlers.onDeltas(message);
-      else handlers.onUiState(message);
+      else if (message.type === 'ui-state') handlers.onUiState(message);
     });
     socket.addEventListener('close', (event) => {
       if (stopped) return;
