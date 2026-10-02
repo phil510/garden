@@ -11,8 +11,9 @@ export interface PersistedRootState {
   tab: FilePanelTab;
 }
 
-/** What survives a reload; `byRoot` keys and `root` are `RepoEntry.path` values. A shape change
- *  bumps the storage key's version rather than migrating. */
+/** What survives a reload; `byRoot` keys and `root` are `RepoEntry.path` values. A removed field is
+ *  tolerated and dropped on load; an incompatible change bumps the storage key's version rather
+ *  than migrating. */
 export interface PersistedFilePanel {
   root: string | null;
   byRoot: Record<string, PersistedRootState>;
@@ -46,8 +47,7 @@ function isPersistedFilePanel(value: unknown): value is PersistedFilePanel {
   );
 }
 
-/** Strict whole-value validation: anything unreadable or off-shape is discarded, never merged.
- *  Unknown extra fields are tolerated and dropped. */
+/** Strict whole-value validation: anything unreadable or off-shape is discarded, never merged. */
 export function parseFilePanel(raw: string | null): PersistedFilePanel {
   if (raw === null) return defaultFilePanel();
   try {
