@@ -312,7 +312,8 @@ which kind of test.
   against a real repository. `tmux.ts`'s pure version-parsing logic has a colocated unit test,
   but its execFile-wrapping session calls (list/new-session/respawn-pane/kill) have no test
   against a real tmux.
-- **`app/`** gets tests with faked adapters, covering orchestration order.
+- **`app/`** gets tests with faked adapters, covering orchestration order; the few that
+  exercise one-shot `node:fs` reads use real temp directories (see `docs/testing.md`).
 - **`http/`** gets a thin smoke pass. There is little to test in translation.
 - **`packages/web`** tests pure state logic only. No browser end-to-end tests in v1.
 
