@@ -161,7 +161,8 @@ export function Viewer({
       // session-sourced file that would otherwise stay on top of it.
       if (requested.root !== root) return () => undefined;
       setTransient(null);
-      setPendingLine(line);
+      // An errored file isn't refetched by this click, so nothing would consume the line.
+      setPendingLine(loadError === null ? line : null);
       if (line === null) return () => undefined;
       if (showMarkdown) setMode('source');
       return () => undefined;
