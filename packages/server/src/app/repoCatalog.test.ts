@@ -75,15 +75,24 @@ describe('createRepoCatalog', () => {
     expect(git.repoRootCalls()).toBe(1); // only repoA has a `.git`, so one candidate is checked
   });
 
-  it('rejects an unlisted root while a refresh is pending', async () => {
+  it('holds a miss until the pending scan completes instead of deciding early', async () => {
     setup();
     const gate = deferred();
     const catalog = createRepoCatalog({ git: fakeGit({ gate: gate.promise }), roots: [dir] });
 
-    const misses = [catalog.resolveRoot(other), catalog.resolveRoot(other)];
+    mkdirSync(join(other, '.git'));
+    let settled = false;
+    const misses = [catalog.resolveRoot(other), catalog.resolveRoot(other)].map((miss) =>
+      miss.finally(() => {
+        settled = true;
+      }),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(settled).toBe(false);
     gate.release();
 
-    for (const miss of misses) await expect(miss).rejects.toBeInstanceOf(RootNotListedError);
+    // `other` qualifies once scanned, so this also shows the miss waited for the scan.
+    for (const miss of misses) await expect(miss).resolves.toBe(other);
   });
 
   it('accepts a repo created after the cache was built, on the miss refresh', async () => {
@@ -104,13 +113,15 @@ describe('createRepoCatalog', () => {
     const catalog = createRepoCatalog({ git, roots: [dir] });
     const scan = catalog.list();
     // The scan is held at its git check; the repo stops qualifying after that check ran.
-    await vi.waitFor(() => expect(git.repoRootCalls()).toBeGreaterThan(0));
+    // Not vi.waitFor: it advances the faked clock while polling.
+    while (git.repoRootCalls() === 0) await new Promise((resolve) => setImmediate(resolve));
     vi.setSystemTime(Date.now() + REPO_CACHE_TTL_MS - 1);
     gate.release();
     await scan;
     rmSync(join(repoA, '.git'), { recursive: true });
 
-    // Within one tick of the scan's start the old snapshot is still trusted; past it, not.
+    // The snapshot dates from the scan's start, so it is nearly expired though just finished.
+    await expect(catalog.resolveRoot(repoA)).resolves.toBe(repoA);
     vi.setSystemTime(Date.now() + 2);
     await expect(catalog.resolveRoot(repoA)).rejects.toBeInstanceOf(RootNotListedError);
   });

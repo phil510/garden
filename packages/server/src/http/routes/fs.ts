@@ -25,7 +25,12 @@ export function fsRoutes(app: FastifyInstance, deps: FilesystemDeps) {
   app.get<{ Querystring: FsQuerystring }>('/fs/tree', async (request, reply) => {
     const scope = scopeOf(request.query);
     if (scope === undefined) return reply.code(400).send(SCOPE_REQUIRED);
-    const result: TreeResponse = await readTree(deps, { ...scope, path: request.query.path ?? '' });
+    const { path = '' } = request.query;
+    if (typeof path !== 'string')
+      return reply
+        .code(400)
+        .send({ error: 'path query parameter must be a single value' } satisfies ErrorResponse);
+    const result: TreeResponse = await readTree(deps, { ...scope, path });
     return reply.send(result);
   });
 
