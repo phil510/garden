@@ -158,8 +158,8 @@ export function Viewer({
       // session-sourced file that would otherwise stay on top of it.
       if (requested.root !== root) return () => undefined;
       setTransient(null);
-      if (line === null) return () => undefined;
       setPendingLine(line);
+      if (line === null) return () => undefined;
       if (showMarkdown) setMode('source');
       return () => undefined;
     }
