@@ -356,6 +356,11 @@
   color: var(--text-faint);
   font-size: 11px;
 }
+.tree-node-row .tcopied {
+  flex: 0 0 auto;
+  font-size: 10.5px;
+  color: var(--accent);
+}
 
 .fp-tree-error {
   padding-top: 4px;

@@ -4,6 +4,8 @@ import {
   useRef,
   useState,
   type ChangeEvent,
+  type FocusEvent as ReactFocusEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
 } from 'react';
 import { computeContextMenuPosition, computeSubmenuFlip } from './contextMenuPosition';
@@ -37,7 +39,10 @@ interface ContextMenuProps {
 
 /** A generic, session-agnostic popup menu anchored at a point (typically a right-click).
  *  Measures itself hidden, then places itself with contextMenuPosition.ts, following
- *  HoverCard's measure-then-place pattern. Dismisses on Escape or an outside click. */
+ *  HoverCard's measure-then-place pattern. Dismisses on Escape, Tab, an outside click, window
+ *  blur, or a scroll that moves the menu's anchor. Once open it is keyboard-operable: focus
+ *  moves to the first item, arrows move it, Enter/Space select. Opening it is the caller's
+ *  business, and submenus open on hover only. */
 export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const submenuRef = useRef<HTMLDivElement>(null);
@@ -46,6 +51,9 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
   const [openSubmenuKey, setOpenSubmenuKey] = useState<string | null>(null);
   const [submenuFlip, setSubmenuFlip] = useState(false);
   const [filterQuery, setFilterQuery] = useState('');
+  // An index rather than an element: a two-step confirm swaps an item's key, remounting its
+  // div, and focus is reapplied to the same slot by the effect below.
+  const [focusedIndex, setFocusedIndex] = useState(0);
 
   // Read via a ref rather than listing onClose as a dependency below: onClose is a fresh
   // closure every render (it's an inline arrow in SessionRow), and re-subscribing the
@@ -81,6 +89,22 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
     );
   }, [openSubmenuKey]);
 
+  function topLevelItems(): HTMLElement[] {
+    const container = containerRef.current;
+    if (container === null) return [];
+    return Array.from(container.querySelectorAll<HTMLElement>(':scope > [role="menuitem"]'));
+  }
+
+  // Runs every render so focus survives an item remounting; it skips the submenu's filter
+  // input so typing there isn't pulled back to the item list.
+  useEffect(() => {
+    if (position === null) return;
+    const item = topLevelItems()[focusedIndex];
+    if (item === undefined || item === document.activeElement) return;
+    if (document.activeElement === filterInputRef.current) return;
+    item.focus({ preventScroll: true });
+  });
+
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') onCloseRef.current();
@@ -88,17 +112,70 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
     function onMouseDown(event: MouseEvent) {
       if (!containerRef.current?.contains(event.target as Node)) onCloseRef.current();
     }
+    function onBlur() {
+      onCloseRef.current();
+    }
+    // Scroll doesn't bubble, so it's caught in the capture phase. Only a scroll of the
+    // document or of an ancestor of the menu moves its anchor; the menu's own submenu list
+    // and unrelated scrollers (a streaming terminal) leave it where it is.
+    function onScroll(event: Event) {
+      const menu = containerRef.current;
+      const target = event.target;
+      if (
+        target === document ||
+        (target instanceof Node && menu !== null && target.contains(menu))
+      ) {
+        onCloseRef.current();
+      }
+    }
     document.addEventListener('keydown', onKeyDown);
     document.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('blur', onBlur);
+    document.addEventListener('scroll', onScroll, true);
     return () => {
       document.removeEventListener('keydown', onKeyDown);
       document.removeEventListener('mousedown', onMouseDown);
+      window.removeEventListener('blur', onBlur);
+      document.removeEventListener('scroll', onScroll, true);
     };
   }, []);
 
-  // The menu is rendered inline in the row's own DOM (no portal, following HoverCard's
+  function onMenuFocus(event: ReactFocusEvent) {
+    const index = topLevelItems().indexOf(event.target as HTMLElement);
+    if (index !== -1) setFocusedIndex(index);
+  }
+
+  function onMenuKeyDown(event: ReactKeyboardEvent) {
+    if (event.key === 'Tab') {
+      onCloseRef.current();
+      return;
+    }
+    // Other keys typed into the submenu's filter input are its own.
+    if (event.target instanceof Element && event.target.closest('.context-submenu') !== null) {
+      return;
+    }
+    const step = event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0;
+    const activate = event.key === 'Enter' || event.key === ' ';
+    if (step === 0 && !activate) return;
+    // Unhandled, arrows and Space would scroll an ancestor, which the scroll listener
+    // above would read as a dismissal.
+    event.preventDefault();
+    // Also stopped from bubbling: the menu renders inside its owner (SwarmHeader's own
+    // Enter/Space handler would otherwise toggle the swarm).
+    event.stopPropagation();
+    if (step !== 0) {
+      setFocusedIndex((index) => (index + step + items.length) % items.length);
+      return;
+    }
+    // Auto-repeat would carry one held Enter through a two-step confirm.
+    if (event.repeat) return;
+    const item = items[focusedIndex];
+    if (item !== undefined && item.submenu === undefined) item.onSelect();
+  }
+
+  // The menu is rendered inline in its owner's DOM (no portal, following HoverCard's
   // convention — nothing else in this codebase uses createPortal), so a native event
-  // landing anywhere in this subtree would otherwise bubble up into the row's own
+  // landing anywhere in this subtree would otherwise bubble up into the owner's own
   // handlers: a click into onClick (staging the session) and a right-click into
   // onContextMenu (resetting the row's confirm state and repositioning the menu at the
   // new point). Stopped once at the container boundary rather than per item, so it
@@ -134,6 +211,7 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
     <div
       ref={containerRef}
       className="context-menu"
+      role="menu"
       style={
         position === null ? { visibility: 'hidden' } : { left: position.left, top: position.top }
       }
@@ -141,6 +219,8 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
       onMouseDown={stopBubbling}
       onPointerDown={stopBubbling}
       onContextMenu={onContainerContextMenu}
+      onKeyDown={onMenuKeyDown}
+      onFocus={onMenuFocus}
     >
       {items.map((item) => {
         const submenu = item.submenu;
@@ -148,6 +228,8 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
           return (
             <div
               key={item.key}
+              role="menuitem"
+              tabIndex={-1}
               className={`context-menu-item${item.danger === true ? ' danger' : ''}`}
               onClick={() => item.onSelect()}
             >
@@ -166,6 +248,9 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
         return (
           <div
             key={item.key}
+            role="menuitem"
+            aria-haspopup="menu"
+            tabIndex={-1}
             className="context-menu-item has-submenu"
             onMouseEnter={() => openSubmenu(item.key)}
             onMouseLeave={() => closeSubmenuUnlessFilterFocused(item.key)}

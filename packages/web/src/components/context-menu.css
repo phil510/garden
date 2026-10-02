@@ -15,12 +15,15 @@
   cursor: pointer;
   white-space: nowrap;
 }
-.context-menu-item:hover {
+.context-menu-item:hover,
+.context-menu-item:focus-visible {
   background: var(--accent-dim);
   color: var(--accent);
+  outline: none;
 }
 /* Danger items mirror button.danger: normal-colored at rest, red only on hover. */
-.context-menu-item.danger:hover {
+.context-menu-item.danger:hover,
+.context-menu-item.danger:focus-visible {
   background: color-mix(in srgb, var(--danger) 16%, transparent);
   color: var(--danger);
 }
