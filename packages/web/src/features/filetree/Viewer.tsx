@@ -27,6 +27,8 @@ interface ViewerProps {
   onSessionFileOpened: () => void;
   /** The path of the file currently displayed, or null; the tab above takes its name from it. */
   onShownPathChange: (path: string | null) => void;
+  /** Whether a session-sourced file is on top of the root's open file, so the tree can skip highlighting it. */
+  onTransientShownChange: (shown: boolean) => void;
 }
 
 /** Every link renders as inert text — the viewer has no route to resolve a relative link's
@@ -75,7 +77,13 @@ const markdownComponents: Components = {
  * refetch on every refresh epoch. A file the server can't resolve is a no-op: the viewer is left
  * exactly as it was.
  */
-export function Viewer({ root, openFile, onSessionFileOpened, onShownPathChange }: ViewerProps) {
+export function Viewer({
+  root,
+  openFile,
+  onSessionFileOpened,
+  onShownPathChange,
+  onTransientShownChange,
+}: ViewerProps) {
   const openFileRequest = useLocalStore((state) => state.openFileRequest);
   const fsRefreshEpoch = useLocalStore((state) => state.fsRefreshEpoch);
   const [transient, setTransient] = useState<TransientFile | null>(null);
@@ -182,6 +190,11 @@ export function Viewer({ root, openFile, onSessionFileOpened, onShownPathChange 
   useEffect(() => {
     onShownPathChange(shownPath);
   }, [shownPath, onShownPathChange]);
+
+  const transientShown = source?.kind === 'session';
+  useEffect(() => {
+    onTransientShownChange(transientShown);
+  }, [transientShown, onTransientShownChange]);
 
   const gated =
     file !== null && file.kind === 'text' && file.truncated && key !== null && !openAnyway.has(key);

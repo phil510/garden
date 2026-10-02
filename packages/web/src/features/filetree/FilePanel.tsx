@@ -6,6 +6,7 @@ import { useLocalStore } from '../../state/localStore';
 import { useSessionStore } from '../../state/sessionStore';
 import { useUiStore } from '../../state/uiStore';
 import { getCachedRepoList, refreshRepoList } from '../sidebar/repoListCache';
+import { effectiveTab, type TabOverride } from './panelTab';
 import { mostSpecificEntry } from './projectPaths';
 import { TreeRow } from './TreeRow';
 import { visibleTreeRows } from './treeRows';
@@ -93,19 +94,24 @@ export function FilePanel() {
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, [bumpFsRefresh]);
 
-  // Without a root there is nowhere to persist the tab, so a session-fallback file's tab switch
-  // lives here.
-  const [localTab, setLocalTab] = useState<FilePanelTab>('files');
-  const activeTab = rootState?.tab ?? (root === null ? localTab : 'files');
+  // A session-fallback file switches the tab without persisting it for the root, so the choice
+  // lives here, tied to the root it was made for.
+  const [tabOverride, setTabOverride] = useState<TabOverride | null>(null);
+  if (tabOverride !== null && tabOverride.root !== root) setTabOverride(null);
+  const activeTab = effectiveTab(tabOverride, root, rootState?.tab);
   const setTab = useCallback(
     (tab: FilePanelTab) => {
-      if (root === null) setLocalTab(tab);
-      else setPanelTab(root, tab);
+      if (root === null) setTabOverride({ root, tab });
+      else {
+        setTabOverride(null);
+        setPanelTab(root, tab);
+      }
     },
     [root, setPanelTab],
   );
 
   const [shownPath, setShownPath] = useState<string | null>(null);
+  const [transientShown, setTransientShown] = useState(false);
 
   const loadDir = useCallback(
     (path: string, refresh?: string) =>
@@ -130,12 +136,12 @@ export function FilePanel() {
   function openFile(path: string) {
     if (root === null) return;
     setOpenFile(root, path);
-    setPanelTab(root, 'editor');
+    setTab('editor');
     // Also tells the viewer to drop a session-sourced file when this path is already open.
     requestOpenFile({ kind: 'root', root }, path, null);
   }
 
-  const onSessionFileOpened = useCallback(() => setTab('editor'), [setTab]);
+  const onSessionFileOpened = useCallback(() => setTabOverride({ root, tab: 'editor' }), [root]);
 
   return (
     <>
@@ -215,7 +221,7 @@ export function FilePanel() {
               <TreeRow
                 key={row.entry.path}
                 row={row}
-                selected={row.entry.path === openFilePath}
+                selected={!transientShown && row.entry.path === openFilePath}
                 onToggleDir={toggleDir}
                 onOpenFile={openFile}
               />
@@ -229,6 +235,7 @@ export function FilePanel() {
           openFile={openFilePath}
           onSessionFileOpened={onSessionFileOpened}
           onShownPathChange={setShownPath}
+          onTransientShownChange={setTransientShown}
         />
       </div>
     </>
