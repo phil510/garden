@@ -4,6 +4,8 @@ import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { getFile } from '../../api/client';
+import { isUnresolvablePath } from '../../api/unresolvablePath';
+import { commandFailureMessage } from '../../api/reportCommandFailure';
 import { useLocalStore, type OpenFileRequest } from '../../state/localStore';
 import { tokenizeFile } from './highlighter';
 import { isMarkdownFile } from './markdown';
@@ -13,9 +15,10 @@ import { resetModeForOpenedFile, shouldResetMode, type ViewMode } from './viewMo
 import {
   activeSource,
   liveTransient,
-  sameFileContent,
+  nextLoaded,
   sourceKey,
   sourceScope,
+  type LoadedFile,
   type TransientFile,
 } from './viewerSource';
 
@@ -74,8 +77,8 @@ const markdownComponents: Components = {
  * Read-only, one file at a time, no tabs of its own. Shows the panel root's persisted open file,
  * unless a `path:line` click from a pane with no containing project put a session-sourced file
  * on top of it (transient: cleared when the root or open file changes, never persisted). Both
- * refetch on every refresh epoch. A file the server can't resolve is a no-op: the viewer is left
- * exactly as it was.
+ * refetch on every refresh epoch. A file that fails to load shows its error in place of the
+ * content, including when a refetch fails after an earlier success.
  */
 export function Viewer({
   root,
@@ -87,14 +90,16 @@ export function Viewer({
   const openFileRequest = useLocalStore((state) => state.openFileRequest);
   const fsRefreshEpoch = useLocalStore((state) => state.fsRefreshEpoch);
   const [transient, setTransient] = useState<TransientFile | null>(null);
-  const [loaded, setLoaded] = useState<{ key: string; file: FileResponse } | null>(null);
+  const [loaded, setLoaded] = useState<LoadedFile | null>(null);
   // A root or open-file change drops the transient file for good rather than just hiding it.
   const liveTransientFile = liveTransient(root, openFile, transient);
   if (liveTransientFile !== transient) setTransient(liveTransientFile);
   const source = activeSource(root, openFile, liveTransientFile);
   const key = source === null ? null : sourceKey(source);
   // A file fetched for another source is never shown, so a root switch can't flash the old file.
-  const file = loaded !== null && loaded.key === key ? loaded.file : null;
+  const current = loaded !== null && loaded.key === key ? loaded.result : null;
+  const file = current?.kind === 'file' ? current.file : null;
+  const loadError = current?.kind === 'error' ? current.message : null;
   // Set when a request has just loaded the file for `key`, so the fetch effect doesn't repeat it.
   const justLoadedKey = useRef<string | null>(null);
   const [tokens, setTokens] = useState<ThemedToken[][] | null>(null);
@@ -123,14 +128,8 @@ export function Viewer({
   }
   const bodyRef = useRef<HTMLDivElement>(null);
 
-  // Keeps the current file when a refetch brought nothing new, so a refresh doesn't reset the
-  // view mode or re-tokenize.
-  const keepIfSame = (nextKey: string, response: FileResponse) =>
-    setLoaded((current) =>
-      current !== null && current.key === nextKey && sameFileContent(current.file, response)
-        ? current
-        : { key: nextKey, file: response },
-    );
+  const recordResult = (nextKey: string, result: LoadedFile['result']) =>
+    setLoaded((prev) => nextLoaded(prev, nextKey, result));
 
   const fetchShown = useEffectEvent(() => {
     if (source === null || key === null) return () => undefined;
@@ -141,9 +140,14 @@ export function Viewer({
     let cancelled = false;
     getFile(sourceScope(source), source.path)
       .then((response) => {
-        if (!cancelled) keepIfSame(key, response);
+        if (!cancelled) recordResult(key, { kind: 'file', file: response });
       })
-      .catch(() => undefined);
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        recordResult(key, { kind: 'error', message: commandFailureMessage(error) });
+        // No tokens will arrive to consume the line, so it would scroll whatever loads next.
+        setPendingLine(null);
+      });
     return () => {
       cancelled = true;
     };
@@ -158,24 +162,31 @@ export function Viewer({
       // session-sourced file that would otherwise stay on top of it.
       if (requested.root !== root) return () => undefined;
       setTransient(null);
-      setPendingLine(line);
+      // An errored file isn't refetched by this click, so nothing would consume the line.
+      setPendingLine(loadError === null ? line : null);
       if (line === null) return () => undefined;
       if (showMarkdown) setMode('source');
       return () => undefined;
     }
     let cancelled = false;
+    const show = (result: LoadedFile['result'], pendingLineAfter: number | null) => {
+      const next: TransientFile = { sessionId: requested.sessionId, path, root, openFile };
+      const nextKey = sourceKey({ kind: 'session', sessionId: next.sessionId, path });
+      if (nextKey !== key) justLoadedKey.current = nextKey;
+      setTransient(next);
+      recordResult(nextKey, result);
+      setPendingLine(pendingLineAfter);
+      onSessionFileOpened();
+    };
     getFile({ sessionId: requested.sessionId }, path)
       .then((response) => {
-        if (cancelled) return;
-        const next: TransientFile = { sessionId: requested.sessionId, path, root, openFile };
-        const nextKey = sourceKey({ kind: 'session', sessionId: next.sessionId, path });
-        if (nextKey !== key) justLoadedKey.current = nextKey;
-        setTransient(next);
-        keepIfSame(nextKey, response);
-        setPendingLine(line);
-        onSessionFileOpened();
+        if (!cancelled) show({ kind: 'file', file: response }, line);
       })
-      .catch(() => undefined);
+      .catch((error: unknown) => {
+        // A `path:line` the server can't resolve is a false-positive match in terminal output.
+        if (cancelled || isUnresolvablePath(error)) return;
+        show({ kind: 'error', message: commandFailureMessage(error) }, null);
+      });
     return () => {
       cancelled = true;
     };
@@ -186,7 +197,7 @@ export function Viewer({
     [openFileRequest],
   );
 
-  const shownPath = file?.path ?? null;
+  const shownPath = file?.path ?? (loadError !== null && source !== null ? source.path : null);
   useEffect(() => {
     onShownPathChange(shownPath);
   }, [shownPath, onShownPathChange]);
@@ -198,6 +209,9 @@ export function Viewer({
 
   const gated =
     file !== null && file.kind === 'text' && file.truncated && key !== null && !openAnyway.has(key);
+  // A text file the server cut short that the user chose to open anyway.
+  const truncatedShown =
+    file !== null && file.kind === 'text' && file.truncated && key !== null && openAnyway.has(key);
   const [imageFailed, setImageFailed] = useState(false);
 
   useEffect(() => {
@@ -232,6 +246,21 @@ export function Viewer({
     setPendingLine(null);
   }, [gated, pendingLine, tokens]);
 
+  if (file === null && loadError !== null && source !== null) {
+    return (
+      <div className="fp-viewer">
+        <div className="fp-viewer-header">
+          <span className="fp-viewer-path">{source.path}</span>
+        </div>
+        <div className="fp-viewer-body">
+          <div className="fp-load-error" role="alert">
+            Couldn&apos;t load this file: {loadError}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (file === null) {
     return (
       <div className="fp-viewer">
@@ -247,6 +276,11 @@ export function Viewer({
     <div className="fp-viewer">
       <div className="fp-viewer-header">
         <span className="fp-viewer-path">{file.path}</span>
+        {truncatedShown && (
+          <span className="fp-viewer-truncated" title="Only the start of this file is shown.">
+            Truncated
+          </span>
+        )}
         {showMarkdown && !gated && (
           <div className="fp-viewer-mode-toggle" role="group" aria-label="View mode">
             <button

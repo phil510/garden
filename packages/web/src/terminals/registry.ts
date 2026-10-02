@@ -2,7 +2,9 @@ import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
+import { getFile } from '../api/client.js';
 import { connectPaneSocket, type PaneSize } from '../api/paneSocket.js';
+import { isUnresolvablePath } from '../api/unresolvablePath.js';
 import { resolvePathLineTarget } from '../features/filetree/projectPaths.js';
 import { refreshRepoList } from '../features/sidebar/repoListCache.js';
 import { useLocalStore } from '../state/localStore.js';
@@ -56,6 +58,13 @@ async function openPathLine(sessionId: string, path: string, line: number): Prom
   if (target.kind === 'session') {
     store.requestOpenFile({ kind: 'session', sessionId }, target.path, target.line);
     return;
+  }
+  // Probe first: committing the root and open file before the load would leave the panel on a
+  // file that doesn't exist when a false-positive match is clicked.
+  try {
+    await getFile({ root: target.root }, target.path);
+  } catch (error) {
+    if (isUnresolvablePath(error)) return;
   }
   store.setPanelRoot(target.root);
   store.setOpenFile(target.root, target.path);

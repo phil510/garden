@@ -119,13 +119,24 @@ export function FilePanel() {
       root === null ? Promise.reject(new Error('no root')) : getFileTree({ root }, path, refresh),
     [root],
   );
-  const { childrenByPath, loadPath } = useFileTree(root, expanded, fsRefreshEpoch, loadDir);
+  const { childrenByPath, errorByPath, loadPath } = useFileTree(
+    root,
+    expanded,
+    fsRefreshEpoch,
+    loadDir,
+  );
 
   const expandedSet = useMemo(() => new Set(expanded), [expanded]);
   const rows =
     root === null
       ? []
-      : visibleTreeRows(childrenByPath[''], childrenByPath, expandedSet, showGitignored);
+      : visibleTreeRows(
+          childrenByPath[''],
+          childrenByPath,
+          expandedSet,
+          showGitignored,
+          errorByPath,
+        );
 
   function toggleDir(path: string) {
     if (root === null) return;
@@ -218,15 +229,26 @@ export function FilePanel() {
           {root === null ? (
             <div className="fp-none">No project selected.</div>
           ) : (
-            rows.map((row) => (
-              <TreeRow
-                key={row.entry.path}
-                row={row}
-                selected={!transientShown && row.entry.path === openFilePath}
-                onToggleDir={toggleDir}
-                onOpenFile={openFile}
-              />
-            ))
+            rows.map((row) =>
+              row.kind === 'error' ? (
+                <div
+                  key={`error:${row.path}`}
+                  className="fp-tree-error"
+                  style={{ paddingLeft: 8 + row.depth * 14 }}
+                  role="alert"
+                >
+                  {row.path === '' ? "Couldn't load files" : "Couldn't load folder"}: {row.message}
+                </div>
+              ) : (
+                <TreeRow
+                  key={row.entry.path}
+                  row={row}
+                  selected={!transientShown && row.entry.path === openFilePath}
+                  onToggleDir={toggleDir}
+                  onOpenFile={openFile}
+                />
+              ),
+            )
           )}
         </div>
       </div>
