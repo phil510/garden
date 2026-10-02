@@ -48,11 +48,10 @@ export function FilePanel() {
   const toggleExpandedPath = useLocalStore((state) => state.toggleExpandedPath);
   const setOpenFile = useLocalStore((state) => state.setOpenFile);
   const setPanelTab = useLocalStore((state) => state.setPanelTab);
-  const setShowGitignored = useLocalStore((state) => state.setShowGitignored);
   const requestOpenFile = useLocalStore((state) => state.requestOpenFile);
   const bumpFsRefresh = useLocalStore((state) => state.bumpFsRefresh);
 
-  const { root, showGitignored } = filePanel;
+  const { root } = filePanel;
   const rootState = root === null ? undefined : filePanel.byRoot[root];
   const expanded = rootState?.expanded ?? EMPTY_EXPANDED;
   const openFilePath = rootState?.openFile ?? null;
@@ -130,13 +129,7 @@ export function FilePanel() {
   const rows =
     root === null
       ? []
-      : visibleTreeRows(
-          childrenByPath[''],
-          childrenByPath,
-          expandedSet,
-          showGitignored,
-          errorByPath,
-        );
+      : visibleTreeRows(childrenByPath[''], childrenByPath, expandedSet, errorByPath);
 
   function toggleDir(path: string) {
     if (root === null) return;
@@ -217,13 +210,6 @@ export function FilePanel() {
       <div className="fp-tab-content" hidden={activeTab !== 'files'}>
         <div className="fp-tree-toolbar">
           <span className="upper faint">Files</span>
-          <button
-            className={`toggle-pill${showGitignored ? ' on' : ''}`}
-            onClick={() => setShowGitignored(!showGitignored)}
-          >
-            <span className="dot" />
-            <span>Show gitignored</span>
-          </button>
         </div>
         <div className="fp-tree">
           {root === null ? (

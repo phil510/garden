@@ -479,29 +479,6 @@ li.tree-node:not(:last-child)::after {
   background: var(--accent-dim);
   color: var(--accent);
 }
-.toggle-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--raised);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 5px 9px;
-  cursor: pointer;
-  user-select: none;
-}
-.toggle-pill:hover {
-  border-color: var(--border-strong);
-}
-.toggle-pill .dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--border-strong);
-}
-.toggle-pill.on .dot {
-  background: var(--accent);
-}
 .btn-new {
   border-color: var(--border-strong);
   margin-left: auto;

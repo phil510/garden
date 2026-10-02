@@ -11,18 +11,18 @@ export interface PersistedRootState {
   tab: FilePanelTab;
 }
 
-/** What survives a reload; `byRoot` keys and `root` are `RepoEntry.path` values. A shape change
- *  bumps the storage key's version rather than migrating. */
+/** What survives a reload; `byRoot` keys and `root` are `RepoEntry.path` values. A removed field is
+ *  tolerated and dropped on load; an incompatible change bumps the storage key's version rather
+ *  than migrating. */
 export interface PersistedFilePanel {
   root: string | null;
-  showGitignored: boolean;
   byRoot: Record<string, PersistedRootState>;
 }
 
 export const FILE_PANEL_STORAGE_KEY = 'garden.filePanel.v1';
 
 export function defaultFilePanel(): PersistedFilePanel {
-  return { root: null, showGitignored: true, byRoot: {} };
+  return { root: null, byRoot: {} };
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -42,7 +42,6 @@ function isPersistedFilePanel(value: unknown): value is PersistedFilePanel {
   return (
     isRecord(value) &&
     (value.root === null || typeof value.root === 'string') &&
-    typeof value.showGitignored === 'boolean' &&
     isRecord(value.byRoot) &&
     Object.values(value.byRoot).every(isRootState)
   );
@@ -53,7 +52,10 @@ export function parseFilePanel(raw: string | null): PersistedFilePanel {
   if (raw === null) return defaultFilePanel();
   try {
     const parsed: unknown = JSON.parse(raw);
-    return isPersistedFilePanel(parsed) ? parsed : defaultFilePanel();
+    if (!isPersistedFilePanel(parsed)) return defaultFilePanel();
+    // Rebuilt rather than returned so a field this version no longer has (`showGitignored`) is
+    // dropped instead of being written back on the next save.
+    return { root: parsed.root, byRoot: parsed.byRoot };
   } catch {
     return defaultFilePanel();
   }

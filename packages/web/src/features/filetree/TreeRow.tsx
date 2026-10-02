@@ -26,11 +26,10 @@ interface TreeRowProps {
 }
 
 export function TreeRow({ row, root, selected, onToggleDir, onOpenFile }: TreeRowProps) {
-  const { entry, depth, expanded } = row;
+  const { entry, depth, expanded, ignored } = row;
   const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null);
   const { copied, copy } = useCopyFlash();
   const badge = gitStatusBadge(entry.gitStatus);
-  const ignored = entry.gitStatus === '!!';
   const classNames = ['tree-node-row', selected && 'selected', ignored && 'gitignored']
     .filter(Boolean)
     .join(' ');
