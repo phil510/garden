@@ -209,8 +209,8 @@ mapping. It does not optimistically mutate state and hope tmux agrees.
 recompute: the session id to tmux name map, group order, and per-project pins, collapsed state
 and hide-dead toggle, plus stage preset and slot assignments and focused slot, plus swarm
 records and per-session parent/swarmId placements. It does **not** hold a
-`SessionState` snapshot. Every session fact is derived on every boot — liveness, exit code and
-tmux name from tmux, cwd, title and recap from the transcripts, branch from a live git lookup
+`SessionState` snapshot. Every session fact is derived on every boot — liveness and exit code
+from tmux, cwd, title and recap from the transcripts, branch from a live git lookup
 keyed by cwd, status from hooks — because those are the sources of truth and a persisted copy
 of them can only be wrong.
 
@@ -405,7 +405,7 @@ which kind of test.
   against a real tmux.
 - **`app/`** gets tests with faked adapters, covering orchestration order.
 - **`http/`** gets a thin smoke pass. There is little to test in translation.
-- **`packages/web`** tests pure state logic only. No browser end-to-end tests in v1.
+- **`packages/web`** tests pure state logic only. No browser end-to-end tests.
 
 ## 9. Adding a feature
 
