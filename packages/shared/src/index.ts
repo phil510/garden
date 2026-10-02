@@ -230,9 +230,9 @@ export interface TreeEntry {
   gitStatus: string | null;
 }
 /** `GET /fs/tree` takes an optional `refresh` token. Requests for the same project that carry
- *  the same token share one `git status`; send a fresh token per refresh (backstop refetches
- *  included) so a listing is never decorated with a status older than the change it follows.
- *  Without a token every request runs its own status. */
+ *  the same token share one `git status`, so send a fresh, globally unique token (a UUID) per
+ *  refresh, backstop refetches included: a reused token is served its earlier status, which
+ *  can predate the change being refetched. Without a token every request runs its own status. */
 export interface TreeResponse {
   path: string;
   entries: TreeEntry[];
