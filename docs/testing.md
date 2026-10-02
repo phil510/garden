@@ -73,6 +73,9 @@ discarded and `pane_dead_status` never gets set — `exitCode` never arrives (fi
   pinning: nothing should dispatch a fact the outside world never agreed to. Assert the call
   and the dispatch that followed, including the case where the port throws and nothing is
   dispatched. A port with no fake in a test here is ceremony.
+  The exception is one-shot `node:fs` reads, which `app/` may call directly (see the dependency
+  table in `architecture.md`): those use cases have no port to fake, so their unit tests run
+  against real temp directories and stay in the unit tier.
 - **`http/`** gets a thin smoke pass via `fastify.inject()`: mounted, bad body rejected before
   it reaches `app/`, typed error mapped to the intended status. If a route seems to need more
   than that, it is holding logic that belongs in `app/` or `domain/`.

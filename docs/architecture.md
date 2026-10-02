@@ -246,23 +246,24 @@ escape hatch without a reason as strong as this one.
 
 ## 6. Dependency rules
 
-| Layer          | May import                                 | Never                                                  |
-| -------------- | ------------------------------------------ | ------------------------------------------------------ |
-| `domain/`      | `shared`, other `domain/`                  | node builtins, libraries, `adapters/`, `app/`, `http/` |
-| `adapters/`    | `shared`, `domain/` types, its own library | other adapters, `app/`, `http/`                        |
-| `app/`         | `domain/`, `app/ports.ts`                  | `http/`, `adapters/`                                   |
-| `http/`        | `app/`, `shared`                           | `adapters/`, any business logic                        |
-| `cli/`         | `shared`, an HTTP client                   | `app/`, `adapters/`, `domain/` logic                   |
-| `main.ts`      | everything                                 | —                                                      |
-| `packages/web` | `shared`                                   | node builtins, tmux, the filesystem                    |
+| Layer          | May import                                                                                               | Never                                                                                        |
+| -------------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `domain/`      | `shared`, other `domain/`                                                                                | node builtins, libraries, `adapters/`, `app/`, `http/`                                       |
+| `adapters/`    | `shared`, `domain/` types, its own library                                                               | other adapters, `app/`, `http/`                                                              |
+| `app/`         | `domain/`, `app/ports.ts`, `node:fs/promises` for one-shot reads (`readdir`, `stat`, `realpath`, `open`) | `http/`, `adapters/`, watchers and other long-lived fs resources (those live in `adapters/`) |
+| `http/`        | `app/`, `shared`                                                                                         | `adapters/`, any business logic                                                              |
+| `cli/`         | `shared`, an HTTP client                                                                                 | `app/`, `adapters/`, `domain/` logic                                                         |
+| `main.ts`      | everything                                                                                               | —                                                                                            |
+| `packages/web` | `shared`                                                                                                 | node builtins, tmux, the filesystem                                                          |
 
 These are enforced by scoped `no-restricted-imports` rules in `eslint.config.js`, so a
 violation fails `pnpm lint` with a message naming the rule. They are not honour-system
 guidance — the value of "the core is pure" disappears the first time someone imports
 `child_process` into it for one convenience.
 
-One row is enforced only in part: the lint rules block node builtins and the sibling layers
-out of `domain/`, but an arbitrary npm import into `domain/` still passes, because catching
+Some rows are enforced only in part. In `app/`, lint does not police `node:fs`, so review
+upholds the one-shot-reads line. In `domain/`, the lint rules block node builtins and the sibling layers,
+but an arbitrary npm import into `domain/` still passes, because catching
 that needs an allowlist of every permitted specifier. Treat "no libraries in `domain/`" as a
 rule review has to hold up, and revisit the allowlist if it starts being broken.
 
@@ -311,7 +312,8 @@ which kind of test.
   against a real repository. `tmux.ts`'s pure version-parsing logic has a colocated unit test,
   but its execFile-wrapping session calls (list/new-session/respawn-pane/kill) have no test
   against a real tmux.
-- **`app/`** gets tests with faked adapters, covering orchestration order.
+- **`app/`** gets tests with faked adapters, covering orchestration order; the few that
+  exercise one-shot `node:fs` reads use real temp directories (see `docs/testing.md`).
 - **`http/`** gets a thin smoke pass. There is little to test in translation.
 - **`packages/web`** tests pure state logic only. No browser end-to-end tests in v1.
 
