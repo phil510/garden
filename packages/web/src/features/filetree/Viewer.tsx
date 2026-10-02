@@ -9,7 +9,7 @@ import { tokenizeFile } from './highlighter';
 import { isMarkdownFile } from './markdown';
 import { MarkdownCodeBlock } from './MarkdownCodeBlock';
 import { tokenStyle } from './tokenStyle';
-import { resetModeForOpenedFile, type ViewMode } from './viewMode';
+import { resetModeForOpenedFile, shouldResetMode, type ViewMode } from './viewMode';
 import {
   activeSource,
   liveTransient,
@@ -94,19 +94,24 @@ export function Viewer({ root, openFile, onSessionFileOpened, onShownPathChange 
   const [openAnyway, setOpenAnyway] = useState<ReadonlySet<string>>(new Set());
   const [mode, setMode] = useState<ViewMode>('rendered');
   const showMarkdown = file !== null && file.kind === 'text' && isMarkdownFile(file.path);
-  // Tracks which `file` `mode` was last reset for, so a new file resets it to 'rendered'
-  // during render rather than in an effect. An effect would still leave the tokenize effect
-  // below reading this render's stale `mode` (effects fire in declaration order against the
-  // same render's closures), risking one stale frame before a second pass corrects it.
-  const [modeResetFor, setModeResetFor] = useState<FileResponse | null>(null);
-  if (file !== modeResetFor) {
-    setModeResetFor(file);
-    const nextMode = resetModeForOpenedFile(showMarkdown, pendingLine);
-    setMode(nextMode);
-    // A line request the new mode won't honor (rendered mode never scrolls) is already
-    // consumed — leaving it pending would fire a late, unexpected scroll if the user manually
-    // switches to source mode afterward.
-    if (showMarkdown && nextMode === 'rendered' && pendingLine !== null) setPendingLine(null);
+  // Tracks which `file` `mode` was last considered for, so a new file resets it during render
+  // rather than in an effect. An effect would still leave the tokenize effect below reading
+  // this render's stale `mode` (effects fire in declaration order against the same render's
+  // closures), risking one stale frame before a second pass corrects it.
+  const [modeResetFor, setModeResetFor] = useState<{
+    file: FileResponse | null;
+    key: string | null;
+  }>({ file: null, key: null });
+  if (file !== modeResetFor.file) {
+    setModeResetFor({ file, key: file === null ? null : key });
+    if (shouldResetMode(modeResetFor.key, file === null ? null : key, pendingLine)) {
+      const nextMode = resetModeForOpenedFile(showMarkdown, pendingLine);
+      setMode(nextMode);
+      // A line request the new mode won't honor (rendered mode never scrolls) is already
+      // consumed — leaving it pending would fire a late, unexpected scroll if the user manually
+      // switches to source mode afterward.
+      if (showMarkdown && nextMode === 'rendered' && pendingLine !== null) setPendingLine(null);
+    }
   }
   const bodyRef = useRef<HTMLDivElement>(null);
 
