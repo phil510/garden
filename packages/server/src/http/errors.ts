@@ -7,6 +7,7 @@ import {
   PathOutsideRootError,
 } from '../app/filesystem.js';
 import { ConfigWriteRefusedError } from '../app/ports.js';
+import { RootNotListedError } from '../app/repoCatalog.js';
 import { SessionNotFoundError } from '../app/sessions.js';
 import { SwarmCycleError, SwarmNotFoundError } from '../app/swarms.js';
 
@@ -18,6 +19,7 @@ const STATUS_BY_ERROR: readonly (readonly [ErrorClass, number])[] = [
   [PathNotFoundError, 404],
   [SwarmCycleError, 409],
   [ConfigWriteRefusedError, 409],
+  [RootNotListedError, 403],
   [PathOutsideRootError, 400],
   [NotAFileError, 400],
   [NotADirectoryError, 400],

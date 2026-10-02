@@ -31,6 +31,7 @@ import type {
   TranscriptPort,
 } from './app/ports.js';
 import { createProjection, type Projection } from './app/projection.js';
+import { createRepoCatalog } from './app/repoCatalog.js';
 import { watchRepoRoots } from './app/repoRoots.js';
 import { pruneKnownSessions } from './app/swarms.js';
 import { writeClaudeSettings, writeTmuxConf } from './appdir.js';
@@ -267,7 +268,7 @@ export async function main(detached: boolean): Promise<void> {
       store,
       git,
       attach,
-      roots: config.roots,
+      repos: createRepoCatalog({ git, roots: config.roots }),
       serverPort: config.port,
       settingsPath,
       readClaudeCommand: readClaudeCommand(configAdapter),

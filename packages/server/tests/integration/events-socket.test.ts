@@ -67,7 +67,10 @@ function serverWithProjection() {
   return createServer({
     projection: createProjection(fakeStore()),
     store: fakeStore(),
-    roots: [],
+    repos: {
+      list: () => Promise.resolve([]),
+      resolveRoot: () => Promise.reject(new Error('not used by this test')),
+    },
     serverPort: 4310,
     settingsPath: '/home/.garden/claude-settings.json',
     readClaudeCommand: () => ['claude'],
@@ -93,7 +96,10 @@ describe('WS /events against the real server', () => {
     app = createServer({
       projection,
       store: fakeStore(),
-      roots: [],
+      repos: {
+        list: () => Promise.resolve([]),
+        resolveRoot: () => Promise.reject(new Error('not used by this test')),
+      },
       serverPort: 4310,
       settingsPath: '/home/.garden/claude-settings.json',
       readClaudeCommand: () => ['claude'],

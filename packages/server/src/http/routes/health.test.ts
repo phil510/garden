@@ -50,8 +50,6 @@ function fakeDeps(): ServerDeps {
       },
     },
     git: {
-      repoRoot: () => Promise.reject(new Error('not used by this test')),
-      branch: () => Promise.reject(new Error('not used by this test')),
       status: () => Promise.reject(new Error('not used by this test')),
       workTreePrefix: () => Promise.reject(new Error('not used by this test')),
     },
@@ -60,7 +58,10 @@ function fakeDeps(): ServerDeps {
         throw new Error('not used by this test');
       },
     },
-    roots: [],
+    repos: {
+      list: () => Promise.resolve([]),
+      resolveRoot: () => Promise.reject(new Error('not used by this test')),
+    },
     serverPort: 4310,
     settingsPath: '/home/.garden/claude-settings.json',
     readClaudeCommand: () => ['claude'],
