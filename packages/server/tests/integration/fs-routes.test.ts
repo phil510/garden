@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { branch, repoRoot, status, workTreePrefix } from '../../src/adapters/git.js';
 import { DEFAULT_OVERLAY_STATE } from '../../src/adapters/store.js';
 import { createProjection } from '../../src/app/projection.js';
+import { createRepoCatalog } from '../../src/app/repoCatalog.js';
 import type { OverlayState, StorePort } from '../../src/app/ports.js';
 import { createServer } from '../../src/http/server.js';
 
@@ -41,7 +42,7 @@ describe('/fs routes against a real temp repo', () => {
     dir = undefined;
   });
 
-  function serverWithSession(cwd: string) {
+  function serverWithSession(cwd: string, roots: readonly string[] = []) {
     const projection = createProjection(fakeStore());
     projection.dispatch({ type: 'session-registered', id: 'sid', tmuxName: 'x', cwd });
     const app = createServer({
@@ -61,13 +62,13 @@ describe('/fs routes against a real temp repo', () => {
           throw new Error('not used by this test');
         },
       },
-      git: { repoRoot, branch, status, workTreePrefix },
+      git: { status, workTreePrefix },
       attach: {
         attach: () => {
           throw new Error('not used by this test');
         },
       },
-      roots: [],
+      repos: createRepoCatalog({ git: { repoRoot, branch }, roots }),
       serverPort: 4310,
       settingsPath: '/home/.garden/claude-settings.json',
       readClaudeCommand: () => ['claude'],
@@ -234,5 +235,61 @@ describe('/fs routes against a real temp repo', () => {
     } finally {
       await app.close();
     }
+  });
+
+  describe('root-keyed requests', () => {
+    function serverWithRepoUnderRoot(): {
+      app: ReturnType<typeof serverWithSession>;
+      repo: string;
+    } {
+      dir = mkdtempSync(join(tmpdir(), 'garden-fs-'));
+      const repo = join(dir, 'repo');
+      mkdirSync(repo);
+      initRepo(repo);
+      mkdirSync(join(dir, 'plain'));
+      return { app: serverWithSession(repo, [dir]), repo };
+    }
+
+    it('lists a listed root', async () => {
+      const { app, repo } = serverWithRepoUnderRoot();
+      try {
+        const response = await app.inject({
+          method: 'GET',
+          url: `/fs/tree?root=${encodeURIComponent(repo)}&path=`,
+        });
+        expect(response.statusCode).toBe(200);
+        expect(response.json<TreeResponse>().entries.map((entry) => entry.name)).toContain(
+          'README.md',
+        );
+      } finally {
+        await app.close();
+      }
+    });
+
+    it('answers 403 for a root that is not a listed repo', async () => {
+      const { app } = serverWithRepoUnderRoot();
+      try {
+        const response = await app.inject({
+          method: 'GET',
+          url: `/fs/file?root=${encodeURIComponent(join(dir ?? '', 'plain'))}&path=x`,
+        });
+        expect(response.statusCode).toBe(403);
+        expect(response.json<{ error: string }>().error).toEqual(expect.any(String));
+      } finally {
+        await app.close();
+      }
+    });
+
+    it.each(['/fs/tree?session=sid&root=/x&path=', '/fs/tree?path='])(
+      'answers 400 unless exactly one of session and root is given: %s',
+      async (url) => {
+        const { app } = serverWithRepoUnderRoot();
+        try {
+          expect((await app.inject({ method: 'GET', url })).statusCode).toBe(400);
+        } finally {
+          await app.close();
+        }
+      },
+    );
   });
 });

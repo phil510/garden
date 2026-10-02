@@ -5,6 +5,7 @@ import type { FileResponse, TreeEntry, TreeResponse } from '@garden/shared';
 import { isWithinRoot } from '../domain/paths.js';
 import type { GitPort } from './ports.js';
 import type { Projection } from './projection.js';
+import type { RepoCatalog } from './repoCatalog.js';
 import { findSession } from './sessions.js';
 
 type FilesystemGit = Pick<GitPort, 'workTreePrefix' | 'status'>;
@@ -12,23 +13,21 @@ type FilesystemGit = Pick<GitPort, 'workTreePrefix' | 'status'>;
 export interface FilesystemDeps {
   readonly projection: Projection;
   readonly git: FilesystemGit;
+  readonly repos: Pick<RepoCatalog, 'resolveRoot'>;
 }
 
-export interface TreeRequest {
-  readonly sessionId: string;
-  readonly path: string;
-}
+/** What a request is scoped to: a live session's cwd, or a project root from the repo list. */
+export type ScopeRequest = { readonly sessionId: string } | { readonly root: string };
 
-export interface FileRequest {
-  readonly sessionId: string;
-  readonly path: string;
-}
+export type TreeRequest = ScopeRequest & { readonly path: string };
+
+export type FileRequest = ScopeRequest & { readonly path: string };
 
 /** Nothing on disk resolves to the requested path — the common case is simply "does not
  *  exist", but a symlink whose target is missing lands here too. */
 export class PathNotFoundError extends Error {}
 
-/** The resolved path exists but is outside the session's cwd — `..` traversal, an absolute
+/** The resolved path exists but is outside the root — `..` traversal, an absolute
  *  path, or a symlink whose target escapes the root. */
 export class PathOutsideRootError extends Error {}
 
@@ -82,8 +81,13 @@ async function resolveScoped(
     throw new PathNotFoundError(`no such path: ${requestedPath}`, { cause: error });
   }
   if (!isWithinRoot(root, resolved))
-    throw new PathOutsideRootError(`path escapes session root: ${requestedPath}`);
+    throw new PathOutsideRootError(`path escapes root: ${requestedPath}`);
   return { absolute: resolved, relative: relative(cwd, joined) };
+}
+
+async function scopeDir(deps: FilesystemDeps, request: ScopeRequest): Promise<string> {
+  if ('root' in request) return deps.repos.resolveRoot(request.root);
+  return findSession(deps.projection, request.sessionId).cwd;
 }
 
 /** One `git status --porcelain` per refresh, re-keyed to the cwd-relative paths tree entries
@@ -140,16 +144,13 @@ async function listEntries(
   return entries;
 }
 
-/** Lazy directory listing, scoped to the session's cwd. */
-export async function readSessionTree(
-  deps: FilesystemDeps,
-  request: TreeRequest,
-): Promise<TreeResponse> {
-  const session = findSession(deps.projection, request.sessionId);
-  const { absolute, relative: relativePath } = await resolveScoped(session.cwd, request.path);
+/** Lazy directory listing, scoped to a session's cwd or a listed root. */
+export async function readTree(deps: FilesystemDeps, request: TreeRequest): Promise<TreeResponse> {
+  const dir = await scopeDir(deps, request);
+  const { absolute, relative: relativePath } = await resolveScoped(dir, request.path);
   const info = await stat(absolute);
   if (!info.isDirectory()) throw new NotADirectoryError(`not a directory: ${request.path}`);
-  const statuses = await gitStatusMap(deps.git, session.cwd);
+  const statuses = await gitStatusMap(deps.git, dir);
   return { path: relativePath, entries: await listEntries(absolute, relativePath, statuses) };
 }
 
@@ -202,19 +203,19 @@ function looksBinary(text: string): boolean {
   return text.includes('\0');
 }
 
-/** File contents, scoped to the session's cwd. Extension decides the branch: a recognised
+/** File contents, scoped to a session's cwd or a listed root. Extension decides the branch: a recognised
  *  image extension is read whole (or reported too large) and returned as base64; everything
  *  else is read through the existing text cap and, only then, sniffed for binary content —
  *  `capBytes` and `imageCapBytes` are overrides for tests, which would otherwise need
  *  multi-megabyte fixtures to exercise truncation. */
-export async function readSessionFile(
+export async function readFile(
   deps: FilesystemDeps,
   request: FileRequest,
   capBytes: number = FILE_SIZE_CAP_BYTES,
   imageCapBytes: number = IMAGE_SIZE_CAP_BYTES,
 ): Promise<FileResponse> {
-  const session = findSession(deps.projection, request.sessionId);
-  const { absolute, relative: relativePath } = await resolveScoped(session.cwd, request.path);
+  const dir = await scopeDir(deps, request);
+  const { absolute, relative: relativePath } = await resolveScoped(dir, request.path);
   const info = await stat(absolute);
   if (!info.isFile()) throw new NotAFileError(`not a file: ${request.path}`);
 

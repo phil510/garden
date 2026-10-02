@@ -164,7 +164,10 @@ describe('WS /attach/:id against a real tmux pane and a real pty', () => {
         terminalFontSize: 13,
         git: unusedGitPort(),
         configPort: unusedConfigPort(),
-        roots: [],
+        repos: {
+          list: () => Promise.resolve([]),
+          resolveRoot: () => Promise.reject(new Error('not used by this test')),
+        },
         attach: createAttachRegistry({ pty: ptyPort(target), projection }),
       });
       await app.listen({ port: 0, host: '127.0.0.1' });
@@ -250,7 +253,10 @@ describe('WS /attach/:id against a real tmux pane and a real pty', () => {
         terminalFontSize: 13,
         git: unusedGitPort(),
         configPort: unusedConfigPort(),
-        roots: [],
+        repos: {
+          list: () => Promise.resolve([]),
+          resolveRoot: () => Promise.reject(new Error('not used by this test')),
+        },
         attach: createAttachRegistry({ pty: ptyPort(target), projection }),
       });
       await app.listen({ port: 0, host: '127.0.0.1' });

@@ -6,7 +6,7 @@ import { fastifyLogger } from './logger.js';
 import type { AttachSocketDeps } from './ws/attach.js';
 import type { FilesystemDeps } from '../app/filesystem.js';
 import type { Logger } from '../app/ports.js';
-import type { ReposDeps } from '../app/repos.js';
+import type { RepoCatalog } from '../app/repoCatalog.js';
 import type { SessionsDeps } from '../app/sessions.js';
 import type { SwarmsDeps } from '../app/swarms.js';
 import { fsRoutes } from './routes/fs.js';
@@ -22,9 +22,7 @@ import { registerStaticRoutes, resolveClientDir } from './static.js';
 import { registerAttachSocket } from './ws/attach.js';
 import { registerEventsSocket } from './ws/events.js';
 
-export type ServerDeps = SessionsDeps &
-  ReposDeps &
-  FilesystemDeps &
+export type ServerDeps = SessionsDeps & { readonly repos: RepoCatalog } & FilesystemDeps &
   AttachSocketDeps &
   SettingsDeps &
   SwarmsDeps;
