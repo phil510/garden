@@ -12,6 +12,7 @@ import { tokenStyle } from './tokenStyle';
 import { resetModeForOpenedFile, type ViewMode } from './viewMode';
 import {
   activeSource,
+  liveTransient,
   sameFileContent,
   sourceKey,
   sourceScope,
@@ -70,7 +71,7 @@ const markdownComponents: Components = {
 /**
  * Read-only, one file at a time, no tabs of its own. Shows the panel root's persisted open file,
  * unless a `path:line` click from a pane with no containing project put a session-sourced file
- * on top of it (transient: dropped when the root or open file changes, never persisted). Both
+ * on top of it (transient: cleared when the root or open file changes, never persisted). Both
  * refetch on every refresh epoch. A file the server can't resolve is a no-op: the viewer is left
  * exactly as it was.
  */
@@ -79,7 +80,10 @@ export function Viewer({ root, openFile, onSessionFileOpened, onShownPathChange 
   const fsRefreshEpoch = useLocalStore((state) => state.fsRefreshEpoch);
   const [transient, setTransient] = useState<TransientFile | null>(null);
   const [loaded, setLoaded] = useState<{ key: string; file: FileResponse } | null>(null);
-  const source = activeSource(root, openFile, transient);
+  // A root or open-file change drops the transient file for good rather than just hiding it.
+  const liveTransientFile = liveTransient(root, openFile, transient);
+  if (liveTransientFile !== transient) setTransient(liveTransientFile);
+  const source = activeSource(root, openFile, liveTransientFile);
   const key = source === null ? null : sourceKey(source);
   // A file fetched for another source is never shown, so a root switch can't flash the old file.
   const file = loaded !== null && loaded.key === key ? loaded.file : null;

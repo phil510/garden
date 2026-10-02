@@ -6,8 +6,8 @@ export type ViewerSource =
   | { kind: 'root'; root: string; path: string }
   | { kind: 'session'; sessionId: string; path: string };
 
-/** A session-sourced file shown on top of the persisted one. It stays active only while the
- *  panel's root and open file are what they were when it opened. */
+/** A session-sourced file shown on top of the persisted one. It lives only while the panel's
+ *  root and open file are what they were when it opened. */
 export interface TransientFile {
   sessionId: string;
   path: string;
@@ -15,15 +15,26 @@ export interface TransientFile {
   openFile: string | null;
 }
 
-/** The file the viewer should show: a still-valid transient file, else the root's open file. */
+/** The transient file if the panel's root and open file are still the ones it opened against,
+ *  else null — the caller stores the result, so a change drops it for good. */
+export function liveTransient(
+  root: string | null,
+  openFile: string | null,
+  transient: TransientFile | null,
+): TransientFile | null {
+  return transient !== null && transient.root === root && transient.openFile === openFile
+    ? transient
+    : null;
+}
+
+/** The file the viewer should show: a live transient file, else the root's open file. */
 export function activeSource(
   root: string | null,
   openFile: string | null,
   transient: TransientFile | null,
 ): ViewerSource | null {
-  if (transient !== null && transient.root === root && transient.openFile === openFile) {
-    return { kind: 'session', sessionId: transient.sessionId, path: transient.path };
-  }
+  const live = liveTransient(root, openFile, transient);
+  if (live !== null) return { kind: 'session', sessionId: live.sessionId, path: live.path };
   if (root !== null && openFile !== null) return { kind: 'root', root, path: openFile };
   return null;
 }

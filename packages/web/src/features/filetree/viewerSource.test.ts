@@ -1,5 +1,23 @@
 import { describe, expect, it } from 'vitest';
-import { activeSource, sameFileContent, sourceKey } from './viewerSource';
+import { activeSource, liveTransient, sameFileContent, sourceKey } from './viewerSource';
+
+describe('liveTransient', () => {
+  const transient = { sessionId: 's1', path: 'y.ts', root: '/a', openFile: 'x.ts' };
+
+  it('keeps a transient file while root and open file match', () => {
+    expect(liveTransient('/a', 'x.ts', transient)).toBe(transient);
+  });
+
+  it('drops it when the open file or root differ, so returning to them does not revive it', () => {
+    expect(liveTransient('/a', 'z.ts', transient)).toBeNull();
+    expect(liveTransient('/b', 'x.ts', transient)).toBeNull();
+    expect(liveTransient('/a', 'x.ts', liveTransient('/a', 'z.ts', transient))).toBeNull();
+  });
+
+  it('passes null through', () => {
+    expect(liveTransient('/a', 'x.ts', null)).toBeNull();
+  });
+});
 
 describe('activeSource', () => {
   it('shows the root open file when there is no transient file', () => {
