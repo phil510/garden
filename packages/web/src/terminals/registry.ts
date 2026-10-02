@@ -45,10 +45,6 @@ function hasSize(element: HTMLElement): boolean {
   return parseFloat(style.width) > 0 && parseFloat(style.height) > 0;
 }
 
-/** xterm decodes tmux's mouse-tracking escape sequences on its own once tmux's `mouse on`
- *  requests them, and forwards the resulting reports back through the same `onData` stream a
- *  keypress would use — there is nothing beyond a normally-configured terminal to wire up for
- *  CC's wheel scrolling to work. */
 /** Opens a clicked `path:line` in the file panel: re-rooting it onto the project containing the
  *  file, or showing it through the session when no listed project does. */
 async function openPathLine(sessionId: string, path: string, line: number): Promise<void> {
@@ -67,6 +63,10 @@ async function openPathLine(sessionId: string, path: string, line: number): Prom
   store.requestOpenFile({ kind: 'root', root: target.root }, target.path, target.line);
 }
 
+/** xterm decodes tmux's mouse-tracking escape sequences on its own once tmux's `mouse on`
+ *  requests them, and forwards the resulting reports back through the same `onData` stream a
+ *  keypress would use — there is nothing beyond a normally-configured terminal to wire up for
+ *  CC's wheel scrolling to work. */
 function createPane(sessionId: string, container: HTMLElement, epoch: number): PaneHandle {
   // `unicode` is one of xterm.js's proposed (non-stable) APIs, gated behind allowProposedApi —
   // without it, terminal.unicode throws at runtime instead of at the type level.
