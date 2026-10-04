@@ -21,6 +21,9 @@ export function getSettings(deps: SettingsDeps): SettingsResponse {
     deadSessionCap: deps.deadSessionCap,
     terminalFontSize: deps.terminalFontSize,
     claudeCommand: deps.configPort.read().claudeCommand,
+    ignoreAuthors: [],
+    quietWindowMinutes: 3,
+    pollIntervalMinutes: 5,
   };
 }
 

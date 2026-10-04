@@ -45,6 +45,7 @@ function aSession(overrides: Partial<SessionState> = {}): SessionState {
     tmuxName: 'repo',
     lastActivity: 0,
     claudeSessionName: null,
+    watches: [],
     ...overrides,
   };
 }

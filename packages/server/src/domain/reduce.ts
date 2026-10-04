@@ -29,6 +29,7 @@ function blank(id: string): SessionState {
     tmuxName: null,
     lastActivity: 0,
     claudeSessionName: null,
+    watches: [],
   };
 }
 

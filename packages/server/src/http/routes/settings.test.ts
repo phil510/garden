@@ -95,6 +95,9 @@ describe('GET /settings', () => {
         deadSessionCap: 25,
         terminalFontSize: 18,
         claudeCommand: 'ec bedrock launch claude --',
+        ignoreAuthors: [],
+        quietWindowMinutes: 3,
+        pollIntervalMinutes: 5,
       });
     } finally {
       await app.close();
