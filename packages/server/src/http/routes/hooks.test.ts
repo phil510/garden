@@ -25,9 +25,6 @@ function fakeProjection() {
     updateOverlay: () => {
       throw new Error('not used by this test');
     },
-    overlay: () => {
-      throw new Error('not used by this test');
-    },
     subscribeOverlay: () => () => undefined,
     placementOf: () => {
       throw new Error('not used by this test');

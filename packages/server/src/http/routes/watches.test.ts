@@ -34,7 +34,6 @@ function buildApp(remoteUrl: () => Promise<string | null>, watches: OverlayState
     subscribeUiState: () => () => undefined,
     overlay: () => ({ ...overlay, watches }),
     updateOverlay: (mutate) => mutate({ ...overlay, watches }),
-    overlay: unused,
     subscribeOverlay: () => () => undefined,
     placementOf: unused,
   };

@@ -329,6 +329,7 @@ const emptyOverlay: OverlayState = {
   collapsedSwarms: [],
   hideDeadSwarms: [],
   watches: [],
+  pipes: {},
 };
 
 /** A real projection over an in-memory store, a fake GitHub and an injected clock. */

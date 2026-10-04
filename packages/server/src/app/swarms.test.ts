@@ -60,9 +60,6 @@ function fakeProjection(overlay: OverlayState, sessions: SessionState[] = []) {
       }
       return next;
     },
-    overlay: () => {
-      throw new Error('not used by this test');
-    },
     subscribeOverlay: () => () => undefined,
     placementOf: () => {
       throw new Error('not used by this test');
