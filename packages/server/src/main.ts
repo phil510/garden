@@ -2,7 +2,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { readClaudeSessionNames } from './adapters/claudeSessions.js';
 import { watchFsRoot } from './adapters/fsWatch.js';
-import { branch, repoRoot, status, workTreePrefix } from './adapters/git.js';
+import { branch, remoteUrl, repoRoot, status, workTreePrefix } from './adapters/git.js';
 import { createLogger, guardStderr, type Logger } from './adapters/logger.js';
 import { attachPty } from './adapters/pty.js';
 import type { PtyTarget } from './adapters/pty.js';
@@ -104,7 +104,7 @@ function fsWatchPort(logger: Logger): FsWatchPort {
 }
 
 function gitPort(): GitPort {
-  return { repoRoot, branch, status, workTreePrefix };
+  return { repoRoot, branch, remoteUrl, status, workTreePrefix };
 }
 
 function ptyPort(target: PtyTarget): PtyPort {

@@ -3,7 +3,14 @@ import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { GitError, branch, repoRoot, status, workTreePrefix } from '../../src/adapters/git.js';
+import {
+  GitError,
+  branch,
+  remoteUrl,
+  repoRoot,
+  status,
+  workTreePrefix,
+} from '../../src/adapters/git.js';
 
 function git(cwd: string, args: readonly string[]): void {
   execFileSync('git', args, { cwd });
@@ -40,6 +47,22 @@ describe('the git adapter', () => {
     // git resolves symlinks in its output (e.g. macOS's /var -> /private/var),
     // so the comparison must resolve the same way.
     expect(rootFromRepo).toBe(realpathSync(repoDir));
+  });
+
+  it('reads the origin remote URL and reports none for a repository without one', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'garden-git-'));
+    initRepo(dir);
+
+    expect(await remoteUrl(dir)).toBeNull();
+
+    git(dir, ['remote', 'add', 'origin', 'git@github.com:acme/widgets.git']);
+    expect(await remoteUrl(dir)).toBe('git@github.com:acme/widgets.git');
+  });
+
+  it('fails with a GitError when asked for the remote of a directory that is not a repository', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'garden-git-'));
+
+    await expect(remoteUrl(dir)).rejects.toBeInstanceOf(GitError);
   });
 
   it('reports a subdirectory as the prefix status paths are relative to', async () => {

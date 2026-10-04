@@ -102,6 +102,8 @@ export interface GitPort {
    *  `status` reports its paths in. */
   workTreePrefix(cwd: string): Promise<string>;
   branch(cwd: string): Promise<string>;
+  /** The `origin` remote's URL; null when the repository has no `origin`. */
+  remoteUrl(cwd: string): Promise<string | null>;
   status(cwd: string): Promise<GitStatusEntry[]>;
 }
 
