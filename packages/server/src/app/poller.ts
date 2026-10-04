@@ -285,7 +285,9 @@ export function createPoller(deps: PollerDeps): Poller {
       ignoreAuthors: settings.ignoreAuthors,
       quietWindowMs: settings.quietWindowMinutes * MINUTE_MS,
     };
-    const watches = updateWatches(deps.watches, (current) => current, deps.now());
+    // A write that changes nothing but prune expired watches.
+    updateWatches(deps.watches, (current) => current, deps.now());
+    const { watches } = deps.watches.projection.overlay();
     if (deps.now() < holdUntil) return;
     const polled = watches.filter((w) => w.status !== 'closed');
     for (const watch of polled) {

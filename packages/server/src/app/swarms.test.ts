@@ -51,6 +51,7 @@ function fakeProjection(overlay: OverlayState, sessions: SessionState[] = []) {
     },
     subscribe: () => () => undefined,
     subscribeUiState: () => () => undefined,
+    overlay: () => current,
     updateOverlay: (mutate) => {
       const next = mutate(current);
       if (next !== current) {

@@ -29,6 +29,9 @@ function fakeProjection(overrides: Partial<Projection> = {}): Projection {
     updateUiState: () => undefined,
     subscribe: () => () => undefined,
     subscribeUiState: () => () => undefined,
+    overlay: () => {
+      throw new Error('not used by this test');
+    },
     updateOverlay: () => {
       throw new Error('not used by this test');
     },

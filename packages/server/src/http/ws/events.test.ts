@@ -60,6 +60,9 @@ function fakeProjection() {
       uiListeners.add(listener);
       return () => uiListeners.delete(listener);
     },
+    overlay: () => {
+      throw new Error('not used by this test');
+    },
     updateOverlay: () => {
       throw new Error('not used by this test');
     },
