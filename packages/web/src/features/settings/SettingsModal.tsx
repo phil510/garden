@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState, type ChangeEvent, type MouseEvent } from 'react';
 import { getSettings, updateSettings } from '../../api/client';
 import { reportCommandFailure } from '../../api/reportCommandFailure';
-import { fieldsFromSettings, toSettingsRequest, type SettingsFields } from './settingsFields';
+import {
+  fieldsFromSettings,
+  settingsProblem,
+  toSettingsRequest,
+  type SettingsFields,
+} from './settingsFields';
 import './settings.css';
 
 interface SettingsModalProps {
@@ -16,6 +21,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     pollIntervalMinutes: '',
   });
   const request = toSettingsRequest(fields);
+  const problem = settingsProblem(fields);
   const setField = (key: keyof SettingsFields) => (event: ChangeEvent<HTMLInputElement>) =>
     setFields((prev) => ({ ...prev, [key]: event.target.value }));
   const [loaded, setLoaded] = useState(false);
@@ -160,10 +166,8 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
             />
           </div>
         </div>
-        {loaded && request === null && (
-          <div className="settings-note settings-error">
-            Minutes must be whole numbers: quiet window 0 or more, poll interval 1 or more.
-          </div>
+        {loaded && problem !== null && (
+          <div className="settings-note settings-error">{problem}</div>
         )}
         {loadFailed && <div className="settings-note settings-error">Could not load settings.</div>}
         {saveFailed && <div className="settings-note settings-error">Could not save settings.</div>}

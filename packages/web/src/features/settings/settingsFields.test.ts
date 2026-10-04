@@ -3,6 +3,7 @@ import {
   fieldsFromSettings,
   parseAuthors,
   parseMinutes,
+  settingsProblem,
   toSettingsRequest,
   type SettingsFields,
 } from './settingsFields';
@@ -56,6 +57,23 @@ describe('toSettingsRequest', () => {
   ])('is null when a field is invalid (%j)', (override) => {
     expect(toSettingsRequest({ ...valid, ...override })).toBeNull();
   });
+});
+
+describe('settingsProblem', () => {
+  it('is null when every field is valid', () => {
+    expect(settingsProblem(valid)).toBeNull();
+  });
+
+  it('blames the command, not the minutes, when only the command is blank', () => {
+    expect(settingsProblem({ ...valid, claudeCommand: ' ' })).toMatch(/command/i);
+  });
+
+  it.each<Partial<SettingsFields>>([{ quietWindowMinutes: '-1' }, { pollIntervalMinutes: '0' }])(
+    'blames the minutes when they are invalid (%j)',
+    (override) => {
+      expect(settingsProblem({ ...valid, ...override })).toMatch(/minutes/i);
+    },
+  );
 });
 
 describe('fieldsFromSettings', () => {
