@@ -13,7 +13,7 @@ description: >-
   done. Not for the garden server itself — "stop the server", "shut garden
   down", "restart the server", "uninstall garden" (`garden stop`, `garden uninstall`) name the server process, not a
   session. Composing and addressing a note to one named session belongs to
-  `message-session`.
+  `message-session`; waiting on a PR belongs to `watch-pr`.
 ---
 
 # Orchestrating garden sessions
