@@ -67,6 +67,7 @@ merges them; nothing else computes a session fact.
 | branch                               | a live git lookup by cwd (`app/branches.ts`), re-asked each tick for live sessions                          |
 | repo root                            | `git rev-parse --git-common-dir` on the cwd (`app/repoRoots.ts`), so worktrees fold into their main repo    |
 | Claude-side name                     | Claude Code's session registry, `~/.claude/sessions` (read only)                                            |
+| watches                              | the watch records in `state.json`, projected onto the session by a `watches-changed` event                  |
 | shown                                | garden's stage state in `state.json`, not a session fact at all                                             |
 
 The exceptions: `session-registered` clears `ended` because a process was just started under that
@@ -143,11 +144,12 @@ packages/server/src/
     transcript.ts  jsonl line -> session record
     status.ts      hook event -> status
     stage.ts       slot arithmetic across preset changes
+    watches.ts     watch rules: kind normalisation, upsert/remove, 7-day digest pruning, summaries
     paths.ts       filesystem scoping
     diff.ts        (prev, next) -> Delta[]
   adapters/        one external system each
     tmux.ts        execFile wrapper: list, new-session, respawn-pane, kill, version check
-    git.ts         git-common-dir, branch, status --porcelain, worktree prefix
+    git.ts         git-common-dir, branch, status --porcelain, worktree prefix, origin URL
     transcripts.ts chokidar watch + read
     fsWatch.ts     native recursive fs.watch on one root, debounced, .git/ filtered
     pty.ts         node-pty attach
@@ -159,6 +161,7 @@ packages/server/src/
     projection.ts  owns current state; dispatch(event); subscribe(fn)
     sessions.ts    create / resume / kill use cases
     hooks.ts
+    watches.ts     add / remove / list watch use cases and boot replay, all through one writer
     filesystem.ts
     repos.ts
     rootWatch.ts   one watch per /events connection, swapped on a new root
@@ -218,7 +221,7 @@ mapping. It does not optimistically mutate state and hope tmux agrees.
 `<appDir>/state.json` holds **overlay facts only** — things garden itself decided and cannot
 recompute: the session id to tmux name map, group order, and per-project pins, collapsed state
 and hide-dead toggle, plus stage preset and slot assignments and focused slot, plus swarm
-records and per-session parent/swarmId placements. It does **not** hold a
+records and per-session parent/swarmId placements, plus the PR watches. It does **not** hold a
 `SessionState` snapshot. Every session fact is derived on every boot — liveness and exit code
 from tmux, cwd, title and recap from the transcripts, branch from a live git lookup
 keyed by cwd, status from hooks — because those are the sources of truth and a persisted copy
@@ -237,7 +240,10 @@ So the startup sequence is a replay, not a restore:
    nor the watcher dispatches it, and it surfaces on the first reconciliation pass instead, up to
    ~10s later rather than immediately.
 3. Dispatch `{ type: 'store-loaded' }` — the projection now knows the id-to-name map and the
-   UI preferences, and nothing else.
+   UI preferences, and nothing else. Then replay the persisted watches: `replayWatches` runs the
+   watch writer once, which prunes expired digests and closed watches (and persists that), and
+   dispatches a `watches-changed` for every session holding watches. A failure here is logged,
+   not fatal to boot.
 4. Dispatch a full `tmux-snapshot`.
 5. Scan `<transcriptsDir>/**` and dispatch a `transcript-changed` per file.
 6. Sweep every session's cwd for its current branch, once every distinct cwd from step 5 exists
