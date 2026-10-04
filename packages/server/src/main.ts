@@ -53,7 +53,7 @@ import {
 import type { TmuxSessionFact } from './domain/types.js';
 import { createServer } from './http/server.js';
 
-/** How often the tmux poll re-derives liveness. It is the only recurring timer the server has. */
+/** How often the tmux poll re-derives liveness. */
 const TMUX_POLL_INTERVAL_MS = 2000;
 
 /** How often the pipe sweep ends watches that have had no pipe for seven days. */
