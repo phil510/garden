@@ -44,6 +44,14 @@ garden reads `~/.garden/config.json` on startup, writing a default one on first 
   settings panel in the app (the gear icon in the topbar); `GARDEN_CLAUDE_COMMAND` still takes
   precedence when set. A saved change applies to the next new or resumed session — no restart
   required — but leaves already-running sessions on whatever command spawned them.
+- `ignoreAuthors` — PR comment and review authors whose activity a watch does not report. Default
+  `[]`.
+- `quietWindowMinutes` — minutes of PR quiet required before a digest is delivered; a whole
+  number, `0` allowed. Default `3`.
+- `pollIntervalMinutes` — minutes between PR polls; a positive whole number. Default `5`.
+
+  These three are also editable from the settings panel, and a saved change is read on the next
+  use — no restart required.
 
 ## Dev loop
 

@@ -121,6 +121,53 @@ describe('PUT /settings', () => {
     }
   });
 
+  it.each([{}, { unknownKey: 1 }, { quietWindowMinutes: -1 }, { ignoreAuthors: [1] }])(
+    'answers 400 on %j without writing',
+    async (payload) => {
+      const written: unknown[] = [];
+      const app = createServer(
+        fakeDeps({
+          configPort: fakeConfigPort({
+            write: (patch) => {
+              written.push(patch);
+            },
+          }),
+        }),
+      );
+      try {
+        const response = await app.inject({ method: 'PUT', url: '/settings', payload });
+        expect(response.statusCode).toBe(400);
+        expect(written).toHaveLength(0);
+      } finally {
+        await app.close();
+      }
+    },
+  );
+
+  it('answers 200 for a subset of keys that omits claudeCommand', async () => {
+    const written: unknown[] = [];
+    const app = createServer(
+      fakeDeps({
+        configPort: fakeConfigPort({
+          write: (patch) => {
+            written.push(patch);
+          },
+        }),
+      }),
+    );
+    try {
+      const response = await app.inject({
+        method: 'PUT',
+        url: '/settings',
+        payload: { pollIntervalMinutes: 10 },
+      });
+      expect(response.statusCode).toBe(200);
+      expect(written).toEqual([{ pollIntervalMinutes: 10 }]);
+    } finally {
+      await app.close();
+    }
+  });
+
   it('answers 400, not 500, on a blank claudeCommand', async () => {
     const app = createServer(fakeDeps());
     try {

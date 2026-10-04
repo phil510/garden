@@ -258,6 +258,33 @@ describe('parseConfigFile', () => {
   });
 });
 
+describe('parseConfigFile watch settings', () => {
+  it.each([
+    ['quietWindowMinutes', -1],
+    ['quietWindowMinutes', 2.5],
+    ['pollIntervalMinutes', 0],
+    ['pollIntervalMinutes', 1.5],
+    ['ignoreAuthors', ['ok', 7]],
+    ['ignoreAuthors', 'bot'],
+  ])('rejects %s of %j', (key, value) => {
+    expect(() => parseConfigFile(JSON.stringify({ [key]: value }), '/c.json')).toThrow(
+      new RegExp(`"${key}"`),
+    );
+  });
+
+  it('reads valid values and accepts a zero quiet window', () => {
+    const parsed = parseConfigFile(
+      '{"ignoreAuthors": ["a", "b"], "quietWindowMinutes": 0, "pollIntervalMinutes": 7}',
+      '/c.json',
+    );
+    expect(parsed).toMatchObject({
+      ignoreAuthors: ['a', 'b'],
+      quietWindowMinutes: 0,
+      pollIntervalMinutes: 7,
+    });
+  });
+});
+
 describe('ensureConfigFile', () => {
   let home: string;
   let configPath: string;

@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState, type MouseEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent, type MouseEvent } from 'react';
 import { getSettings, updateSettings } from '../../api/client';
 import { reportCommandFailure } from '../../api/reportCommandFailure';
+import { fieldsFromSettings, toSettingsRequest, type SettingsFields } from './settingsFields';
 import './settings.css';
 
 interface SettingsModalProps {
@@ -8,7 +9,15 @@ interface SettingsModalProps {
 }
 
 export function SettingsModal({ onClose }: SettingsModalProps) {
-  const [claudeCommand, setClaudeCommand] = useState('');
+  const [fields, setFields] = useState<SettingsFields>({
+    claudeCommand: '',
+    ignoreAuthors: '',
+    quietWindowMinutes: '',
+    pollIntervalMinutes: '',
+  });
+  const request = toSettingsRequest(fields);
+  const setField = (key: keyof SettingsFields) => (event: ChangeEvent<HTMLInputElement>) =>
+    setFields((prev) => ({ ...prev, [key]: event.target.value }));
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -21,7 +30,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     getSettings()
       .then((settings) => {
         if (!cancelled) {
-          setClaudeCommand(settings.claudeCommand);
+          setFields(fieldsFromSettings(settings));
           setLoaded(true);
         }
       })
@@ -61,13 +70,14 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   // failed, but a PUT that succeeds followed by a GET that fails is a stale display, not a
   // failed save, and must not tell the user their change didn't land when it did.
   function save() {
+    if (request === null) return;
     setSaving(true);
     setSaveFailed(false);
-    updateSettings({ claudeCommand })
+    updateSettings(request)
       .then(() =>
         getSettings()
           .then((settings) => {
-            if (mountedRef.current) setClaudeCommand(settings.claudeCommand);
+            if (mountedRef.current) setFields(fieldsFromSettings(settings));
           })
           .catch((err: unknown) => {
             reportCommandFailure(err);
@@ -101,21 +111,67 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
             autoComplete="off"
             autoFocus
             disabled={!loaded || saving}
-            value={claudeCommand}
-            onChange={(event) => setClaudeCommand(event.target.value)}
+            value={fields.claudeCommand}
+            onChange={setField('claudeCommand')}
           />
         </div>
         <div className="settings-note faint">
           A saved command applies to the next new or resumed session, no restart required.
           GARDEN_CLAUDE_COMMAND still overrides a saved value when set.
         </div>
+        <div className="settings-field">
+          <label htmlFor="settings-ignore-authors">Ignored PR authors</label>
+          <input
+            id="settings-ignore-authors"
+            type="text"
+            autoComplete="off"
+            placeholder="dependabot, renovate"
+            disabled={!loaded || saving}
+            value={fields.ignoreAuthors}
+            onChange={setField('ignoreAuthors')}
+          />
+        </div>
+        <div className="settings-note faint">
+          Comma or space separated. Watches do not report these authors' comments or reviews.
+        </div>
+        <div className="settings-row">
+          <div className="settings-field">
+            <label htmlFor="settings-quiet-window">Quiet window (minutes)</label>
+            <input
+              id="settings-quiet-window"
+              type="text"
+              inputMode="numeric"
+              autoComplete="off"
+              disabled={!loaded || saving}
+              value={fields.quietWindowMinutes}
+              onChange={setField('quietWindowMinutes')}
+            />
+          </div>
+          <div className="settings-field">
+            <label htmlFor="settings-poll-interval">Poll interval (minutes)</label>
+            <input
+              id="settings-poll-interval"
+              type="text"
+              inputMode="numeric"
+              autoComplete="off"
+              disabled={!loaded || saving}
+              value={fields.pollIntervalMinutes}
+              onChange={setField('pollIntervalMinutes')}
+            />
+          </div>
+        </div>
+        {loaded && request === null && (
+          <div className="settings-note settings-error">
+            Minutes must be whole numbers: quiet window 0 or more, poll interval 1 or more.
+          </div>
+        )}
         {loadFailed && <div className="settings-note settings-error">Could not load settings.</div>}
         {saveFailed && <div className="settings-note settings-error">Could not save settings.</div>}
         <div className="settings-actions">
           <button className="ghost" onClick={onClose}>
             Close
           </button>
-          <button disabled={!loaded || saving || claudeCommand.trim() === ''} onClick={save}>
+          <button disabled={!loaded || saving || request === null} onClick={save}>
             Save
           </button>
         </div>

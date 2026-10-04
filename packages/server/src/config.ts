@@ -19,6 +19,9 @@ export interface ConfigFile {
   readonly deadSessionCap: number;
   readonly terminalFontSize: number;
   readonly claudeCommand: string;
+  readonly ignoreAuthors: readonly string[];
+  readonly quietWindowMinutes: number;
+  readonly pollIntervalMinutes: number;
 }
 export interface Config {
   readonly port: number;
@@ -40,6 +43,9 @@ export const DEFAULT_CONFIG_FILE: ConfigFile = {
   deadSessionCap: 10,
   terminalFontSize: 13,
   claudeCommand: 'claude',
+  ignoreAuthors: [],
+  quietWindowMinutes: 3,
+  pollIntervalMinutes: 5,
 };
 
 /** Loopback-only, and deliberately not configurable: garden is not a remote-access tool. */
@@ -63,6 +69,18 @@ function isTerminalFontSize(value: unknown): value is number {
 
 export function isClaudeCommand(value: unknown): value is string {
   return typeof value === 'string' && value.trim() !== '';
+}
+
+export function isIgnoreAuthors(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((author) => typeof author === 'string');
+}
+
+export function isQuietWindowMinutes(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0;
+}
+
+export function isPollIntervalMinutes(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1;
 }
 
 /** Splits a raw command string on whitespace into argv, collapsing to `undefined` when
@@ -127,13 +145,26 @@ export function parseConfigFile(text: string, source: string): ConfigFile {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
     throw new Error(`${source} must contain a JSON object`);
   }
-  const { port, roots, permissionMode, deadSessionCap, terminalFontSize, claudeCommand } = raw as {
+  const {
+    port,
+    roots,
+    permissionMode,
+    deadSessionCap,
+    terminalFontSize,
+    claudeCommand,
+    ignoreAuthors,
+    quietWindowMinutes,
+    pollIntervalMinutes,
+  } = raw as {
     port?: unknown;
     roots?: unknown;
     permissionMode?: unknown;
     deadSessionCap?: unknown;
     terminalFontSize?: unknown;
     claudeCommand?: unknown;
+    ignoreAuthors?: unknown;
+    quietWindowMinutes?: unknown;
+    pollIntervalMinutes?: unknown;
   };
   if (port !== undefined && !isPort(port)) {
     throw new Error(`${source}: "port" must be an integer between 1 and 65535`);
@@ -156,6 +187,15 @@ export function parseConfigFile(text: string, source: string): ConfigFile {
   if (claudeCommand !== undefined && !isClaudeCommand(claudeCommand)) {
     throw new Error(`${source}: "claudeCommand" must be a non-empty string`);
   }
+  if (ignoreAuthors !== undefined && !isIgnoreAuthors(ignoreAuthors)) {
+    throw new Error(`${source}: "ignoreAuthors" must be an array of strings`);
+  }
+  if (quietWindowMinutes !== undefined && !isQuietWindowMinutes(quietWindowMinutes)) {
+    throw new Error(`${source}: "quietWindowMinutes" must be a non-negative integer`);
+  }
+  if (pollIntervalMinutes !== undefined && !isPollIntervalMinutes(pollIntervalMinutes)) {
+    throw new Error(`${source}: "pollIntervalMinutes" must be a positive integer`);
+  }
   return {
     port: port ?? DEFAULT_CONFIG_FILE.port,
     roots: (roots as readonly string[] | undefined) ?? DEFAULT_CONFIG_FILE.roots,
@@ -163,6 +203,9 @@ export function parseConfigFile(text: string, source: string): ConfigFile {
     deadSessionCap: deadSessionCap ?? DEFAULT_CONFIG_FILE.deadSessionCap,
     terminalFontSize: terminalFontSize ?? DEFAULT_CONFIG_FILE.terminalFontSize,
     claudeCommand: claudeCommand ?? DEFAULT_CONFIG_FILE.claudeCommand,
+    ignoreAuthors: ignoreAuthors ?? DEFAULT_CONFIG_FILE.ignoreAuthors,
+    quietWindowMinutes: quietWindowMinutes ?? DEFAULT_CONFIG_FILE.quietWindowMinutes,
+    pollIntervalMinutes: pollIntervalMinutes ?? DEFAULT_CONFIG_FILE.pollIntervalMinutes,
   };
 }
 

@@ -1,5 +1,8 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_CONFIG_FILE } from '../config.js';
+import { DEFAULT_CONFIG_FILE, patchConfigFile, readConfigFile } from '../config.js';
 import type { ConfigPort } from './ports.js';
 import { getSettings, updateSettings } from './settings.js';
 
@@ -36,7 +39,91 @@ describe('getSettings', () => {
   });
 });
 
+describe('getSettings watch settings', () => {
+  it('reports the values the config port holds right now', () => {
+    let file = { ...DEFAULT_CONFIG_FILE };
+    const deps = {
+      configPort: fakeConfigPort({ read: () => file }),
+      deadSessionCap: 10,
+      terminalFontSize: 13,
+    };
+
+    file = {
+      ...file,
+      ignoreAuthors: ['dependabot'],
+      quietWindowMinutes: 0,
+      pollIntervalMinutes: 9,
+    };
+
+    expect(getSettings(deps)).toMatchObject({
+      ignoreAuthors: ['dependabot'],
+      quietWindowMinutes: 0,
+      pollIntervalMinutes: 9,
+    });
+  });
+});
+
+describe('settings round trip', () => {
+  it('serves a saved value on the next read without a restart', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'garden-settings-'));
+    try {
+      const path = join(dir, 'config.json');
+      const deps = {
+        configPort: {
+          read: () => readConfigFile(path),
+          write: (patch: Parameters<typeof patchConfigFile>[1]) => patchConfigFile(path, patch),
+        },
+        deadSessionCap: 10,
+        terminalFontSize: 13,
+      };
+
+      updateSettings(deps, { pollIntervalMinutes: 12, ignoreAuthors: ['bot'] });
+
+      expect(getSettings(deps)).toMatchObject({ pollIntervalMinutes: 12, ignoreAuthors: ['bot'] });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('updateSettings', () => {
+  const deps = () => {
+    const writes: unknown[] = [];
+    return {
+      writes,
+      deps: {
+        configPort: fakeConfigPort({
+          write: (patch) => {
+            writes.push(patch);
+          },
+        }),
+        deadSessionCap: 10,
+        terminalFontSize: 13,
+      },
+    };
+  };
+
+  it('writes a subset that omits claudeCommand', () => {
+    const { writes, deps: d } = deps();
+    updateSettings(d, { quietWindowMinutes: 0, ignoreAuthors: ['bot'] });
+    expect(writes).toEqual([{ quietWindowMinutes: 0, ignoreAuthors: ['bot'] }]);
+  });
+
+  it.each([
+    [{ quietWindowMinutes: -1 }],
+    [{ quietWindowMinutes: 1.5 }],
+    [{ pollIntervalMinutes: 0 }],
+    [{ pollIntervalMinutes: 2.5 }],
+    [{ ignoreAuthors: ['ok', 3] }],
+    [{ ignoreAuthors: 'bot' }],
+    [{ unknownKey: 1 }],
+    [{}],
+  ])('rejects %j without writing', (body) => {
+    const { writes, deps: d } = deps();
+    expect(() => updateSettings(d, body as never)).toThrow();
+    expect(writes).toHaveLength(0);
+  });
+
   it('validates claudeCommand before calling write', () => {
     const writes: unknown[] = [];
     const deps = {
