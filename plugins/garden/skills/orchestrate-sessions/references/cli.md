@@ -1,7 +1,7 @@
 # garden CLI reference
 
-The five session-lifecycle subcommands, read through `--json` rather than the human-readable
-text the CLI prints by default.
+The session-lifecycle subcommands and the PR-watch subcommands, read through `--json` rather than
+the human-readable text the CLI prints by default.
 
 ## Precondition
 
@@ -131,3 +131,40 @@ Sets `<id>`'s `parent` to the calling session. Requires `GARDEN_SESSION_ID` in t
 session's own environment — unset, this fails with exit 1 and `garden: GARDEN_SESSION_ID is not
 set` on stderr, and moves nothing. An adopt that would create a cycle is rejected the same way
 every other failure is: exit 1, `garden: <message>` on stderr. Output: `{ "ok": true }`.
+
+## Watch a PR
+
+```
+garden watch <pr> [--repo <owner/name>] [--on <kinds>] [--session <id>] --json
+garden unwatch <pr> [--repo <owner/name>] [--session <id>] --json
+garden unwatch --all [--session <id>] --json
+garden watches [--session <id>] --json
+```
+
+A watch ties a PR to a session; its digests arrive in that session through the plugin's pipe (see
+the `watch-pr` skill for when to start, react to and stop one). `--session` defaults to the
+caller's own `GARDEN_SESSION_ID`; with neither, the command fails with `garden: GARDEN_SESSION_ID
+is not set`. `<pr>` is a PR number. `--repo` defaults to the `origin` of the session's working
+directory and is required when that has no GitHub remote.
+
+`--on` takes a comma-separated list from `review`, `comment`, `checks`, `checks:all`, `conflict`
+and `closed`. The default is `review,comment,checks,conflict,closed`; `checks:all` also reports
+passing checks and implies `checks`, and `closed` is always on. Re-adding a watch for the same
+session, repo and PR replaces its kinds and touches nothing else.
+
+`watch` outputs `{ "watch": { "repo", "pr", "kinds", "pendingDigest", "status" } }`; `watches`
+outputs `{ "watches": [...] }` of the same objects, where `status` is `active`, `error` or
+`closed` and `pendingDigest` is true while a digest waits to be delivered. `unwatch` outputs
+`{ "ok": true }`. Without `--repo`, `unwatch` matches the PR among the session's own watches and
+fails if the number is watched in more than one repo.
+
+## Events pipe
+
+```
+garden events --follow
+```
+
+This is what the plugin's monitor runs to deliver digests into a session; an agent does not call
+it. It prints one digest line per event on stdout and nothing else, reconnects on its own, and
+prints nothing and delivers nothing when the process is not the garden-spawned session it belongs
+to.
