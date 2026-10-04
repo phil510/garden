@@ -46,6 +46,8 @@ function aSession(overrides: Partial<SessionState> = {}): SessionState {
     lastActivity: 0,
     claudeSessionName: null,
     watches: [],
+    pipeConnected: false,
+    pipeLastConnectedAt: null,
     ...overrides,
   };
 }

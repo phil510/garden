@@ -35,6 +35,8 @@ function blank(id: string): SessionState {
     lastActivity: 0,
     claudeSessionName: null,
     watches: NO_WATCHES,
+    pipeConnected: false,
+    pipeLastConnectedAt: null,
   };
 }
 
