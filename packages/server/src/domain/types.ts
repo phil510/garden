@@ -1,4 +1,4 @@
-import type { HookPayload, SessionMap, Status } from '@garden/shared';
+import type { HookPayload, SessionMap, Status, WatchSummary } from '@garden/shared';
 
 export type { HookPayload };
 
@@ -32,7 +32,9 @@ export type GardenEvent =
   | { type: 'branch-resolved'; cwd: string; branch: string | null }
   | { type: 'hook'; payload: HookPayload }
   | { type: 'tmux-snapshot'; sessions: TmuxSessionFact[] }
-  | { type: 'claude-session-names-loaded'; names: Record<string, string> };
+  | { type: 'claude-session-names-loaded'; names: Record<string, string> }
+  /** The full, current summary list for one session; an empty list means it has none. */
+  | { type: 'watches-changed'; sessionId: string; watches: WatchSummary[] };
 
 export interface GardenState {
   sessions: SessionMap;
@@ -52,4 +54,7 @@ export interface GardenState {
   reported: Record<string, ReportedStatus>;
   /** The Claude session registry's latest snapshot, session id to Claude-side name. */
   claudeSessionNames: Record<string, string>;
+  /** Watch summaries by session id, keyed like `repoRoots` so an entry that lands before its
+   *  session is still waiting when the session appears. A session with no watches has no key. */
+  watches: Record<string, WatchSummary[]>;
 }

@@ -1,5 +1,5 @@
 import { aHookEvent } from '@garden/shared/fixtures';
-import type { HookPayload } from '@garden/shared';
+import type { HookPayload, WatchSummary } from '@garden/shared';
 import { describe, expect, it } from 'vitest';
 import { initialState, reduce } from './reduce.js';
 import type { GardenEvent, TranscriptRecord } from './types.js';
@@ -52,6 +52,21 @@ const hook = (name: string, id = 'sid-1', source?: HookPayload['source']): Garde
 const claudeSessionNames = (names: Record<string, string>): GardenEvent => ({
   type: 'claude-session-names-loaded',
   names,
+});
+
+const aWatchSummary = (overrides: Partial<WatchSummary> = {}): WatchSummary => ({
+  repo: 'acme/widgets',
+  pr: 7,
+  kinds: ['review', 'closed'],
+  pendingDigest: false,
+  status: 'active',
+  ...overrides,
+});
+
+const watchesChanged = (watches: WatchSummary[], sessionId = 'sid-1'): GardenEvent => ({
+  type: 'watches-changed',
+  sessionId,
+  watches,
 });
 
 describe('reduce', () => {
@@ -356,5 +371,37 @@ describe('reduce', () => {
   it('lands a Claude-side name that arrived before the session was otherwise known', () => {
     const state = fold([claudeSessionNames({ 'sid-1': 'garden-7a' }), transcript()]);
     expect(state.sessions['sid-1']?.claudeSessionName).toBe('garden-7a');
+  });
+
+  describe('watches', () => {
+    it('shows a session its watch summaries', () => {
+      const summary = aWatchSummary();
+      const state = fold([mapped, transcript(), watchesChanged([summary])]);
+      expect(state.sessions['sid-1']?.watches).toEqual([summary]);
+    });
+
+    it('applies a summary that arrived before its session existed once the session appears', () => {
+      const summary = aWatchSummary();
+      const early = fold([watchesChanged([summary])]);
+      expect(early.sessions['sid-1']).toBeUndefined();
+      const state = [transcript()].reduce(reduce, early);
+      expect(state.sessions['sid-1']?.watches).toEqual([summary]);
+    });
+
+    it("clears a session's watches when an empty list arrives", () => {
+      const state = fold([transcript(), watchesChanged([aWatchSummary()]), watchesChanged([])]);
+      expect(state.sessions['sid-1']?.watches).toEqual([]);
+    });
+
+    it("leaves other sessions' watches alone", () => {
+      const summary = aWatchSummary();
+      const state = fold([
+        transcript(),
+        transcript({ sessionId: 'sid-2' }),
+        watchesChanged([summary], 'sid-2'),
+        watchesChanged([aWatchSummary({ pr: 9 })]),
+      ]);
+      expect(state.sessions['sid-2']?.watches).toEqual([summary]);
+    });
   });
 });
