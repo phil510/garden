@@ -65,12 +65,10 @@ function fakeProjection(sessions: SessionState[] = [], overrides: Partial<Projec
     },
     subscribe: () => () => undefined,
     subscribeUiState: () => () => undefined,
+    overlay: () => current,
     updateOverlay: (mutate) => {
       current = mutate(current);
       return current;
-    },
-    overlay: () => {
-      throw new Error('not used by this test');
     },
     subscribeOverlay: () => () => undefined,
     placementOf: () => undefined,

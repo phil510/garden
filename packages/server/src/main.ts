@@ -1,7 +1,9 @@
+import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { readClaudeSessionNames } from './adapters/claudeSessions.js';
 import { watchFsRoot } from './adapters/fsWatch.js';
+import { ghGet } from './adapters/gh.js';
 import { branch, remoteUrl, repoRoot, status, workTreePrefix } from './adapters/git.js';
 import { createLogger, guardStderr, type Logger } from './adapters/logger.js';
 import { attachPty } from './adapters/pty.js';
@@ -22,9 +24,11 @@ import {
 import type { TmuxTarget } from './adapters/tmux.js';
 import { createAttachRegistry, type AttachRegistry } from './app/attach.js';
 import { createBranchSweeper, type BranchSweeper } from './app/branches.js';
+import { createPoller } from './app/poller.js';
 import type {
   ConfigPort,
   FsWatchPort,
+  GhPort,
   GitPort,
   PtyPort,
   StorePort,
@@ -110,6 +114,10 @@ function fsWatchPort(logger: Logger): FsWatchPort {
 
 function gitPort(): GitPort {
   return { repoRoot, branch, remoteUrl, status, workTreePrefix };
+}
+
+function ghPort(): GhPort {
+  return { get: (path, etag) => ghGet('gh', path, etag, Date.now()) };
 }
 
 function ptyPort(target: PtyTarget): PtyPort {
@@ -274,6 +282,17 @@ export async function main(detached: boolean): Promise<void> {
     );
   }
 
+  // Created after the watch replay so its first tick sees the pruned watches; started once the
+  // server is listening.
+  const watchPoller = createPoller({
+    watches: { projection, git },
+    gh: ghPort(),
+    config: configAdapter,
+    logger,
+    now: Date.now,
+    mintId: randomUUID,
+  });
+
   const poll = setInterval(() => {
     // A tmux that fails mid-run leaves liveness stale until the next tick; it does not end the server.
     dispatchTmuxSnapshot(projection, tmux).catch((error: unknown) => {
@@ -333,6 +352,7 @@ export async function main(detached: boolean): Promise<void> {
     clearInterval(pipeSweep);
     stopRepoRoots();
     branches.stop();
+    watchPoller.stop();
     return watcher.close();
   });
   for (const signal of ['SIGINT', 'SIGTERM'] as const) {
@@ -340,6 +360,7 @@ export async function main(detached: boolean): Promise<void> {
   }
 
   await app.listen({ port: config.port, host: config.host });
+  watchPoller.start();
   if (detached) {
     // Earliest the health endpoint can answer 'ok' — the earliest spawnServer's poll loop can
     // observe readiness and exit, closing its end of the stderr pipe. Nothing should log through

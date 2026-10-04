@@ -269,6 +269,8 @@ export interface WatchSummary {
   kinds: WatchKind[];
   pendingDigest: boolean;
   status: WatchStatus;
+  /** Short plain-language cause, present only while `status` is `error`. */
+  errorReason?: string;
 }
 /** Body of `POST /sessions/:id/watches`. `repo` defaults to the session cwd's `origin`;
  *  `kinds` to the default set. Re-adding an existing watch replaces its kinds. */

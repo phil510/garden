@@ -25,6 +25,8 @@ export interface Watch {
   readonly cursor: unknown;
   readonly pendingDigest: PendingDigest | null;
   readonly status: WatchStatus;
+  /** Why the watch is in `error`; absent otherwise, and in files written before it existed. */
+  readonly errorReason?: string;
 }
 
 const DIGEST_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -156,6 +158,7 @@ export function summarizeWatches(watches: readonly Watch[]): Record<string, Watc
         kinds: [...w.kinds],
         pendingDigest: w.pendingDigest !== null,
         status: w.status,
+        ...(w.errorReason === undefined ? {} : { errorReason: w.errorReason }),
       }));
   }
   return summaries;

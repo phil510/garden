@@ -1,4 +1,5 @@
 import type { ConfigFile } from '../config.js';
+import type { GhResult } from '../domain/github.js';
 import type { TranscriptParse } from '../domain/transcript.js';
 import type { GardenEvent } from '../domain/types.js';
 import type { OverlayGroup, OverlayStage, OverlayState } from '../domain/overlay.js';
@@ -94,6 +95,12 @@ export interface PtyPort {
 export interface GitStatusEntry {
   readonly path: string;
   readonly status: string;
+}
+
+/** Conditional GETs against the GitHub REST API as the user's `gh` identity. `etag` is sent as
+ *  `If-None-Match`; null asks unconditionally. */
+export interface GhPort {
+  get(path: string, etag: string | null): Promise<GhResult>;
 }
 
 export interface GitPort {

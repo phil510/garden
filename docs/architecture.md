@@ -115,7 +115,7 @@ repositories, because nothing in garden has invariants worth defending. And ther
 dependency-injection container; a single composition root wires everything by hand.
 
 Ports (TypeScript interfaces for outbound dependencies) exist only where something needs to be
-faked in a test — realistically tmux, the store, the transcript watcher, git, and the pty attach.
+faked in a test — realistically tmux, the store, the transcript watcher, git, `gh`, and the pty attach.
 Everything else is imported concretely. An interface with one implementation and no test fake
 is ceremony.
 
@@ -150,11 +150,15 @@ packages/server/src/
     stage.ts       slot arithmetic across preset changes
     watches.ts     watch rules: kind normalisation, upsert/remove, 7-day digest pruning, summaries
     pipes.ts       ack a digest, end watches with no pipe for 7 days, prune stale pipe times
+    github.ts      gh api --include parsing, rate-limit resume time, REST JSON -> PR facts
+    pollCursor.ts  the poller's cursor (ids, ETags, counts; no PR content) and the diffs over it
+    digest.ts      fold observed activity into a watch: kinds, quiet window, digest line
     paths.ts       filesystem scoping
     diff.ts        (prev, next) -> Delta[]
   adapters/        one external system each
     tmux.ts        execFile wrapper: list, new-session, respawn-pane, kill, version check
     git.ts         git-common-dir, branch, status --porcelain, worktree prefix, origin URL
+    gh.ts          one conditional `gh api` GET: ETag in, classified result out
     transcripts.ts chokidar watch + read
     fsWatch.ts     native recursive fs.watch on one root, debounced, .git/ filtered
     pty.ts         node-pty attach
@@ -162,12 +166,13 @@ packages/server/src/
     logger.ts
   app/
     ports.ts       interfaces app requires: TmuxPort, StorePort, TranscriptPort, PtyPort, GitPort,
-                   FsWatchPort
+                   GhPort, FsWatchPort
     projection.ts  owns current state; dispatch(event); subscribe(fn)
     sessions.ts    create / resume / kill use cases
     hooks.ts
     watches.ts     add / remove / list watch use cases and boot replay, all through one writer
     pipes.ts       registry of open pipe streams: connect, ack, close, hourly sweep, boot replay
+    poller.ts      fetch a watch's PR activity; the loop that merges it through that writer
     filesystem.ts
     repos.ts
     rootWatch.ts   one watch per /events connection, swapped on a new root
@@ -257,6 +262,9 @@ So the startup sequence is a replay, not a restore:
 6. Sweep every session's cwd for its current branch, once every distinct cwd from step 5 exists
    in state, and dispatch a `branch-resolved` per cwd.
 7. Start the tmux poll (which repeats step 6 on every tick); serve HTTP.
+8. Once listening, start the watch poller (`app/poller.ts`). It runs its own timer, reading
+   `pollIntervalMinutes` before each cycle, and goes through the same watch writer as step 3, so
+   each cycle also prunes expired watches.
 
 Nothing is reconciled by hand for steps 4 and 5, because they are the same events the adapters
 emit during normal operation — boot is just the first batch of them. A live session recovered
@@ -462,7 +470,8 @@ which kind of test.
   and `transcripts.ts` exercise real temp-directory I/O, and `git.ts` has integration coverage
   against a real repository. `tmux.ts`'s pure version-parsing logic has a colocated unit test,
   but its execFile-wrapping session calls (list/new-session/respawn-pane/kill) have no test
-  against a real tmux.
+  against a real tmux. `gh.ts` runs a real subprocess against a stub `gh` script, because the
+  real one needs network and credentials.
 - **`app/`** gets tests with faked adapters, covering orchestration order; the few that
   exercise one-shot `node:fs` reads use real temp directories (see `docs/testing.md`).
 - **`http/`** gets a thin smoke pass. There is little to test in translation.
