@@ -200,12 +200,9 @@ export async function fetchWatch(
     status,
   };
   const activity: Activity = {
-    reviews: newReviews.fresh.map((review) => ({
-      login: review.login,
-      at: review.submittedAt,
-      hasBody: review.hasBody,
-      hasInlineComments: newReviewComments.fresh.some((comment) => comment.reviewId === review.id),
-    })),
+    reviews: newReviews.fresh
+      .filter((review) => !review.wrapper)
+      .map((review) => ({ login: review.login, at: review.submittedAt })),
     comments: [
       ...newIssueComments.fresh.map((c) => ({ login: c.login, at: c.createdAt })),
       ...newReviewComments.fresh.map((c) => ({ login: c.login, at: reviewCommentAt(c) })),

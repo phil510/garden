@@ -28,8 +28,7 @@ const isEmpty = (t: Tally) =>
   !t.conflict;
 
 /** The part of `activity` this watch wants: its kinds decide what counts, `ignoreAuthors` drops
- *  people, and a review with neither a body nor inline comments (a bare approval or the shell of
- *  a comment-only review) says nothing. */
+ *  people. */
 function tallyActivity(
   activity: Activity,
   kinds: readonly WatchKind[],
@@ -42,7 +41,7 @@ function tallyActivity(
   const at = (ms: number) => Math.max(tally.lastActivityAt, ms);
   if (kinds.includes('review')) {
     for (const review of activity.reviews) {
-      if (!wanted(review.login) || (!review.hasBody && !review.hasInlineComments)) continue;
+      if (!wanted(review.login)) continue;
       tally = {
         ...tally,
         reviews: tally.reviews + 1,

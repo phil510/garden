@@ -175,7 +175,7 @@ describe('fetchWatch', () => {
     expect(observation.tracking.issueComments.seen).toEqual([1, 2]);
   });
 
-  it('reports a review submitted after a later-id review, with its inline comment', async () => {
+  it('reports a comment inside a review submitted after a later-id review, and not the empty wrapper', async () => {
     const github = fakeGh();
     seedQuiet(github);
     const submitted = (id: number, at: number) => ({
@@ -195,9 +195,30 @@ describe('fetchWatch', () => {
 
     const second = await fetchObserved(github, cursor);
 
-    expect(second.activity.reviews).toEqual([
-      { login: 'bob', at: T0 + 9000, hasBody: false, hasInlineComments: true },
+    expect(second.activity.reviews).toEqual([]);
+    expect(second.activity.comments).toEqual([{ login: 'bob', at: T0 + 9000 }]);
+  });
+
+  it('counts an empty approval or change request and a commented review with a body', async () => {
+    const github = fakeGh();
+    seedQuiet(github);
+    const submitted = (id: number, state: string, body: string) => ({
+      id,
+      user: { login: `u${String(id)}` },
+      body,
+      state,
+      submitted_at: iso(T0 + id * 1000),
+    });
+    github.set(page(`${PR}/reviews`, 1), [
+      submitted(1, 'APPROVED', ''),
+      submitted(2, 'CHANGES_REQUESTED', ''),
+      submitted(3, 'COMMENTED', 'looks odd'),
+      submitted(4, 'COMMENTED', ''),
     ]);
+
+    const observation = await fetchObserved(github, null);
+
+    expect(observation.activity.reviews.map((r) => r.login)).toEqual(['u1', 'u2', 'u3']);
   });
 
   it('reports a check run first seen in progress that later fails, and a status going to error', async () => {

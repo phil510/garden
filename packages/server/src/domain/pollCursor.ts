@@ -233,12 +233,7 @@ export function conflictTransition(
 
 /** New activity as the digest sees it: no content, only who and when. */
 export interface Activity {
-  readonly reviews: readonly {
-    readonly login: string;
-    readonly at: number;
-    readonly hasBody: boolean;
-    readonly hasInlineComments: boolean;
-  }[];
+  readonly reviews: readonly { readonly login: string; readonly at: number }[];
   readonly comments: readonly { readonly login: string; readonly at: number }[];
   readonly checks: readonly CheckTransition[];
   readonly conflict: boolean;

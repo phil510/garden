@@ -112,13 +112,29 @@ describe('fact parsers', () => {
         submitted_at: '2026-01-02T00:00:00Z',
         state: 'APPROVED',
       },
+      {
+        id: 4,
+        user: { login: 'd' },
+        body: '',
+        submitted_at: '2026-01-03T00:00:00Z',
+        state: 'COMMENTED',
+      },
+      {
+        id: 5,
+        user: { login: 'e' },
+        body: '',
+        submitted_at: '2026-01-04T00:00:00Z',
+        state: 'CHANGES_REQUESTED',
+      },
       'junk',
     ]);
 
-    expect(page.count).toBe(4);
+    expect(page.count).toBe(6);
     expect(page.items).toEqual([
-      { id: 1, login: 'a', submittedAt: Date.parse('2026-01-01T00:00:00Z'), hasBody: true },
-      { id: 3, login: 'c', submittedAt: Date.parse('2026-01-02T00:00:00Z'), hasBody: false },
+      { id: 1, login: 'a', submittedAt: Date.parse('2026-01-01T00:00:00Z'), wrapper: false },
+      { id: 3, login: 'c', submittedAt: Date.parse('2026-01-02T00:00:00Z'), wrapper: false },
+      { id: 4, login: 'd', submittedAt: Date.parse('2026-01-03T00:00:00Z'), wrapper: true },
+      { id: 5, login: 'e', submittedAt: Date.parse('2026-01-04T00:00:00Z'), wrapper: false },
     ]);
   });
 

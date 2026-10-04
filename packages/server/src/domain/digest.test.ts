@@ -28,12 +28,7 @@ const observe = (activity: Partial<Activity> = {}): Observation => ({
   tracking: emptyTracking(),
 });
 const comment = (login: string, at: number) => ({ login, at });
-const review = (login: string, at: number, hasBody = true, hasInlineComments = false) => ({
-  login,
-  at,
-  hasBody,
-  hasInlineComments,
-});
+const review = (login: string, at: number) => ({ login, at });
 
 let counter = 0;
 const mint = () => `d${String(++counter)}`;
@@ -80,16 +75,6 @@ describe('kinds and filters', () => {
     );
 
     expect(next.pendingDigest?.line).toBe('#7 acme/widgets: 1 comment');
-  });
-
-  it('drops a review with no body and no inline comments, and keeps one with inline comments', () => {
-    const next = apply(
-      watch(),
-      { reviews: [review('a', T0 - 10 * MIN, false), review('b', T0 - 10 * MIN, false, true)] },
-      T0,
-    );
-
-    expect(next.pendingDigest?.line).toBe('#7 acme/widgets: 1 review (b)');
   });
 });
 
