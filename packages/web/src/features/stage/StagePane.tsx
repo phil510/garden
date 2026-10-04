@@ -8,6 +8,7 @@ import { useLocalStore } from '../../state/localStore';
 import { useSessionStore } from '../../state/sessionStore';
 import { useUiStore } from '../../state/uiStore';
 import { attachPane, detachPane } from '../../terminals/registry';
+import { togglePaneMaximised } from './applyLayout';
 import { deadPaneStatusLine } from './deadPaneStatus';
 import { paneTitle, swarmChipFor } from './paneTitle';
 import { removeFromStage } from './removeFromStage';
@@ -126,8 +127,7 @@ export function StagePane(props: IDockviewPanelProps) {
   // sockets carry on running behind the maximised pane.
   function toggleMaximise(event: MouseEvent) {
     event.stopPropagation();
-    if (props.api.isMaximized()) props.api.exitMaximized();
-    else props.api.maximize();
+    togglePaneMaximised(props.api, focus);
   }
 
   function close(event: MouseEvent) {

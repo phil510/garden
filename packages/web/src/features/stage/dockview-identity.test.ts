@@ -1,9 +1,9 @@
 // @vitest-environment happy-dom
 import { DockviewComponent } from 'dockview-core';
-import { describe, expect, it } from 'vitest';
-import { applyLayout } from './applyLayout';
+import { describe, expect, it, vi } from 'vitest';
+import { applyLayout, exitMaximizedUnlessFocused, togglePaneMaximised } from './applyLayout';
 import { groupIdsFromSlots, wireRowMirror } from './mirrorRows';
-import { PANE_COMPONENT, presetLayout } from './presetLayout';
+import { PANE_COMPONENT, groupIdForSlot, presetLayout } from './presetLayout';
 
 /** Stands in for garden's xterm pane: what matters is that it is one long-lived instance per
  *  panel id, the same relationship a real pane holds with its socket. */
@@ -138,5 +138,61 @@ describe('grid-2x2 leaf group resize', () => {
     expect(component.api.getGroup(topRight)?.api.width).toBe(700);
     expect(component.api.getGroup(bottomLeft)?.api.width).toBe(500);
     expect(component.api.getGroup(bottomRight)?.api.width).toBe(500);
+  });
+});
+
+describe('exitMaximizedUnlessFocused', () => {
+  const SLOTS = ['a', 'b', 'c', 'd'];
+
+  function makeMaximized(slot: number): DockviewComponent {
+    const component = makeComponent();
+    component.layout(1000, 1000);
+    applyLayout(component.api, presetLayout('grid-2x2', SLOTS));
+    const panel = component.api.getPanel(SLOTS[slot] as string);
+    if (panel === undefined) throw new Error('panel missing');
+    component.api.maximizeGroup(panel);
+    return component;
+  }
+
+  it('collapses a maximized pane when focus moves to a different slot', () => {
+    const component = makeMaximized(0);
+
+    exitMaximizedUnlessFocused(component.api, groupIdForSlot(SLOTS, 1));
+
+    expect(component.api.hasMaximizedGroup()).toBe(false);
+  });
+
+  it('leaves a pane maximized when focus lands on that same pane', () => {
+    const component = makeMaximized(0);
+
+    exitMaximizedUnlessFocused(component.api, groupIdForSlot(SLOTS, 0));
+
+    expect(component.api.hasMaximizedGroup()).toBe(true);
+  });
+});
+
+describe('togglePaneMaximised', () => {
+  function panelStub(maximized: boolean) {
+    return { isMaximized: () => maximized, maximize: vi.fn(), exitMaximized: vi.fn() };
+  }
+
+  it('focuses the pane it maximises', () => {
+    const panel = panelStub(false);
+    const focus = vi.fn();
+
+    togglePaneMaximised(panel, focus);
+
+    expect(focus).toHaveBeenCalledOnce();
+    expect(panel.maximize).toHaveBeenCalledOnce();
+  });
+
+  it('restores a maximized pane without moving focus', () => {
+    const panel = panelStub(true);
+    const focus = vi.fn();
+
+    togglePaneMaximised(panel, focus);
+
+    expect(focus).not.toHaveBeenCalled();
+    expect(panel.exitMaximized).toHaveBeenCalledOnce();
   });
 });
