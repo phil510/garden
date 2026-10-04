@@ -38,8 +38,9 @@ means garden cannot reach GitHub or the repo; the entry's `errorReason` says why
 
 ## React: a digest is a pointer, not the content
 
-A digest line says that something changed, never what it says. Its wording is a summary and may
-vary, but it looks like this:
+A digest line says that something changed, never what it says. Only the segments that apply
+appear, in this order: reviews, comments, failed checks, passed checks (`checks:all` only), merge
+conflict, then `merged` or `closed`:
 
 ```
 #241 acme/widgets: 2 reviews (coderabbitai[bot], alice), 3 comments, checks failed: build
@@ -56,7 +57,7 @@ Treat it as a prompt to look, then act on what you find:
    can arrive again after a reconnect. If a reread shows nothing new since you last acted, go back
    to what you were doing, or idle.
 
-A `closed` digest means the PR was merged or closed; read the PR to see which. The watch removes
+A digest ending in `merged` or `closed` means the PR is done. The watch removes
 itself once that digest is delivered, so a later `garden unwatch` for it exits 1 ("not watching").
 
 ## Stop when your part is done
