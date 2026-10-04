@@ -11,3 +11,13 @@ export function applyLayout(api: DockviewApi, layout: SerializedDockview): void 
   if (api.hasMaximizedGroup()) api.exitMaximizedGroup();
   api.fromJSON(layout, { reuseExistingPanels: true });
 }
+
+/**
+ * Collapses a maximized pane so a newly focused one is visible. The focused group itself is left
+ * maximized: focusing the pane the user already expanded isn't a request to leave it.
+ */
+export function exitMaximizedUnlessFocused(api: DockviewApi, focusedGroupId: string): void {
+  if (!api.hasMaximizedGroup()) return;
+  if (api.getGroup(focusedGroupId)?.api.isMaximized()) return;
+  api.exitMaximizedGroup();
+}

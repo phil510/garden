@@ -14,9 +14,15 @@ import { reportCommandFailure } from '../../api/reportCommandFailure';
 import { useSessionStore } from '../../state/sessionStore';
 import { useUiStore } from '../../state/uiStore';
 import { detachPane } from '../../terminals/registry';
-import { applyLayout } from './applyLayout';
+import { applyLayout, exitMaximizedUnlessFocused } from './applyLayout';
 import { wireRowMirror } from './mirrorRows';
-import { EMPTY_SLOT_COMPONENT, PANE_COMPONENT, isEmptySlotId, presetLayout } from './presetLayout';
+import {
+  EMPTY_SLOT_COMPONENT,
+  PANE_COMPONENT,
+  groupIdForSlot,
+  isEmptySlotId,
+  presetLayout,
+} from './presetLayout';
 import { EmptySlotPane, StagePane } from './StagePane';
 import { stageLayout } from './storedLayout';
 import { swapSlots } from './swapSlots';
@@ -60,13 +66,21 @@ export function Stage() {
     applyRef.current();
   }, [api, arrangement]);
 
-  // Read through a ref in the row-mirror effect below for the same reason as `applyRef`: `slots`
+  // Read through a ref in the effects below for the same reason as `applyRef`: `slots`
   // is already encoded in `arrangement`, so the effect shouldn't re-subscribe on identity churn
   // alone.
   const slotsRef = useRef(slots);
   useLayoutEffect(() => {
     slotsRef.current = slots;
   });
+
+  // Picking a session that is already on stage changes only `focusedSlot`, so the apply effect
+  // above never fires and a maximized pane would keep hiding the one just picked. Declared after
+  // it so an arrangement change has already been through `applyLayout`'s own exit.
+  useEffect(() => {
+    if (api === null) return;
+    exitMaximizedUnlessFocused(api, groupIdForSlot(slotsRef.current, focusedSlot));
+  }, [api, focusedSlot]);
 
   // Keeps the 2x2 preset's two rows' column splits in sync: whichever row's own widths just
   // changed gets copied onto the other (see `wireRowMirror`). Declared after the apply effect
