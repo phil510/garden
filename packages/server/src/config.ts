@@ -281,8 +281,10 @@ export function writeConfigFile(path: string, contents: Record<string, unknown>)
  *  writing anything or logging — a `GET /settings` re-read isn't the boot-time warning path.
  *
  *  A file that parses as JSON but fails `parseConfigFile`'s validation on some field (e.g. a
- *  hand-edited `"port"`) recovers only its own `claudeCommand`, rather than reporting the
- *  default for a value that's actually sitting on disk; every other key falls back to its
+ *  hand-edited `"port"`) recovers `claudeCommand`, `ignoreAuthors`, `quietWindowMinutes` and
+ *  `pollIntervalMinutes` individually — each keeps its on-disk value when it validates on its
+ *  own, and takes its default only when it is itself invalid or absent — rather than reporting
+ *  defaults for values that are actually sitting on disk. Every other key falls back to its
  *  default. */
 export function readConfigFile(path: string): ConfigFile {
   let text: string;
@@ -294,23 +296,39 @@ export function readConfigFile(path: string): ConfigFile {
   try {
     return parseConfigFile(text, path);
   } catch {
-    return { ...DEFAULT_CONFIG_FILE, claudeCommand: recoverClaudeCommand(text) };
+    return recoverValidKeys(text);
   }
 }
 
-/** Best-effort extraction of `claudeCommand` from JSON text that failed whole-object
- *  validation. Falls back to the default when the text isn't even a JSON object or the
- *  field itself is missing or invalid — there's nothing to recover in that case. */
-function recoverClaudeCommand(text: string): string {
+/** Best-effort per-key extraction from JSON text that failed whole-object validation. Yields
+ *  the defaults when the text isn't even a JSON object — there's nothing to recover then. */
+function recoverValidKeys(text: string): ConfigFile {
   let raw: unknown;
   try {
     raw = JSON.parse(text);
   } catch {
-    return DEFAULT_CONFIG_FILE.claudeCommand;
+    return DEFAULT_CONFIG_FILE;
   }
-  if (typeof raw !== 'object' || raw === null) return DEFAULT_CONFIG_FILE.claudeCommand;
-  const claudeCommand = (raw as { claudeCommand?: unknown }).claudeCommand;
-  return isClaudeCommand(claudeCommand) ? claudeCommand : DEFAULT_CONFIG_FILE.claudeCommand;
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return DEFAULT_CONFIG_FILE;
+  const { claudeCommand, ignoreAuthors, quietWindowMinutes, pollIntervalMinutes } = raw as Record<
+    string,
+    unknown
+  >;
+  return {
+    ...DEFAULT_CONFIG_FILE,
+    claudeCommand: isClaudeCommand(claudeCommand)
+      ? claudeCommand
+      : DEFAULT_CONFIG_FILE.claudeCommand,
+    ignoreAuthors: isIgnoreAuthors(ignoreAuthors)
+      ? ignoreAuthors
+      : DEFAULT_CONFIG_FILE.ignoreAuthors,
+    quietWindowMinutes: isQuietWindowMinutes(quietWindowMinutes)
+      ? quietWindowMinutes
+      : DEFAULT_CONFIG_FILE.quietWindowMinutes,
+    pollIntervalMinutes: isPollIntervalMinutes(pollIntervalMinutes)
+      ? pollIntervalMinutes
+      : DEFAULT_CONFIG_FILE.pollIntervalMinutes,
+  };
 }
 
 /** Thrown by `patchConfigFile` when the on-disk file fails to parse or validate: writing the
