@@ -14,9 +14,11 @@ garden has four sources of truth about the outside world:
 - **clients** — the browser and the CLI issue commands.
 
 All four fold into one thing: a map of session id to session state. That map streams to
-browsers as a snapshot on connect, then as deltas. The one exception is a client's inbound `watch`
-message and the `fs-changed` it earns: a per-connection filesystem watch, answered to that
-connection only.
+browsers as a snapshot on connect, then as deltas. There are two exceptions, both outside the
+delta stream. One is a client's inbound `watch` message and the `fs-changed` it earns: a
+per-connection filesystem watch, answered to that connection only. The other is the per-session
+pipe stream (`WS /sessions/:id/events`), which pushes PR-watch digest lines to a `garden events
+--follow` process and takes acks back (§4.6).
 
 Every layer in this codebase exists to serve that sentence. Adapters turn the outside world
 into events. One pure function folds events into state. One diff turns state changes into
@@ -68,6 +70,8 @@ merges them; nothing else computes a session fact.
 | repo root                            | `git rev-parse --git-common-dir` on the cwd (`app/repoRoots.ts`), so worktrees fold into their main repo    |
 | Claude-side name                     | Claude Code's session registry, `~/.claude/sessions` (read only)                                            |
 | watches                              | the watch records in `state.json`, projected onto the session by a `watches-changed` event                  |
+| pipe connected                       | the registry in `app/pipes.ts` (open pipe streams), projected onto the session by a `pipe-changed` event    |
+| last pipe connection                 | `pipes` in `state.json`: session id to the last time a pipe was connected, replayed at boot                 |
 | shown                                | garden's stage state in `state.json`, not a session fact at all                                             |
 
 The exceptions: `session-registered` clears `ended` because a process was just started under that
@@ -145,6 +149,7 @@ packages/server/src/
     status.ts      hook event -> status
     stage.ts       slot arithmetic across preset changes
     watches.ts     watch rules: kind normalisation, upsert/remove, 7-day digest pruning, summaries
+    pipes.ts       ack a digest, end watches with no pipe for 7 days, prune stale pipe times
     paths.ts       filesystem scoping
     diff.ts        (prev, next) -> Delta[]
   adapters/        one external system each
@@ -162,12 +167,13 @@ packages/server/src/
     sessions.ts    create / resume / kill use cases
     hooks.ts
     watches.ts     add / remove / list watch use cases and boot replay, all through one writer
+    pipes.ts       registry of open pipe streams: connect, ack, close, hourly sweep, boot replay
     filesystem.ts
     repos.ts
     rootWatch.ts   one watch per /events connection, swapped on a new root
   http/
     routes/        fastify route handlers
-    ws/            events socket, attach socket
+    ws/            events socket, attach socket, pipe socket
     errors.ts      error-class-to-status table and the fastify error handler
     server.ts      fastify factory
   config.ts        resolves appDir, transcriptsDir, tmuxSocket, claudeCommand from GARDEN_*
@@ -221,7 +227,8 @@ mapping. It does not optimistically mutate state and hope tmux agrees.
 `<appDir>/state.json` holds **overlay facts only** — things garden itself decided and cannot
 recompute: the session id to tmux name map, group order, and per-project pins, collapsed state
 and hide-dead toggle, plus stage preset and slot assignments and focused slot, plus swarm
-records and per-session parent/swarmId placements, plus the PR watches. It does **not** hold a
+records and per-session parent/swarmId placements, plus the PR watches and the last time each
+session had a pipe connected. It does **not** hold a
 `SessionState` snapshot. Every session fact is derived on every boot — liveness and exit code
 from tmux, cwd, title and recap from the transcripts, branch from a live git lookup
 keyed by cwd, status from hooks — because those are the sources of truth and a persisted copy
@@ -243,7 +250,8 @@ So the startup sequence is a replay, not a restore:
    UI preferences, and nothing else. Then replay the persisted watches: `replayWatches` runs the
    watch writer once, which prunes expired digests and closed watches (and persists that), and
    dispatches a `watches-changed` for every session holding watches. A failure here is logged,
-   not fatal to boot.
+   not fatal to boot. Then `pipes.replay()` dispatches a `pipe-changed` (not connected) for every
+   persisted pipe time, likewise logged on failure.
 4. Dispatch a full `tmux-snapshot`.
 5. Scan `<transcriptsDir>/**` and dispatch a `transcript-changed` per file.
 6. Sweep every session's cwd for its current branch, once every distinct cwd from step 5 exists
@@ -268,6 +276,11 @@ longer seeds this cache, it starts empty at boot, so the first reconciliation pa
 after HTTP is already serving) reads every in-scope file once; later passes are incremental as
 usual.
 
+The pipe sweep (`pipes.sweep`, hourly) does not run at boot: its first pass is one interval after
+the server starts, so pipes whose server restarted have time to reconnect before the no-pipe rule
+can end a watch. Each pass also re-stamps every connected session's time, so after a crash a
+persisted time is at most one interval stale.
+
 ### 4.3 What goes in `http/`
 
 Translation only: parse and validate the request, call one use case, serialise the result.
@@ -282,6 +295,12 @@ with one carve-out: `uninstall` and `stop --all` both kill the tmux server direc
 each has to work with the garden server dead (`uninstall` after it stops the server itself,
 `stop --all` as the last step of the same hard stop). Both share the one `killTmuxServer` call,
 in `cli/tmux.ts`. `garden ls` is a `GET /sessions`.
+
+`garden events --follow` is the one long-lived verb. It holds a WebSocket to the pipe stream,
+reconnects for ever, and never exits on its own. Run as a Claude Code monitor, its stdout is a
+socket whose other end the Claude process holds, so the CLI reads fd 1 (`cli/lifeline.ts`) and
+treats EOF as the death of that process, even from SIGKILL; a signal alone would leave it orphaned.
+Digest lines are the only thing it writes to stdout.
 
 ### 4.5 Create, resume, kill
 
@@ -300,6 +319,30 @@ then dispatch `session-registered`. Kill dispatches nothing and relies on the ne
 - **Kill** kills the tmux session and drops the id-to-name mapping. The next snapshot reports the
   session gone, so it is `dead` with no exit code through the ordinary path. The transcript
   remains, so the session stays listed and resumable.
+
+### 4.6 PR watches: store, poller, stream
+
+Three pieces, each owning one thing.
+
+- **Store.** Watch records live in the overlay, and `app/watches.ts` `updateWatches` is the only
+  writer. Everything that changes a watch (the CLI verbs, the poller, an ack, the sweep) goes
+  through it.
+- **Poller.** A `gh` adapter plus an `app/` poll loop observe pull requests and write digests into
+  watches, only through `updateWatches`. It never talks to a pipe; it only changes the store.
+- **Stream.** `app/pipes.ts` and the pipe socket in `http/ws/` deliver what the store holds. A
+  connection is sent every pending digest on connect, and again after any watch write, because the
+  registry subscribes to overlay writes (`projection.subscribeOverlay`). Watching the overlay
+  rather than `watches-changed` is deliberate: a merge replaces one pending digest with another,
+  which changes no `WatchSummary` and so dispatches nothing. Delivery is deferred a microtask,
+  because the listener fires inside `updateWatches`, before that writer dispatches; sending inline
+  would let a throwing send escape through the poller's merge and a synchronous ack nest a second
+  write whose dispatch the outer one overwrites.
+
+Delivery is at least once. A digest is cleared only by an `ack` from a connection that sent it, and
+the CLI acks only after the line is written. The set of ids a connection has already sent is
+connection-local and never persisted, so a reconnect, including after a server restart, resends
+everything still pending. A watch whose session has had no pipe connected for seven days is ended
+by the sweep.
 
 ## 5. Client
 
