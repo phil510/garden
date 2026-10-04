@@ -209,6 +209,20 @@ describe('delivery', () => {
     expect(t.overlay().watches[0]?.pendingDigest).toBeNull();
   });
 
+  it('delivers from the written overlay without reading the store again', async () => {
+    const t = setup();
+    const stream = aStream();
+    t.pipes.connect('s1', stream.send);
+    vi.spyOn(t.projection, 'overlay').mockImplementation(() => {
+      throw new Error('state.json is unreadable');
+    });
+
+    updateWatches(t.deps, () => [aWatch({ pendingDigest: digest('d1') })], NOW);
+    await settle();
+
+    expect(stream.ids()).toEqual(['d1']);
+  });
+
   it('still dispatches the writer’s watches-changed when a send throws', async () => {
     const t = setup();
     t.pipes.connect('s1', () => {

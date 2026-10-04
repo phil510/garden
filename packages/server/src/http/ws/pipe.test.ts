@@ -15,7 +15,7 @@ async function until(predicate: () => boolean, description: string): Promise<voi
 }
 
 /** Records what the socket hands the registry; `sends` collects the digest sinks it was given. */
-function fakePipes(throwOn?: 'connect' | 'ack') {
+function fakePipes(throwOn?: 'connect' | 'ack' | 'close') {
   const log = {
     connected: [] as string[],
     acks: [] as string[],
@@ -33,6 +33,7 @@ function fakePipes(throwOn?: 'connect' | 'ack') {
           log.acks.push(id);
         },
         close: () => {
+          if (throwOn === 'close') throw new Error('state.json is not writable');
           log.closed += 1;
         },
       };
@@ -129,5 +130,14 @@ describe('registerPipeSocket', () => {
     await new Promise<void>((resolve) => ws.once('open', () => resolve()));
     ws.send(JSON.stringify({ type: 'ack', id: 'd1' }));
     await new Promise<void>((resolve) => ws.once('close', () => resolve()));
+  });
+
+  it('survives the registry throwing on close', async () => {
+    const { pipes } = fakePipes('close');
+    const ws = await open(pipes);
+    await new Promise<void>((resolve) => ws.once('open', () => resolve()));
+    ws.close();
+    await new Promise<void>((resolve) => ws.once('close', () => resolve()));
+    await new Promise((resolve) => setTimeout(resolve, 20));
   });
 });

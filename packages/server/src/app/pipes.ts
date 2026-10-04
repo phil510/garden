@@ -1,6 +1,7 @@
 import type { PipeServerMessage } from '@garden/shared';
 import { ackDigest, endUnpipedWatches, prunePipeTimes } from '../domain/pipes.js';
 import type { Watch } from '../domain/watches.js';
+import type { OverlayState } from './ports.js';
 import { updateWatches } from './watches.js';
 import type { WatchesDeps } from './watches.js';
 
@@ -59,12 +60,14 @@ export function createPipes(deps: WatchesDeps): Pipes {
   // The listener fires inside `updateWatches`, before its writer dispatches `watches-changed`.
   // Delivering inline would let a throwing send escape through that writer, and a send that
   // acks at once would nest a second `updateWatches` whose dispatch the outer one overwrites.
-  // The deferred pass reads the overlay as it stands then, so writes made in one synchronous
-  // block deliver only the last.
-  projection.subscribeOverlay(() => {
+  // The deferred pass delivers the newest overlay the listener was handed, so writes made in
+  // one synchronous block deliver only the last, and it never reads the store.
+  let latest: OverlayState | undefined;
+  projection.subscribeOverlay((next) => {
+    latest = next;
     queueMicrotask(() => {
-      if (connections.size === 0) return;
-      const { watches } = projection.overlay();
+      if (connections.size === 0 || latest === undefined) return;
+      const { watches } = latest;
       for (const set of connections.values())
         for (const connection of set) deliver(connection, watches);
     });

@@ -77,7 +77,14 @@ export function registerPipeSocket(app: FastifyInstance, deps: PipeDeps): WebSoc
         socket.terminate();
       }
     });
-    socket.on('close', () => connection.close());
+    // Closing writes the overlay, and a throw in a `close` listener is an uncaught exception.
+    socket.on('close', () => {
+      try {
+        connection.close();
+      } catch (error) {
+        app.log.error({ err: error, sessionId }, 'pipe close failed');
+      }
+    });
   });
 
   return wss;
