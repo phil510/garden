@@ -13,6 +13,7 @@ import type {
   WatchesResponse,
   WatchResponse,
 } from '@garden/shared';
+import { pipeStreamPath } from '@garden/shared';
 import { ensureConfigFile, loadConfig } from '../config.js';
 
 /** The server did not answer, or answered with an error the client can only surface. */
@@ -27,10 +28,20 @@ export class CliHttpError extends Error {
   }
 }
 
-function baseUrl(): string {
+function hostPort(): string {
   const home = homedir();
   const config = loadConfig(process.env, ensureConfigFile(home), home);
-  return `http://${config.host}:${String(config.port)}`;
+  return `${config.host}:${String(config.port)}`;
+}
+
+function baseUrl(): string {
+  return `http://${hostPort()}`;
+}
+
+/** The session's pipe stream URL. Read afresh on every call so a restarted server, which may
+ *  have moved, is found again. */
+export function pipeUrl(sessionId: string): string {
+  return `ws://${hostPort()}${pipeStreamPath(sessionId)}`;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
