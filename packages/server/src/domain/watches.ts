@@ -124,6 +124,13 @@ export function removeWatch(
   return { outcome: 'removed', watches: watches.filter((w) => w !== matches[0]) };
 }
 
+/** Drops every watch a session owns, pending digests with them. Returns the input array when the
+ *  session has none, so the caller's write is skipped. */
+export function dropSessionWatches(watches: readonly Watch[], sessionId: string): readonly Watch[] {
+  const kept = watches.filter((w) => w.sessionId !== sessionId);
+  return kept.length === watches.length ? watches : kept;
+}
+
 /** The one lifecycle rule: drop digests older than seven days, then drop every closed watch left
  *  without a digest. Acknowledging a digest and letting it expire both end as "no digest", so
  *  this covers both removal paths. Returns the input array when nothing changes. */

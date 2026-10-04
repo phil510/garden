@@ -17,7 +17,12 @@ export function hookRoutes(app: FastifyInstance, deps: HooksDeps) {
   app.post('/hooks', (request, reply) => {
     if (!isHookPayload(request.body))
       return reply.code(400).send({ error: 'invalid hook payload' } satisfies ErrorResponse);
-    handleHook(deps, request.body);
+    const header = request.headers['x-garden-session'];
+    handleHook(
+      deps,
+      request.body,
+      typeof header === 'string' && header !== '' ? header : undefined,
+    );
     return reply.code(204).send();
   });
 }
