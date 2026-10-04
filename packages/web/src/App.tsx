@@ -8,6 +8,7 @@ import { FilePanel } from './features/filetree/FilePanel';
 import { Sidebar } from './features/sidebar/Sidebar';
 import { SettingsModal } from './features/settings/SettingsModal';
 import { ShutdownOverlay } from './features/shutdown/ShutdownOverlay';
+import { usePipeGrace } from './features/watches/usePipeGrace';
 import { PresetSwitcher } from './features/stage/PresetSwitcher';
 import { Stage } from './features/stage/Stage';
 import { useLocalStore } from './state/localStore';
@@ -22,6 +23,7 @@ export function App() {
   const resizeSidebarBy = useLocalStore((state) => state.resizeSidebarBy);
   const filePanelWidth = useLocalStore((state) => state.filePanelWidth);
   const resizeFilePanelBy = useLocalStore((state) => state.resizeFilePanelBy);
+  usePipeGrace();
 
   useEffect(() => {
     const sessionStore = useSessionStore.getState();
