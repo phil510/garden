@@ -32,5 +32,7 @@ export function openLifeline(): Lifeline {
   const { port1 } = new MessageChannel();
   port1.on('message', () => undefined);
   port1.ref();
+  // A reader that closes early (`| head`) surfaces as EPIPE here; with no listener that is a crash.
+  process.stdout.on('error', () => undefined);
   return { out: process.stdout, gone: new Promise<void>(() => undefined) };
 }
