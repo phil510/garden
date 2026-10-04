@@ -1,0 +1,8 @@
+[
+  {
+    "name": "garden-events",
+    "command": "\"${CLAUDE_PLUGIN_ROOT}/monitors/events.sh\"",
+    "description": "garden PR watch digests",
+    "when": "always"
+  }
+]

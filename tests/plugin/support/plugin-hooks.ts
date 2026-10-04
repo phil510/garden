@@ -11,6 +11,7 @@ const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..'
 const HOOKS_SCRIPTS_DIR = join(REPO_ROOT, 'plugins', 'garden', 'hooks', 'scripts');
 
 export const WARN_SH = join(HOOKS_SCRIPTS_DIR, 'warn.sh');
+export const EVENTS_MONITOR_SH = join(REPO_ROOT, 'plugins', 'garden', 'monitors', 'events.sh');
 export const RECOVER_SH = join(HOOKS_SCRIPTS_DIR, 'recover.sh');
 export const CONTEXT_TOKENS_SH = join(
   REPO_ROOT,
