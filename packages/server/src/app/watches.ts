@@ -61,7 +61,7 @@ async function resolveRepo(
 ): Promise<string> {
   if (explicit !== undefined) {
     if (!isRepoName(explicit)) throw new RepoUnresolvedError(`not an owner/name repo: ${explicit}`);
-    return explicit;
+    return explicit.replace(/\.git$/, '');
   }
   let url: string | null;
   try {

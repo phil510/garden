@@ -101,6 +101,14 @@ describe('addWatch', () => {
     expect(remoteUrls).toEqual([]);
   });
 
+  it('treats an explicit repo with a .git suffix as the same repo', async () => {
+    const { deps } = setup({});
+
+    const summary = await addWatch(deps, { sessionId: 's1', pr: 7, repo: 'other/repo.git' });
+
+    expect(summary.repo).toBe('other/repo');
+  });
+
   it.each([
     ['no origin', () => Promise.resolve(null)],
     ['a non-GitHub origin', () => Promise.resolve('https://gitlab.com/acme/widgets.git')],
