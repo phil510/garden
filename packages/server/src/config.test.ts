@@ -400,6 +400,27 @@ describe('readConfigFile', () => {
     });
   });
 
+  it('recovers each watch setting individually when an unrelated field fails validation', () => {
+    withTempAppDir((appDir) => {
+      mkdirSync(appDir, { recursive: true });
+      const path = configFilePath(appDir);
+      writeFileSync(
+        path,
+        JSON.stringify({
+          terminalFontSize: 1,
+          ignoreAuthors: ['dependabot'],
+          quietWindowMinutes: 7,
+          pollIntervalMinutes: 0,
+        }),
+        'utf8',
+      );
+      const config = readConfigFile(path);
+      expect(config.ignoreAuthors).toEqual(['dependabot']);
+      expect(config.quietWindowMinutes).toBe(7);
+      expect(config.pollIntervalMinutes).toBe(DEFAULT_CONFIG_FILE.pollIntervalMinutes);
+    });
+  });
+
   it('falls back to the default claudeCommand when the field itself is invalid, sibling errors aside', () => {
     withTempAppDir((appDir) => {
       mkdirSync(appDir, { recursive: true });
