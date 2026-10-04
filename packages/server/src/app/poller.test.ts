@@ -447,6 +447,10 @@ describe('createPoller', () => {
 
     expect(t.state().map((w) => w.status)).toEqual(['error', 'error']);
     expect(t.stored().every((w) => w.pendingDigest === null)).toBe(true);
+    expect(t.state().map((w) => w.errorReason)).toEqual([
+      'gh is not logged in. Run `gh auth login`.',
+      'gh is not logged in. Run `gh auth login`.',
+    ]);
 
     t.github.failures.clear();
     t.github.set('repos/acme/widgets/pulls/8', pr());
@@ -456,7 +460,19 @@ describe('createPoller', () => {
     t.at(T0 + 6 * MIN);
     await t.poller.tick();
 
-    expect(t.state().find((w) => w.pr === 7)?.status).toBe('active');
+    const recovered = t.state().find((w) => w.pr === 7);
+    expect(recovered?.status).toBe('active');
+    expect(recovered?.errorReason).toBeUndefined();
+  });
+
+  it('names a missing gh differently from a logged-out one', async () => {
+    const t = setupPoller();
+    t.github.failures.set(PR, { kind: 'unavailable', reason: 'missing' });
+
+    t.at(T0 + MIN);
+    await t.poller.tick();
+
+    expect(t.state()[0]?.errorReason).toBe('The gh CLI is not installed.');
   });
 
   it('marks only the watch whose repo answered 404', async () => {
@@ -470,6 +486,8 @@ describe('createPoller', () => {
       [7, 'active'],
       [8, 'error'],
     ]);
+    expect(t.state()[1]?.errorReason).toBe('No access to this repo or PR.');
+    expect(t.state()[0]?.errorReason).toBeUndefined();
   });
 
   it('pauses every call until the rate limit resets', async () => {

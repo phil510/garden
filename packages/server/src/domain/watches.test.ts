@@ -237,4 +237,10 @@ describe('summarizeWatches', () => {
     });
     expect(summaries['s1']?.[1]?.pendingDigest).toBe(false);
   });
+
+  it('carries the error reason through to the summary', () => {
+    const summaries = summarizeWatches([aWatch({ status: 'error', errorReason: 'No access.' })]);
+
+    expect(summaries['s1']?.[0]).toMatchObject({ status: 'error', errorReason: 'No access.' });
+  });
 });

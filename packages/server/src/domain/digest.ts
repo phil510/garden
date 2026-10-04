@@ -147,10 +147,22 @@ export function applyObservation(
     JSON.stringify(cursor) === JSON.stringify(previous) &&
     pendingDigest === pending &&
     status === watch.status;
-  return unchanged ? watch : { ...watch, cursor, pendingDigest, status };
+  if (unchanged) return watch;
+  // No longer in error, so the reason goes: absent, not undefined, matches a freshly added watch.
+  const next: { -readonly [K in keyof Watch]: Watch[K] } = {
+    ...watch,
+    cursor,
+    pendingDigest,
+    status,
+  };
+  delete next.errorReason;
+  return next;
 }
 
-/** The repo or `gh` is unreachable. Digest state is left alone so recovery loses nothing. */
-export function markWatchError(watch: Watch): Watch {
-  return watch.status === 'active' ? { ...watch, status: 'error' } : watch;
+/** The repo or `gh` is unreachable. Digest state is left alone so recovery loses nothing. A
+ *  watch already in error takes the newest reason, since the fix it needs may have changed. */
+export function markWatchError(watch: Watch, reason: string): Watch {
+  if (watch.status === 'closed') return watch;
+  if (watch.status === 'error' && watch.errorReason === reason) return watch;
+  return { ...watch, status: 'error', errorReason: reason };
 }

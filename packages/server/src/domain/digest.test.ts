@@ -165,8 +165,34 @@ describe('status and identity', () => {
     expect(apply(settled, {}, T0 + MIN)).toBe(settled);
   });
 
-  it('recovers from error on a successful observation', () => {
-    expect(apply(watch({ status: 'error' }), {}, T0).status).toBe('active');
+  it('recovers from error on a successful observation, clearing the reason', () => {
+    const recovered = apply(
+      watch({ status: 'error', errorReason: 'gh is not logged in.' }),
+      {},
+      T0,
+    );
+
+    expect(recovered.status).toBe('active');
+    expect('errorReason' in recovered).toBe(false);
+  });
+
+  it('clears the reason when a PR closes out of error', () => {
+    const closed = apply(
+      watch({ status: 'error', errorReason: 'x' }),
+      { closed: { merged: true } },
+      T0,
+    );
+
+    expect(closed.status).toBe('closed');
+    expect('errorReason' in closed).toBe(false);
+  });
+
+  it('replaces the reason of a watch already in error and leaves a same-reason one untouched', () => {
+    const errored = markWatchError(watch(), 'a');
+
+    expect(errored).toMatchObject({ status: 'error', errorReason: 'a' });
+    expect(markWatchError(errored, 'a')).toBe(errored);
+    expect(markWatchError(errored, 'b').errorReason).toBe('b');
   });
 
   it('leaves a closed watch alone', () => {
@@ -178,7 +204,7 @@ describe('status and identity', () => {
   it('keeps the digest and tally when marking an error', () => {
     const held = apply(watch(), { comments: [comment('a', T0 - MIN)] }, T0);
 
-    const errored = markWatchError(held);
+    const errored = markWatchError(held, 'why');
 
     expect(errored).toMatchObject({ status: 'error', pendingDigest: null, cursor: held.cursor });
   });

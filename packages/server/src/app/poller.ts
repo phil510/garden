@@ -259,6 +259,12 @@ function changeWatches(
   return changed ? next : watches;
 }
 
+const GH_UNAVAILABLE_REASON = {
+  missing: 'The gh CLI is not installed.',
+  'logged-out': 'gh is not logged in. Run `gh auth login`.',
+} as const;
+const INACCESSIBLE_REASON = 'No access to this repo or PR.';
+
 const describe = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 /**
@@ -327,14 +333,22 @@ export function createPoller(deps: PollerDeps): Poller {
       case 'inaccessible':
         updateWatches(
           deps.watches,
-          (current) => changeWatches(current, new Set([watch.id]), markWatchError),
+          (current) =>
+            changeWatches(current, new Set([watch.id]), (w) =>
+              markWatchError(w, INACCESSIBLE_REASON),
+            ),
           now,
         );
         return false;
       case 'unavailable': {
         deps.logger.warn(`gh is unavailable (${outcome.reason}); marking watches as error`);
         const ids = new Set(polled.map((w) => w.id));
-        updateWatches(deps.watches, (current) => changeWatches(current, ids, markWatchError), now);
+        const reason = GH_UNAVAILABLE_REASON[outcome.reason];
+        updateWatches(
+          deps.watches,
+          (current) => changeWatches(current, ids, (w) => markWatchError(w, reason)),
+          now,
+        );
         return true;
       }
       case 'rate-limited':

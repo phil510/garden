@@ -183,6 +183,22 @@ describe('readOverlayState watches', () => {
     });
   });
 
+  it('loads a watch without an error reason, and keeps one that has it', () => {
+    withTempAppDir((appDir) => {
+      mkdirSync(appDir, { recursive: true });
+      const errored = { ...watch, id: 'e', status: 'error', errorReason: 'gh is not logged in.' };
+      const bad = { ...watch, id: 'bad', status: 'error', errorReason: 5 };
+      writeFileSync(join(appDir, 'state.json'), JSON.stringify(file([watch, errored, bad])));
+
+      const state = readOverlayState(appDir, collectingLogger());
+
+      expect(state.watches.map((w) => [w.id, w.errorReason])).toEqual([
+        ['w1', undefined],
+        ['e', 'gh is not logged in.'],
+      ]);
+    });
+  });
+
   it('drops one malformed watch with a warning while keeping the valid ones and the tmux names', () => {
     withTempAppDir((appDir) => {
       mkdirSync(appDir, { recursive: true });
