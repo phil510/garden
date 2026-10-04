@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 import type { GhResult } from '../domain/github.js';
 import type { Watch } from '../domain/watches.js';
 import type { GhPort } from './ports.js';
-import { fetchWatch } from './poller.js';
+import { createPoller, fetchWatch } from './poller.js';
+import { createProjection } from './projection.js';
+import { DEFAULT_CONFIG_FILE } from '../config.js';
+import type { ConfigFile } from '../config.js';
+import { listWatches, replayWatches, updateWatches } from './watches.js';
+import type { OverlayState, StorePort } from './ports.js';
 import { emptyTally } from '../domain/pollCursor.js';
 import type { Cursor, Observation } from '../domain/pollCursor.js';
 
@@ -28,8 +33,12 @@ function fakeGh() {
   const failures = new Map<string, GhResult>();
   const calls: { path: string; etag: string | null; kind: GhResult['kind'] }[] = [];
   let version = 0;
+  let beforeNextGet: (() => void) | null = null;
   const gh: GhPort = {
     get(path, etag) {
+      const hook = beforeNextGet;
+      beforeNextGet = null;
+      hook?.();
       const failure = failures.get(path);
       const resource = resources.get(path);
       const result: GhResult =
@@ -50,6 +59,9 @@ function fakeGh() {
     set(path: string, body: unknown) {
       version += 1;
       resources.set(path, { etag: `W/"${String(version)}"`, body });
+    },
+    beforeNextGet(hook: () => void) {
+      beforeNextGet = hook;
     },
     clearCalls() {
       calls.length = 0;
@@ -271,3 +283,219 @@ describe('fetchWatch', () => {
 function cursorAfter(observation: Observation): Cursor {
   return { ...observation.tracking, written: emptyTally(), fresh: emptyTally(), digestId: null };
 }
+
+const MIN = 60_000;
+
+const emptyOverlay: OverlayState = {
+  version: 1,
+  tmuxNames: {},
+  groups: {},
+  stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
+  swarms: [],
+  placements: {},
+  swarmOrder: [],
+  collapsedSwarms: [],
+  hideDeadSwarms: [],
+  watches: [],
+};
+
+/** A real projection over an in-memory store, a fake GitHub and an injected clock. */
+function setupPoller(watches: readonly Watch[] = [watch]) {
+  const github = fakeGh();
+  seedQuiet(github);
+  let overlay: OverlayState = { ...emptyOverlay, watches };
+  let writes = 0;
+  const store: StorePort = {
+    read: () => overlay,
+    write: (state) => {
+      overlay = state;
+      writes += 1;
+    },
+  };
+  const projection = createProjection(store);
+  projection.dispatch({ type: 'session-registered', id: 's1', tmuxName: 's1', cwd: '/work/s1' });
+  const watchDeps = { projection, git: { remoteUrl: () => Promise.resolve(null) } };
+  replayWatches(watchDeps, T0);
+  const config: ConfigFile = { ...DEFAULT_CONFIG_FILE };
+  const log: string[] = [];
+  let clock = T0;
+  let ids = 0;
+  const poller = createPoller({
+    watches: watchDeps,
+    gh: github.gh,
+    config: { read: () => config },
+    logger: { warn: (m) => log.push(m), error: (m) => log.push(m) },
+    now: () => clock,
+    mintId: () => `digest-${String(++ids)}`,
+  });
+  return {
+    github,
+    poller,
+    watchDeps,
+    config,
+    log,
+    writes: () => writes,
+    state: () => listWatches(watchDeps, 's1'),
+    stored: () => overlay.watches,
+    at(ms: number) {
+      clock = ms;
+    },
+  };
+}
+
+describe('createPoller', () => {
+  const COMMENTS = 'repos/acme/widgets/issues/7/comments';
+
+  it('publishes a digest on the first tick past the quiet window, visible in SessionState', async () => {
+    const t = setupPoller();
+    t.github.set(page(COMMENTS, 1), [comment(1, T0 + 1000)]);
+
+    t.at(T0 + MIN);
+    await t.poller.tick();
+    expect(t.state()).toMatchObject([{ pr: 7, pendingDigest: false, status: 'active' }]);
+
+    t.at(T0 + 5 * MIN);
+    await t.poller.tick();
+
+    expect(t.state()).toMatchObject([{ pendingDigest: true }]);
+    expect(t.stored()[0]?.pendingDigest?.line).toBe('#7 acme/widgets: 1 comment');
+  });
+
+  it('writes nothing when every call is a 304', async () => {
+    const t = setupPoller();
+    t.at(T0 + MIN);
+    await t.poller.tick();
+    const writes = t.writes();
+
+    t.at(T0 + 2 * MIN);
+    await t.poller.tick();
+
+    expect(t.writes()).toBe(writes);
+  });
+
+  it('counts only new activity when an acknowledgement lands between fetch and merge', async () => {
+    const t = setupPoller();
+    t.github.set(page(COMMENTS, 1), [comment(1, T0 + 1000)]);
+    t.at(T0 + 5 * MIN);
+    await t.poller.tick();
+    const first = t.stored()[0]?.pendingDigest;
+    expect(first?.line).toBe('#7 acme/widgets: 1 comment');
+    t.github.set(page(`${PR}/reviews`, 1), [
+      {
+        id: 9,
+        user: { login: 'bob' },
+        body: 'x',
+        state: 'COMMENTED',
+        submitted_at: iso(T0 + 2000),
+      },
+    ]);
+    t.github.beforeNextGet(() => {
+      updateWatches(
+        t.watchDeps,
+        (ws) => ws.map((w) => ({ ...w, pendingDigest: null })),
+        T0 + 6 * MIN,
+      );
+    });
+
+    t.at(T0 + 10 * MIN);
+    await t.poller.tick();
+
+    const next = t.stored()[0]?.pendingDigest;
+    expect(next?.line).toBe('#7 acme/widgets: 1 review (bob)');
+    expect(next?.id).not.toBe(first?.id);
+  });
+
+  it('marks every watch as error when gh is unavailable, and recovers on a later tick', async () => {
+    const other: Watch = { ...watch, id: 'w2', pr: 8 };
+    const t = setupPoller([watch, other]);
+    t.github.failures.set(PR, { kind: 'unavailable', reason: 'logged-out' });
+
+    t.at(T0 + MIN);
+    await t.poller.tick();
+
+    expect(t.state().map((w) => w.status)).toEqual(['error', 'error']);
+    expect(t.stored().every((w) => w.pendingDigest === null)).toBe(true);
+
+    t.github.failures.clear();
+    t.github.set('repos/acme/widgets/pulls/8', pr());
+    for (const suffix of ['reviews', 'comments'])
+      t.github.set(page(`repos/acme/widgets/pulls/8/${suffix}`, 1), []);
+    t.github.set(page('repos/acme/widgets/issues/8/comments', 1), []);
+    t.at(T0 + 6 * MIN);
+    await t.poller.tick();
+
+    expect(t.state().find((w) => w.pr === 7)?.status).toBe('active');
+  });
+
+  it('marks only the watch whose repo answered 404', async () => {
+    const other: Watch = { ...watch, id: 'w2', pr: 8 };
+    const t = setupPoller([watch, other]);
+
+    t.at(T0 + MIN);
+    await t.poller.tick();
+
+    expect(t.state().map((w) => [w.pr, w.status])).toEqual([
+      [7, 'active'],
+      [8, 'error'],
+    ]);
+  });
+
+  it('pauses every call until the rate limit resets', async () => {
+    const t = setupPoller();
+    t.github.failures.set(PR, { kind: 'rate-limited', resumeAt: T0 + 10 * MIN });
+
+    t.at(T0 + MIN);
+    await t.poller.tick();
+    expect(t.github.calls).toHaveLength(1);
+    expect(t.state()[0]?.status).toBe('active');
+
+    t.at(T0 + 5 * MIN);
+    await t.poller.tick();
+    expect(t.github.calls).toHaveLength(1);
+
+    t.github.failures.clear();
+    t.at(T0 + 11 * MIN);
+    await t.poller.tick();
+    expect(t.github.calls.length).toBeGreaterThan(1);
+  });
+
+  it('closes a merged PR with a final digest and stops fetching it', async () => {
+    const t = setupPoller();
+    t.github.set(PR, pr({ state: 'closed', merged: true }));
+
+    t.at(T0 + MIN);
+    await t.poller.tick();
+
+    expect(t.state()).toMatchObject([{ status: 'closed', pendingDigest: true }]);
+    expect(t.stored()[0]?.pendingDigest?.line).toBe('#7 acme/widgets: merged');
+    t.github.clearCalls();
+
+    t.at(T0 + 10 * MIN);
+    await t.poller.tick();
+
+    expect(t.github.calls).toEqual([]);
+  });
+
+  it('logs and carries on when a fetch fails for another reason', async () => {
+    const t = setupPoller();
+    t.github.failures.set(PR, { kind: 'ok', etag: null, body: 'not a PR' });
+
+    await t.poller.tick();
+
+    expect(t.log.join('\n')).toMatch(/unexpected PR response/);
+    expect(t.state()[0]?.status).toBe('active');
+  });
+
+  it('runs the writer even with nothing to fetch, so expired watches are pruned', async () => {
+    const closed: Watch = {
+      ...watch,
+      status: 'closed',
+      pendingDigest: { id: 'd', line: 'x', createdAt: T0 - 8 * 24 * 60 * MIN },
+    };
+    const t = setupPoller([closed]);
+
+    await t.poller.tick();
+
+    expect(t.stored()).toEqual([]);
+  });
+});

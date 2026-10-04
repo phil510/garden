@@ -16,7 +16,11 @@ import {
 } from '../domain/github.js';
 import type { GhResult, ParsedPage } from '../domain/github.js';
 import type { Watch } from '../domain/watches.js';
-import type { GhPort } from './ports.js';
+import { applyObservation, markWatchError } from '../domain/digest.js';
+import { readCursor } from '../domain/pollCursor.js';
+import type { ConfigPort, GhPort } from './ports.js';
+import { updateWatches } from './watches.js';
+import type { WatchesDeps } from './watches.js';
 
 /** A fetch that did not reach a verdict about the PR. */
 export type WatchFailure = Exclude<GhResult, { kind: 'ok' } | { kind: 'not-modified' }>;
@@ -203,4 +207,161 @@ export async function fetchWatch(
     closed: pr.open ? null : { merged: pr.merged },
   };
   return { kind: 'observed', observation: { activity, tracking } };
+}
+
+/** The slice of `adapters/logger.ts`'s `Logger` the poller needs. */
+export interface PollerLogger {
+  warn(message: string): void;
+  error(message: string): void;
+}
+
+export interface PollerDeps {
+  readonly watches: WatchesDeps;
+  readonly gh: GhPort;
+  /** `ignoreAuthors`, `quietWindowMinutes` and `pollIntervalMinutes` are read at use time, so a
+   *  settings change applies from the next tick. */
+  readonly config: Pick<ConfigPort, 'read'>;
+  readonly logger: PollerLogger;
+  readonly now: () => number;
+  readonly mintId: () => string;
+}
+
+export interface Poller {
+  tick(): Promise<void>;
+  start(): void;
+  stop(): void;
+}
+
+const MINUTE_MS = 60_000;
+
+/** Applies `change` to the watches in `ids`. Returns `watches` itself when none of them is
+ *  still present or changed, so the writer sees no change and skips the store write. */
+function changeWatches(
+  watches: readonly Watch[],
+  ids: ReadonlySet<string>,
+  change: (watch: Watch) => Watch,
+): readonly Watch[] {
+  let changed = false;
+  const next = watches.map((watch) => {
+    if (!ids.has(watch.id)) return watch;
+    const result = change(watch);
+    if (result !== watch) changed = true;
+    return result;
+  });
+  return changed ? next : watches;
+}
+
+const describe = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
+/**
+ * One loop over every watch that is not closed. Each tick fetches a watch (no writes), then
+ * merges the observation inside the watch writer against the watch as it is by then, so an
+ * acknowledgement or removal that landed during the fetch is respected. The tick also runs the
+ * writer once with no change, which is what prunes expired watches.
+ *
+ * A missing or logged-out `gh` marks every polled watch as error and ends the tick; a 403/404
+ * marks only that watch. Both clear on the next successful observation. A rate limit holds the
+ * whole loop until its resume time and is not an error status. Any other failure (a timeout, a
+ * garbled response) is logged and leaves the watch as it was.
+ */
+export function createPoller(deps: PollerDeps): Poller {
+  let inFlight = false;
+  let started = false;
+  let stopped = false;
+  let holdUntil = 0;
+  let timer: NodeJS.Timeout | undefined;
+
+  async function pollWatches(): Promise<void> {
+    const settings = deps.config.read();
+    const digestSettings = {
+      ignoreAuthors: settings.ignoreAuthors,
+      quietWindowMs: settings.quietWindowMinutes * MINUTE_MS,
+    };
+    const watches = updateWatches(deps.watches, (current) => current, deps.now());
+    if (deps.now() < holdUntil) return;
+    for (const watch of watches.filter((w) => w.status !== 'closed')) {
+      if (stopped) return;
+      const cursor = readCursor(watch.cursor);
+      if (watch.cursor !== null && cursor === null)
+        deps.logger.warn(`watch ${watch.id}: unreadable poll cursor, starting over from creation`);
+      let outcome: FetchOutcome;
+      try {
+        outcome = await fetchWatch(deps.gh, watch, cursor);
+      } catch (error) {
+        deps.logger.error(`poll ${watch.repo}#${String(watch.pr)} failed: ${describe(error)}`);
+        continue;
+      }
+      if (stopped) return;
+      const now = deps.now();
+      switch (outcome.kind) {
+        case 'observed':
+          updateWatches(
+            deps.watches,
+            (current) =>
+              changeWatches(current, new Set([watch.id]), (w) =>
+                applyObservation(w, outcome.observation, digestSettings, now, deps.mintId),
+              ),
+            now,
+          );
+          break;
+        case 'inaccessible':
+          updateWatches(
+            deps.watches,
+            (current) => changeWatches(current, new Set([watch.id]), markWatchError),
+            now,
+          );
+          break;
+        case 'unavailable': {
+          deps.logger.warn(`gh is unavailable (${outcome.reason}); marking watches as error`);
+          const ids = new Set(watches.map((w) => w.id));
+          updateWatches(
+            deps.watches,
+            (current) => changeWatches(current, ids, markWatchError),
+            now,
+          );
+          return;
+        }
+        case 'rate-limited':
+          holdUntil = outcome.resumeAt;
+          deps.logger.warn(
+            `GitHub rate limit; pausing polls until ${new Date(holdUntil).toISOString()}`,
+          );
+          return;
+      }
+    }
+  }
+
+  async function tick(): Promise<void> {
+    if (inFlight || stopped) return;
+    inFlight = true;
+    try {
+      await pollWatches();
+    } finally {
+      inFlight = false;
+    }
+  }
+
+  function loop(): void {
+    tick()
+      .catch((error: unknown) => {
+        deps.logger.error(`watch poll failed: ${describe(error)}`);
+      })
+      .finally(() => {
+        if (stopped) return;
+        timer = setTimeout(loop, deps.config.read().pollIntervalMinutes * MINUTE_MS);
+      });
+  }
+
+  return {
+    tick,
+    start() {
+      if (started || stopped) return;
+      started = true;
+      loop();
+    },
+    stop() {
+      stopped = true;
+      clearTimeout(timer);
+    },
+  };
 }
