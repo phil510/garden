@@ -13,6 +13,7 @@ export const initialState: GardenState = {
   reported: {},
   claudeSessionNames: {},
   watches: {},
+  pipes: {},
 };
 
 /** Shared by every session without watches, so `diff`'s `Object.is` sees no change when an
@@ -60,6 +61,8 @@ function rederive(state: GardenState): GardenState {
       branch: state.branches[session.cwd] ?? null,
       claudeSessionName: state.claudeSessionNames[id] ?? null,
       watches: state.watches[id] ?? NO_WATCHES,
+      pipeConnected: state.pipes[id]?.connected ?? false,
+      pipeLastConnectedAt: state.pipes[id]?.lastConnectedAt ?? null,
       liveness,
       exitCode,
       // Status belongs to live sessions: none yet heard from reads `unknown`, dead reads nothing.
@@ -148,6 +151,14 @@ export function reduce(state: GardenState, event: GardenEvent): GardenState {
       else watches[event.sessionId] = event.watches;
       return rederive({ ...state, watches });
     }
+    case 'pipe-changed':
+      return rederive({
+        ...state,
+        pipes: {
+          ...state.pipes,
+          [event.sessionId]: { connected: event.connected, lastConnectedAt: event.lastConnectedAt },
+        },
+      });
   }
   // No default arm: a switch without one narrows to never here, so a new event
   // variant fails to compile rather than being silently swallowed.

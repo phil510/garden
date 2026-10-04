@@ -404,4 +404,41 @@ describe('reduce', () => {
       expect(state.sessions['sid-2']?.watches).toEqual([summary]);
     });
   });
+
+  describe('pipe-changed', () => {
+    const pipeChanged = (connected: boolean, lastConnectedAt: number | null): GardenEvent => ({
+      type: 'pipe-changed',
+      sessionId: 'sid-1',
+      connected,
+      lastConnectedAt,
+    });
+
+    it('flips pipeConnected on connect and back on disconnect, keeping the last connection time', () => {
+      const connected = fold([transcript(), pipeChanged(true, now)]);
+      expect(connected.sessions['sid-1']).toMatchObject({
+        pipeConnected: true,
+        pipeLastConnectedAt: now,
+      });
+      const disconnected = reduce(connected, pipeChanged(false, now + 1));
+      expect(disconnected.sessions['sid-1']).toMatchObject({
+        pipeConnected: false,
+        pipeLastConnectedAt: now + 1,
+      });
+    });
+
+    it('applies an entry that landed before its session appeared', () => {
+      const state = fold([pipeChanged(true, now), transcript()]);
+      expect(state.sessions['sid-1']).toMatchObject({
+        pipeConnected: true,
+        pipeLastConnectedAt: now,
+      });
+    });
+
+    it('reads false and null for a session with no entry', () => {
+      expect(fold([transcript()]).sessions['sid-1']).toMatchObject({
+        pipeConnected: false,
+        pipeLastConnectedAt: null,
+      });
+    });
+  });
 });
