@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { DockviewComponent } from 'dockview-core';
-import { describe, expect, it } from 'vitest';
-import { applyLayout, exitMaximizedUnlessFocused } from './applyLayout';
+import { describe, expect, it, vi } from 'vitest';
+import { applyLayout, exitMaximizedUnlessFocused, togglePaneMaximised } from './applyLayout';
 import { groupIdsFromSlots, wireRowMirror } from './mirrorRows';
 import { PANE_COMPONENT, groupIdForSlot, presetLayout } from './presetLayout';
 
@@ -168,5 +168,31 @@ describe('exitMaximizedUnlessFocused', () => {
     exitMaximizedUnlessFocused(component.api, groupIdForSlot(SLOTS, 0));
 
     expect(component.api.hasMaximizedGroup()).toBe(true);
+  });
+});
+
+describe('togglePaneMaximised', () => {
+  function panelStub(maximized: boolean) {
+    return { isMaximized: () => maximized, maximize: vi.fn(), exitMaximized: vi.fn() };
+  }
+
+  it('focuses the pane it maximises', () => {
+    const panel = panelStub(false);
+    const focus = vi.fn();
+
+    togglePaneMaximised(panel, focus);
+
+    expect(focus).toHaveBeenCalledOnce();
+    expect(panel.maximize).toHaveBeenCalledOnce();
+  });
+
+  it('restores a maximized pane without moving focus', () => {
+    const panel = panelStub(true);
+    const focus = vi.fn();
+
+    togglePaneMaximised(panel, focus);
+
+    expect(focus).not.toHaveBeenCalled();
+    expect(panel.exitMaximized).toHaveBeenCalledOnce();
   });
 });
