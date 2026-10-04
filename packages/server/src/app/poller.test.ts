@@ -261,6 +261,38 @@ describe('fetchWatch', () => {
     expect(github.calls.some((call) => call.path.includes('/reviews'))).toBe(true);
   });
 
+  it('does not report a conflict when a PR closes with mergeable false', async () => {
+    const github = fakeGh();
+    seedQuiet(github);
+    const first = await fetchObserved(github, null);
+    github.set(PR, pr({ state: 'closed', merged: true, mergeable: false }));
+
+    const second = await fetchObserved(github, cursorAfter(first));
+
+    expect(second.activity).toMatchObject({ conflict: false, closed: { merged: true } });
+  });
+
+  it('stamps a reply on an old review with its own creation time', async () => {
+    const github = fakeGh();
+    seedQuiet(github);
+    const review = {
+      id: 3,
+      user: { login: 'bob' },
+      body: 'x',
+      state: 'COMMENTED',
+      submitted_at: iso(T0 + 1000),
+    };
+    github.set(page(`${PR}/reviews`, 1), [review]);
+    const first = await fetchObserved(github, null);
+    github.set(page(`${PR}/comments`, 1), [
+      { id: 40, user: { login: 'alice' }, created_at: iso(T0 + 90_000), pull_request_review_id: 3 },
+    ]);
+
+    const second = await fetchObserved(github, cursorAfter(first));
+
+    expect(second.activity.comments).toEqual([{ login: 'alice', at: T0 + 90_000 }]);
+  });
+
   it('reports a PR becoming conflicting once, not again while GitHub recomputes', async () => {
     const github = fakeGh();
     seedQuiet(github);

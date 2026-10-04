@@ -17,6 +17,7 @@ import {
 import type { GhResult, ParsedPage } from '../domain/github.js';
 import type { Watch } from '../domain/watches.js';
 import { applyObservation, markWatchError } from '../domain/digest.js';
+import type { DigestSettings } from '../domain/digest.js';
 import { readCursor } from '../domain/pollCursor.js';
 import type { ConfigPort, GhPort } from './ports.js';
 import { updateWatches } from './watches.js';
@@ -110,9 +111,13 @@ export async function fetchWatch(
   if (!('items' in reviewComments)) return reviewComments;
 
   const submittedAt = new Map(reviews.items.map((review) => [review.id, review.submittedAt]));
+  // An inline comment is visible from the later of its own creation and its review's submission:
+  // a comment inside a pending review is created when the review starts, a reply long after it.
   const reviewCommentAt = (comment: { createdAt: number; reviewId: number | null }) =>
-    (comment.reviewId === null ? undefined : submittedAt.get(comment.reviewId)) ??
-    comment.createdAt;
+    Math.max(
+      comment.createdAt,
+      (comment.reviewId === null ? undefined : submittedAt.get(comment.reviewId)) ?? 0,
+    );
   const newReviews = newListItems(
     reviews.items,
     previous.reviews.seen,
@@ -175,7 +180,10 @@ export async function fetchWatch(
     }
   }
 
-  const conflict = conflictTransition(previous.pr.mergeable, pr.mergeable);
+  // A closed PR's mergeability says nothing about conflicts, so it is carried over untouched.
+  const conflict = pr.open
+    ? conflictTransition(previous.pr.mergeable, pr.mergeable)
+    : { fires: false, next: previous.pr.mergeable };
   pr = { ...pr, mergeable: conflict.next };
 
   const listCursor = (etags: readonly string[], seen: readonly number[]): ListCursor => ({
@@ -279,55 +287,60 @@ export function createPoller(deps: PollerDeps): Poller {
     };
     const watches = updateWatches(deps.watches, (current) => current, deps.now());
     if (deps.now() < holdUntil) return;
-    for (const watch of watches.filter((w) => w.status !== 'closed')) {
+    const polled = watches.filter((w) => w.status !== 'closed');
+    for (const watch of polled) {
       if (stopped) return;
-      const cursor = readCursor(watch.cursor);
-      if (watch.cursor !== null && cursor === null)
-        deps.logger.warn(`watch ${watch.id}: unreadable poll cursor, starting over from creation`);
-      let outcome: FetchOutcome;
       try {
-        outcome = await fetchWatch(deps.gh, watch, cursor);
+        if (await pollOne(watch, polled, digestSettings)) return;
       } catch (error) {
+        // One watch failing must not starve the rest of the tick.
         deps.logger.error(`poll ${watch.repo}#${String(watch.pr)} failed: ${describe(error)}`);
-        continue;
       }
-      if (stopped) return;
-      const now = deps.now();
-      switch (outcome.kind) {
-        case 'observed':
-          updateWatches(
-            deps.watches,
-            (current) =>
-              changeWatches(current, new Set([watch.id]), (w) =>
-                applyObservation(w, outcome.observation, digestSettings, now, deps.mintId),
-              ),
-            now,
-          );
-          break;
-        case 'inaccessible':
-          updateWatches(
-            deps.watches,
-            (current) => changeWatches(current, new Set([watch.id]), markWatchError),
-            now,
-          );
-          break;
-        case 'unavailable': {
-          deps.logger.warn(`gh is unavailable (${outcome.reason}); marking watches as error`);
-          const ids = new Set(watches.map((w) => w.id));
-          updateWatches(
-            deps.watches,
-            (current) => changeWatches(current, ids, markWatchError),
-            now,
-          );
-          return;
-        }
-        case 'rate-limited':
-          holdUntil = outcome.resumeAt;
-          deps.logger.warn(
-            `GitHub rate limit; pausing polls until ${new Date(holdUntil).toISOString()}`,
-          );
-          return;
+    }
+  }
+
+  /** Fetches and merges one watch; true when the tick should end. */
+  async function pollOne(
+    watch: Watch,
+    polled: readonly Watch[],
+    digestSettings: DigestSettings,
+  ): Promise<boolean> {
+    const cursor = readCursor(watch.cursor);
+    if (watch.cursor !== null && cursor === null)
+      deps.logger.warn(`watch ${watch.id}: unreadable poll cursor, starting over from creation`);
+    const outcome = await fetchWatch(deps.gh, watch, cursor);
+    if (stopped) return true;
+    const now = deps.now();
+    switch (outcome.kind) {
+      case 'observed':
+        updateWatches(
+          deps.watches,
+          (current) =>
+            changeWatches(current, new Set([watch.id]), (w) =>
+              applyObservation(w, outcome.observation, digestSettings, now, deps.mintId),
+            ),
+          now,
+        );
+        return false;
+      case 'inaccessible':
+        updateWatches(
+          deps.watches,
+          (current) => changeWatches(current, new Set([watch.id]), markWatchError),
+          now,
+        );
+        return false;
+      case 'unavailable': {
+        deps.logger.warn(`gh is unavailable (${outcome.reason}); marking watches as error`);
+        const ids = new Set(polled.map((w) => w.id));
+        updateWatches(deps.watches, (current) => changeWatches(current, ids, markWatchError), now);
+        return true;
       }
+      case 'rate-limited':
+        holdUntil = outcome.resumeAt;
+        deps.logger.warn(
+          `GitHub rate limit; pausing polls until ${new Date(holdUntil).toISOString()}`,
+        );
+        return true;
     }
   }
 
