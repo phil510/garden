@@ -152,9 +152,10 @@ and `closed`. The default is `review,comment,checks,conflict,closed`; `checks:al
 passing checks and implies `checks`, and `closed` is always on. Re-adding a watch for the same
 session, repo and PR replaces its kinds and touches nothing else.
 
-`watch` outputs `{ "watch": { "repo", "pr", "kinds", "pendingDigest", "status" } }`; `watches`
-outputs `{ "watches": [...] }` of the same objects, where `status` is `active`, `error` or
-`closed` and `pendingDigest` is true while a digest waits to be delivered. `unwatch` outputs
+`watch` outputs `{ "watch": { "repo", "pr", "kinds", "pendingDigest", "status", "errorReason"? } }`;
+`watches` outputs `{ "watches": [...] }` of the same objects, where `status` is `active`, `error` or
+`closed`, `pendingDigest` is true while a digest waits to be delivered, and `errorReason` says why
+when `status` is `error` (the plain listing omits it; use `--json`). `unwatch` outputs
 `{ "ok": true }`. Without `--repo`, `unwatch` matches the PR among the session's own watches and
 fails if the number is watched in more than one repo.
 

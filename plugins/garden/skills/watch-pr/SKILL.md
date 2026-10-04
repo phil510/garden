@@ -34,7 +34,7 @@ changes nothing else — so there is no need to check first. `references/cli.md`
 `orchestrate-sessions` skill has the flags and the kinds.
 
 Confirm it took with `garden watches`: your PR should be listed with status `active`. Status `error`
-means garden cannot reach GitHub or the repo; the entry's `errorReason` says why.
+means garden cannot reach GitHub or the repo; `garden watches --json` shows the entry's `errorReason`.
 
 ## React: a digest is a pointer, not the content
 
