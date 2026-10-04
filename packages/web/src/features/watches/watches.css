@@ -388,6 +388,14 @@
 .wf-kind select {
   font-size: 11px;
   padding: 1px 3px;
+  background: var(--ground);
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  color: var(--text);
+}
+.wf-kind select:focus {
+  outline: none;
+  border-color: var(--accent);
 }
 .wf-msg {
   font-size: 11px;
