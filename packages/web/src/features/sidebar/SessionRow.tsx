@@ -185,9 +185,13 @@ export function SessionRow({
     if (result.act === 'kill') killSession(session.id).catch(reportCommandFailure);
     if (result.act === 'resume') resumeSession(session.id).catch(reportCommandFailure);
     if (result.act === 'stop-all') {
-      Promise.all(
+      void Promise.allSettled(
         session.watches.map((watch) => removeWatch(session.id, watch.pr, watch.repo)),
-      ).catch(reportCommandFailure);
+      ).then((outcomes) => {
+        for (const outcome of outcomes) {
+          if (outcome.status === 'rejected') reportCommandFailure(outcome.reason);
+        }
+      });
     }
     if (result.act !== null) setContextMenuPoint(null);
   }

@@ -46,6 +46,7 @@ export function WatchPopover({ x, y, sessionId, sessionTitle, onClose }: WatchPo
     prInputRef.current?.focus();
   }, []);
 
+  const submittingRef = useRef(false);
   const onCloseRef = useRef(onClose);
   useLayoutEffect(() => {
     onCloseRef.current = onClose;
@@ -53,9 +54,11 @@ export function WatchPopover({ x, y, sessionId, sessionTitle, onClose }: WatchPo
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
+      if (submittingRef.current) return;
       if (event.key === 'Escape') onCloseRef.current();
     }
     function onMouseDown(event: MouseEvent) {
+      if (submittingRef.current) return;
       if (!containerRef.current?.contains(event.target as Node)) onCloseRef.current();
     }
     document.addEventListener('keydown', onKeyDown);
@@ -84,12 +87,14 @@ export function WatchPopover({ x, y, sessionId, sessionTitle, onClose }: WatchPo
     }
     setError(null);
     setSubmitting(true);
+    submittingRef.current = true;
     try {
       await addWatch(sessionId, result.body);
       onCloseRef.current();
     } catch (caught) {
       setError(caught instanceof ApiError ? caught.message : 'Could not start the watch.');
       setSubmitting(false);
+      submittingRef.current = false;
     }
   }
 
