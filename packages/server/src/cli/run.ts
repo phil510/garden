@@ -20,7 +20,9 @@ import {
   runWatch,
   runWatches,
 } from './commands.js';
+import { runEventsFollow } from './events.js';
 import { writeAll } from './io.js';
+import { openLifeline } from './lifeline.js';
 import { SERVER_DETACHED_FLAG } from './start.js';
 import { defaultStopAllDeps, runStop, runStopAll, type StopAllDeps } from './stop.js';
 import { runUninstall } from './uninstall.js';
@@ -34,6 +36,7 @@ const CLI_COMMANDS = [
   'watch',
   'unwatch',
   'watches',
+  'events',
   'stop',
   'uninstall',
 ] as const;
@@ -46,7 +49,8 @@ export function isCliCommand(command: string | undefined): command is CliCommand
 export function usageLines(): string {
   return (
     'usage: garden [new <dir> | ls | kill <id> | resume <id> | adopt <id> | ' +
-    'watch <pr> | unwatch <pr> | unwatch --all | watches | stop [--all] | uninstall]\n'
+    'watch <pr> | unwatch <pr> | unwatch --all | watches | events --follow | ' +
+    'stop [--all] | uninstall]\n'
   );
 }
 
@@ -229,6 +233,7 @@ export async function runCli(
       repo: { type: 'string' },
       on: { type: 'string' },
       session: { type: 'string' },
+      follow: { type: 'boolean', default: false },
     },
     allowPositionals: true,
   });
@@ -289,6 +294,12 @@ export async function runCli(
     }
     case 'watches':
       return runWatches(io, { env, session: values.session }, json, client);
+    case 'events': {
+      if (!values.follow || values.session !== undefined)
+        return usage(io, 'garden events --follow');
+      const { out, gone } = openLifeline();
+      return runEventsFollow({ env, out, stderr: io.stderr, gone });
+    }
     case 'stop':
       return values.all === true
         ? runStopAll(io, values.yes === true, client, stopAllDeps)

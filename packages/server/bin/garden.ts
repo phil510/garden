@@ -3,7 +3,16 @@ import { decideEntrypointAction, parseEntrypointArgv, runCli, usageLines } from 
 import { runStart, SERVER_PROCESS_ENV } from '../src/cli/start.js';
 import { main } from '../src/main.js';
 
-const io = { stdout: process.stdout, stderr: process.stderr };
+// Getters, so `process.stdout` is only created for commands that use it. `garden events`
+// owns fd 1 through its lifeline, and a second handle on it would break that.
+const io = {
+  get stdout() {
+    return process.stdout;
+  },
+  get stderr() {
+    return process.stderr;
+  },
+};
 
 async function runServer(detached: boolean): Promise<void> {
   try {

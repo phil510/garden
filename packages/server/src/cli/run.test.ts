@@ -96,7 +96,7 @@ function recordingClient(
 }
 
 describe('isCliCommand', () => {
-  it('recognises the ten subcommands and nothing else', () => {
+  it('recognises the eleven subcommands and nothing else', () => {
     expect(isCliCommand('new')).toBe(true);
     expect(isCliCommand('ls')).toBe(true);
     expect(isCliCommand('kill')).toBe(true);
@@ -105,6 +105,7 @@ describe('isCliCommand', () => {
     expect(isCliCommand('watch')).toBe(true);
     expect(isCliCommand('unwatch')).toBe(true);
     expect(isCliCommand('watches')).toBe(true);
+    expect(isCliCommand('events')).toBe(true);
     expect(isCliCommand('stop')).toBe(true);
     expect(isCliCommand('uninstall')).toBe(true);
     expect(isCliCommand('bogus')).toBe(false);
@@ -465,6 +466,19 @@ describe('runCli', () => {
     expect(stdout).toEqual([]);
     expect(stderr).toEqual(['garden: usage: garden new <dir>\n']);
   });
+
+  it.each([[[]], [['--follow', '--session', 'other']]])(
+    'rejects "events" with args %j as a usage error',
+    async (args) => {
+      const { io, stderr } = collectingIo();
+      const { client, calls } = recordingClient();
+
+      expect(await runCli('events', args, io, client)).toBe(1);
+
+      expect(calls).toEqual([]);
+      expect(stderr).toEqual(['garden: usage: garden events --follow\n']);
+    },
+  );
 
   it('shows [--all] on the stop subcommand', () => {
     expect(usageLines()).toContain('stop [--all]');
