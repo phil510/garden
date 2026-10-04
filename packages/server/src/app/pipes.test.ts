@@ -132,6 +132,18 @@ describe('delivery', () => {
     expect(t.overlay().watches[0]?.pendingDigest?.id).toBe('d2');
   });
 
+  it('sends only the digest standing at delivery when two writes land in one synchronous block', async () => {
+    const t = setup();
+    const stream = aStream();
+    t.pipes.connect('s1', stream.send);
+
+    updateWatches(t.deps, () => [aWatch({ pendingDigest: digest('d1') })], NOW);
+    updateWatches(t.deps, (ws) => ws.map((w) => ({ ...w, pendingDigest: digest('d2') })), NOW);
+    await settle();
+
+    expect(stream.ids()).toEqual(['d2']);
+  });
+
   it('does not send a digest twice to one connection', async () => {
     const t = setup({ watches: [aWatch({ pendingDigest: digest('d1') })] });
     const stream = aStream();
