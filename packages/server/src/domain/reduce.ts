@@ -118,7 +118,7 @@ export function reduce(state: GardenState, event: GardenEvent): GardenState {
       });
     }
     case 'hook': {
-      const id = event.payload.session_id;
+      const id = event.gardenSessionId ?? event.payload.session_id;
       if (id === '') return state;
       const prev = state.sessions[id] ?? blank(id);
       const outcome = hookOutcome(event.payload);

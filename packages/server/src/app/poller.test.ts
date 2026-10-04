@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { GhResult } from '../domain/github.js';
-import type { Watch } from '../domain/watches.js';
+import { dropSessionWatches, type Watch } from '../domain/watches.js';
 import type { GhPort } from './ports.js';
 import { createPoller, fetchWatch } from './poller.js';
 import { createProjection } from './projection.js';
@@ -457,6 +457,20 @@ describe('createPoller', () => {
     const next = t.stored()[0]?.pendingDigest;
     expect(next?.line).toBe('#7 acme/widgets: 1 review (bob)');
     expect(next?.id).not.toBe(first?.id);
+  });
+
+  it('does not bring a watch back when it is removed between fetch and merge', async () => {
+    const t = setupPoller();
+    t.github.set(page(COMMENTS, 1), [comment(1, T0 + 1000)]);
+    t.github.beforeNextGet(() => {
+      updateWatches(t.watchDeps, (ws) => dropSessionWatches(ws, watch.sessionId), T0 + 6 * MIN);
+    });
+
+    t.at(T0 + 10 * MIN);
+    await t.poller.tick();
+
+    expect(t.stored()).toEqual([]);
+    expect(t.state()).toEqual([]);
   });
 
   it('marks every watch as error when gh is unavailable, and recovers on a later tick', async () => {

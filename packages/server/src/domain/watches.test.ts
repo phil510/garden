@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   normalizeRepo,
+  dropSessionWatches,
   normalizeKinds,
   parseGitHubRepo,
   pruneWatches,
@@ -242,5 +243,23 @@ describe('summarizeWatches', () => {
     const summaries = summarizeWatches([aWatch({ status: 'error', errorReason: 'No access.' })]);
 
     expect(summaries['s1']?.[0]).toMatchObject({ status: 'error', errorReason: 'No access.' });
+  });
+});
+
+describe('dropSessionWatches', () => {
+  it("drops all of a session's watches, with or without a pending digest", () => {
+    const watches = [
+      aWatch({ id: 'a' }),
+      aWatch({ id: 'b', pr: 8, pendingDigest: digest(NOW) }),
+      aWatch({ id: 'c', sessionId: 's2' }),
+    ];
+
+    expect(dropSessionWatches(watches, 's1').map((w) => w.id)).toEqual(['c']);
+  });
+
+  it('returns the same array when the session has no watches', () => {
+    const watches = [aWatch({ sessionId: 's2' })];
+
+    expect(dropSessionWatches(watches, 's1')).toBe(watches);
   });
 });

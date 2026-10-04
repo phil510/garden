@@ -34,7 +34,7 @@ const sameSummaries = (
  * store write. Returns the watches as they stand afterwards.
  */
 export function updateWatches(
-  deps: WatchesDeps,
+  deps: Pick<WatchesDeps, 'projection'>,
   mutate: (watches: readonly Watch[]) => readonly Watch[],
   now: number,
 ): readonly Watch[] {
