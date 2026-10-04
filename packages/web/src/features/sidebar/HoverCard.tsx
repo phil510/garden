@@ -1,5 +1,7 @@
 import type { SessionState } from '@garden/shared';
 import { useLayoutEffect, useRef, useState } from 'react';
+import { usePipeGraceStore } from '../../state/pipeGraceStore';
+import { PipeFaultBlock, WatchList } from '../watches/WatchList';
 import { computeHoverCardPosition } from './hoverCardPosition';
 import { formatRelativeTime } from './relativeTime';
 
@@ -11,6 +13,7 @@ interface HoverCardProps {
 }
 
 export function HoverCard({ title, session, anchor, now }: HoverCardProps) {
+  const pipeFaulted = usePipeGraceStore((state) => state.faulted.has(session.id));
   const cardRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
 
@@ -43,6 +46,18 @@ export function HoverCard({ title, session, anchor, now }: HoverCardProps) {
       <div className="hc-row">
         <span className="hc-k">activity</span>
         <span className="hc-v">{formatRelativeTime(session.lastActivity, now)}</span>
+      </div>
+      <div className="hc-watches">
+        {session.watches.length === 0 ? (
+          <div className="hc-hint">No PR watches. Right-click to start one.</div>
+        ) : (
+          <>
+            <span className="upper faint">Watches · {session.watches.length}</span>
+            {pipeFaulted && <PipeFaultBlock />}
+            <WatchList watches={session.watches} />
+            <div className="hc-hint">Right-click to start or stop a watch.</div>
+          </>
+        )}
       </div>
     </div>
   );

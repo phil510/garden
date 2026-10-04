@@ -13,6 +13,9 @@ import { createSwarm, killSession, resumeSession, setSessionPlacement } from '..
 import { reportCommandFailure } from '../../api/reportCommandFailure';
 import { ContextMenu, type ContextMenuItem } from '../../components/ContextMenu';
 import { StatusPill } from '../../components/StatusPill';
+import { usePipeGraceStore } from '../../state/pipeGraceStore';
+import { EyeIcon } from '../watches/WatchIcons';
+import { faultSummary, rowWatchState } from '../watches/watchStatus';
 import type { ActiveSwarmOption } from './groupSwarms';
 import { HoverCard } from './HoverCard';
 import { lastPathSegment } from './lastPathSegment';
@@ -77,6 +80,8 @@ export function SessionRow({
   const dead = session.liveness === 'dead';
   const crashed = dead && session.exitCode !== null && session.exitCode !== 0;
   const title = session.title ?? lastPathSegment(session.cwd);
+  const pipeFaulted = usePipeGraceStore((state) => state.faulted.has(session.id));
+  const watchState = rowWatchState(session, pipeFaulted);
 
   // Memoized so identity is stable across renders that don't change dragRef (Repos mode never
   // supplies one) — otherwise a new function every render makes React re-invoke both the old
@@ -206,6 +211,19 @@ export function SessionRow({
           </span>
         )}
         <div className="row-title">{title}</div>
+        {watchState !== null && (
+          <span
+            className={`wg wg-${watchState.tone === 'fault' ? 'error' : 'watching'}`}
+            title={
+              watchState.tone === 'fault'
+                ? `Fault: ${faultSummary(session, pipeFaulted)}`
+                : `${String(watchState.count)} ${watchState.count === 1 ? 'watch' : 'watches'}`
+            }
+          >
+            <EyeIcon />
+            {watchState.count > 1 && watchState.count}
+          </span>
+        )}
         {session.liveness === 'live' && session.status !== null && (
           <StatusPill status={session.status} />
         )}

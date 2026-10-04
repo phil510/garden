@@ -1,0 +1,404 @@
+/* Row glyph */
+.wg {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: 0 0 auto;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 3px;
+  border: 1px solid transparent;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+}
+.wg svg {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+}
+.wg-watching {
+  color: var(--text-faint);
+}
+.session-row:not(.dead) .wg-watching {
+  color: var(--text-muted);
+}
+.wg-error {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 20%, transparent);
+}
+
+/* Small kind marker on each watch line (PR today; other kinds later) */
+.kind-mark {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--text-faint);
+  align-self: center;
+}
+.kind-mark svg {
+  width: 10px;
+  height: 10px;
+}
+
+/* Hover card section */
+.hc-watches {
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.hc-watches .upper {
+  font-size: 10px;
+}
+.hc-watches .wl-row {
+  padding: 2px 0;
+}
+.hc-hint {
+  font-size: 10.5px;
+  color: var(--text-faint);
+  margin-top: 2px;
+}
+.fault {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 11px;
+  color: var(--danger);
+}
+.fault b {
+  font-weight: 600;
+}
+.fault span {
+  color: var(--text-muted);
+  font-size: 10.5px;
+}
+
+/* Watch list */
+.wl {
+  display: flex;
+  flex-direction: column;
+}
+.wl-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 8px;
+  padding: 7px 8px;
+  border-radius: 3px;
+}
+.wl-row:hover {
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+}
+.wl-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+}
+.wl-pr {
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+.wl-repo {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.wl-state {
+  font-size: 10.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.wl-state .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+.st-watching {
+  color: var(--text-muted);
+}
+.st-watching .dot {
+  background: var(--text-faint);
+}
+.st-pending {
+  color: var(--st-needs-approval);
+}
+.st-pending .dot {
+  background: var(--st-needs-approval);
+}
+.st-error {
+  color: var(--danger);
+}
+.st-error .dot {
+  background: var(--danger);
+}
+.st-closed {
+  color: var(--text-faint);
+}
+.st-closed .dot {
+  background: var(--text-faint);
+}
+.wl-kinds {
+  grid-column: 1;
+  font-size: 10.5px;
+  color: var(--text-faint);
+}
+.wl-error {
+  grid-column: 1 / -1;
+  font-size: 11px;
+  color: var(--danger);
+}
+.wl-stop {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: start;
+  padding: 2px;
+}
+.wl-stop svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* Top-bar eye: fault dot, ringed in the top bar's colour so it reads at 6px */
+#aw-open {
+  position: relative;
+}
+#aw-open.has-fault::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--danger);
+  box-shadow: 0 0 0 1.5px var(--surface);
+}
+
+/* All-watches panel, in the file panel's slot */
+.awp {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.awp-head {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 11px;
+  border-bottom: 1px solid var(--border);
+  background: var(--raised);
+}
+.awp-head h2 {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.aw-sum {
+  flex: 1;
+  font-size: 11px;
+  color: var(--text-muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+}
+.aw-sum .bad {
+  color: var(--danger);
+}
+.aw-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+.aw-group + .aw-group {
+  border-top: 1px solid var(--border);
+}
+.aw-session {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1px 6px;
+  width: 100%;
+  padding: 8px 12px 4px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  text-align: left;
+  font-size: 12.5px;
+}
+.aw-session:hover {
+  background: var(--raised);
+  border-color: transparent;
+}
+.aw-session .t {
+  flex: 1 1 0;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.aw-session .r {
+  order: 3;
+  flex-basis: 100%;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.aw-session .deadtag {
+  font-size: 10.5px;
+  color: var(--text-faint);
+  border: 1px solid var(--border-strong);
+  border-radius: 99px;
+  padding: 0 6px;
+}
+.aw-session.dead .t {
+  color: var(--text-muted);
+}
+.aw-group .fault {
+  padding: 0 12px 4px 16px;
+}
+.aw-group .wl {
+  padding: 0 4px 4px 8px;
+}
+.aw-empty {
+  padding: 28px 20px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+}
+.aw-empty .faint {
+  font-size: 11.5px;
+  max-width: 46ch;
+}
+
+/* Start-watch form */
+.pop-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px 4px;
+}
+.pop-head .upper {
+  font-size: 10.5px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wf {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+}
+.wf-row {
+  display: flex;
+  gap: 8px;
+}
+.wf-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.wf-field.pr {
+  flex: 0 0 84px;
+}
+.wf-field.repo {
+  flex: 1;
+}
+.wf-label {
+  font-size: 10.5px;
+  color: var(--text-faint);
+}
+.wf input[type='text'] {
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--ground);
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  color: var(--text);
+  padding: 5px 7px;
+}
+.wf input[type='text']:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.wf-pr-wrap {
+  position: relative;
+}
+.wf-pr-wrap span {
+  position: absolute;
+  left: 7px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-faint);
+  pointer-events: none;
+}
+.wf-pr-wrap input[type='text'] {
+  padding-left: 17px;
+}
+.wf-kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+.wf-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.wf-kind input {
+  accent-color: var(--accent);
+  margin: 0;
+}
+.wf-kind.locked {
+  color: var(--text-faint);
+  cursor: default;
+}
+.wf-kind select {
+  font-size: 11px;
+  padding: 1px 3px;
+}
+.wf-msg {
+  font-size: 11px;
+  color: var(--danger);
+}
+.wf-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+.wf-actions button {
+  padding: 4px 9px;
+  font-size: 11.5px;
+}
