@@ -161,6 +161,7 @@ export default tseslint.config(
                 '!./tmux.js',
                 '!./claudeSessions.js',
                 '!./fsWatch.js',
+                '!./gh.js',
                 '!./logger.js',
               ],
               message:

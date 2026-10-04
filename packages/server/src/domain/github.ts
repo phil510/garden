@@ -44,6 +44,15 @@ export function rateLimitResumeAt(response: GhResponse, now: number): number | n
   return null;
 }
 
+/** The outcome of one conditional GET, as the poller needs it. Other failures (a timeout, output
+ *  that is not a response) are thrown. */
+export type GhResult =
+  | { readonly kind: 'ok'; readonly etag: string | null; readonly body: unknown }
+  | { readonly kind: 'not-modified' }
+  | { readonly kind: 'inaccessible'; readonly status: 403 | 404 }
+  | { readonly kind: 'rate-limited'; readonly resumeAt: number }
+  | { readonly kind: 'unavailable'; readonly reason: 'missing' | 'logged-out' };
+
 export interface PrFact {
   readonly open: boolean;
   readonly merged: boolean;
