@@ -29,8 +29,10 @@ garden watch <pr> [--repo <owner/name>] [--on <kinds>]
 `--repo` defaults to the `origin` of your working directory, so it is only needed for a PR in
 another repo. The default kinds cover reviews, comments, failing checks, conflicts and the PR
 closing; pass `--on` only to narrow or widen them (for example `checks:all` to hear about passing
-checks too). Re-running `garden watch` for the same PR is harmless — it replaces the kinds and
-changes nothing else — so there is no need to check first. `references/cli.md` in the
+checks too). Re-running `garden watch` for the same PR changes nothing but the kinds, which it
+replaces: a re-run without `--on` resets a widened set to the defaults, so repeat your `--on` if you
+passed one. That makes it safe to re-run when unsure a watch survived (`/clear` ends a session's
+watches), and there is no need to check first. `references/cli.md` in the
 `orchestrate-sessions` skill has the flags and the kinds.
 
 Confirm it took with `garden watches`: your PR should be listed with status `active`. Status `error`
@@ -73,15 +75,18 @@ in more than one repo. `garden unwatch --all` drops every watch for the session.
 
 ## When digests cannot reach you
 
-The pipe is connected by the garden plugin when a session starts, so a session that began before
-the plugin (or a garden build that has the pipe) was installed has none until it restarts. `garden
+The pipe is connected by the garden plugin when a session starts, so a session has none until it
+restarts if the plugin was installed after it began, or if its garden CLI predates `garden events`. `garden
 watches` gives it away: a watch that stays `active` with a `pending` marker long after activity
 you can see on GitHub means nothing is draining it. Restarting the session fixes the cause, but not
 from inside it: `garden kill` ends your own process before you could run `garden resume`, so ask the
 user, or the session that started you, to run `garden kill <id>` and `garden resume <id>` from
 outside. The conversation survives, and the pending digest is delivered once the new process
 connects, as long as that is within 7 days; a watch whose session has no pipe for 7 days is ended.
-Until then, check the PR yourself with `gh`; do not start a `Monitor` to work around it.
+Until then, check the PR yourself with `gh`. Do not start a `Monitor` of your own to poll in its
+place: it would be the polling loop the watch exists to avoid, and a stuck pipe is a fault to get
+fixed, not hide behind a second mechanism.
 
 A session you did not start through garden (a plain `claude` in a terminal) has no pipe by design,
-and `garden watch` from it has no session to attach to.
+and `garden watch` from it has no session to attach to unless you pass `--session <id>`, which
+only helps if some garden session exists to name.

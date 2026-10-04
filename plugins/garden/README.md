@@ -24,7 +24,8 @@ enabled in starts `monitors/events.sh` at launch. Inside a garden-spawned sessio
 `GARDEN_SESSION_ID` is set) it execs `garden events --follow`, which carries PR watch digests into
 the session as turns without the agent starting a `Monitor` itself. The pipe is made once, when the
 session starts: a session that began before the plugin was installed has none until it restarts
-(`garden kill` then `garden resume` keeps the conversation), and `/clear` keeps it.
+(`garden kill` then `garden resume` keeps the conversation), and `/clear` keeps it. `/clear` does end the session's PR watches, though, so a watch started before
+it must be started again.
 
 A monitor that exits is dead until Claude restarts and costs the agent a turn, so the script never
 exits on its own. Outside a garden session it does not run `garden` at all: it waits quietly and
