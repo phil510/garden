@@ -132,18 +132,6 @@ describe('quiet window and coalescing', () => {
     expect(next.pendingDigest?.line).toBe('#7 acme/widgets: 1 review (b)');
   });
 
-  it('treats a digest with a different id than the one written as acknowledged', () => {
-    const first = apply(watch(), { comments: [comment('a', T0 - 10 * MIN)] }, T0);
-    const replaced = {
-      ...first,
-      pendingDigest: { id: 'other', line: 'x', createdAt: T0 },
-    };
-
-    const next = apply(replaced, { reviews: [review('b', T0 + MIN)] }, T0 + 10 * MIN);
-
-    expect(next.pendingDigest?.line).toBe('#7 acme/widgets: 1 review (b)');
-  });
-
   it('starts a conflict quiet window when it is seen', () => {
     const seen = apply(watch(), { conflict: true }, T0);
     const ready = apply(seen, {}, T0 + 3 * MIN);

@@ -28,6 +28,13 @@ describe('newListItems', () => {
     expect(newListItems(items, [], true, T0, effective).fresh).toEqual([item(2, T0 + 5)]);
   });
 
+  it('reports activity stamped in the same whole second as the watch was created', () => {
+    const created = T0 + 300;
+    const items = [item(1, T0 - 1000), item(2, T0)];
+
+    expect(newListItems(items, [], true, created, effective).fresh).toEqual([item(2, T0)]);
+  });
+
   it('reports every unseen item after the first poll, whatever its timestamp', () => {
     const result = newListItems([item(1, 0), item(2, 0)], [1], false, T0, effective);
 
@@ -72,6 +79,12 @@ describe('checkTransitions', () => {
 
     expect(result.transitions).toEqual([]);
     expect(result.reported).toEqual({ '1': `failure@${String(T0 - 1)}` });
+  });
+
+  it('reports a run that completed in the second the watch was created', () => {
+    const result = checkTransitions([run(1, 'failure', T0)], {}, T0 + 300);
+
+    expect(result.transitions).toEqual([{ name: 'check-1', outcome: 'failed', at: T0 }]);
   });
 
   it('reports a run first seen in progress that later fails, once', () => {

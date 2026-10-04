@@ -49,11 +49,9 @@ export interface Cursor {
   readonly written: Tally;
   /** Activity still inside the quiet window. */
   readonly fresh: Tally;
-  /** The id of the digest `written` went into. */
-  readonly digestId: string | null;
 }
 
-export type Tracking = Omit<Cursor, 'written' | 'fresh' | 'digestId'>;
+export type Tracking = Omit<Cursor, 'written' | 'fresh'>;
 
 export const emptyTally = (): Tally => ({
   reviews: 0,
@@ -82,7 +80,6 @@ export const emptyCursor = (): Cursor => ({
   ...emptyTracking(),
   written: emptyTally(),
   fresh: emptyTally(),
-  digestId: null,
 });
 
 type Json = Record<string, unknown>;
@@ -134,15 +131,20 @@ export function readCursor(value: unknown): Cursor | null {
     !isNullableString(status['etag']) ||
     !isStringRecord(status['reported']) ||
     !isTally(value['written']) ||
-    !isTally(value['fresh']) ||
-    !isNullableString(value['digestId'])
+    !isTally(value['fresh'])
   )
     return null;
   return value as unknown as Cursor;
 }
 
-/** Items not yet seen. On a first poll (no cursor), only an item whose `effectiveAt` is after
- *  the watch's creation counts as new; the rest are baseline. A seen set rather than a
+/** GitHub stamps whole seconds while `createdAt` has milliseconds, so activity in the creation
+ *  second can't be ordered against the watch. It counts as new: a duplicate is cheaper than a
+ *  missed wake. */
+const sinceCreation = (at: number, createdAt: number): boolean =>
+  Math.floor(at / 1000) >= Math.floor(createdAt / 1000);
+
+/** Items not yet seen. On a first poll (no cursor), only an item whose `effectiveAt` is at or after
+ *  the watch's creation second counts as new; the rest are baseline. A seen set rather than a
  *  high-water id, because GitHub mints a review's id when it is started, not when it is
  *  submitted. `seen` only grows: a page that came back 304 contributes nothing. */
 export function newListItems<T extends { readonly id: number }>(
@@ -157,7 +159,7 @@ export function newListItems<T extends { readonly id: number }>(
   for (const item of items) {
     if (known.has(item.id)) continue;
     known.add(item.id);
-    if (!firstPoll || effectiveAt(item) > createdAt) fresh.push(item);
+    if (!firstPoll || sinceCreation(effectiveAt(item), createdAt)) fresh.push(item);
   }
   return { fresh, seen: [...known] };
 }
@@ -170,7 +172,7 @@ export interface CheckTransition {
 
 const CHECK_FAILURES = new Set(['failure', 'timed_out', 'startup_failure', 'action_required']);
 
-/** Completed runs that finished after the watch was created and are not already reported in
+/** Completed runs that finished in or after the watch's creation second and are not already reported in
  *  that state. A run re-run in place gets a new `completed_at`, so it fires again. A run that
  *  finishes with another conclusion (skipped, cancelled, neutral) is recorded but not reported. */
 export function checkTransitions(
@@ -185,7 +187,7 @@ export function checkTransitions(
     const key = `${run.conclusion}@${String(run.completedAt)}`;
     if (next[String(run.id)] === key) continue;
     next[String(run.id)] = key;
-    if (run.completedAt <= createdAt) continue;
+    if (!sinceCreation(run.completedAt, createdAt)) continue;
     if (CHECK_FAILURES.has(run.conclusion))
       transitions.push({ name: run.name, outcome: 'failed', at: run.completedAt });
     else if (run.conclusion === 'success')
@@ -209,7 +211,7 @@ export function statusTransitions(
     const key = `${status.state}@${String(status.updatedAt)}`;
     if (next[status.context] === key) continue;
     next[status.context] = key;
-    if (status.updatedAt <= createdAt) continue;
+    if (!sinceCreation(status.updatedAt, createdAt)) continue;
     transitions.push({
       name: status.context,
       outcome: failed ? 'failed' : 'passed',

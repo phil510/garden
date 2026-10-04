@@ -313,7 +313,7 @@ describe('fetchWatch', () => {
 });
 
 function cursorAfter(observation: Observation): Cursor {
-  return { ...observation.tracking, written: emptyTally(), fresh: emptyTally(), digestId: null };
+  return { ...observation.tracking, written: emptyTally(), fresh: emptyTally() };
 }
 
 const MIN = 60_000;

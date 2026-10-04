@@ -119,9 +119,7 @@ export function applyObservation(
   if (watch.status === 'closed') return watch;
   const previous = readCursor(watch.cursor) ?? emptyCursor();
   const pending = watch.pendingDigest;
-  const delivered = pending === null || pending.id !== previous.digestId;
-  let written = delivered ? emptyTally() : previous.written;
-  let digestId = delivered ? null : previous.digestId;
+  let written = pending === null ? emptyTally() : previous.written;
   let fresh = addTallies(
     previous.fresh,
     tallyActivity(observation.activity, watch.kinds, settings.ignoreAuthors, now),
@@ -140,11 +138,10 @@ export function applyObservation(
       line: formatDigestLine(watch.repo, watch.pr, written, closed),
       createdAt: now,
     };
-    digestId = id;
     if (closed !== null) status = 'closed';
   }
 
-  const cursor: Cursor = { ...observation.tracking, written, fresh, digestId };
+  const cursor: Cursor = { ...observation.tracking, written, fresh };
   const unchanged =
     watch.cursor !== null &&
     JSON.stringify(cursor) === JSON.stringify(previous) &&
