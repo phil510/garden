@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { connectEventSocket } from './api/eventSocket';
 import { AppTitle } from './components/AppTitle';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -8,20 +8,35 @@ import { FilePanel } from './features/filetree/FilePanel';
 import { Sidebar } from './features/sidebar/Sidebar';
 import { SettingsModal } from './features/settings/SettingsModal';
 import { ShutdownOverlay } from './features/shutdown/ShutdownOverlay';
+import { anyFault, collectWatchGroups, summarizeWatchGroups } from './features/watches/allWatches';
+import { EyeIcon } from './features/watches/WatchIcons';
+import { WatchesPanel } from './features/watches/WatchesPanel';
+import { usePipeGrace } from './features/watches/usePipeGrace';
 import { PresetSwitcher } from './features/stage/PresetSwitcher';
 import { Stage } from './features/stage/Stage';
 import { useLocalStore } from './state/localStore';
+import { usePipeGraceStore } from './state/pipeGraceStore';
 import { useSessionStore } from './state/sessionStore';
 import { useUiStore } from './state/uiStore';
 
+type RightPanel = 'files' | 'watches' | null;
+
 export function App() {
-  const [filePanelOpen, setFilePanelOpen] = useState(true);
+  const [rightPanel, setRightPanel] = useState<RightPanel>('files');
+  // What the eye button returns to when it closes the watches view.
+  const beforeWatches = useRef<RightPanel>('files');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [stopped, setStopped] = useState(false);
   const sidebarWidth = useLocalStore((state) => state.sidebarWidth);
   const resizeSidebarBy = useLocalStore((state) => state.resizeSidebarBy);
   const filePanelWidth = useLocalStore((state) => state.filePanelWidth);
   const resizeFilePanelBy = useLocalStore((state) => state.resizeFilePanelBy);
+  usePipeGrace();
+  const sessions = useSessionStore((state) => state.sessions);
+  const pipeFaulted = usePipeGraceStore((state) => state.faulted);
+  const groups = collectWatchGroups(Object.values(sessions), pipeFaulted);
+  const hasFault = anyFault(groups);
+  const { faultedSessions } = summarizeWatchGroups(groups);
 
   useEffect(() => {
     const sessionStore = useSessionStore.getState();
@@ -61,6 +76,15 @@ export function App() {
     };
   }, []);
 
+  function toggleWatches() {
+    if (rightPanel === 'watches') {
+      setRightPanel(beforeWatches.current);
+    } else {
+      beforeWatches.current = rightPanel;
+      setRightPanel('watches');
+    }
+  }
+
   if (stopped) return <ShutdownOverlay />;
 
   return (
@@ -84,10 +108,23 @@ export function App() {
             </svg>
           </button>
           <button
-            className={filePanelOpen ? 'ghost icon-btn active-btn' : 'ghost icon-btn'}
+            id="aw-open"
+            className={`ghost icon-btn${rightPanel === 'watches' ? ' active-btn' : ''}${hasFault ? ' has-fault' : ''}`}
+            title={
+              hasFault
+                ? `All watches: ${String(faultedSessions)} ${faultedSessions === 1 ? 'session' : 'sessions'} with a fault`
+                : 'All watches'
+            }
+            aria-pressed={rightPanel === 'watches'}
+            onClick={toggleWatches}
+          >
+            <EyeIcon />
+          </button>
+          <button
+            className={rightPanel === 'files' ? 'ghost icon-btn active-btn' : 'ghost icon-btn'}
             title="Toggle file panel"
-            aria-pressed={filePanelOpen}
-            onClick={() => setFilePanelOpen((open) => !open)}
+            aria-pressed={rightPanel === 'files'}
+            onClick={() => setRightPanel(rightPanel === 'files' ? null : 'files')}
           >
             <svg
               width="15"
@@ -109,7 +146,7 @@ export function App() {
           </div>
           <ResizeHandle
             onResize={(delta) =>
-              resizeSidebarBy(delta, window.innerWidth, filePanelOpen ? filePanelWidth : 0)
+              resizeSidebarBy(delta, window.innerWidth, rightPanel !== null ? filePanelWidth : 0)
             }
           />
           <div className="stage-wrap">
@@ -117,14 +154,20 @@ export function App() {
           </div>
           <ResizeHandle
             onResize={(delta) => resizeFilePanelBy(-delta, window.innerWidth, sidebarWidth)}
-            hidden={!filePanelOpen}
+            hidden={rightPanel === null}
           />
           <div
             className="filepanel"
-            hidden={!filePanelOpen}
+            hidden={rightPanel === null}
             style={{ width: `${filePanelWidth}px` }}
           >
-            <FilePanel />
+            {/* Both stay mounted so switching views keeps the file tree's expansion and tabs. */}
+            <div className="filepanel-pane" hidden={rightPanel !== 'files'}>
+              <FilePanel />
+            </div>
+            <div className="filepanel-pane" hidden={rightPanel !== 'watches'}>
+              <WatchesPanel />
+            </div>
           </div>
         </div>
       </div>
