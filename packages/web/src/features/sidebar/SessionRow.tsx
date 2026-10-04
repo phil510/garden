@@ -20,6 +20,7 @@ import { reportCommandFailure } from '../../api/reportCommandFailure';
 import { ContextMenu, type ContextMenuItem } from '../../components/ContextMenu';
 import { StatusPill } from '../../components/StatusPill';
 import { usePipeGraceStore } from '../../state/pipeGraceStore';
+import { WatchPopover } from '../watches/WatchPopover';
 import { EyeIcon } from '../watches/WatchIcons';
 import { faultSummary, rowWatchState } from '../watches/watchStatus';
 import type { ActiveSwarmOption } from './groupSwarms';
@@ -287,6 +288,15 @@ export function SessionRow({
             void createSwarmAndAssign(name);
             closeContextMenu();
           }}
+        />
+      )}
+      {contextMenuPoint !== null && watchPromptOpen && (
+        <WatchPopover
+          x={contextMenuPoint.x}
+          y={contextMenuPoint.y}
+          sessionId={session.id}
+          sessionTitle={title}
+          onClose={closeContextMenu}
         />
       )}
     </div>

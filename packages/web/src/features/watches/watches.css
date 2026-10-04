@@ -402,3 +402,7 @@
   padding: 4px 9px;
   font-size: 11.5px;
 }
+.watch-form {
+  width: 300px;
+  padding: 0;
+}
