@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { TreeResponse } from '@garden/shared';
 import { afterEach, describe, expect, it } from 'vitest';
-import { branch, repoRoot, status, workTreePrefix } from '../../src/adapters/git.js';
+import { branch, remoteUrl, repoRoot, status, workTreePrefix } from '../../src/adapters/git.js';
 import { DEFAULT_OVERLAY_STATE } from '../../src/adapters/store.js';
 import { createProjection } from '../../src/app/projection.js';
 import { createRepoCatalog } from '../../src/app/repoCatalog.js';
@@ -64,7 +64,7 @@ describe('/fs routes against a real temp repo', () => {
           throw new Error('not used by this test');
         },
       },
-      git: { status, workTreePrefix },
+      git: { status, workTreePrefix, remoteUrl },
       attach: {
         attach: () => {
           throw new Error('not used by this test');

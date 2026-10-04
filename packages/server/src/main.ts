@@ -37,6 +37,7 @@ import { createRepoCatalog } from './app/repoCatalog.js';
 import { createRootWatches } from './app/rootWatch.js';
 import { watchRepoRoots } from './app/repoRoots.js';
 import { pruneKnownSessions } from './app/swarms.js';
+import { replayWatches } from './app/watches.js';
 import { writeClaudeSettings, writeTmuxConf } from './appdir.js';
 import {
   appDirPath,
@@ -159,8 +160,15 @@ async function replay(
   branches: BranchSweeper,
   logger: Logger,
   claudeSessionsDir: string,
+  git: GitPort,
 ): Promise<void> {
   projection.dispatch({ type: 'store-loaded', tmuxNames: { ...store.read().tmuxNames } });
+  // Isolated like the steps below: unreadable watch state is not a reason to fail boot.
+  try {
+    replayWatches({ projection, git }, Date.now());
+  } catch (error) {
+    logger.error(`watch replay failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
   await dispatchTmuxSnapshot(projection, tmux);
   try {
     // Same boundary as the poll tick's own try/catch: a registry read failure is a missing
@@ -232,7 +240,16 @@ export async function main(detached: boolean): Promise<void> {
     projection.dispatch(event);
   });
 
-  await replay(projection, store, tmux, transcripts, branches, logger, config.claudeSessionsDir);
+  await replay(
+    projection,
+    store,
+    tmux,
+    transcripts,
+    branches,
+    logger,
+    config.claudeSessionsDir,
+    git,
+  );
   // Only valid once replay's transcript scan has settled what "known" means — any earlier
   // (store-loaded, or the first tmux snapshot) would prune a live child whose transcript
   // just hasn't been read yet. Isolated like every other boot step above: a stale overlay
