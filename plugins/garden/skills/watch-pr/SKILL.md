@@ -33,7 +33,8 @@ checks too). Re-running `garden watch` for the same PR is harmless — it replac
 changes nothing else — so there is no need to check first. `references/cli.md` in the
 `orchestrate-sessions` skill has the flags and the kinds.
 
-Confirm it took with `garden watches`: your PR should be listed with status `active`.
+Confirm it took with `garden watches`: your PR should be listed with status `active`. Status `error`
+means garden cannot reach GitHub or the repo; the entry's `errorReason` says why.
 
 ## React: a digest is a pointer, not the content
 
@@ -55,7 +56,8 @@ Treat it as a prompt to look, then act on what you find:
    can arrive again after a reconnect. If a reread shows nothing new since you last acted, go back
    to what you were doing, or idle.
 
-A `closed` digest means the PR was merged or closed; read the PR to see which.
+A `closed` digest means the PR was merged or closed; read the PR to see which. The watch removes
+itself once that digest is delivered, so a later `garden unwatch` for it exits 1 ("not watching").
 
 ## Stop when your part is done
 
@@ -73,11 +75,12 @@ in more than one repo. `garden unwatch --all` drops every watch for the session.
 The pipe is connected by the garden plugin when a session starts, so a session that began before
 the plugin (or a garden build that has the pipe) was installed has none until it restarts. `garden
 watches` gives it away: a watch that stays `active` with a `pending` marker long after activity
-you can see on GitHub means nothing is draining it. `garden kill <id>` and `garden resume <id>`
-restart the session without losing its conversation, and the pending digest is delivered once the
-new process connects, as long as that is within 7 days; a watch whose session has no pipe for 7
-days is ended. Until then, check the PR yourself with `gh`; do not start a `Monitor` to work
-around it, since a restart fixes the cause.
+you can see on GitHub means nothing is draining it. Restarting the session fixes the cause, but not
+from inside it: `garden kill` ends your own process before you could run `garden resume`, so ask the
+user, or the session that started you, to run `garden kill <id>` and `garden resume <id>` from
+outside. The conversation survives, and the pending digest is delivered once the new process
+connects, as long as that is within 7 days; a watch whose session has no pipe for 7 days is ended.
+Until then, check the PR yourself with `gh`; do not start a `Monitor` to work around it.
 
 A session you did not start through garden (a plain `claude` in a terminal) has no pipe by design,
 and `garden watch` from it has no session to attach to.
