@@ -83,10 +83,10 @@ export async function runEventsFollow(deps: EventsFollowDeps): Promise<0> {
     stopping.signal.addEventListener('abort', () => resolve('stopped'), { once: true }),
   );
 
-  /** A failed write means the other end is gone. */
-  async function write(stream: WritableLike, text: string): Promise<void> {
+  /** A failed stdout write means Claude, the other end of the lifeline, is gone. */
+  async function print(text: string): Promise<void> {
     try {
-      await writeAll(stream, text);
+      await writeAll(out, text);
     } catch {
       stop();
     }
@@ -104,7 +104,7 @@ export async function runEventsFollow(deps: EventsFollowDeps): Promise<0> {
         queue = queue.then(async () => {
           const digest = parseDigest(event.data);
           if (digest === null) return;
-          await write(out, `${digest.line}\n`);
+          await print(`${digest.line}\n`);
           if (stopping.signal.aborted) return;
           try {
             socket.send(JSON.stringify({ type: 'ack', id: digest.id }));
@@ -138,7 +138,11 @@ export async function runEventsFollow(deps: EventsFollowDeps): Promise<0> {
     if (stopping.signal.aborted) break;
     if (!reported) {
       reported = true;
-      await write(stderr, 'garden: events stream disconnected; reconnecting\n');
+      try {
+        await writeAll(stderr, 'garden: events stream disconnected; reconnecting\n');
+      } catch {
+        // A broken diagnostic channel does not mean Claude is gone; keep delivering digests.
+      }
     }
     if (stopping.signal.aborted) break;
     await sleep(backoff, stopping.signal);

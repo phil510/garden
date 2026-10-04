@@ -217,24 +217,35 @@ describe('runEventsFollow', () => {
     expect(log).toEqual([]);
   });
 
-  it('returns 0 when a write to stderr fails', async () => {
+  it('keeps delivering digests when a write to stderr fails', async () => {
     const log: string[] = [];
     const sockets: FakeSocket[] = [];
+    const out = sink(log, 'out');
+    let resolveGone!: () => void;
     const run = runEventsFollow({
       env: { GARDEN_SESSION_ID: 's1', CLAUDE_CODE_SESSION_ID: 's1' },
-      out: sink(log, 'out'),
+      out,
       stderr: sink(log, 'err', new Error('EPIPE')),
-      gone: new Promise<void>(() => undefined),
+      gone: new Promise<void>((resolve) => {
+        resolveGone = resolve;
+      }),
       connect: () => {
         const socket = new FakeSocket(log);
         sockets.push(socket);
         return socket;
       },
+      sleep: () => Promise.resolve(),
     });
     await flush();
-
     sockets[0]!.emit('close');
+    await flush();
 
+    expect(sockets).toHaveLength(2);
+    sockets[1]!.digest('d1', 'x');
+    await flush();
+    expect(out.text).toEqual(['x\n']);
+
+    resolveGone();
     expect(await run).toBe(0);
   });
 
