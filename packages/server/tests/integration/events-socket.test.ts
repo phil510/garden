@@ -15,6 +15,7 @@ import { createRootWatches } from '../../src/app/rootWatch.js';
 import type { OverlayState, StorePort } from '../../src/app/ports.js';
 import { createServer } from '../../src/http/server.js';
 import { settle, sleep, QUIET_WINDOW_MS } from './support/fsSignals.js';
+import { noPipes } from './support/noPipes.js';
 import { noRootWatches } from './support/noRootWatches.js';
 import { until } from './support/poll.js';
 
@@ -30,6 +31,7 @@ function fakeStore(): StorePort {
 
 function unusedPorts() {
   return {
+    pipes: noPipes,
     rootWatches: noRootWatches,
     tmux: {
       listPanes: () => Promise.reject(new Error('not used by this test')),
@@ -229,6 +231,7 @@ describe('WS /events root watches against a real watcher', () => {
       terminalFontSize: 13,
       ...unusedPorts(),
       git,
+      pipes: noPipes,
       rootWatches: createRootWatches({
         watcher: { watch: (root, onChange) => watchFsRoot(root, onChange, logger) },
         repos,

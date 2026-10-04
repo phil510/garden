@@ -32,6 +32,7 @@ import type {
   TmuxPort,
   TranscriptPort,
 } from './app/ports.js';
+import { createPipes } from './app/pipes.js';
 import { createProjection, type Projection } from './app/projection.js';
 import { createRepoCatalog } from './app/repoCatalog.js';
 import { createRootWatches } from './app/rootWatch.js';
@@ -222,6 +223,7 @@ export async function main(detached: boolean): Promise<void> {
   const transcripts = transcriptPort(config, logger);
   const git = gitPort();
   const projection = createProjection(store);
+  const pipes = createPipes({ projection, git });
   const attach: AttachRegistry = createAttachRegistry({
     pty: ptyPort({ socket: config.tmuxSocket, confPath }),
     projection,
@@ -289,6 +291,7 @@ export async function main(detached: boolean): Promise<void> {
   const app = createServer(
     {
       projection,
+      pipes,
       tmux,
       store,
       git,

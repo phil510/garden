@@ -23,10 +23,12 @@ import { watchRoutes } from './routes/watches.js';
 import { registerStaticRoutes, resolveClientDir } from './static.js';
 import { registerAttachSocket } from './ws/attach.js';
 import { registerEventsSocket, type EventsDeps } from './ws/events.js';
+import { pipeSessionId, registerPipeSocket, type PipeDeps } from './ws/pipe.js';
 
 export type ServerDeps = SessionsDeps & { readonly repos: RepoCatalog } & FilesystemDeps &
   AttachSocketDeps &
   EventsDeps &
+  PipeDeps &
   SettingsDeps &
   SwarmsDeps &
   WatchesDeps;
@@ -61,8 +63,9 @@ export function createServer(deps: ServerDeps, logger: Logger = noopLogger): Fas
 
   const eventsWss = registerEventsSocket(app, deps);
   const attachWss = registerAttachSocket(app, deps);
-  // Both sockets share one HTTP server, so exactly one `upgrade` listener has to route
-  // between them — two independent `WebSocketServer`s each listening for `upgrade` would
+  const pipeWss = registerPipeSocket(app, deps);
+  // All sockets share one HTTP server, so exactly one `upgrade` listener has to route
+  // between them: independent `WebSocketServer`s each listening for `upgrade` would
   // have the first one's path mismatch abort the handshake before the second ever sees it.
   app.server.on('upgrade', (request, socket, head) => {
     const pathname = new URL(request.url ?? '', 'http://localhost').pathname;
@@ -70,6 +73,8 @@ export function createServer(deps: ServerDeps, logger: Logger = noopLogger): Fas
       eventsWss.handleUpgrade(request, socket, head, (ws) =>
         eventsWss.emit('connection', ws, request),
       );
+    } else if (pipeSessionId(pathname) !== undefined) {
+      pipeWss.handleUpgrade(request, socket, head, (ws) => pipeWss.emit('connection', ws, request));
     } else if (pathname.startsWith('/attach/')) {
       attachWss.handleUpgrade(request, socket, head, (ws) =>
         attachWss.emit('connection', ws, request),

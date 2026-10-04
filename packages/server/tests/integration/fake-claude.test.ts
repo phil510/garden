@@ -32,6 +32,7 @@ import type { GardenEvent } from '../../src/domain/types.js';
 import { createServer as createGardenServer } from '../../src/http/server.js';
 import { until } from './support/poll.js';
 import { withTmuxServer } from './support/tmux-server.js';
+import { noPipes } from './support/noPipes.js';
 import { noRootWatches } from './support/noRootWatches.js';
 
 const execFileAsync = promisify(execFile);
@@ -157,6 +158,7 @@ async function withFakeClaudeSession(
   const claudeCommand = fakeClaudeCommand(transcriptsDir);
   const app = createGardenServer({
     projection,
+    pipes: noPipes,
     rootWatches: noRootWatches,
     tmux: tmuxPort(target),
     store,
