@@ -39,10 +39,11 @@ export interface ClaudeSettings {
 
 // -o /dev/null discards the response because a hook's stdout is interpreted by
 // Claude Code; `|| true` keeps a missing server from failing the hook, which for
-// PreToolUse would block the tool call.
+// PreToolUse would block the tool call. The X-Garden-Session header carries the pane's garden id,
+// which the payload's `session_id` stops being after `/clear`.
 const HOOK_COMMAND =
   "curl -s -o /dev/null --max-time 1 -H 'Content-Type: application/json' " +
-  '--data-binary @- "http://127.0.0.1:$GARDEN_PORT/hooks" || true';
+  '-H "X-Garden-Session: $GARDEN_SESSION_ID" --data-binary @- "http://127.0.0.1:$GARDEN_PORT/hooks" || true';
 
 /** Synchronous, never `async: true`: an async hook is killed when claude exits, so SessionEnd
  *  would never land. A down server refuses instantly; `timeout: 1` is Claude Code's own cap,
