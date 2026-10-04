@@ -406,3 +406,7 @@
   width: 300px;
   padding: 0;
 }
+#aw-open svg {
+  width: 15px;
+  height: 15px;
+}
