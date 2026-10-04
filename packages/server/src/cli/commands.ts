@@ -5,9 +5,13 @@ import type {
   SessionsFilter,
   SessionsResponse,
   SpawnOptions,
+  WatchesResponse,
+  WatchResponse,
+  WatchSummary,
 } from '@garden/shared';
 import { resolve } from 'node:path';
 import * as http from './http.js';
+import { CliHttpError } from './http.js';
 import { writeAll, type WritableLike } from './io.js';
 
 export interface Io {
@@ -30,6 +34,12 @@ export interface CliClient {
   resumeSession(id: string, options?: SpawnOptions): Promise<CreateSessionResponse>;
   killSession(id: string): Promise<OkResponse>;
   placeSession(id: string, placement: Placement): Promise<OkResponse>;
+  watch(
+    sessionId: string,
+    request: { pr: number; repo?: string; kinds?: readonly string[] },
+  ): Promise<WatchResponse>;
+  unwatch(sessionId: string, target: { pr: number; repo?: string }): Promise<OkResponse>;
+  watches(sessionId: string): Promise<WatchesResponse>;
 }
 
 export const defaultClient: CliClient = http;
@@ -140,5 +150,90 @@ export function runAdopt(
       return client.placeSession(target, { type: 'parent', parentId: self });
     },
     () => 'adopted',
+  );
+}
+
+/** What the watch verbs read from the environment and flags: the session is the explicit
+ *  `--session`, else the caller's own `GARDEN_SESSION_ID`. */
+function watchSession(env: NodeJS.ProcessEnv, explicit: string | undefined): string {
+  const session = explicit ?? env.GARDEN_SESSION_ID;
+  if (session === undefined || session === '') throw new Error(NO_CALLER_SESSION);
+  return session;
+}
+
+function watchLine(watch: WatchSummary): string {
+  return `${watch.repo}#${String(watch.pr)} ${watch.kinds.join(',')} ${watch.status}${
+    watch.pendingDigest ? ' pending' : ''
+  }`;
+}
+
+export interface WatchTarget {
+  readonly env: NodeJS.ProcessEnv;
+  readonly session: string | undefined;
+  readonly pr: number;
+  readonly repo: string | undefined;
+}
+
+export function runWatch(
+  io: Io,
+  target: WatchTarget & { readonly kinds: readonly string[] | undefined },
+  json: boolean,
+  client: CliClient = defaultClient,
+): Promise<0 | 1> {
+  return runCommand(
+    io,
+    json,
+    () =>
+      client.watch(watchSession(target.env, target.session), {
+        pr: target.pr,
+        ...(target.repo === undefined ? {} : { repo: target.repo }),
+        ...(target.kinds === undefined ? {} : { kinds: target.kinds }),
+      }),
+    (result) => watchLine(result.watch),
+  );
+}
+
+export function runUnwatch(
+  io: Io,
+  target: Omit<WatchTarget, 'pr'> & { readonly pr: number | 'all' },
+  json: boolean,
+  client: CliClient = defaultClient,
+): Promise<0 | 1> {
+  return runCommand(
+    io,
+    json,
+    async (): Promise<OkResponse> => {
+      const session = watchSession(target.env, target.session);
+      if (target.pr !== 'all') {
+        return client.unwatch(session, {
+          pr: target.pr,
+          ...(target.repo === undefined ? {} : { repo: target.repo }),
+        });
+      }
+      for (const { pr, repo } of (await client.watches(session)).watches) {
+        try {
+          await client.unwatch(session, { pr, repo });
+        } catch (error) {
+          // A watch removed since the list was read has nothing left to remove.
+          if (!(error instanceof CliHttpError && error.status === 404)) throw error;
+        }
+      }
+      return { ok: true };
+    },
+    () => 'unwatched',
+  );
+}
+
+export function runWatches(
+  io: Io,
+  target: Pick<WatchTarget, 'env' | 'session'>,
+  json: boolean,
+  client: CliClient = defaultClient,
+): Promise<0 | 1> {
+  return runCommand(
+    io,
+    json,
+    () => client.watches(watchSession(target.env, target.session)),
+    ({ watches }) => (watches.length === 0 ? 'no watches' : watches.map(watchLine).join('\n')),
   );
 }

@@ -10,14 +10,20 @@ import type {
   SessionsFilter,
   SessionsResponse,
   SpawnOptions,
+  WatchesResponse,
+  WatchResponse,
 } from '@garden/shared';
 import { ensureConfigFile, loadConfig } from '../config.js';
 
 /** The server did not answer, or answered with an error the client can only surface. */
 export class CliHttpError extends Error {
-  constructor(message: string, options?: ErrorOptions) {
+  /** The HTTP status of an error response; undefined when the server never answered. */
+  readonly status: number | undefined;
+
+  constructor(message: string, options?: ErrorOptions & { status?: number }) {
     super(message, options);
     this.name = 'CliHttpError';
+    this.status = options?.status;
   }
 }
 
@@ -36,7 +42,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as ErrorResponse | null;
-    throw new CliHttpError(body?.error ?? `garden server returned ${String(response.status)}`);
+    throw new CliHttpError(body?.error ?? `garden server returned ${String(response.status)}`, {
+      status: response.status,
+    });
   }
   return (await response.json()) as T;
 }
@@ -104,4 +112,31 @@ export function placeSession(id: string, placement: Placement): Promise<OkRespon
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
   });
+}
+
+/** `kinds` is passed through as typed by the user; the server validates it. */
+export function watch(
+  sessionId: string,
+  body: { pr: number; repo?: string; kinds?: readonly string[] },
+): Promise<WatchResponse> {
+  return request(`/sessions/${encodeURIComponent(sessionId)}/watches`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export function unwatch(
+  sessionId: string,
+  target: { pr: number; repo?: string },
+): Promise<OkResponse> {
+  const params = new URLSearchParams({ pr: String(target.pr) });
+  if (target.repo !== undefined) params.set('repo', target.repo);
+  return request(`/sessions/${encodeURIComponent(sessionId)}/watches?${params.toString()}`, {
+    method: 'DELETE',
+  });
+}
+
+export function watches(sessionId: string): Promise<WatchesResponse> {
+  return request(`/sessions/${encodeURIComponent(sessionId)}/watches`);
 }
