@@ -1,4 +1,5 @@
 import type { SessionPlacement, StagePreset, SwarmRecord } from '@garden/shared';
+import type { Watch } from './watches.js';
 
 export interface OverlayGroup {
   readonly pinned: boolean;
@@ -30,4 +31,5 @@ export interface OverlayState {
   readonly swarmOrder: readonly string[];
   readonly collapsedSwarms: readonly string[];
   readonly hideDeadSwarms: readonly string[];
+  readonly watches: readonly Watch[];
 }

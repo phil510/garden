@@ -161,7 +161,7 @@ async function withFakeClaudeSession(
     tmux: tmuxPort(target),
     store,
     configPort: { read: unused, write: unused },
-    git: { status: unused, workTreePrefix: unused },
+    git: { status: unused, workTreePrefix: unused, remoteUrl: unused },
     attach: { attach: unused },
     repos: { list: unused, resolveRoot: unused },
     serverPort: 0,

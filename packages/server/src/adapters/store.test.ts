@@ -94,6 +94,7 @@ describe('readOverlayState', () => {
         swarmOrder: [],
         collapsedSwarms: [],
         hideDeadSwarms: [],
+        watches: [],
       });
       expect(logger.warnings).toEqual([]);
     });
@@ -145,6 +146,70 @@ describe('readOverlayState', () => {
   });
 });
 
+describe('readOverlayState watches', () => {
+  const watch = {
+    id: 'w1',
+    sessionId: 'session-1',
+    repo: 'acme/widgets',
+    pr: 7,
+    kinds: ['review', 'closed'],
+    createdAt: 100,
+    cursor: null,
+    pendingDigest: null,
+    status: 'active',
+  };
+  const file = (watches: unknown) => ({
+    version: 1,
+    tmuxNames: { 'session-1': 'garden-project' },
+    groups: {},
+    stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
+    watches,
+  });
+
+  it('keeps tmux names and loads no watches from a file written before watches existed', () => {
+    withTempAppDir((appDir) => {
+      mkdirSync(appDir, { recursive: true });
+      const legacy: Record<string, unknown> = file([]);
+      delete legacy['watches'];
+      writeFileSync(join(appDir, 'state.json'), JSON.stringify(legacy));
+      const logger = collectingLogger();
+
+      const state = readOverlayState(appDir, logger);
+
+      expect(state.watches).toEqual([]);
+      expect(state.tmuxNames).toEqual({ 'session-1': 'garden-project' });
+      expect(logger.warnings).toEqual([]);
+    });
+  });
+
+  it('drops one malformed watch with a warning while keeping the valid ones and the tmux names', () => {
+    withTempAppDir((appDir) => {
+      mkdirSync(appDir, { recursive: true });
+      const bad = { ...watch, id: 'bad', status: 'sleeping' };
+      const good = { ...watch, id: 'good', pr: 8 };
+      writeFileSync(join(appDir, 'state.json'), JSON.stringify(file([watch, bad, 'junk', good])));
+      const logger = collectingLogger();
+
+      const state = readOverlayState(appDir, logger);
+
+      expect(state.watches.map((w) => w.id)).toEqual(['w1', 'good']);
+      expect(state.tmuxNames).toEqual({ 'session-1': 'garden-project' });
+      expect(logger.warnings).toHaveLength(2);
+    });
+  });
+
+  it('warns and returns the defaults when watches is present but not an array', () => {
+    withTempAppDir((appDir) => {
+      mkdirSync(appDir, { recursive: true });
+      writeFileSync(join(appDir, 'state.json'), JSON.stringify(file({ w1: watch })));
+      const logger = collectingLogger();
+
+      expect(readOverlayState(appDir, logger)).toEqual(DEFAULT_OVERLAY_STATE);
+      expect(logger.warnings).toHaveLength(1);
+    });
+  });
+});
+
 describe('writeOverlayState', () => {
   it('round-trips a written state, including swarms, placements and swarm order/collapse/hide-dead', () => {
     withTempAppDir((appDir) => {
@@ -158,6 +223,19 @@ describe('writeOverlayState', () => {
         swarmOrder: ['swarm-1'],
         collapsedSwarms: ['swarm-1'],
         hideDeadSwarms: ['swarm-1'],
+        watches: [
+          {
+            id: 'w1',
+            sessionId: 'session-1',
+            repo: 'acme/widgets',
+            pr: 7,
+            kinds: ['review', 'closed'],
+            createdAt: 100,
+            cursor: { etag: 'abc', seen: [1, 2, { nested: true }] },
+            pendingDigest: { id: 'd1', line: 'PR merged', createdAt: 200 },
+            status: 'closed',
+          },
+        ],
       };
       writeOverlayState(appDir, state);
       expect(readOverlayState(appDir, collectingLogger())).toEqual(state);

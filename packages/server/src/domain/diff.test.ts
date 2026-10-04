@@ -1,7 +1,7 @@
-import { aSession } from '@garden/shared/fixtures';
+import { aHookEvent, aSession } from '@garden/shared/fixtures';
 import { describe, expect, it } from 'vitest';
 import { diff } from './diff.js';
-import { initialState } from './reduce.js';
+import { initialState, reduce } from './reduce.js';
 import type { GardenState } from './types.js';
 
 const withSessions = (...sessions: ReturnType<typeof aSession>[]): GardenState => ({
@@ -45,6 +45,7 @@ describe('diff', () => {
       tmuxName: 'other',
       lastActivity: before.lastActivity + 1,
       claudeSessionName: 'garden-7a',
+      watches: [{ repo: 'o/n', pr: 1, kinds: ['closed'], pendingDigest: false, status: 'active' }],
     };
     const [delta] = diff(withSessions(before), withSessions(after));
     const changed = delta?.type === 'session-changed' ? Object.keys(delta.changes) : [];
@@ -57,5 +58,14 @@ describe('diff', () => {
 
   it('ignores sessions that are only in the previous state, because garden never forgets one', () => {
     expect(diff(withSessions(aSession({ id: 'sid-1' })), initialState)).toEqual([]);
+  });
+
+  it('emits nothing for a session whose watches are unchanged when an unrelated event is folded', () => {
+    const prev = reduce(
+      reduce(initialState, { type: 'hook', payload: aHookEvent({ session_id: 'sid-1' }) }),
+      { type: 'watches-changed', sessionId: 'sid-2', watches: [] },
+    );
+    const next = reduce(prev, { type: 'branch-resolved', cwd: '/elsewhere', branch: 'main' });
+    expect(diff(prev, next)).toEqual([]);
   });
 });

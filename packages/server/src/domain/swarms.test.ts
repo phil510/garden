@@ -19,6 +19,7 @@ function anOverlay(overrides: Partial<OverlayState> = {}): OverlayState {
     swarmOrder: [],
     collapsedSwarms: [],
     hideDeadSwarms: [],
+    watches: [],
     ...overrides,
   };
 }

@@ -42,6 +42,14 @@ const branchResolved: GardenEvent = {
   branch: 'main',
 };
 
+const watchesChanged: GardenEvent = {
+  type: 'watches-changed',
+  sessionId: 'sid-1',
+  watches: [
+    { repo: 'acme/widgets', pr: 7, kinds: ['closed'], pendingDigest: true, status: 'active' },
+  ],
+};
+
 const sequences: GardenEvent[][] = [
   [],
   [storeLoaded],
@@ -70,6 +78,8 @@ const sequences: GardenEvent[][] = [
       }),
     },
   ],
+  [transcript({}, now), watchesChanged],
+  [watchesChanged, transcript({}, now)],
   [
     transcript({}, now),
     { type: 'hook', payload: aHookEvent({ session_id: 'sid-3' }) },
@@ -94,6 +104,7 @@ const boot: GardenEvent[] = [
   transcript({ sessionId: 'sid-2', title: 'Another' }, now),
   rootResolved,
   branchResolved,
+  watchesChanged,
 ];
 
 describe('boot replay equals steady state', () => {
@@ -113,6 +124,19 @@ describe('boot replay equals steady state', () => {
     const snapshotFirst = [storeLoaded, snapshot(false), prompt].reduce(reduce, initialState);
     expect(hookFirst).toEqual(snapshotFirst);
     expect(hookFirst.sessions['sid-1']).toMatchObject({ liveness: 'live', status: 'working' });
+  });
+
+  it('does not depend on whether the watch summaries or the transcript arrive first', () => {
+    const watchesFirst = [storeLoaded, watchesChanged, transcript({}, now)].reduce(
+      reduce,
+      initialState,
+    );
+    const transcriptFirst = [storeLoaded, transcript({}, now), watchesChanged].reduce(
+      reduce,
+      initialState,
+    );
+    expect(watchesFirst).toEqual(transcriptFirst);
+    expect(watchesFirst.sessions['sid-1']?.watches).toHaveLength(1);
   });
 
   it('is a no-op when the same boot batch is replayed onto the state it produced', () => {
@@ -137,6 +161,7 @@ const everyVariant: Record<GardenEvent['type'], GardenEvent> = {
   'branch-resolved': branchResolved,
   hook: { type: 'hook', payload: aHookEvent({ session_id: 'sid-1' }) },
   'tmux-snapshot': snapshot(false),
+  'watches-changed': watchesChanged,
   'claude-session-names-loaded': {
     type: 'claude-session-names-loaded',
     names: { 'sid-1': 'garden-7a' },

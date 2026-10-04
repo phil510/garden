@@ -6,6 +6,7 @@ import {
   PathNotFoundError,
   PathOutsideRootError,
 } from '../app/filesystem.js';
+import { AmbiguousWatchError, RepoUnresolvedError, WatchNotFoundError } from '../app/errors.js';
 import { ConfigWriteRefusedError } from '../app/ports.js';
 import { RootNotListedError } from '../app/repoCatalog.js';
 import { SessionNotFoundError } from '../app/sessions.js';
@@ -17,6 +18,9 @@ const STATUS_BY_ERROR: readonly (readonly [ErrorClass, number])[] = [
   [SessionNotFoundError, 404],
   [SwarmNotFoundError, 404],
   [PathNotFoundError, 404],
+  [WatchNotFoundError, 404],
+  [RepoUnresolvedError, 400],
+  [AmbiguousWatchError, 400],
   [SwarmCycleError, 409],
   [ConfigWriteRefusedError, 409],
   [RootNotListedError, 403],

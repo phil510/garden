@@ -1,4 +1,8 @@
-import type { HookPayload, SessionState } from './index.js';
+import type { HookPayload, SessionState, WatchSummary } from './index.js';
+
+// One shared array so two default sessions are `Object.is`-equal on `watches`, as the server's
+// reducer keeps them.
+const NO_WATCHES: WatchSummary[] = [];
 
 export function aSession(overrides: Partial<SessionState> = {}): SessionState {
   return {
@@ -15,6 +19,7 @@ export function aSession(overrides: Partial<SessionState> = {}): SessionState {
     tmuxName: 'repo',
     lastActivity: 1_000_000,
     claudeSessionName: null,
+    watches: NO_WATCHES,
     ...overrides,
   };
 }

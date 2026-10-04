@@ -1,4 +1,4 @@
-import type { SessionMap, SessionState } from '@garden/shared';
+import type { SessionMap, SessionState, WatchSummary } from '@garden/shared';
 import { deriveLiveness } from './sessions.js';
 import { hookOutcome } from './status.js';
 import type { GardenEvent, GardenState, TmuxSessionFact } from './types.js';
@@ -12,7 +12,12 @@ export const initialState: GardenState = {
   ended: {},
   reported: {},
   claudeSessionNames: {},
+  watches: {},
 };
+
+/** Shared by every session without watches, so `diff`'s `Object.is` sees no change when an
+ *  unrelated event rebuilds the session. */
+const NO_WATCHES = Object.freeze([]) as unknown as WatchSummary[];
 
 function blank(id: string): SessionState {
   return {
@@ -29,6 +34,7 @@ function blank(id: string): SessionState {
     tmuxName: null,
     lastActivity: 0,
     claudeSessionName: null,
+    watches: NO_WATCHES,
   };
 }
 
@@ -51,6 +57,7 @@ function rederive(state: GardenState): GardenState {
       // `null` in the map, not absent from it. See `branches`' own doc comment.
       branch: state.branches[session.cwd] ?? null,
       claudeSessionName: state.claudeSessionNames[id] ?? null,
+      watches: state.watches[id] ?? NO_WATCHES,
       liveness,
       exitCode,
       // Status belongs to live sessions: none yet heard from reads `unknown`, dead reads nothing.
@@ -133,6 +140,12 @@ export function reduce(state: GardenState, event: GardenEvent): GardenState {
       // A full snapshot, replacing rather than merging: a registry entry can outlive its
       // process, so a name that drops out of one snapshot must drop out of state too.
       return rederive({ ...state, claudeSessionNames: event.names });
+    case 'watches-changed': {
+      const watches = { ...state.watches };
+      if (event.watches.length === 0) delete watches[event.sessionId];
+      else watches[event.sessionId] = event.watches;
+      return rederive({ ...state, watches });
+    }
   }
   // No default arm: a switch without one narrows to never here, so a new event
   // variant fails to compile rather than being silently swallowed.

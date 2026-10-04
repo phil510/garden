@@ -1,8 +1,9 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { STAGE_PRESETS } from '@garden/shared';
+import { STAGE_PRESETS, isWatchKind } from '@garden/shared';
 import type { SessionPlacement, SwarmRecord } from '@garden/shared';
 import type { OverlayStage, OverlayState } from '../domain/overlay.js';
+import type { Watch } from '../domain/watches.js';
 
 export const DEFAULT_OVERLAY_STATE: OverlayState = {
   version: 1,
@@ -14,6 +15,7 @@ export const DEFAULT_OVERLAY_STATE: OverlayState = {
   swarmOrder: [],
   collapsedSwarms: [],
   hideDeadSwarms: [],
+  watches: [],
 };
 
 function statePath(appDir: string): string {
@@ -72,6 +74,35 @@ function isPlacements(value: unknown): value is Readonly<Record<string, SessionP
   return isRecord(value) && Object.values(value).every(isSessionPlacement);
 }
 
+const watchStatuses: ReadonlySet<unknown> = new Set(['active', 'error', 'closed']);
+
+function isPendingDigest(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value['id'] === 'string' &&
+    typeof value['line'] === 'string' &&
+    typeof value['createdAt'] === 'number'
+  );
+}
+
+/** `cursor` is deliberately unchecked: the poller owns its shape and may change it. */
+function isWatch(value: unknown): value is Watch {
+  return (
+    isRecord(value) &&
+    typeof value['id'] === 'string' &&
+    typeof value['sessionId'] === 'string' &&
+    typeof value['repo'] === 'string' &&
+    typeof value['pr'] === 'number' &&
+    Number.isInteger(value['pr']) &&
+    Array.isArray(value['kinds']) &&
+    value['kinds'].every(isWatchKind) &&
+    typeof value['createdAt'] === 'number' &&
+    'cursor' in value &&
+    (value['pendingDigest'] === null || isPendingDigest(value['pendingDigest'])) &&
+    watchStatuses.has(value['status'])
+  );
+}
+
 function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((entry) => typeof entry === 'string');
 }
@@ -81,7 +112,9 @@ function isStringArray(value: unknown): value is string[] {
  *  `swarms`/`placements`/`swarmOrder`/`collapsedSwarms`/`hideDeadSwarms` are the exception:
  *  absent is valid (a pre-#170/#187 `state.json` simply predates them, and losing its
  *  `tmuxNames`/`groups`/`stage` over fields it never had would be the actual loss), but
- *  present-and-malformed still fails the whole file, same as every other field here. */
+ *  present-and-malformed still fails the whole file, same as every other field here.
+ *  `watches` follows that rule for the array itself; its entries are filtered one by one in
+ *  `readOverlayState`. */
 function isOverlayState(
   value: unknown,
 ): value is Record<string, unknown> &
@@ -96,8 +129,22 @@ function isOverlayState(
     (value['placements'] === undefined || isPlacements(value['placements'])) &&
     (value['swarmOrder'] === undefined || isStringArray(value['swarmOrder'])) &&
     (value['collapsedSwarms'] === undefined || isStringArray(value['collapsedSwarms'])) &&
-    (value['hideDeadSwarms'] === undefined || isStringArray(value['hideDeadSwarms']))
+    (value['hideDeadSwarms'] === undefined || isStringArray(value['hideDeadSwarms'])) &&
+    (value['watches'] === undefined || Array.isArray(value['watches']))
   );
+}
+
+/** Watches are written often by an automated poller and their shape evolves, so one bad entry
+ *  is dropped on its own: failing the whole file would fall back to defaults, and the next
+ *  write would permanently lose every session's tmux name. */
+function readWatches(value: unknown, path: string, logger: StoreLogger): readonly Watch[] {
+  if (!Array.isArray(value)) return [];
+  const watches: Watch[] = [];
+  for (const entry of value) {
+    if (isWatch(entry)) watches.push(entry);
+    else logger.warn(`dropping malformed watch in ${path}`);
+  }
+  return watches;
 }
 
 /** A missing file means a fresh install. A file that is present but unreadable as an
@@ -133,6 +180,7 @@ export function readOverlayState(appDir: string, logger: StoreLogger): OverlaySt
     swarmOrder: isStringArray(parsed['swarmOrder']) ? parsed['swarmOrder'] : [],
     collapsedSwarms: isStringArray(parsed['collapsedSwarms']) ? parsed['collapsedSwarms'] : [],
     hideDeadSwarms: isStringArray(parsed['hideDeadSwarms']) ? parsed['hideDeadSwarms'] : [],
+    watches: readWatches(parsed['watches'], path, logger),
   };
 }
 

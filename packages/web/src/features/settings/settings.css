@@ -40,3 +40,11 @@
   justify-content: flex-end;
   gap: 8px;
 }
+.settings-row {
+  display: flex;
+  gap: 10px;
+}
+.settings-row .settings-field {
+  flex: 1;
+  min-width: 0;
+}

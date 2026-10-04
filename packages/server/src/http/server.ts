@@ -9,6 +9,7 @@ import type { Logger } from '../app/ports.js';
 import type { RepoCatalog } from '../app/repoCatalog.js';
 import type { SessionsDeps } from '../app/sessions.js';
 import type { SwarmsDeps } from '../app/swarms.js';
+import type { WatchesDeps } from '../app/watches.js';
 import { fsRoutes } from './routes/fs.js';
 import { healthRoutes } from './routes/health.js';
 import { hookRoutes } from './routes/hooks.js';
@@ -18,6 +19,7 @@ import { settingsRoutes } from './routes/settings.js';
 import type { SettingsDeps } from './routes/settings.js';
 import { swarmRoutes } from './routes/swarms.js';
 import { uiStateRoutes } from './routes/ui-state.js';
+import { watchRoutes } from './routes/watches.js';
 import { registerStaticRoutes, resolveClientDir } from './static.js';
 import { registerAttachSocket } from './ws/attach.js';
 import { registerEventsSocket, type EventsDeps } from './ws/events.js';
@@ -26,7 +28,8 @@ export type ServerDeps = SessionsDeps & { readonly repos: RepoCatalog } & Filesy
   AttachSocketDeps &
   EventsDeps &
   SettingsDeps &
-  SwarmsDeps;
+  SwarmsDeps &
+  WatchesDeps;
 
 /** Keeps every other `createServer(...)` call site (tests that don't care about logging)
  *  working unchanged — only `main.ts` and tests that assert logging behavior pass a real one. */
@@ -50,6 +53,7 @@ export function createServer(deps: ServerDeps, logger: Logger = noopLogger): Fas
   app.register((instance) => settingsRoutes(instance, deps));
   app.register((instance) => uiStateRoutes(instance, deps));
   app.register((instance) => swarmRoutes(instance, deps));
+  app.register((instance) => watchRoutes(instance, deps));
   app.register((instance) => fsRoutes(instance, deps));
 
   const clientDir = resolveClientDir(dirname(fileURLToPath(import.meta.url)));

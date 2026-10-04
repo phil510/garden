@@ -116,6 +116,7 @@ describe('a real Claude Code hook command against the real /hooks route', () => 
       git: {
         status: () => Promise.reject(new Error('not used by this test')),
         workTreePrefix: () => Promise.reject(new Error('not used by this test')),
+        remoteUrl: () => Promise.reject(new Error('not used by this test')),
       },
       attach: {
         attach: () => {

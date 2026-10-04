@@ -36,6 +36,7 @@ const emptyOverlay: OverlayState = {
   swarmOrder: [],
   collapsedSwarms: [],
   hideDeadSwarms: [],
+  watches: [],
 };
 
 function fakeTmux(overrides: Partial<TmuxPort> = {}): TmuxPort {
@@ -742,6 +743,7 @@ describe('POST /sessions/:id/kill', () => {
         swarmOrder: [],
         collapsedSwarms: [],
         hideDeadSwarms: [],
+        watches: [],
       }),
       projection: fakeProjection([session]),
       serverPort: 4310,
@@ -771,6 +773,7 @@ describe('POST /sessions/:id/kill', () => {
           swarmOrder: [],
           collapsedSwarms: [],
           hideDeadSwarms: [],
+          watches: [],
         }),
         projection: fakeProjection([session]),
         serverPort: 4310,

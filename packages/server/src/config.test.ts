@@ -258,6 +258,33 @@ describe('parseConfigFile', () => {
   });
 });
 
+describe('parseConfigFile watch settings', () => {
+  it.each([
+    ['quietWindowMinutes', -1],
+    ['quietWindowMinutes', 2.5],
+    ['pollIntervalMinutes', 0],
+    ['pollIntervalMinutes', 1.5],
+    ['ignoreAuthors', ['ok', 7]],
+    ['ignoreAuthors', 'bot'],
+  ])('rejects %s of %j', (key, value) => {
+    expect(() => parseConfigFile(JSON.stringify({ [key]: value }), '/c.json')).toThrow(
+      new RegExp(`"${key}"`),
+    );
+  });
+
+  it('reads valid values and accepts a zero quiet window', () => {
+    const parsed = parseConfigFile(
+      '{"ignoreAuthors": ["a", "b"], "quietWindowMinutes": 0, "pollIntervalMinutes": 7}',
+      '/c.json',
+    );
+    expect(parsed).toMatchObject({
+      ignoreAuthors: ['a', 'b'],
+      quietWindowMinutes: 0,
+      pollIntervalMinutes: 7,
+    });
+  });
+});
+
 describe('ensureConfigFile', () => {
   let home: string;
   let configPath: string;
@@ -370,6 +397,27 @@ describe('readConfigFile', () => {
         'utf8',
       );
       expect(readConfigFile(path).claudeCommand).toBe('ec bedrock launch claude --');
+    });
+  });
+
+  it('recovers each watch setting individually when an unrelated field fails validation', () => {
+    withTempAppDir((appDir) => {
+      mkdirSync(appDir, { recursive: true });
+      const path = configFilePath(appDir);
+      writeFileSync(
+        path,
+        JSON.stringify({
+          terminalFontSize: 1,
+          ignoreAuthors: ['dependabot'],
+          quietWindowMinutes: 7,
+          pollIntervalMinutes: 0,
+        }),
+        'utf8',
+      );
+      const config = readConfigFile(path);
+      expect(config.ignoreAuthors).toEqual(['dependabot']);
+      expect(config.quietWindowMinutes).toBe(7);
+      expect(config.pollIntervalMinutes).toBe(DEFAULT_CONFIG_FILE.pollIntervalMinutes);
     });
   });
 

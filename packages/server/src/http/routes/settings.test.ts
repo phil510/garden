@@ -59,6 +59,7 @@ function fakeDeps(overrides: Partial<ServerDeps> = {}): ServerDeps {
     git: {
       status: () => Promise.reject(new Error('not used by this test')),
       workTreePrefix: () => Promise.reject(new Error('not used by this test')),
+      remoteUrl: () => Promise.reject(new Error('not used by this test')),
     },
     attach: {
       attach: () => {
@@ -95,6 +96,9 @@ describe('GET /settings', () => {
         deadSessionCap: 25,
         terminalFontSize: 18,
         claudeCommand: 'ec bedrock launch claude --',
+        ignoreAuthors: [],
+        quietWindowMinutes: 3,
+        pollIntervalMinutes: 5,
       });
     } finally {
       await app.close();
@@ -112,6 +116,53 @@ describe('PUT /settings', () => {
         payload: { claudeCommand: 42 },
       });
       expect(response.statusCode).toBe(400);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it.each([{}, { unknownKey: 1 }, { quietWindowMinutes: -1 }, { ignoreAuthors: [1] }])(
+    'answers 400 on %j without writing',
+    async (payload) => {
+      const written: unknown[] = [];
+      const app = createServer(
+        fakeDeps({
+          configPort: fakeConfigPort({
+            write: (patch) => {
+              written.push(patch);
+            },
+          }),
+        }),
+      );
+      try {
+        const response = await app.inject({ method: 'PUT', url: '/settings', payload });
+        expect(response.statusCode).toBe(400);
+        expect(written).toHaveLength(0);
+      } finally {
+        await app.close();
+      }
+    },
+  );
+
+  it('answers 200 for a subset of keys that omits claudeCommand', async () => {
+    const written: unknown[] = [];
+    const app = createServer(
+      fakeDeps({
+        configPort: fakeConfigPort({
+          write: (patch) => {
+            written.push(patch);
+          },
+        }),
+      }),
+    );
+    try {
+      const response = await app.inject({
+        method: 'PUT',
+        url: '/settings',
+        payload: { pollIntervalMinutes: 10 },
+      });
+      expect(response.statusCode).toBe(200);
+      expect(written).toEqual([{ pollIntervalMinutes: 10 }]);
     } finally {
       await app.close();
     }

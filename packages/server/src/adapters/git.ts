@@ -70,6 +70,17 @@ export async function workTreePrefix(cwd: string): Promise<string> {
   return stdout.trim();
 }
 
+/** The `origin` remote's URL, or null when the repository has no `origin`. git exits 2 for a
+ *  missing remote; any other failure (not a repository, a vanished directory) is a `GitError`. */
+export async function remoteUrl(cwd: string): Promise<string | null> {
+  try {
+    return (await run(cwd, ['remote', 'get-url', 'origin'])).trim();
+  } catch (error) {
+    if (error instanceof GitError && (error.cause as { code?: unknown }).code === 2) return null;
+    throw error;
+  }
+}
+
 export async function branch(cwd: string): Promise<string> {
   const stdout = await run(cwd, ['rev-parse', '--abbrev-ref', 'HEAD']);
   return stdout.trim();

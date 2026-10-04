@@ -60,6 +60,9 @@ export interface SessionState {
   /** The Claude-side addressable name (e.g. `garden-7a`) read from the Claude session
    *  registry. Null when the registry carries no entry for this session's id. */
   claudeSessionName: string | null;
+  /** The session's PR watches, derived from the overlay by `reduce` so a change reaches clients
+   *  as an ordinary session delta. Empty when the session has none. */
+  watches: WatchSummary[];
   /** Swarm/placement fields, merged on from the overlay's `placements` map at read time
    *  (`app/projection.ts`). Mirrors `SessionPlacement`'s shape; absent for an unplaced
    *  session. Not derived by `domain/reduce.ts`/`domain/diff.ts`: a fresh HTTP `GET
@@ -217,11 +220,63 @@ export interface SettingsResponse {
   deadSessionCap: number;
   terminalFontSize: number;
   claudeCommand: string;
+  /** PR comment/review authors whose activity a watch does not report. */
+  ignoreAuthors: string[];
+  /** Minutes of PR quiet required before a digest is delivered. */
+  quietWindowMinutes: number;
+  /** Minutes between PR polls. */
+  pollIntervalMinutes: number;
 }
-/** Body of `PUT /settings`. A flat interface rather than `Partial<SettingsResponse>` —
- *  `claudeCommand` is the only field this route accepts writes for. */
-export interface SettingsRequest {
-  claudeCommand: string;
+/** Body of `PUT /settings`: any non-empty subset of the writable keys. */
+export type SettingsRequest = Partial<
+  Pick<
+    SettingsResponse,
+    'claudeCommand' | 'ignoreAuthors' | 'quietWindowMinutes' | 'pollIntervalMinutes'
+  >
+>;
+export const WATCH_KINDS = [
+  'review',
+  'comment',
+  'checks',
+  'checks:all',
+  'conflict',
+  'closed',
+] as const;
+/** What a watch reports on. `checks:all` also reports passing checks (and implies `checks`);
+ *  `closed` is always on. */
+export type WatchKind = (typeof WATCH_KINDS)[number];
+export function isWatchKind(value: unknown): value is WatchKind {
+  return typeof value === 'string' && (WATCH_KINDS as readonly string[]).includes(value);
+}
+export const DEFAULT_WATCH_KINDS: readonly WatchKind[] = [
+  'review',
+  'comment',
+  'checks',
+  'conflict',
+  'closed',
+];
+export type WatchStatus = 'active' | 'error' | 'closed';
+/** What clients see of a watch. `pendingDigest` says only that activity is waiting to be delivered. */
+export interface WatchSummary {
+  /** `owner/name`. */
+  repo: string;
+  pr: number;
+  kinds: WatchKind[];
+  pendingDigest: boolean;
+  status: WatchStatus;
+}
+/** Body of `POST /sessions/:id/watches`. `repo` defaults to the session cwd's `origin`;
+ *  `kinds` to the default set. Re-adding an existing watch replaces its kinds. */
+export interface AddWatchRequest {
+  pr: number;
+  repo?: string;
+  kinds?: WatchKind[];
+}
+export interface WatchResponse {
+  watch: WatchSummary;
+}
+export interface WatchesResponse {
+  watches: WatchSummary[];
 }
 export interface TreeEntry {
   name: string;
