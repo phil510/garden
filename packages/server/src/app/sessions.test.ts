@@ -893,6 +893,46 @@ describe('killSession', () => {
     expect(written().tmuxNames).toEqual({ 'sid-2': 'other' });
   });
 
+  it('leaves the overlay watches intact across a kill and a resume', async () => {
+    const watch = {
+      id: 'w1',
+      sessionId: 'sid-1',
+      repo: 'acme/widgets',
+      pr: 7,
+      kinds: ['review', 'closed'] as const,
+      createdAt: 1,
+      cursor: { etag: 'abc' },
+      pendingDigest: null,
+      status: 'active' as const,
+    };
+    const tmux = fakeTmux({
+      killSession: () => Promise.resolve(),
+      listPanes: () => Promise.resolve([]),
+      newSession: () => Promise.resolve(),
+    });
+    const { projection } = fakeProjection([
+      aSession({ id: 'sid-1', cwd: '/Users/dev/garden', tmuxName: 'garden' }),
+    ]);
+    const { store, written } = fakeStore({
+      ...emptyOverlay,
+      tmuxNames: { 'sid-1': 'garden' },
+      watches: [watch],
+    });
+    const deps = {
+      tmux,
+      store,
+      projection,
+      serverPort: 4310,
+      settingsPath: '/x',
+      readClaudeCommand: () => ['claude'],
+    };
+
+    await killSession(deps, { id: 'sid-1' });
+    await resumeSession(deps, { id: 'sid-1' });
+
+    expect(written().watches).toEqual([watch]);
+  });
+
   it('does not call tmux when the session already has no tmux name', async () => {
     const tmux = fakeTmux({ killSession: () => Promise.reject(new Error('should not be called')) });
     const { projection } = fakeProjection([aSession({ id: 'sid-1', tmuxName: null })]);
