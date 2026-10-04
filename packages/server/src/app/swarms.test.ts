@@ -51,6 +51,7 @@ function fakeProjection(overlay: OverlayState, sessions: SessionState[] = []) {
     },
     subscribe: () => () => undefined,
     subscribeUiState: () => () => undefined,
+    overlay: () => current,
     updateOverlay: (mutate) => {
       const next = mutate(current);
       if (next !== current) {
@@ -58,9 +59,6 @@ function fakeProjection(overlay: OverlayState, sessions: SessionState[] = []) {
         writes.push(next);
       }
       return next;
-    },
-    overlay: () => {
-      throw new Error('not used by this test');
     },
     subscribeOverlay: () => () => undefined,
     placementOf: () => {

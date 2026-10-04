@@ -100,7 +100,8 @@ function isWatch(value: unknown): value is Watch {
     typeof value['createdAt'] === 'number' &&
     'cursor' in value &&
     (value['pendingDigest'] === null || isPendingDigest(value['pendingDigest'])) &&
-    watchStatuses.has(value['status'])
+    watchStatuses.has(value['status']) &&
+    (value['errorReason'] === undefined || typeof value['errorReason'] === 'string')
   );
 }
 
