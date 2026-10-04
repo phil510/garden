@@ -15,7 +15,7 @@ async function until(predicate: () => boolean, description: string): Promise<voi
 }
 
 /** Records what the socket hands the registry; `sends` collects the digest sinks it was given. */
-function fakePipes() {
+function fakePipes(throwOn?: 'connect' | 'ack') {
   const log = {
     connected: [] as string[],
     acks: [] as string[],
@@ -24,10 +24,14 @@ function fakePipes() {
   };
   const pipes: Pipes = {
     connect: (sessionId, send) => {
+      if (throwOn === 'connect') throw new Error('state.json is not writable');
       log.connected.push(sessionId);
       log.sends.push(send);
       return {
-        ack: (id) => log.acks.push(id),
+        ack: (id) => {
+          if (throwOn === 'ack') throw new Error('state.json is not writable');
+          log.acks.push(id);
+        },
         close: () => {
           log.closed += 1;
         },
@@ -96,5 +100,34 @@ describe('registerPipeSocket', () => {
 
     socket.close();
     await until(() => log.closed === 1, 'the registry connection to be closed');
+  });
+
+  async function open(pipes: Pipes): Promise<WebSocket> {
+    app = Fastify();
+    const wss = registerPipeSocket(app, { pipes });
+    app.server.on('upgrade', (request, rawSocket, head) => {
+      wss.handleUpgrade(request, rawSocket, head, (ws) => wss.emit('connection', ws, request));
+    });
+    await app.listen({ port: 0, host: '127.0.0.1' });
+    const { port } = app.server.address() as AddressInfo;
+    socket = new WebSocket(`ws://127.0.0.1:${String(port)}/sessions/s1/events`);
+    return socket;
+  }
+
+  it('terminates the socket when the registry throws on connect', async () => {
+    const { pipes, log } = fakePipes('connect');
+    const ws = await open(pipes);
+    ws.on('error', () => undefined);
+    await new Promise<void>((resolve) => ws.once('close', () => resolve()));
+    expect(log.closed).toBe(0);
+  });
+
+  it('terminates the socket, without crashing the process, when an ack throws', async () => {
+    const { pipes } = fakePipes('ack');
+    const ws = await open(pipes);
+    ws.on('error', () => undefined);
+    await new Promise<void>((resolve) => ws.once('open', () => resolve()));
+    ws.send(JSON.stringify({ type: 'ack', id: 'd1' }));
+    await new Promise<void>((resolve) => ws.once('close', () => resolve()));
   });
 });

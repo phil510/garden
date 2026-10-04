@@ -1,7 +1,7 @@
 import type { PipeClientMessage, PipeServerMessage } from '@garden/shared';
 import type { FastifyInstance } from 'fastify';
 import { WebSocketServer, type WebSocket } from 'ws';
-import type { Pipes } from '../../app/pipes.js';
+import type { PipeConnection, Pipes } from '../../app/pipes.js';
 
 export interface PipeDeps {
   readonly pipes: Pipes;
@@ -57,11 +57,25 @@ export function registerPipeSocket(app: FastifyInstance, deps: PipeDeps): WebSoc
       socket.terminate();
       return;
     }
-    const connection = deps.pipes.connect(sessionId, (message) => send(socket, message));
+    let connection: PipeConnection;
+    try {
+      connection = deps.pipes.connect(sessionId, (message) => send(socket, message));
+    } catch (error) {
+      app.log.error({ err: error, sessionId }, 'pipe connect failed');
+      socket.terminate();
+      return;
+    }
+    // An ack writes the overlay, and a throw in a `message` listener is an uncaught exception.
     socket.on('message', (data: Buffer, isBinary: boolean) => {
       if (isBinary) return;
       const message = parseAck(data.toString('utf8'));
-      if (message !== undefined) connection.ack(message.id);
+      if (message === undefined) return;
+      try {
+        connection.ack(message.id);
+      } catch (error) {
+        app.log.error({ err: error, sessionId }, 'pipe ack failed');
+        socket.terminate();
+      }
     });
     socket.on('close', () => connection.close());
   });

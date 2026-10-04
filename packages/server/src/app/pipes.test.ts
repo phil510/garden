@@ -211,6 +211,24 @@ describe('delivery', () => {
 });
 
 describe('connection state', () => {
+  it('leaves no registered connection when persisting the connect throws', async () => {
+    const t = setup();
+    const failing = vi.spyOn(t.projection, 'updateOverlay').mockImplementationOnce(() => {
+      throw new Error('state.json is not writable');
+    });
+    const stream = aStream();
+
+    expect(() => t.pipes.connect('s1', stream.send)).toThrow('not writable');
+    failing.mockRestore();
+    updateWatches(t.deps, () => [aWatch({ pendingDigest: digest('d1') })], NOW);
+    await settle();
+    t.pipes.sweep(NOW + 1);
+
+    expect(stream.received).toEqual([]);
+    expect(t.session()?.pipeConnected).toBeFalsy();
+    expect(t.overlay().pipes).toEqual({});
+  });
+
   it('dispatches pipe-changed on the first connect and the last disconnect only', () => {
     const t = setup();
     const changes = () =>

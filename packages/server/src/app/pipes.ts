@@ -83,8 +83,15 @@ export function createPipes(deps: WatchesDeps): Pipes {
       const open = connections.get(sessionId) ?? new Set<Connection>();
       connections.set(sessionId, open);
       open.add(connection);
-      if (open.size === 1) recordConnection([sessionId], true, Date.now());
-      deliver(connection, projection.overlay().watches);
+      try {
+        if (open.size === 1) recordConnection([sessionId], true, Date.now());
+        deliver(connection, projection.overlay().watches);
+      } catch (error) {
+        // A connect that throws is never handed back, so nothing would ever close it.
+        open.delete(connection);
+        if (open.size === 0) connections.delete(sessionId);
+        throw error;
+      }
 
       let closed = false;
       return {
