@@ -310,6 +310,40 @@ describe('reduce', () => {
     });
   });
 
+  describe('a hook carrying the garden session id', () => {
+    const keyed = (
+      name: string,
+      claudeId: string,
+      source?: HookPayload['source'],
+    ): GardenEvent => ({
+      type: 'hook',
+      payload: aHookEvent({
+        session_id: claudeId,
+        hook_event_name: name,
+        ...(source !== undefined ? { source } : {}),
+      }),
+      gardenSessionId: 'sid-1',
+    });
+
+    it('keeps the session live across /clear, though every payload id after it is new', () => {
+      const state = fold([
+        mapped,
+        snapshot(false),
+        keyed('SessionStart', 'sid-1', 'startup'),
+        keyed('SessionEnd', 'sid-1'),
+        keyed('SessionStart', 'claude-after-clear', 'clear'),
+        keyed('UserPromptSubmit', 'claude-after-clear'),
+      ]);
+
+      expect(state.sessions['sid-1']).toMatchObject({ liveness: 'live', status: 'working' });
+      expect(Object.keys(state.sessions)).toEqual(['sid-1']);
+    });
+
+    it('keys on the payload session id when the header is absent', () => {
+      expect(Object.keys(fold([hook('Stop', 'claude-x')]).sessions)).toEqual(['claude-x']);
+    });
+  });
+
   it('leaves a session at needs-approval when the delayed permission_prompt notification arrives', () => {
     const permissionRequest: GardenEvent = {
       type: 'hook',

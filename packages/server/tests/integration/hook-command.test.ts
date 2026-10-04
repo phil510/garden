@@ -171,7 +171,8 @@ describe('a real Claude Code hook command against the real /hooks route', () => 
         hook_event_name: 'SessionStart',
       });
 
-      expect(await runHook(JSON.stringify(payload), port)).toBe(0);
+      const env = { GARDEN_SESSION_ID: undefined };
+      expect(await runHook(JSON.stringify(payload), port, env)).toBe(0);
 
       const session = projection.sessions().find((s) => s.id === 'sid-real-hook');
       expect(session?.cwd).toBe('/Users/dev/real-repo');
@@ -180,7 +181,7 @@ describe('a real Claude Code hook command against the real /hooks route', () => 
     }
   });
 
-  it("ends the garden session's watches on a /clear whose payload carries a new Claude id", async () => {
+  it("ends the garden session's watches and keeps its row on a /clear whose payload carries a new Claude id", async () => {
     const projection = createProjection(fakeStore());
     projection.dispatch({ type: 'session-registered', id: 'garden-1', tmuxName: 'g', cwd: '/w' });
     updateWatches(
@@ -210,11 +211,15 @@ describe('a real Claude Code hook command against the real /hooks route', () => 
         source: 'clear',
       });
 
-      expect(await runHook(JSON.stringify(payload), port, { GARDEN_SESSION_ID: 'garden-1' })).toBe(
-        0,
-      );
+      const env = { GARDEN_SESSION_ID: 'garden-1' };
+      const ended = aHookEvent({ session_id: 'garden-1', hook_event_name: 'SessionEnd' });
+
+      expect(await runHook(JSON.stringify(ended), port, env)).toBe(0);
+      expect(await runHook(JSON.stringify(payload), port, env)).toBe(0);
 
       expect(projection.overlay().watches).toEqual([]);
+      const ids = projection.sessions().map((s) => s.id);
+      expect(ids).toEqual(['garden-1']);
     } finally {
       await app.close();
     }

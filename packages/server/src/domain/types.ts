@@ -30,7 +30,10 @@ export type GardenEvent =
   | { type: 'transcript-changed'; path: string; record: TranscriptRecord }
   | { type: 'repo-root-resolved'; cwd: string; repoRoot: string }
   | { type: 'branch-resolved'; cwd: string; branch: string | null }
-  | { type: 'hook'; payload: HookPayload }
+  /** `gardenSessionId` is the hook process's own `GARDEN_SESSION_ID`. It names the session
+   *  the hook belongs to when present, because `/clear` gives Claude a new payload `session_id`
+   *  while the process, pane and garden session stay the same. */
+  | { type: 'hook'; payload: HookPayload; gardenSessionId?: string | undefined }
   | { type: 'tmux-snapshot'; sessions: TmuxSessionFact[] }
   | { type: 'claude-session-names-loaded'; names: Record<string, string> }
   /** The full, current summary list for one session; an empty list means it has none. */

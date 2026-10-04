@@ -136,3 +136,20 @@ describe('handleHook on /clear', () => {
     expect(received.map((m) => m.id)).toEqual(['d2']);
   });
 });
+
+describe('handleHook keying', () => {
+  it('lands a post-clear hook on the garden session instead of creating a second row', () => {
+    const t = setup([]);
+
+    handleHook(
+      t.deps,
+      aHookEvent({ session_id: GARDEN_ID, hook_event_name: 'SessionEnd' }),
+      GARDEN_ID,
+    );
+    handleHook(t.deps, sessionStart('clear'), GARDEN_ID);
+
+    const ids = t.projection.sessions().map((s) => s.id);
+    expect(ids).not.toContain(NEW_CLAUDE_ID);
+    expect(ids).toContain(GARDEN_ID);
+  });
+});
