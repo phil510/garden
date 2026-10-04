@@ -16,6 +16,7 @@ const emptyOverlay: OverlayState = {
   collapsedSwarms: [],
   hideDeadSwarms: [],
   watches: [],
+  pipes: {},
 };
 
 /** In-memory StorePort: the projection's contract with the store is read-modify-write,
@@ -173,6 +174,7 @@ describe('ui state', () => {
     collapsedSwarms: [],
     hideDeadSwarms: [],
     watches: [],
+    pipes: {},
   };
 
   it('orders the groups by the store order rather than by insertion', () => {
@@ -421,6 +423,35 @@ describe('swarms and placements', () => {
     projection.updateOverlay((base) => ({ ...base, swarms: [] }));
 
     expect(seen).toEqual([]);
+  });
+
+  it('subscribeOverlay hands each listener the written overlay, and stops after unsubscribing', () => {
+    const projection = createProjection(fakeStore(emptyOverlay).port);
+    const seen: OverlayState[] = [];
+    const unsubscribe = projection.subscribeOverlay((next) => seen.push(next));
+
+    const next = projection.updateOverlay((base) => ({ ...base, pipes: { 'sid-1': 5 } }));
+    unsubscribe();
+    projection.updateOverlay((base) => ({ ...base, pipes: { 'sid-1': 6 } }));
+
+    expect(seen).toEqual([next]);
+  });
+
+  it('does not call overlay subscribers for an update that wrote nothing', () => {
+    const projection = createProjection(fakeStore(emptyOverlay).port);
+    const seen: OverlayState[] = [];
+    projection.subscribeOverlay((next) => seen.push(next));
+
+    projection.updateOverlay((base) => base);
+
+    expect(seen).toEqual([]);
+  });
+
+  it('overlay() reads the store fresh', () => {
+    const store = fakeStore(emptyOverlay);
+    const projection = createProjection(store.port);
+    store.port.write({ ...emptyOverlay, pipes: { 'sid-1': 5 } });
+    expect(projection.overlay().pipes).toEqual({ 'sid-1': 5 });
   });
 
   it('placementOf resolves a placed session, including its top-level swarm', () => {

@@ -18,6 +18,7 @@ const emptyOverlay: OverlayState = {
   collapsedSwarms: [],
   hideDeadSwarms: [],
   watches: [],
+  pipes: {},
 };
 
 function fakeProjection(overrides: Partial<Projection> = {}): Projection {
@@ -37,6 +38,10 @@ function fakeProjection(overrides: Partial<Projection> = {}): Projection {
     updateOverlay: () => {
       throw new Error('not used by this test');
     },
+    overlay: () => {
+      throw new Error('not used by this test');
+    },
+    subscribeOverlay: () => () => undefined,
     placementOf: () => {
       throw new Error('not used by this test');
     },

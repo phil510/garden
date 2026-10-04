@@ -32,4 +32,6 @@ export interface OverlayState {
   readonly collapsedSwarms: readonly string[];
   readonly hideDeadSwarms: readonly string[];
   readonly watches: readonly Watch[];
+  /** Per session id, the last moment a pipe was known connected (epoch ms). */
+  readonly pipes: Readonly<Record<string, number>>;
 }

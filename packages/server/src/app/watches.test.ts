@@ -26,6 +26,7 @@ const emptyOverlay: OverlayState = {
   collapsedSwarms: [],
   hideDeadSwarms: [],
   watches: [],
+  pipes: {},
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;

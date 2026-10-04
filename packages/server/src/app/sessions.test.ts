@@ -33,6 +33,7 @@ const emptyOverlay: OverlayState = {
   collapsedSwarms: [],
   hideDeadSwarms: [],
   watches: [],
+  pipes: {},
 };
 
 function fakeTmux(overrides: Partial<TmuxPort> = {}): TmuxPort {
@@ -68,6 +69,10 @@ function fakeProjection(sessions: SessionState[] = [], overrides: Partial<Projec
       current = mutate(current);
       return current;
     },
+    overlay: () => {
+      throw new Error('not used by this test');
+    },
+    subscribeOverlay: () => () => undefined,
     placementOf: () => undefined,
     ...overrides,
   };
@@ -875,6 +880,7 @@ describe('killSession', () => {
       collapsedSwarms: [],
       hideDeadSwarms: [],
       watches: [],
+      pipes: {},
     });
 
     await killSession(
