@@ -9,7 +9,13 @@ import {
   type CSSProperties,
   type MouseEvent,
 } from 'react';
-import { createSwarm, killSession, resumeSession, setSessionPlacement } from '../../api/client';
+import {
+  createSwarm,
+  killSession,
+  removeWatch,
+  resumeSession,
+  setSessionPlacement,
+} from '../../api/client';
 import { reportCommandFailure } from '../../api/reportCommandFailure';
 import { ContextMenu, type ContextMenuItem } from '../../components/ContextMenu';
 import { StatusPill } from '../../components/StatusPill';
@@ -24,6 +30,7 @@ import { pressStartedInMenu } from './pressOrigin';
 import {
   sessionRowMenuAction,
   sessionRowMenuItems,
+  STOP_WATCH_KEY_PREFIX,
   type ConfirmingAction,
 } from './sessionRowMenuItems';
 import { metaLineSegmentClassName, metaLineSegments } from './sessionIdentity';
@@ -77,6 +84,7 @@ export function SessionRow({
   const [contextMenuPoint, setContextMenuPoint] = useState<{ x: number; y: number } | null>(null);
   const [confirming, setConfirming] = useState<ConfirmingAction>(null);
   const [newSwarmPromptOpen, setNewSwarmPromptOpen] = useState(false);
+  const [watchPromptOpen, setWatchPromptOpen] = useState(false);
   const dead = session.liveness === 'dead';
   const crashed = dead && session.exitCode !== null && session.exitCode !== 0;
   const title = session.title ?? lastPathSegment(session.cwd);
@@ -121,6 +129,7 @@ export function SessionRow({
     event.stopPropagation();
     setConfirming(null);
     setNewSwarmPromptOpen(false);
+    setWatchPromptOpen(false);
     setContextMenuPoint({ x: event.clientX, y: event.clientY });
   }
 
@@ -128,6 +137,7 @@ export function SessionRow({
     setContextMenuPoint(null);
     setConfirming(null);
     setNewSwarmPromptOpen(false);
+    setWatchPromptOpen(false);
   }
 
   async function createSwarmAndAssign(name: string) {
@@ -155,10 +165,29 @@ export function SessionRow({
       setNewSwarmPromptOpen(true);
       return;
     }
+    if (key === 'watch-pr') {
+      setWatchPromptOpen(true);
+      return;
+    }
+    if (key.startsWith(STOP_WATCH_KEY_PREFIX)) {
+      // Repo names can't contain '#', so the last one separates repo from PR number.
+      const target = key.slice(STOP_WATCH_KEY_PREFIX.length);
+      const split = target.lastIndexOf('#');
+      removeWatch(session.id, Number(target.slice(split + 1)), target.slice(0, split)).catch(
+        reportCommandFailure,
+      );
+      closeContextMenu();
+      return;
+    }
     const result = sessionRowMenuAction(key);
     setConfirming(result.confirming);
     if (result.act === 'kill') killSession(session.id).catch(reportCommandFailure);
     if (result.act === 'resume') resumeSession(session.id).catch(reportCommandFailure);
+    if (result.act === 'stop-all') {
+      Promise.all(
+        session.watches.map((watch) => removeWatch(session.id, watch.pr, watch.repo)),
+      ).catch(reportCommandFailure);
+    }
     if (result.act !== null) setContextMenuPoint(null);
   }
 
@@ -167,6 +196,7 @@ export function SessionRow({
     confirming,
     currentSwarmId,
     activeSwarms,
+    session.watches,
   ).map((item): ContextMenuItem => {
     const submenu = item.submenu;
     return {
@@ -239,7 +269,7 @@ export function SessionRow({
       {hovered && rowEl !== null && contextMenuPoint === null && (
         <HoverCard title={title} session={session} anchor={rowEl} now={now} />
       )}
-      {contextMenuPoint !== null && !newSwarmPromptOpen && (
+      {contextMenuPoint !== null && !newSwarmPromptOpen && !watchPromptOpen && (
         <ContextMenu
           x={contextMenuPoint.x}
           y={contextMenuPoint.y}
