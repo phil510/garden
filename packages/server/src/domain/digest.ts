@@ -103,8 +103,8 @@ export function formatDigestLine(
  * mid-fetch is already visible here.
  *
  * `cursor.written` is what the pending digest already says. A digest that is gone (acknowledged
- * or expired) or has been replaced no longer has anything to fold into, so the next digest
- * counts only what came after. Every change to the line mints a new id and a fresh `createdAt`;
+ * or expired) no longer has anything to fold into, so the next digest counts only what came
+ * after. Every change to the line mints a new id and a fresh `createdAt`;
  * the poller never clears a digest. A PR that is no longer open ends the watch with its final
  * digest immediately; otherwise activity waits in `cursor.fresh` until it has been quiet for the
  * window. Returns `watch` itself when nothing changed.
