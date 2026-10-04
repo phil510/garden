@@ -4,10 +4,26 @@ import Fastify from 'fastify';
 import { describe, expect, it } from 'vitest';
 import type { GardenEvent } from '../../domain/types.js';
 import type { Projection } from '../../app/projection.js';
+import type { OverlayState } from '../../app/ports.js';
 import { hookRoutes } from './hooks.js';
+
+const emptyOverlay: OverlayState = {
+  version: 1,
+  tmuxNames: {},
+  groups: {},
+  stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
+  swarms: [],
+  placements: {},
+  swarmOrder: [],
+  collapsedSwarms: [],
+  hideDeadSwarms: [],
+  watches: [],
+  pipes: {},
+};
 
 function fakeProjection() {
   const dispatched: GardenEvent[] = [];
+  let overlayWrites = 0;
   const projection: Projection = {
     sessions: () => [],
     uiState: () => {
@@ -22,15 +38,16 @@ function fakeProjection() {
     overlay: () => {
       throw new Error('not used by this test');
     },
-    updateOverlay: () => {
-      throw new Error('not used by this test');
+    updateOverlay: (mutate) => {
+      overlayWrites += 1;
+      return mutate(emptyOverlay);
     },
     subscribeOverlay: () => () => undefined,
     placementOf: () => {
       throw new Error('not used by this test');
     },
   };
-  return { projection, dispatched };
+  return { projection, dispatched, overlayWrites: () => overlayWrites };
 }
 
 function buildApp(projection: Projection) {
@@ -74,5 +91,20 @@ describe('POST /hooks', () => {
 
     expect(response.statusCode).toBe(400);
     expect(dispatched).toEqual([]);
+  });
+
+  it('hands a clear with the garden session header to the watch writer, and ignores a missing or empty one', async () => {
+    const { projection, overlayWrites } = fakeProjection();
+    const app = buildApp(projection);
+    const payload = aHookEvent({ hook_event_name: 'SessionStart', source: 'clear' });
+    const post = (headers: Record<string, string>) =>
+      app.inject({ method: 'POST', url: '/hooks', payload, headers });
+
+    await post({});
+    await post({ 'x-garden-session': '' });
+    expect(overlayWrites()).toBe(0);
+
+    await post({ 'x-garden-session': 'garden-1' });
+    expect(overlayWrites()).toBe(1);
   });
 });

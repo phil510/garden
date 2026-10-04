@@ -333,8 +333,9 @@ then dispatch `session-registered`. Kill dispatches nothing and relies on the ne
 Three pieces, each owning one thing.
 
 - **Store.** Watch records live in the overlay, and `app/watches.ts` `updateWatches` is the only
-  writer. Everything that changes a watch (the CLI verbs, the poller, an ack, the sweep) goes
-  through it.
+  writer. Everything that changes a watch (the CLI verbs, the poller, an ack, the sweep, a `/clear` hook) goes
+  through it. Hooks carry the pane's `GARDEN_SESSION_ID` in an `X-Garden-Session` header, because
+  `/clear` gives the payload a new `session_id` while the pane env keeps the garden id.
 - **Poller.** A `gh` adapter plus an `app/` poll loop observe pull requests and write digests into
   watches, only through `updateWatches`. It never talks to a pipe; it only changes the store.
 - **Stream.** `app/pipes.ts` and the pipe socket in `http/ws/` deliver what the store holds. A
