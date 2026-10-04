@@ -40,9 +40,14 @@ export function normalizeKinds(kinds: readonly WatchKind[] | undefined): WatchKi
 
 const REPO_NAME = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 
-export function isRepoName(value: string): boolean {
-  if (!REPO_NAME.test(value)) return false;
-  return value.split('/').every((part) => part !== '.' && part !== '..');
+/** The canonical `owner/name` for a repo spelling, or null when it isn't one. GitHub treats
+ *  owner and repo case-insensitively and accepts a `.git` suffix, so both are normalised away:
+ *  every path that accepts or compares a repo goes through here, and equal repos compare equal. */
+export function normalizeRepo(value: string): string | null {
+  if (!REPO_NAME.test(value)) return null;
+  const [owner, name] = value.replace(/\.git$/i, '').split('/') as [string, string];
+  if ([owner, name].some((part) => part === '' || part === '.' || part === '..')) return null;
+  return `${owner}/${name}`.toLowerCase();
 }
 
 const SCP_REMOTE = /^git@github\.com:([^/]+)\/(.+?)(?:\.git)?\/?$/;
@@ -53,8 +58,7 @@ const URL_REMOTE =
 export function parseGitHubRepo(url: string): string | null {
   const match = SCP_REMOTE.exec(url.trim()) ?? URL_REMOTE.exec(url.trim());
   if (match === null) return null;
-  const repo = `${match[1]}/${match[2]}`;
-  return isRepoName(repo) ? repo : null;
+  return normalizeRepo(`${match[1]}/${match[2]}`);
 }
 
 const sameKinds = (a: readonly WatchKind[], b: readonly WatchKind[]) =>

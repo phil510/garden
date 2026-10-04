@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  isRepoName,
+  normalizeRepo,
   normalizeKinds,
   parseGitHubRepo,
   pruneWatches,
@@ -88,14 +88,16 @@ describe('parseGitHubRepo', () => {
   });
 });
 
-describe('isRepoName', () => {
+describe('normalizeRepo', () => {
   it('accepts owner/name and rejects anything else', () => {
-    expect(isRepoName('acme/widgets')).toBe(true);
-    expect(isRepoName('acme')).toBe(false);
-    expect(isRepoName('acme/widgets/x')).toBe(false);
-    expect(isRepoName('acme/ widgets')).toBe(false);
-    expect(isRepoName('../widgets')).toBe(false);
-    expect(isRepoName('')).toBe(false);
+    expect(normalizeRepo('acme/widgets')).toBe('acme/widgets');
+    for (const bad of ['acme', 'acme/widgets/x', 'acme/ widgets', '../widgets', '', 'acme/.git'])
+      expect(normalizeRepo(bad), bad).toBeNull();
+  });
+
+  it('strips .git and lowercases so spellings of one repo compare equal', () => {
+    expect(normalizeRepo('Acme/Widgets.GIT')).toBe('acme/widgets');
+    expect(normalizeRepo('acme/widgets.js')).toBe('acme/widgets.js');
   });
 });
 

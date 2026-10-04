@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { AddWatchRequest, WatchSummary } from '@garden/shared';
 import {
-  isRepoName,
+  normalizeRepo,
   parseGitHubRepo,
   pruneWatches,
   removeWatch as removeWatchRule,
@@ -60,8 +60,9 @@ async function resolveRepo(
   explicit: string | undefined,
 ): Promise<string> {
   if (explicit !== undefined) {
-    if (!isRepoName(explicit)) throw new RepoUnresolvedError(`not an owner/name repo: ${explicit}`);
-    return explicit.replace(/\.git$/, '');
+    const repo = normalizeRepo(explicit);
+    if (repo === null) throw new RepoUnresolvedError(`not an owner/name repo: ${explicit}`);
+    return repo;
   }
   let url: string | null;
   try {
@@ -110,10 +111,12 @@ export function removeWatch(
   request: { sessionId: string; pr: number; repo?: string },
 ): void {
   findSession(deps.projection, request.sessionId);
+  const repo =
+    request.repo === undefined ? undefined : (normalizeRepo(request.repo) ?? request.repo);
   updateWatches(
     deps,
     (watches) => {
-      const result = removeWatchRule(watches, request.sessionId, request.pr, request.repo);
+      const result = removeWatchRule(watches, request.sessionId, request.pr, repo);
       if (result.outcome === 'not-found')
         throw new WatchNotFoundError(`session is not watching PR ${String(request.pr)}`);
       if (result.outcome === 'ambiguous')

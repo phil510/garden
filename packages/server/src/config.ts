@@ -280,10 +280,10 @@ export function writeConfigFile(path: string, contents: Record<string, unknown>)
  *  unusable file resolves to `DEFAULT_CONFIG_FILE`, same as `ensureConfigFile`, but without
  *  writing anything or logging — a `GET /settings` re-read isn't the boot-time warning path.
  *
- *  A file that parses as JSON but fails `parseConfigFile`'s validation on some *other* field
- *  (e.g. a hand-edited `"port"`) still recovers its own `claudeCommand`, rather than reporting
- *  the default for a value that's actually sitting on disk: `getSettings` reads only this one
- *  field off the result, and an unrelated field's invalidity shouldn't make it lie about it. */
+ *  A file that parses as JSON but fails `parseConfigFile`'s validation on some field (e.g. a
+ *  hand-edited `"port"`) recovers only its own `claudeCommand`, rather than reporting the
+ *  default for a value that's actually sitting on disk; every other key falls back to its
+ *  default. */
 export function readConfigFile(path: string): ConfigFile {
   let text: string;
   try {

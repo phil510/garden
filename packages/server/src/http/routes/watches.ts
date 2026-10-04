@@ -7,7 +7,7 @@ import type {
   WatchResponse,
 } from '@garden/shared';
 import type { FastifyInstance } from 'fastify';
-import { isRepoName } from '../../domain/watches.js';
+import { normalizeRepo } from '../../domain/watches.js';
 import { addWatch, listWatches, removeWatch } from '../../app/watches.js';
 import type { WatchesDeps } from '../../app/watches.js';
 
@@ -19,7 +19,7 @@ function isAddWatchRequest(body: unknown): body is AddWatchRequest {
   const { pr, repo, kinds } = body as Record<string, unknown>;
   return (
     isPrNumber(pr) &&
-    (repo === undefined || (typeof repo === 'string' && isRepoName(repo))) &&
+    (repo === undefined || (typeof repo === 'string' && normalizeRepo(repo) !== null)) &&
     (kinds === undefined || (Array.isArray(kinds) && kinds.every(isWatchKind)))
   );
 }
@@ -48,7 +48,7 @@ export function watchRoutes(app: FastifyInstance, deps: WatchesDeps) {
     (request, reply) => {
       const { pr: rawPr, repo } = request.query;
       const pr = rawPr !== undefined && /^\d+$/.test(rawPr) ? Number(rawPr) : undefined;
-      if (!isPrNumber(pr) || (repo !== undefined && !isRepoName(repo)))
+      if (!isPrNumber(pr) || (repo !== undefined && normalizeRepo(repo) === null))
         return reply.code(400).send({
           error: 'pr must be a positive integer and repo owner/name',
         } satisfies ErrorResponse);

@@ -109,6 +109,15 @@ describe('addWatch', () => {
     expect(summary.repo).toBe('other/repo');
   });
 
+  it('treats a differently cased explicit repo as the origin-derived watch', async () => {
+    const { deps, overlay } = setup({});
+    await addWatch(deps, { sessionId: 's1', pr: 7 });
+
+    await addWatch(deps, { sessionId: 's1', pr: 7, repo: 'Acme/Widgets' });
+
+    expect(overlay().watches).toHaveLength(1);
+  });
+
   it.each([
     ['no origin', () => Promise.resolve(null)],
     ['a non-GitHub origin', () => Promise.resolve('https://gitlab.com/acme/widgets.git')],
@@ -169,6 +178,14 @@ describe('removeWatch', () => {
     removeWatch(deps, { sessionId: 's1', pr: 7, repo: 'other/repo' });
 
     expect(overlay().watches.map((w) => w.repo)).toEqual(['acme/widgets']);
+  });
+
+  it('matches the repo regardless of .git suffix and case', () => {
+    const { deps, overlay } = setup({ watches: [aWatch({ repo: 'other/repo' })] });
+
+    removeWatch(deps, { sessionId: 's1', pr: 7, repo: 'Other/Repo.git' });
+
+    expect(overlay().watches).toEqual([]);
   });
 
   it('removes a watch by pr alone without asking git', () => {
