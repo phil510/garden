@@ -32,6 +32,7 @@ const emptyOverlay: OverlayState = {
   swarmOrder: [],
   collapsedSwarms: [],
   hideDeadSwarms: [],
+  watches: [],
 };
 
 function fakeTmux(overrides: Partial<TmuxPort> = {}): TmuxPort {
@@ -873,6 +874,7 @@ describe('killSession', () => {
       swarmOrder: [],
       collapsedSwarms: [],
       hideDeadSwarms: [],
+      watches: [],
     });
 
     await killSession(

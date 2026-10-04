@@ -27,6 +27,7 @@ const emptyOverlay: OverlayState = {
   swarmOrder: [],
   collapsedSwarms: [],
   hideDeadSwarms: [],
+  watches: [],
 };
 
 /** In-memory: `app/swarms.ts`'s whole contract with the store is through

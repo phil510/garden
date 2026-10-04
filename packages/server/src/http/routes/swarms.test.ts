@@ -17,6 +17,7 @@ const emptyOverlay: OverlayState = {
   swarmOrder: [],
   collapsedSwarms: [],
   hideDeadSwarms: [],
+  watches: [],
 };
 
 function fakeProjection(overrides: Partial<Projection> = {}): Projection {

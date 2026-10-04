@@ -15,6 +15,7 @@ const emptyOverlay: OverlayState = {
   swarmOrder: [],
   collapsedSwarms: [],
   hideDeadSwarms: [],
+  watches: [],
 };
 
 /** In-memory StorePort: the projection's contract with the store is read-modify-write,
@@ -171,6 +172,7 @@ describe('ui state', () => {
     swarmOrder: [],
     collapsedSwarms: [],
     hideDeadSwarms: [],
+    watches: [],
   };
 
   it('orders the groups by the store order rather than by insertion', () => {

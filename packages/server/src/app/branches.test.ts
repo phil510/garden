@@ -14,6 +14,7 @@ const emptyOverlay: OverlayState = {
   swarmOrder: [],
   collapsedSwarms: [],
   hideDeadSwarms: [],
+  watches: [],
 };
 
 /** A real projection, so these tests exercise the same fold production runs — same rationale
