@@ -50,6 +50,13 @@ const watchesChanged: GardenEvent = {
   ],
 };
 
+const pipeChanged: GardenEvent = {
+  type: 'pipe-changed',
+  sessionId: 'sid-1',
+  connected: true,
+  lastConnectedAt: now,
+};
+
 const sequences: GardenEvent[][] = [
   [],
   [storeLoaded],
@@ -80,6 +87,8 @@ const sequences: GardenEvent[][] = [
   ],
   [transcript({}, now), watchesChanged],
   [watchesChanged, transcript({}, now)],
+  [transcript({}, now), pipeChanged],
+  [pipeChanged, transcript({}, now)],
   [
     transcript({}, now),
     { type: 'hook', payload: aHookEvent({ session_id: 'sid-3' }) },
@@ -105,6 +114,7 @@ const boot: GardenEvent[] = [
   rootResolved,
   branchResolved,
   watchesChanged,
+  pipeChanged,
 ];
 
 describe('boot replay equals steady state', () => {
@@ -162,6 +172,7 @@ const everyVariant: Record<GardenEvent['type'], GardenEvent> = {
   hook: { type: 'hook', payload: aHookEvent({ session_id: 'sid-1' }) },
   'tmux-snapshot': snapshot(false),
   'watches-changed': watchesChanged,
+  'pipe-changed': pipeChanged,
   'claude-session-names-loaded': {
     type: 'claude-session-names-loaded',
     names: { 'sid-1': 'garden-7a' },

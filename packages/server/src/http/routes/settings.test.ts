@@ -21,6 +21,10 @@ function fakeProjection(): Projection {
     updateOverlay: () => {
       throw new Error('not used by this test');
     },
+    overlay: () => {
+      throw new Error('not used by this test');
+    },
+    subscribeOverlay: () => () => undefined,
     placementOf: () => {
       throw new Error('not used by this test');
     },
@@ -40,6 +44,11 @@ function fakeConfigPort(overrides: Partial<ConfigPort> = {}): ConfigPort {
 function fakeDeps(overrides: Partial<ServerDeps> = {}): ServerDeps {
   return {
     projection: fakeProjection(),
+    pipes: {
+      connect: () => ({ ack: () => undefined, close: () => undefined }),
+      sweep: () => undefined,
+      replay: () => undefined,
+    },
     rootWatches: { connect: () => ({ watch: () => Promise.resolve(), close: () => undefined }) },
     tmux: {
       listPanes: () => Promise.reject(new Error('not used by this test')),

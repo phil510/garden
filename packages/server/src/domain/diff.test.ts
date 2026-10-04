@@ -46,6 +46,8 @@ describe('diff', () => {
       lastActivity: before.lastActivity + 1,
       claudeSessionName: 'garden-7a',
       watches: [{ repo: 'o/n', pr: 1, kinds: ['closed'], pendingDigest: false, status: 'active' }],
+      pipeConnected: true,
+      pipeLastConnectedAt: 1_000,
     };
     const [delta] = diff(withSessions(before), withSessions(after));
     const changed = delta?.type === 'session-changed' ? Object.keys(delta.changes) : [];

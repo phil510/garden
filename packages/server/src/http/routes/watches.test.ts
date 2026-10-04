@@ -17,6 +17,7 @@ const overlay: OverlayState = {
   collapsedSwarms: [],
   hideDeadSwarms: [],
   watches: [],
+  pipes: {},
 };
 
 const unused = () => {
@@ -32,6 +33,8 @@ function buildApp(remoteUrl: () => Promise<string | null>, watches: OverlayState
     subscribe: () => () => undefined,
     subscribeUiState: () => () => undefined,
     updateOverlay: (mutate) => mutate({ ...overlay, watches }),
+    overlay: unused,
+    subscribeOverlay: () => () => undefined,
     placementOf: unused,
   };
   const deps: WatchesDeps = { projection, git: { remoteUrl } };

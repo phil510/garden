@@ -33,6 +33,12 @@ export interface Projection {
    *  `updateUiState` write does. Swarm and placement mutations never go through
    *  `updateUiState`, which stays UI-patch-only. */
   updateOverlay(mutate: (base: OverlayState) => OverlayState): OverlayState;
+  /** A fresh read of the overlay. */
+  overlay(): OverlayState;
+  /** Calls `listener` with the new overlay after every `updateOverlay` that wrote. It runs
+   *  inside the write, before the writer's own follow-up dispatches, so a listener that acts
+   *  on the change defers it. */
+  subscribeOverlay(listener: (next: OverlayState) => void): () => void;
   placementOf(sessionId: string): ResolvedPlacement | undefined;
 }
 
@@ -103,6 +109,7 @@ export function createProjection(store: StorePort): Projection {
   let ui = toUiState(store.read());
   const listeners = new Set<(deltas: Delta[]) => void>();
   const uiListeners = new Set<(uiState: UiState) => void>();
+  const overlayListeners = new Set<(next: OverlayState) => void>();
 
   return {
     sessions: (filter) => {
@@ -162,7 +169,15 @@ export function createProjection(store: StorePort): Projection {
       store.write(next);
       ui = toUiState(next);
       for (const listener of [...uiListeners]) listener(ui);
+      for (const listener of [...overlayListeners]) listener(next);
       return next;
+    },
+
+    overlay: () => store.read(),
+
+    subscribeOverlay(listener) {
+      overlayListeners.add(listener);
+      return () => overlayListeners.delete(listener);
     },
 
     placementOf(sessionId) {

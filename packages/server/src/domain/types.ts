@@ -34,7 +34,14 @@ export type GardenEvent =
   | { type: 'tmux-snapshot'; sessions: TmuxSessionFact[] }
   | { type: 'claude-session-names-loaded'; names: Record<string, string> }
   /** The full, current summary list for one session; an empty list means it has none. */
-  | { type: 'watches-changed'; sessionId: string; watches: WatchSummary[] };
+  | { type: 'watches-changed'; sessionId: string; watches: WatchSummary[] }
+  /** Whether a pipe is connected for one session, and when one last was. */
+  | { type: 'pipe-changed'; sessionId: string; connected: boolean; lastConnectedAt: number | null };
+
+export interface PipeFact {
+  connected: boolean;
+  lastConnectedAt: number | null;
+}
 
 export interface GardenState {
   sessions: SessionMap;
@@ -57,4 +64,7 @@ export interface GardenState {
   /** Watch summaries by session id, keyed like `repoRoots` so an entry that lands before its
    *  session is still waiting when the session appears. A session with no watches has no key. */
   watches: Record<string, WatchSummary[]>;
+  /** Pipe connection facts by session id, keyed like `watches`. A session with no entry has
+   *  never had a pipe as far as garden knows. */
+  pipes: Record<string, PipeFact>;
 }

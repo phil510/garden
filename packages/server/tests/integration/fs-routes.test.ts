@@ -10,6 +10,7 @@ import { createProjection } from '../../src/app/projection.js';
 import { createRepoCatalog } from '../../src/app/repoCatalog.js';
 import type { OverlayState, StorePort } from '../../src/app/ports.js';
 import { createServer } from '../../src/http/server.js';
+import { noPipes } from './support/noPipes.js';
 import { noRootWatches } from './support/noRootWatches.js';
 
 function fakeStore(): StorePort {
@@ -48,6 +49,7 @@ describe('/fs routes against a real temp repo', () => {
     projection.dispatch({ type: 'session-registered', id: 'sid', tmuxName: 'x', cwd });
     const app = createServer({
       projection,
+      pipes: noPipes,
       rootWatches: noRootWatches,
       tmux: {
         listPanes: () => Promise.reject(new Error('not used by this test')),

@@ -37,6 +37,7 @@ const emptyOverlay: OverlayState = {
   collapsedSwarms: [],
   hideDeadSwarms: [],
   watches: [],
+  pipes: {},
 };
 
 function fakeTmux(overrides: Partial<TmuxPort> = {}): TmuxPort {
@@ -84,6 +85,10 @@ function fakeProjection(
     updateOverlay: () => {
       throw new Error('not used by this test');
     },
+    overlay: () => {
+      throw new Error('not used by this test');
+    },
+    subscribeOverlay: () => () => undefined,
     placementOf: () => undefined,
   };
 }
@@ -744,6 +749,7 @@ describe('POST /sessions/:id/kill', () => {
         collapsedSwarms: [],
         hideDeadSwarms: [],
         watches: [],
+        pipes: {},
       }),
       projection: fakeProjection([session]),
       serverPort: 4310,
@@ -774,6 +780,7 @@ describe('POST /sessions/:id/kill', () => {
           collapsedSwarms: [],
           hideDeadSwarms: [],
           watches: [],
+          pipes: {},
         }),
         projection: fakeProjection([session]),
         serverPort: 4310,

@@ -32,6 +32,7 @@ import type {
   TmuxPort,
   TranscriptPort,
 } from './app/ports.js';
+import { createPipes, type Pipes } from './app/pipes.js';
 import { createProjection, type Projection } from './app/projection.js';
 import { createRepoCatalog } from './app/repoCatalog.js';
 import { createRootWatches } from './app/rootWatch.js';
@@ -52,8 +53,11 @@ import {
 import type { TmuxSessionFact } from './domain/types.js';
 import { createServer } from './http/server.js';
 
-/** How often the tmux poll re-derives liveness. It is the only recurring timer the server has. */
+/** How often the tmux poll re-derives liveness. */
 const TMUX_POLL_INTERVAL_MS = 2000;
+
+/** How often the pipe sweep ends watches that have had no pipe for seven days. */
+const PIPE_SWEEP_INTERVAL_MS = 60 * 60 * 1000;
 
 function tmuxPort(target: TmuxTarget): TmuxPort {
   return {
@@ -154,6 +158,7 @@ async function dispatchClaudeSessionNames(
  */
 async function replay(
   projection: Projection,
+  pipes: Pipes,
   store: StorePort,
   tmux: TmuxPort,
   transcripts: TranscriptPort,
@@ -168,6 +173,11 @@ async function replay(
     replayWatches({ projection, git }, Date.now());
   } catch (error) {
     logger.error(`watch replay failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  try {
+    pipes.replay();
+  } catch (error) {
+    logger.error(`pipe replay failed: ${error instanceof Error ? error.message : String(error)}`);
   }
   await dispatchTmuxSnapshot(projection, tmux);
   try {
@@ -222,6 +232,7 @@ export async function main(detached: boolean): Promise<void> {
   const transcripts = transcriptPort(config, logger);
   const git = gitPort();
   const projection = createProjection(store);
+  const pipes = createPipes({ projection, git });
   const attach: AttachRegistry = createAttachRegistry({
     pty: ptyPort({ socket: config.tmuxSocket, confPath }),
     projection,
@@ -242,6 +253,7 @@ export async function main(detached: boolean): Promise<void> {
 
   await replay(
     projection,
+    pipes,
     store,
     tmux,
     transcripts,
@@ -285,10 +297,21 @@ export async function main(detached: boolean): Promise<void> {
     });
   }, TMUX_POLL_INTERVAL_MS);
 
+  // The first sweep is one interval after boot, which gives pipes time to reconnect after a
+  // restart before the no-pipe rule can end a watch.
+  const pipeSweep = setInterval(() => {
+    try {
+      pipes.sweep(Date.now());
+    } catch (error) {
+      logger.error(`pipe sweep failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }, PIPE_SWEEP_INTERVAL_MS);
+
   const repos = createRepoCatalog({ git, roots: config.roots });
   const app = createServer(
     {
       projection,
+      pipes,
       tmux,
       store,
       git,
@@ -307,6 +330,7 @@ export async function main(detached: boolean): Promise<void> {
   );
   app.addHook('onClose', () => {
     clearInterval(poll);
+    clearInterval(pipeSweep);
     stopRepoRoots();
     branches.stop();
     return watcher.close();

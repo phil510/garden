@@ -11,6 +11,9 @@ import {
   listSessions,
   placeSession,
   resumeSession,
+  unwatch,
+  watch,
+  watches,
 } from './http.js';
 
 type Handler = (request: IncomingMessage, response: ServerResponse) => void;
@@ -206,12 +209,53 @@ describe('killSession', () => {
   });
 });
 
+describe('watch verbs', () => {
+  it('posts the watch request to the session watches route', async () => {
+    const summary = {
+      repo: 'o/n',
+      pr: 5,
+      kinds: ['review'],
+      pendingDigest: false,
+      status: 'active',
+    };
+    let body = '';
+    await startServer((request, response) => {
+      expect(request.method).toBe('POST');
+      expect(request.url).toBe('/sessions/a%20b/watches');
+      void readBody(request).then((text) => {
+        body = text;
+        sendJson(response, 200, { watch: summary });
+      });
+    });
+    await expect(watch('a b', { pr: 5, kinds: ['review'] })).resolves.toEqual({ watch: summary });
+    expect(JSON.parse(body)).toEqual({ pr: 5, kinds: ['review'] });
+  });
+
+  it('deletes by pr and repo query and lists with a GET', async () => {
+    const seen: string[] = [];
+    await startServer((request, response) => {
+      seen.push(`${request.method ?? ''} ${request.url ?? ''}`);
+      sendJson(response, 200, request.method === 'GET' ? { watches: [] } : { ok: true });
+    });
+    await unwatch('s1', { pr: 5, repo: 'o/n' });
+    await unwatch('s1', { pr: 6 });
+    await watches('s1');
+    expect(seen).toEqual([
+      'DELETE /sessions/s1/watches?pr=5&repo=o%2Fn',
+      'DELETE /sessions/s1/watches?pr=6',
+      'GET /sessions/s1/watches',
+    ]);
+  });
+});
+
 describe('errors', () => {
   it('surfaces the server error message on a non-ok response', async () => {
     await startServer((_request, response) => {
       sendJson(response, 404, { error: 'no such session: abc' });
     });
-    await expect(listSessions()).rejects.toThrow(new CliHttpError('no such session: abc'));
+    await expect(listSessions()).rejects.toThrow(
+      new CliHttpError('no such session: abc', { status: 404 }),
+    );
   });
 
   it('reports the server as not running when the connection is refused', async () => {

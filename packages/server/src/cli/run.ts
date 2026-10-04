@@ -9,13 +9,37 @@ import {
   parseNonNegativeInt,
 } from '@garden/shared';
 import type { CliClient, Io } from './commands.js';
-import { defaultClient, runAdopt, runKill, runLs, runNew, runResume } from './commands.js';
+import {
+  defaultClient,
+  runAdopt,
+  runKill,
+  runLs,
+  runNew,
+  runResume,
+  runUnwatch,
+  runWatch,
+  runWatches,
+} from './commands.js';
+import { runEventsFollow } from './events.js';
 import { writeAll } from './io.js';
+import { openLifeline } from './lifeline.js';
 import { SERVER_DETACHED_FLAG } from './start.js';
 import { defaultStopAllDeps, runStop, runStopAll, type StopAllDeps } from './stop.js';
 import { runUninstall } from './uninstall.js';
 
-const CLI_COMMANDS = ['new', 'ls', 'kill', 'resume', 'adopt', 'stop', 'uninstall'] as const;
+const CLI_COMMANDS = [
+  'new',
+  'ls',
+  'kill',
+  'resume',
+  'adopt',
+  'watch',
+  'unwatch',
+  'watches',
+  'events',
+  'stop',
+  'uninstall',
+] as const;
 export type CliCommand = (typeof CLI_COMMANDS)[number];
 
 export function isCliCommand(command: string | undefined): command is CliCommand {
@@ -24,8 +48,9 @@ export function isCliCommand(command: string | undefined): command is CliCommand
 
 export function usageLines(): string {
   return (
-    'usage: garden [new <dir> | ls | kill <id> | ' +
-    'resume <id> | adopt <id> | stop [--all] | uninstall]\n'
+    'usage: garden [new <dir> | ls | kill <id> | resume <id> | adopt <id> | ' +
+    'watch <pr> | unwatch <pr> | unwatch --all | watches | events --follow | ' +
+    'stop [--all] | uninstall]\n'
   );
 }
 
@@ -172,6 +197,15 @@ function tryParseArgs<T extends ParseArgsConfig>(
   }
 }
 
+/** A PR number is a positive integer; `parseArgs` and `Number` would accept `1e3` or `0x10`. */
+function parsePr(value: string | undefined): number | undefined {
+  if (value === undefined || !/^\d+$/.test(value)) return undefined;
+  const pr = Number(value);
+  return Number.isSafeInteger(pr) && pr > 0 ? pr : undefined;
+}
+
+const SESSION_FLAG_USAGE = '[--session <id>]';
+
 /** `rest` is `garden <command>`'s remaining argv: positionals plus `--json`. `stopAllDeps` is
  *  not threaded through by any real caller — it exists so tests can dispatch `stop --all`
  *  without exercising the real tmux-kill-server / server-stop side effects. */
@@ -181,6 +215,7 @@ export async function runCli(
   io: Io,
   client: CliClient = defaultClient,
   stopAllDeps: StopAllDeps = defaultStopAllDeps,
+  env: NodeJS.ProcessEnv = process.env,
 ): Promise<0 | 1> {
   const parsedArgs = tryParseArgs({
     args: rest,
@@ -195,6 +230,10 @@ export async function runCli(
       swarm: { type: 'string' },
       model: { type: 'string' },
       effort: { type: 'string' },
+      repo: { type: 'string' },
+      on: { type: 'string' },
+      session: { type: 'string' },
+      follow: { type: 'boolean', default: false },
     },
     allowPositionals: true,
   });
@@ -235,6 +274,32 @@ export async function runCli(
       return positionals[0] === undefined
         ? usage(io, 'garden adopt <id>')
         : runAdopt(io, positionals[0], json, client);
+    case 'watch': {
+      const pr = parsePr(positionals[0]);
+      const form = `garden watch <pr> [--repo <owner/name>] [--on <kinds>] ${SESSION_FLAG_USAGE}`;
+      if (pr === undefined) return usage(io, form);
+      const kinds = values.on === undefined ? undefined : values.on.split(',');
+      return runWatch(
+        io,
+        { env, session: values.session, pr, repo: values.repo, kinds },
+        json,
+        client,
+      );
+    }
+    case 'unwatch': {
+      const pr = values.all ? 'all' : parsePr(positionals[0]);
+      if (pr === undefined)
+        return usage(io, `garden unwatch <pr> [--repo <owner/name>] ${SESSION_FLAG_USAGE} | --all`);
+      return runUnwatch(io, { env, session: values.session, pr, repo: values.repo }, json, client);
+    }
+    case 'watches':
+      return runWatches(io, { env, session: values.session }, json, client);
+    case 'events': {
+      if (!values.follow || values.session !== undefined)
+        return usage(io, 'garden events --follow');
+      const { out, gone } = openLifeline();
+      return runEventsFollow({ env, out, stderr: io.stderr, gone });
+    }
     case 'stop':
       return values.all === true
         ? runStopAll(io, values.yes === true, client, stopAllDeps)

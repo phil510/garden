@@ -63,6 +63,11 @@ export interface SessionState {
   /** The session's PR watches, derived from the overlay by `reduce` so a change reaches clients
    *  as an ordinary session delta. Empty when the session has none. */
   watches: WatchSummary[];
+  /** Whether a `garden events --follow` pipe is connected for this session. */
+  pipeConnected: boolean;
+  /** The last moment a pipe was known connected, as persisted; refreshed hourly while one is
+   *  connected. Null when none has ever connected. */
+  pipeLastConnectedAt: number | null;
   /** Swarm/placement fields, merged on from the overlay's `placements` map at read time
    *  (`app/projection.ts`). Mirrors `SessionPlacement`'s shape; absent for an unplaced
    *  session. Not derived by `domain/reduce.ts`/`domain/diff.ts`: a fresh HTTP `GET
@@ -316,6 +321,18 @@ export type ServerMessage =
 export interface EventsClientMessage {
   type: 'watch';
   root: string;
+}
+
+/** `WS /sessions/:id/events`, server to client: one watch digest line to print. */
+export type PipeServerMessage = { type: 'digest'; id: string; line: string };
+
+/** `WS /sessions/:id/events`, client to server: the digest `id` has been printed and may be
+ *  cleared. */
+export type PipeClientMessage = { type: 'ack'; id: string };
+
+/** Path of a session's pipe stream. */
+export function pipeStreamPath(sessionId: string): string {
+  return `/sessions/${encodeURIComponent(sessionId)}/events`;
 }
 
 /** `WS /attach/:id`: bytes are binary frames, resize is JSON. */

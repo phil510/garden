@@ -95,6 +95,7 @@ describe('readOverlayState', () => {
         collapsedSwarms: [],
         hideDeadSwarms: [],
         watches: [],
+        pipes: {},
       });
       expect(logger.warnings).toEqual([]);
     });
@@ -210,6 +211,50 @@ describe('readOverlayState watches', () => {
   });
 });
 
+describe('readOverlayState pipes', () => {
+  const file = (pipes: unknown) => ({
+    version: 1,
+    tmuxNames: { 'session-1': 'garden-project' },
+    groups: {},
+    stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
+    pipes,
+  });
+  const read = (contents: unknown) => {
+    const logger = collectingLogger();
+    let state = DEFAULT_OVERLAY_STATE;
+    withTempAppDir((appDir) => {
+      mkdirSync(appDir, { recursive: true });
+      writeFileSync(join(appDir, 'state.json'), JSON.stringify(contents));
+      state = readOverlayState(appDir, logger);
+    });
+    return { state, logger };
+  };
+
+  it('loads no pipe times from a file written before they existed', () => {
+    const legacy: Record<string, unknown> = file({});
+    delete legacy['pipes'];
+    const { state, logger } = read(legacy);
+    expect(state.pipes).toEqual({});
+    expect(state.tmuxNames).toEqual({ 'session-1': 'garden-project' });
+    expect(logger.warnings).toEqual([]);
+  });
+
+  it('round-trips pipe times through a write', () => {
+    withTempAppDir((appDir) => {
+      const state: OverlayState = { ...DEFAULT_OVERLAY_STATE, pipes: { 'session-1': 1234 } };
+      writeOverlayState(appDir, state);
+      expect(readOverlayState(appDir, collectingLogger())).toEqual(state);
+    });
+  });
+
+  it('drops a malformed entry with a warning while keeping the rest', () => {
+    const { state, logger } = read(file({ good: 5, text: 'soon', nothing: null }));
+    expect(state.pipes).toEqual({ good: 5 });
+    expect(state.tmuxNames).toEqual({ 'session-1': 'garden-project' });
+    expect(logger.warnings).toHaveLength(2);
+  });
+});
+
 describe('writeOverlayState', () => {
   it('round-trips a written state, including swarms, placements and swarm order/collapse/hide-dead', () => {
     withTempAppDir((appDir) => {
@@ -236,6 +281,7 @@ describe('writeOverlayState', () => {
             status: 'closed',
           },
         ],
+        pipes: { 'session-1': 300 },
       };
       writeOverlayState(appDir, state);
       expect(readOverlayState(appDir, collectingLogger())).toEqual(state);

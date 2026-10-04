@@ -4,11 +4,22 @@ import type {
   SessionsFilter,
   SessionState,
   SessionsResponse,
+  WatchSummary,
 } from '@garden/shared';
 import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { CliClient, Io } from './commands.js';
-import { runAdopt, runKill, runLs, runNew, runResume } from './commands.js';
+import {
+  runAdopt,
+  runKill,
+  runLs,
+  runNew,
+  runResume,
+  runUnwatch,
+  runWatch,
+  runWatches,
+} from './commands.js';
+import { CliHttpError } from './http.js';
 
 function collectingIo(): { io: Io; stdout: string[]; stderr: string[] } {
   const stdout: string[] = [];
@@ -46,6 +57,8 @@ function aSession(overrides: Partial<SessionState> = {}): SessionState {
     lastActivity: 0,
     claudeSessionName: null,
     watches: [],
+    pipeConnected: false,
+    pipeLastConnectedAt: null,
     ...overrides,
   };
 }
@@ -57,6 +70,9 @@ function throwingClient(error: Error): CliClient {
     resumeSession: () => Promise.reject(error),
     killSession: () => Promise.reject(error),
     placeSession: () => Promise.reject(error),
+    watch: () => Promise.reject(error),
+    unwatch: () => Promise.reject(error),
+    watches: () => Promise.reject(error),
   };
 }
 
@@ -350,5 +366,141 @@ describe('runKill', () => {
 
     expect(exitCode).toBe(0);
     expect(stdout).toEqual([`${JSON.stringify(response)}\n`]);
+  });
+});
+
+function aWatch(overrides: Partial<WatchSummary> = {}): WatchSummary {
+  return {
+    repo: 'owner/name',
+    pr: 123,
+    kinds: ['review', 'comment', 'checks', 'conflict', 'closed'],
+    pendingDigest: false,
+    status: 'active',
+    ...overrides,
+  };
+}
+
+describe('runWatches', () => {
+  it('prints one line per watch and marks a waiting digest', async () => {
+    const { io, stdout } = collectingIo();
+    const client: CliClient = {
+      ...throwingClient(new Error('unused')),
+      watches: () =>
+        Promise.resolve({
+          watches: [aWatch(), aWatch({ pr: 7, kinds: ['closed'], pendingDigest: true })],
+        }),
+    };
+
+    const exitCode = await runWatches(
+      io,
+      { env: { GARDEN_SESSION_ID: 's1' }, session: undefined },
+      false,
+      client,
+    );
+
+    expect(exitCode).toBe(0);
+    expect(stdout).toEqual([
+      'owner/name#123 review,comment,checks,conflict,closed active\nowner/name#7 closed active pending\n',
+    ]);
+  });
+
+  it('says so when there are no watches, and prints the response as JSON with --json', async () => {
+    const { io, stdout } = collectingIo();
+    const client: CliClient = {
+      ...throwingClient(new Error('unused')),
+      watches: () => Promise.resolve({ watches: [] }),
+    };
+    const target = { env: { GARDEN_SESSION_ID: 's1' }, session: undefined };
+
+    await runWatches(io, target, false, client);
+    await runWatches(io, target, true, client);
+
+    expect(stdout).toEqual(['no watches\n', '{"watches":[]}\n']);
+  });
+
+  it('fails without a session from the flag or the environment', async () => {
+    const { io, stderr } = collectingIo();
+
+    const exitCode = await runWatches(
+      io,
+      { env: {}, session: undefined },
+      false,
+      throwingClient(new Error('unused')),
+    );
+
+    expect(exitCode).toBe(1);
+    expect(stderr).toEqual(['garden: GARDEN_SESSION_ID is not set\n']);
+  });
+});
+
+describe('runWatch', () => {
+  it('prints the created watch in the same form as the list', async () => {
+    const { io, stdout } = collectingIo();
+    const client: CliClient = {
+      ...throwingClient(new Error('unused')),
+      watch: () => Promise.resolve({ watch: aWatch({ kinds: ['review', 'closed'] }) }),
+    };
+
+    const exitCode = await runWatch(
+      io,
+      {
+        env: { GARDEN_SESSION_ID: 's1' },
+        session: undefined,
+        pr: 123,
+        repo: undefined,
+        kinds: ['review'],
+      },
+      false,
+      client,
+    );
+
+    expect(exitCode).toBe(0);
+    expect(stdout).toEqual(['owner/name#123 review,closed active\n']);
+  });
+});
+
+describe('runUnwatch', () => {
+  it('skips a watch that vanished between the list and its delete, and removes the rest', async () => {
+    const { io, stdout } = collectingIo();
+    const removed: string[] = [];
+    const client: CliClient = {
+      ...throwingClient(new Error('unused')),
+      watches: () => Promise.resolve({ watches: [aWatch({ pr: 1 }), aWatch({ pr: 2 })] }),
+      unwatch: (_session, { pr }) => {
+        if (pr === 1) return Promise.reject(new CliHttpError('not watching', { status: 404 }));
+        removed.push(String(pr));
+        return Promise.resolve({ ok: true });
+      },
+    };
+
+    const exitCode = await runUnwatch(
+      io,
+      { env: { GARDEN_SESSION_ID: 's1' }, session: undefined, pr: 'all', repo: undefined },
+      false,
+      client,
+    );
+
+    expect(exitCode).toBe(0);
+    expect(removed).toEqual(['2']);
+    expect(stdout).toEqual(['unwatched\n']);
+  });
+
+  it('stops on any other failure', async () => {
+    const { io, stderr } = collectingIo();
+    const client: CliClient = {
+      ...throwingClient(new Error('unused')),
+      watches: () => Promise.resolve({ watches: [aWatch()] }),
+      unwatch: () => Promise.reject(new CliHttpError('boom', { status: 500 })),
+    };
+
+    const exitCode = await runUnwatch(
+      io,
+      { env: { GARDEN_SESSION_ID: 's1' }, session: undefined, pr: 'all', repo: undefined },
+      false,
+      client,
+    );
+
+    expect(exitCode).toBe(1);
+    expect(stderr).toEqual(['garden: boom\n']);
   });
 });

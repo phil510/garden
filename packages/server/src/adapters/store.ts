@@ -16,6 +16,7 @@ export const DEFAULT_OVERLAY_STATE: OverlayState = {
   collapsedSwarms: [],
   hideDeadSwarms: [],
   watches: [],
+  pipes: {},
 };
 
 function statePath(appDir: string): string {
@@ -147,6 +148,21 @@ function readWatches(value: unknown, path: string, logger: StoreLogger): readonl
   return watches;
 }
 
+/** Like watches, a bad entry is dropped on its own rather than failing the file. */
+function readPipes(
+  value: unknown,
+  path: string,
+  logger: StoreLogger,
+): Readonly<Record<string, number>> {
+  if (!isRecord(value)) return {};
+  const pipes: Record<string, number> = {};
+  for (const [sessionId, at] of Object.entries(value)) {
+    if (typeof at === 'number' && Number.isFinite(at)) pipes[sessionId] = at;
+    else logger.warn(`dropping malformed pipe time for ${sessionId} in ${path}`);
+  }
+  return pipes;
+}
+
 /** A missing file means a fresh install. A file that is present but unreadable as an
  *  overlay is a loss worth reporting: `tmuxNames` maps session ids to the tmux names
  *  garden chose, and nothing can recompute it. */
@@ -181,6 +197,7 @@ export function readOverlayState(appDir: string, logger: StoreLogger): OverlaySt
     collapsedSwarms: isStringArray(parsed['collapsedSwarms']) ? parsed['collapsedSwarms'] : [],
     hideDeadSwarms: isStringArray(parsed['hideDeadSwarms']) ? parsed['hideDeadSwarms'] : [],
     watches: readWatches(parsed['watches'], path, logger),
+    pipes: readPipes(parsed['pipes'], path, logger),
   };
 }
 

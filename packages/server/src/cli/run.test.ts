@@ -3,9 +3,11 @@ import type {
   OkResponse,
   SessionsResponse,
   SpawnOptions,
+  WatchSummary,
 } from '@garden/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { CliClient, Io } from './commands.js';
+import { CliHttpError } from './http.js';
 import type { StopAllDeps } from './stop.js';
 import {
   decideEntrypointAction,
@@ -41,7 +43,14 @@ function spawnSuffix(options: SpawnOptions | undefined): string {
   return set.length === 0 ? '' : `:${JSON.stringify(Object.fromEntries(set))}`;
 }
 
-function recordingClient(): { client: CliClient; calls: string[] } {
+function aWatch(pr: number): WatchSummary {
+  return { repo: 'owner/name', pr, kinds: ['review'], pendingDigest: false, status: 'active' };
+}
+
+function recordingClient(
+  listedWatches: WatchSummary[] = [],
+  unwatchFails: ReadonlySet<number> = new Set(),
+): { client: CliClient; calls: string[] } {
   const calls: string[] = [];
   const sessions: SessionsResponse = { sessions: [] };
   const created: CreateSessionResponse = { id: 'abc', tmuxName: 'repo' };
@@ -67,17 +76,36 @@ function recordingClient(): { client: CliClient; calls: string[] } {
       calls.push(`place:${id}:${JSON.stringify(placement)}`);
       return Promise.resolve(ok);
     },
+    watch: (sessionId, request) => {
+      calls.push(`watch:${sessionId}:${JSON.stringify(request)}`);
+      return Promise.resolve({ watch: aWatch(request.pr) });
+    },
+    unwatch: (sessionId, target) => {
+      calls.push(`unwatch:${sessionId}:${JSON.stringify(target)}`);
+      if (unwatchFails.has(target.pr)) {
+        return Promise.reject(new CliHttpError('not watching', { status: 404 }));
+      }
+      return Promise.resolve(ok);
+    },
+    watches: (sessionId) => {
+      calls.push(`watches:${sessionId}`);
+      return Promise.resolve({ watches: listedWatches });
+    },
   };
   return { client, calls };
 }
 
 describe('isCliCommand', () => {
-  it('recognises the seven subcommands and nothing else', () => {
+  it('recognises the eleven subcommands and nothing else', () => {
     expect(isCliCommand('new')).toBe(true);
     expect(isCliCommand('ls')).toBe(true);
     expect(isCliCommand('kill')).toBe(true);
     expect(isCliCommand('resume')).toBe(true);
     expect(isCliCommand('adopt')).toBe(true);
+    expect(isCliCommand('watch')).toBe(true);
+    expect(isCliCommand('unwatch')).toBe(true);
+    expect(isCliCommand('watches')).toBe(true);
+    expect(isCliCommand('events')).toBe(true);
     expect(isCliCommand('stop')).toBe(true);
     expect(isCliCommand('uninstall')).toBe(true);
     expect(isCliCommand('bogus')).toBe(false);
@@ -439,6 +467,19 @@ describe('runCli', () => {
     expect(stderr).toEqual(['garden: usage: garden new <dir>\n']);
   });
 
+  it.each([[[]], [['--follow', '--session', 'other']]])(
+    'rejects "events" with args %j as a usage error',
+    async (args) => {
+      const { io, stderr } = collectingIo();
+      const { client, calls } = recordingClient();
+
+      expect(await runCli('events', args, io, client)).toBe(1);
+
+      expect(calls).toEqual([]);
+      expect(stderr).toEqual(['garden: usage: garden events --follow\n']);
+    },
+  );
+
   it('shows [--all] on the stop subcommand', () => {
     expect(usageLines()).toContain('stop [--all]');
   });
@@ -493,5 +534,90 @@ describe('runCli dispatch of "stop --all"', () => {
     expect(exitCode).toBe(0);
     expect(clientCalls).toEqual([]);
     expect(calls).toEqual(['stop', 'killTmuxServer']);
+  });
+});
+
+describe('runCli watch verbs', () => {
+  const env = { GARDEN_SESSION_ID: 'env-session' };
+  const run = (
+    command: 'watch' | 'unwatch' | 'watches',
+    args: string[],
+    client: CliClient,
+    callerEnv: NodeJS.ProcessEnv = env,
+  ) => runCli(command, args, collectingIo().io, client, undefined, callerEnv);
+
+  it('defaults the session from GARDEN_SESSION_ID and lets --session override it', async () => {
+    const { client, calls } = recordingClient();
+
+    expect(await run('watch', ['12'], client)).toBe(0);
+    expect(await run('watch', ['12', '--session', 'other'], client)).toBe(0);
+    expect(await run('watches', [], client)).toBe(0);
+    expect(await run('watches', ['--session', 'other'], client)).toBe(0);
+    expect(await run('unwatch', ['12'], client)).toBe(0);
+    expect(await run('unwatch', ['12', '--session', 'other'], client)).toBe(0);
+
+    expect(calls).toEqual([
+      'watch:env-session:{"pr":12}',
+      'watch:other:{"pr":12}',
+      'watches:env-session',
+      'watches:other',
+      'unwatch:env-session:{"pr":12}',
+      'unwatch:other:{"pr":12}',
+    ]);
+  });
+
+  it('passes --repo and a comma-separated --on through unmodified', async () => {
+    const { client, calls } = recordingClient();
+
+    await run('watch', ['5', '--repo', 'o/n', '--on', 'review,bogus'], client);
+    await run('unwatch', ['5', '--repo', 'o/n'], client);
+
+    expect(calls).toEqual([
+      'watch:env-session:{"pr":5,"repo":"o/n","kinds":["review","bogus"]}',
+      'unwatch:env-session:{"pr":5,"repo":"o/n"}',
+    ]);
+  });
+
+  it('removes every listed watch on unwatch --all and tolerates a 404', async () => {
+    const { client, calls } = recordingClient([aWatch(1), aWatch(2), aWatch(3)], new Set([2]));
+
+    expect(await run('unwatch', ['--all'], client)).toBe(0);
+
+    expect(calls).toEqual([
+      'watches:env-session',
+      'unwatch:env-session:{"pr":1,"repo":"owner/name"}',
+      'unwatch:env-session:{"pr":2,"repo":"owner/name"}',
+      'unwatch:env-session:{"pr":3,"repo":"owner/name"}',
+    ]);
+  });
+
+  it.each([
+    ['watch', []],
+    ['watch', ['abc']],
+    ['watch', ['1.5']],
+    ['watch', ['0']],
+    ['unwatch', []],
+    ['unwatch', ['x']],
+  ] as const)(
+    'rejects "%s %j" as a usage error before calling the server',
+    async (command, args) => {
+      const { io, stderr } = collectingIo();
+      const { client, calls } = recordingClient();
+
+      expect(await runCli(command, [...args], io, client, undefined, env)).toBe(1);
+
+      expect(calls).toEqual([]);
+      expect(stderr).toEqual([expect.stringContaining('garden: usage: garden ')]);
+    },
+  );
+
+  it('fails with no caller session when neither the flag nor the environment names one', async () => {
+    const { io, stderr } = collectingIo();
+    const { client, calls } = recordingClient();
+
+    expect(await runCli('watches', [], io, client, undefined, {})).toBe(1);
+
+    expect(calls).toEqual([]);
+    expect(stderr).toEqual(['garden: GARDEN_SESSION_ID is not set\n']);
   });
 });
