@@ -1,4 +1,5 @@
 import type {
+  AddWatchRequest,
   CreateSessionRequest,
   CreateSessionResponse,
   CreateSwarmRequest,
@@ -14,6 +15,7 @@ import type {
   SettingsResponse,
   TreeResponse,
   UiStateRequest,
+  WatchResponse,
 } from '@garden/shared';
 
 /** The server answered with a non-2xx status, or the response body was not JSON. */
@@ -134,5 +136,20 @@ export function setSessionPlacement(sessionId: string, placement: Placement): Pr
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ placement } satisfies PlacementRequest),
+  });
+}
+
+export function addWatch(sessionId: string, body: AddWatchRequest): Promise<WatchResponse> {
+  return request(`/sessions/${encodeURIComponent(sessionId)}/watches`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export function removeWatch(sessionId: string, pr: number, repo: string): Promise<OkResponse> {
+  const query = new URLSearchParams({ pr: String(pr), repo });
+  return request(`/sessions/${encodeURIComponent(sessionId)}/watches?${query.toString()}`, {
+    method: 'DELETE',
   });
 }
