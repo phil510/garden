@@ -6,6 +6,7 @@ import {
   nextLoaded,
   sameFileContent,
   sourceKey,
+  isLoading,
   type LoadedFile,
 } from './viewerSource';
 
@@ -133,5 +134,23 @@ describe('nextLoaded', () => {
       key: 'other',
       result: { kind: 'file', file: text },
     });
+  });
+});
+
+describe('isLoading', () => {
+  const source = { kind: 'root', root: '/a', path: 'x.ts' } as const;
+  const file: FileResponse = { kind: 'binary', path: 'x.ts' };
+
+  it('is true while a selected file has no result yet, so the viewer is not empty', () => {
+    expect(isLoading(source, null)).toBe(true);
+  });
+
+  it('is false with nothing selected', () => {
+    expect(isLoading(null, null)).toBe(false);
+  });
+
+  it('is false once the fetch has resolved, either way', () => {
+    expect(isLoading(source, { kind: 'file', file })).toBe(false);
+    expect(isLoading(source, { kind: 'error', message: 'nope' })).toBe(false);
   });
 });
