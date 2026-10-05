@@ -54,8 +54,9 @@ reason worth understanding, because the failure modes are silent.
 - **A bare `teammate-terminated` with no preceding result message means the
   worker died mid-stage.** The message-based fast path has nothing to
   route, so fall back to `scripts/pipeline-status.sh` to classify what (if
-  anything) completed, then fresh-spawn. Disk is the always-correct
-  fallback; the message is only the optimization.
+  anything) completed, then fresh-spawn — the fallback path, because the
+  worker is gone. Disk is the always-correct fallback; the message is only
+  the optimization.
 - **Resolve ambiguity at stage 0.** An artifact read carelessly doesn't
   fail early — an assumption about _what_ to build produces an
   escalation at every stage that inherits it, which costs far more of
@@ -80,8 +81,8 @@ reason worth understanding, because the failure modes are silent.
 
 Two consequences worth holding in mind: **briefs are idempotent** (a fresh
 teammate rebuilds all state from `workflow.md` + stage artifacts, which is
-what makes fresh-spawn-per-round safe and makes resume work without a
-resume primitive), and **session death takes all three workers** with it.
+what makes fresh-spawn-per-round safe for round workers and makes resume
+and the escalation fallback work), and **session death takes all three workers** with it.
 Disk state survives; in-memory state does not.
 
 There is **no auto-rollback** — bad commits stay, and the user decides
@@ -148,12 +149,16 @@ The planner defaults to **opus**, the developer and reviewer to
 `plant-developer` is dual-mode (`${MODE}` = `initial` or `fix-round`);
 `plant-reviewer` is single-mode — its opener carries no `${MODE}`.
 
-**Stage 1–3 workers escalate through disk**: write an escalation event,
-send an `ESCALATING` message, self-idle. Auto-resolve within the brief's
-Autonomy bounds if you can; page the user only when you can't. Either way,
-append the event's `## Resolution` block and the `> RESOLVED` annotation
-_before_ fresh-spawning under the next-numbered name with the decision in
-the opener. `references/escalate-resume.md` has the full protocol;
+**Workers escalate through disk**: write an escalation event, send an
+`ESCALATING` message, then wait — the escalator still holds the pen, so
+nothing else is dispatched. Auto-resolve within the brief's Autonomy
+bounds if you can; page the user only when you can't. Either way, append
+the event's `## Resolution` block and the `> RESOLVED` annotation first,
+so the decision survives the worker, then `SendMessage` the escalator by
+its live name and it continues in place. Only when it is gone do you
+fresh-spawn under the next-numbered name with the decision in the opener
+and let it rebuild from disk. `references/escalate-resume.md` has the
+full protocol;
 `references/autonomy.md` has the ladder that decides which branch you're
 on.
 
@@ -199,15 +204,19 @@ placeholder absent from that table.
 **Names are never reused.** Each re-spawn of a role takes the next counter
 value (`developer1` → `developer2`), because an idle teammate can't be
 reliably killed and a live worker sharing a name with lingering zombies is
-a routing ambiguity. Once a stage worker reports and idles, **treat it as
-dead**: never message it again. A `shutdown_request` is best-effort
-cleanup, not a kill — the handshake doesn't reliably complete, so idle
-teammates linger harmlessly (holding no write pen) until `/exit`.
+a routing ambiguity. Once a stage worker reports its stage **done**, treat
+it as finished: never message it again, since its successor may already
+hold the pen. An escalating worker hasn't finished — it is waiting on your
+decision, so messaging it back under its own name keeps it the only
+writer; no other worker was dispatched and no name is reused. A
+`shutdown_request` is best-effort cleanup, not a kill — the handshake
+doesn't reliably complete, so idle teammates linger harmlessly (holding no
+write pen) until `/exit`, and one must never go to a waiting escalator.
 
 Single-writer-per-moment therefore comes from self-idle plus your
 sequential dispatch, not from any kill. Full mechanics, including
-retry/replace and why fresh-spawn is the only recovery path, are in
-`references/spawn-details.md`.
+retry/replace and why fresh-spawn is the fallback rather than the first
+move for an escalation, are in `references/spawn-details.md`.
 
 ## Scripts
 
@@ -281,9 +290,10 @@ small); developer works from brief ACs`, then go to step 6. The box
    resume re-enter at the planner.
 5. **Route off each message, then spawn the next worker.** Classify the
    outcome (done / dirty / clean / escalating), dispatch, then spawn the
-   next-numbered stage-1–3 worker. The reporter self-idles; leave it. On
-   a bare `teammate-terminated`, use `pipeline-status.sh` to classify
-   what completed.
+   next-numbered stage-1–3 worker. A reporter of done self-idles; leave
+   it. On `escalating` the reporter is waiting, not finished: spawn
+   nothing and go to step 11. On a bare `teammate-terminated`, use
+   `pipeline-status.sh` to classify what completed.
 6. **Stage 1 done** → spawn developer (stage 2 initial). When it reports
    the draft PR, populate `${PR_URL}`.
 7. **Stage 2 done (draft PR open)** → spawn reviewer (stage 3 internal).
@@ -302,14 +312,20 @@ small); developer works from brief ACs`, then go to step 6. The box
    On `Size: small` the cap is one round, so a dirty round
    arrives as a `review_cap` escalation carrying the round file: page the
    user with the findings summary. Typical resolutions are one fix round
-   plus a re-review, or accept as is, applied through the normal
-   fresh-spawn-with-decision path.
+   plus a re-review, or accept as is, with the decision messaged back to
+   the reviewer (step 11).
 9. **Reviewer clean** → it has already flipped stage 3. The PR is still a
    draft. If the round's `## Summary` names limitations to disclose,
    record them in `decisions.md`; the finish gate puts every entry on the
    PR. Go to step 10.
 10. **Stage 4 — the finish gate.**
-    a. `gh pr ready <url>` — flip the draft to ready.
+    a. `gh pr ready <url>` — flip the draft to ready. Then check
+    `gh pr view <url> --json mergeable` before waiting on anything: a
+    conflicted PR often never gets CI, so `gh pr checks` reports no
+    checks and `--watch` alone can stall on it. `CONFLICTING` → (c2), not
+    (b). `UNKNOWN` means GitHub is still computing; re-query with a
+    bounded `until` loop under an explicit Bash `timeout`, and page the
+    user if it is still `UNKNOWN` at the bound.
     b. Block on CI: `gh pr checks <url> --watch`, with an explicit
     `timeout` on the Bash call. Garden's CI runs typecheck, lint,
     format, and unit tests plus a build and a separate integration job
@@ -321,20 +337,45 @@ small); developer works from brief ACs`, then go to step 6. The box
     review-round file in the findings shape the developer's fix-round
     mode already expects (`Disposition: fix`, `Severity`, `Location`,
     `Issue`, `Failure scenario`) describing what CI reported, dispatch
-    a developer fix-round against it, then re-check from (b).
-    d. **CI green** → act on brief field 7. `ask` → report CI-green
-    status to whoever is waiting on this pipeline — the local user, and
-    the dispatching peer if the brief named one — and hand them the
-    merge; the pipeline pauses here until step 12 confirms it. `auto` →
+    a developer fix-round against it, then re-check from (a)'s
+    mergeability check — the base may have moved during the round.
+    c2. **Conflict with base** → the base branch moved under the PR.
+    Write a review-round file with one `Disposition: fix` finding whose
+    `Location` is `base branch <baseRefName>` (read the name from `gh pr
+view --json baseRefName`, never assume `main`) — the shape the
+    developer's fix-round mode keys on to merge the base in — dispatch a
+    developer fix-round against it, then re-check from (a)'s
+    mergeability check. Same mechanism as (c), different trigger.
+    d. **CI green** → act on brief field 7. `ask` → re-check
+    mergeability first (a conflict goes to (c2), not to the user), then
+    report CI-green status to whoever is waiting on this pipeline — the
+    local user, and the dispatching peer if the brief named one — and
+    hand them the merge; the pipeline pauses here until step 12 confirms
+    it. If the gate is re-entered after the handover (the user comes
+    back, or a resume) and the PR is not `MERGED`, re-query `mergeable`
+    the same way before doing anything else. `auto` →
     `gh pr merge <url> --squash --delete-branch`; step 12's check is
-    what tells you whether this succeeded, not the exit code. Default
-    is `ask` — this is the one irreversible act in the pipeline, which
-    is why field 7 is the explicit switch for it.
-11. **Stage 1–3 escalation** → `references/escalate-resume.md`.
-    Auto-resolve within the brief's Autonomy bounds if you can, otherwise
-    page the user; append the event's `## Resolution` block and the
-    `> RESOLVED` annotation, then fresh-spawn under the next name with the
-    decision in the opener.
+    what tells you whether this succeeded, not the exit code, and the
+    trigger for a conflict is likewise the PR's state: if it is not
+    `MERGED` after the attempt, re-query `mergeable` and send
+    `CONFLICTING` to (c2). Default is `ask` — this is the one
+    irreversible act in the pipeline, which is why field 7 is the
+    explicit switch for it.
+11. **Worker escalation** (any stage, including a stage-4 fix round) →
+    `references/escalate-resume.md`. Auto-resolve within the brief's
+    Autonomy bounds if you can, otherwise page the user. Then, in this
+    order: append the event's `## Resolution` block and the `> RESOLVED`
+    annotation (disk first, so the decision survives the worker),
+    `SendMessage` the escalator by its live name with the decision and a
+    pointer to the event file, and append `> NOTE <iso> — orchestrator:
+decision sent to <name>`. Within a session, a `> RESOLVED` that closes an
+    `> ESCALATED` and has no such note after it means the send never
+    happened — send it, don't spawn (unless the escalator is gone, below). Fresh-spawn under the next name with the decision in the
+    opener only when the escalator is gone (a new session, or
+    `teammate-terminated` with no result). A live worker that goes idle
+    after the decision with no result message is silent, not gone — it may
+    still write, and a replacement beside it is a second writer — so page
+    the user instead of replacing it.
 12. **Completion or abort — the shared convergence point for however the
     pipeline ends**, reached from step 10(d) once `gh pr view --json state`
     confirms `MERGED`, under every merge policy — neither of the
@@ -389,7 +430,10 @@ worktree at <path>`. Running both via `git -C` from the main
 
 **Mid-pipeline scope changes.** When a user decision changes scope, edit
 the brief field in place and annotate — only between worker invocations,
-never while one is running. See `references/brief.md` § Brief editing
+never while one is running. An escalation pause counts as between
+invocations: land the edit on disk before the decision message, and the
+message tells the escalator to re-read the brief; the live escalator is
+never replaced for a brief edit. See `references/brief.md` § Brief editing
 mid-pipeline and § Mid-pipeline user concerns.
 
 ## Resume
@@ -407,9 +451,11 @@ the signal you should have resumed instead of initialized.
 Before advancing the pipeline, resolve anything in the status output's
 `open_escalations[]`: read that event file, page the user if the decision
 isn't already recorded there, then append the event's `## Resolution`
-block and the `> RESOLVED` annotation. A freshly spawned worker reads its
-decision from that block, so an unresolved escalation left dangling means
-the next spawn has nothing to act on.
+block and the `> RESOLVED` annotation. This is the fallback path: the
+escalating worker died with the old session, so a fresh spawn reads its
+decision from that block, and an unresolved escalation left dangling means
+it has nothing to act on. A `review_cap` one goes to a reviewer with
+`${ROUND}` the round it escalated on.
 
 Re-enter at the reported `current_stage` by fresh-spawning that stage's
 worker. Worker counters restart at 1 in a new session — the old team died
@@ -418,9 +464,10 @@ new `developer1` (`references/spawn-details.md` § Naming).
 
 `current_stage: 4` means stages 1–3 are flipped, so the re-entry point is
 the finish gate, not a stage worker — check `gh pr view --json
-isDraft,state` and pick up at whichever of step 10's sub-steps the PR's
-actual state implies (still draft → (a); ready with checks pending → (b);
-checks failed → (c)). Stage 4's checkbox is never flipped by any worker —
+isDraft,state,mergeable` and pick up at whichever of step 10's sub-steps
+the PR's actual state implies (still draft → (a); `mergeable:
+CONFLICTING` → (c2); ready with checks pending → (b); checks failed →
+(c)). Stage 4's checkbox is never flipped by any worker —
 `Status: completed | aborted` is the real completion signal, so a
 `current_stage: 4` with `status: active` means the finish gate was
 underway, not that stage 4 never started.
