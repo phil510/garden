@@ -131,10 +131,34 @@ describe('fact parsers', () => {
 
     expect(page.count).toBe(6);
     expect(page.items).toEqual([
-      { id: 1, login: 'a', submittedAt: Date.parse('2026-01-01T00:00:00Z'), wrapper: false },
-      { id: 3, login: 'c', submittedAt: Date.parse('2026-01-02T00:00:00Z'), wrapper: false },
-      { id: 4, login: 'd', submittedAt: Date.parse('2026-01-03T00:00:00Z'), wrapper: true },
-      { id: 5, login: 'e', submittedAt: Date.parse('2026-01-04T00:00:00Z'), wrapper: false },
+      {
+        id: 1,
+        login: 'a',
+        submittedAt: Date.parse('2026-01-01T00:00:00Z'),
+        state: 'COMMENTED',
+        wrapper: false,
+      },
+      {
+        id: 3,
+        login: 'c',
+        submittedAt: Date.parse('2026-01-02T00:00:00Z'),
+        state: 'APPROVED',
+        wrapper: false,
+      },
+      {
+        id: 4,
+        login: 'd',
+        submittedAt: Date.parse('2026-01-03T00:00:00Z'),
+        state: 'COMMENTED',
+        wrapper: true,
+      },
+      {
+        id: 5,
+        login: 'e',
+        submittedAt: Date.parse('2026-01-04T00:00:00Z'),
+        state: 'CHANGES_REQUESTED',
+        wrapper: false,
+      },
     ]);
   });
 

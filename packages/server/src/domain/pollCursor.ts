@@ -1,6 +1,8 @@
+import type { DigestItems } from '@garden/shared';
 import type { CheckRunFact, StatusFact } from './github.js';
 
-/** What has been counted for a digest but not yet delivered. Counts and names only. */
+/** What has been counted for a digest but not yet delivered. Counts, names, and the id and
+ *  metadata of each counted item. */
 export interface Tally {
   readonly reviews: number;
   readonly reviewAuthors: readonly string[];
@@ -10,6 +12,9 @@ export interface Tally {
   readonly conflict: boolean;
   /** Epoch ms of the latest activity counted; 0 while empty. */
   readonly lastActivityAt: number;
+  /** The items behind the counts. Null when the tally was persisted with counts but no items, so
+   *  they are unknown and no detail can be built from it. */
+  readonly items: DigestItems | null;
 }
 
 export interface ListCursor {
@@ -19,8 +24,8 @@ export interface ListCursor {
   readonly seen: readonly number[];
 }
 
-/** The poller's progress marker for one watch. It holds ids, ETags, states and counts, never PR
- *  content (no titles, bodies or diffs). */
+/** The poller's progress marker for one watch. It holds ids, ETags, states, counts and the id and
+ *  metadata of counted items, never PR content (no titles, bodies or diffs). */
 export interface Cursor {
   readonly v: 1;
   readonly pr: {
@@ -53,6 +58,15 @@ export interface Cursor {
 
 export type Tracking = Omit<Cursor, 'written' | 'fresh'>;
 
+export const emptyItems = (): DigestItems => ({
+  reviews: [],
+  issueComments: [],
+  reviewComments: [],
+  checkRuns: [],
+  statuses: [],
+  conflicts: [],
+});
+
 export const emptyTally = (): Tally => ({
   reviews: 0,
   reviewAuthors: [],
@@ -61,7 +75,15 @@ export const emptyTally = (): Tally => ({
   checksPassed: [],
   conflict: false,
   lastActivityAt: 0,
+  items: emptyItems(),
 });
+
+export const isEmptyTally = (t: Tally) =>
+  t.reviews === 0 &&
+  t.comments === 0 &&
+  t.checksFailed.length === 0 &&
+  t.checksPassed.length === 0 &&
+  !t.conflict;
 
 export function emptyTracking(): Tracking {
   const list = { etags: [], seen: [] };
@@ -97,7 +119,20 @@ const isNullableString = (value: unknown): value is string | null =>
 const isListCursor = (value: unknown): value is ListCursor =>
   isRecord(value) && isStringArray(value['etags']) && isNumberArray(value['seen']);
 
-const isTally = (value: unknown): value is Tally =>
+const ITEM_LISTS = [
+  'reviews',
+  'issueComments',
+  'reviewComments',
+  'checkRuns',
+  'statuses',
+  'conflicts',
+] as const;
+
+const isItems = (value: unknown): value is DigestItems =>
+  isRecord(value) && ITEM_LISTS.every((list) => Array.isArray(value[list]));
+
+/** `items` is not checked here: an absent or invalid one is repaired by `withItems`. */
+const isTally = (value: unknown): value is Omit<Tally, 'items'> & { items?: unknown } =>
   isRecord(value) &&
   typeof value['reviews'] === 'number' &&
   isStringArray(value['reviewAuthors']) &&
@@ -106,6 +141,14 @@ const isTally = (value: unknown): value is Tally =>
   isStringArray(value['checksPassed']) &&
   typeof value['conflict'] === 'boolean' &&
   typeof value['lastActivityAt'] === 'number';
+
+/** A tally from before items were recorded has none: empty if it counted nothing, otherwise its
+ *  items are unknown. Items that are present but invalid are unknown too. Returns a new object; the persisted one is never written into. */
+function withItems(tally: Omit<Tally, 'items'> & { items?: unknown }): Tally {
+  if (isItems(tally.items) || tally.items === null) return tally as Tally;
+  if (tally.items !== undefined) return { ...tally, items: null };
+  return { ...tally, items: isEmptyTally({ ...tally, items: null }) ? emptyItems() : null };
+}
 
 /** The cursor a watch persisted, or null when there is none or it is not a cursor this code
  *  wrote. The caller treats null as a first poll. */
@@ -134,7 +177,11 @@ export function readCursor(value: unknown): Cursor | null {
     !isTally(value['fresh'])
   )
     return null;
-  return value as unknown as Cursor;
+  return {
+    ...(value as unknown as Cursor),
+    written: withItems(value['written']),
+    fresh: withItems(value['fresh']),
+  };
 }
 
 /** GitHub stamps whole seconds while `createdAt` has milliseconds, so activity in the creation
@@ -164,21 +211,32 @@ export function newListItems<T extends { readonly id: number }>(
   return { fresh, seen: [...known] };
 }
 
-export interface CheckTransition {
+/** A check run or commit status that reached a reportable state, with the sha it was read on. */
+export type CheckTransition = {
   readonly name: string;
   readonly outcome: 'failed' | 'passed';
   readonly at: number;
-}
+} & (
+  | {
+      readonly kind: 'check-run';
+      readonly id: number;
+      readonly conclusion: string;
+      readonly headSha: string | null;
+    }
+  | { readonly kind: 'status'; readonly state: string; readonly headSha: string | null }
+);
 
 const CHECK_FAILURES = new Set(['failure', 'timed_out', 'startup_failure', 'action_required']);
 
 /** Completed runs that finished in or after the watch's creation second and are not already reported in
  *  that state. A run re-run in place gets a new `completed_at`, so it fires again. A run that
- *  finishes with another conclusion (skipped, cancelled, neutral) is recorded but not reported. */
+ *  finishes with another conclusion (skipped, cancelled, neutral) is recorded but not reported.
+ *  `headSha` is the commit the runs were fetched for. */
 export function checkTransitions(
   runs: readonly CheckRunFact[],
   reported: Readonly<Record<string, string>>,
   createdAt: number,
+  headSha: string | null,
 ): { transitions: CheckTransition[]; reported: Record<string, string> } {
   const next = { ...reported };
   const transitions: CheckTransition[] = [];
@@ -188,10 +246,21 @@ export function checkTransitions(
     if (next[String(run.id)] === key) continue;
     next[String(run.id)] = key;
     if (!sinceCreation(run.completedAt, createdAt)) continue;
-    if (CHECK_FAILURES.has(run.conclusion))
-      transitions.push({ name: run.name, outcome: 'failed', at: run.completedAt });
-    else if (run.conclusion === 'success')
-      transitions.push({ name: run.name, outcome: 'passed', at: run.completedAt });
+    const outcome = CHECK_FAILURES.has(run.conclusion)
+      ? 'failed'
+      : run.conclusion === 'success'
+        ? 'passed'
+        : null;
+    if (outcome !== null)
+      transitions.push({
+        kind: 'check-run',
+        id: run.id,
+        name: run.name,
+        conclusion: run.conclusion,
+        outcome,
+        at: run.completedAt,
+        headSha,
+      });
   }
   return { transitions, reported: next };
 }
@@ -202,6 +271,7 @@ export function statusTransitions(
   statuses: readonly StatusFact[],
   reported: Readonly<Record<string, string>>,
   createdAt: number,
+  headSha: string | null,
 ): { transitions: CheckTransition[]; reported: Record<string, string> } {
   const next = { ...reported };
   const transitions: CheckTransition[] = [];
@@ -213,9 +283,12 @@ export function statusTransitions(
     next[status.context] = key;
     if (!sinceCreation(status.updatedAt, createdAt)) continue;
     transitions.push({
+      kind: 'status',
       name: status.context,
+      state: status.state,
       outcome: failed ? 'failed' : 'passed',
       at: status.updatedAt,
+      headSha,
     });
   }
   return { transitions, reported: next };
@@ -233,10 +306,26 @@ export function conflictTransition(
 
 /** New activity as the digest sees it: no content, only who and when. */
 export interface Activity {
-  readonly reviews: readonly { readonly login: string; readonly at: number }[];
-  readonly comments: readonly { readonly login: string; readonly at: number }[];
+  readonly reviews: readonly {
+    readonly id: number;
+    readonly login: string;
+    readonly state: string;
+    readonly at: number;
+  }[];
+  readonly issueComments: readonly {
+    readonly id: number;
+    readonly login: string;
+    readonly at: number;
+  }[];
+  readonly reviewComments: readonly {
+    readonly id: number;
+    readonly login: string;
+    readonly reviewId: number | null;
+    readonly at: number;
+  }[];
   readonly checks: readonly CheckTransition[];
-  readonly conflict: boolean;
+  /** Set when the PR turned conflicting, with the head sha it was seen on. */
+  readonly conflict: { readonly headSha: string | null } | null;
   /** Set when the PR is no longer open. */
   readonly closed: { readonly merged: boolean } | null;
 }

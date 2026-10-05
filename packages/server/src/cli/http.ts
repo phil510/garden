@@ -2,6 +2,7 @@ import { homedir } from 'node:os';
 import type {
   CreateSessionRequest,
   CreateSessionResponse,
+  DigestResponse,
   ErrorResponse,
   OkResponse,
   Placement,
@@ -150,4 +151,8 @@ export function unwatch(
 
 export function watches(sessionId: string): Promise<WatchesResponse> {
   return request(`/sessions/${encodeURIComponent(sessionId)}/watches`);
+}
+
+export function digest(id: string): Promise<DigestResponse> {
+  return request(`/digests/${encodeURIComponent(id)}`);
 }

@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { STAGE_PRESETS, isWatchKind } from '@garden/shared';
 import type { SessionPlacement, SwarmRecord } from '@garden/shared';
 import type { OverlayStage, OverlayState } from '../domain/overlay.js';
-import type { Watch } from '../domain/watches.js';
+import type { DigestRecord, Watch } from '../domain/watches.js';
 
 export const DEFAULT_OVERLAY_STATE: OverlayState = {
   version: 1,
@@ -16,6 +16,7 @@ export const DEFAULT_OVERLAY_STATE: OverlayState = {
   collapsedSwarms: [],
   hideDeadSwarms: [],
   watches: [],
+  digests: [],
   pipes: {},
 };
 
@@ -77,12 +78,45 @@ function isPlacements(value: unknown): value is Readonly<Record<string, SessionP
 
 const watchStatuses: ReadonlySet<unknown> = new Set(['active', 'error', 'closed']);
 
+const ITEM_LISTS = [
+  'reviews',
+  'issueComments',
+  'reviewComments',
+  'checkRuns',
+  'statuses',
+  'conflicts',
+];
+
+/** The envelope only: entries of `items` are written by this code and not checked one by one. */
+function isDigestDetail(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value['id'] === 'string' &&
+    typeof value['repo'] === 'string' &&
+    typeof value['pr'] === 'number' &&
+    typeof value['line'] === 'string' &&
+    typeof value['createdAt'] === 'string' &&
+    !Number.isNaN(Date.parse(value['createdAt'])) &&
+    (value['replaces'] === null || typeof value['replaces'] === 'string') &&
+    isRecord(value['atMint']) &&
+    (value['closed'] === null || isRecord(value['closed'])) &&
+    isRecord(value['items']) &&
+    ITEM_LISTS.every((list) => Array.isArray((value['items'] as Record<string, unknown>)[list]))
+  );
+}
+
 function isPendingDigest(value: unknown): boolean {
   return (
     isRecord(value) &&
     typeof value['id'] === 'string' &&
     typeof value['line'] === 'string' &&
     typeof value['createdAt'] === 'number'
+  );
+}
+
+function isDigestRecord(value: unknown): value is DigestRecord {
+  return (
+    isRecord(value) && typeof value['sessionId'] === 'string' && isDigestDetail(value['detail'])
   );
 }
 
@@ -132,8 +166,22 @@ function isOverlayState(
     (value['swarmOrder'] === undefined || isStringArray(value['swarmOrder'])) &&
     (value['collapsedSwarms'] === undefined || isStringArray(value['collapsedSwarms'])) &&
     (value['hideDeadSwarms'] === undefined || isStringArray(value['hideDeadSwarms'])) &&
-    (value['watches'] === undefined || Array.isArray(value['watches']))
+    (value['watches'] === undefined || Array.isArray(value['watches'])) &&
+    (value['digests'] === undefined || Array.isArray(value['digests']))
   );
+}
+
+/** The detail is a read-path extra; the pending digest line is what gets delivered. A malformed
+ *  detail is stripped on its own so the watch, its cursor and its line survive. */
+function withoutBadDetail(watch: Watch, path: string, logger: StoreLogger): Watch {
+  const pending = watch.pendingDigest;
+  if (pending === null || pending.detail === undefined || isDigestDetail(pending.detail))
+    return watch;
+  logger.warn(`dropping malformed digest detail in ${path}`);
+  return {
+    ...watch,
+    pendingDigest: { id: pending.id, line: pending.line, createdAt: pending.createdAt },
+  };
 }
 
 /** Watches are written often by an automated poller and their shape evolves, so one bad entry
@@ -143,10 +191,21 @@ function readWatches(value: unknown, path: string, logger: StoreLogger): readonl
   if (!Array.isArray(value)) return [];
   const watches: Watch[] = [];
   for (const entry of value) {
-    if (isWatch(entry)) watches.push(entry);
+    if (isWatch(entry)) watches.push(withoutBadDetail(entry, path, logger));
     else logger.warn(`dropping malformed watch in ${path}`);
   }
   return watches;
+}
+
+/** Like watches, a bad entry is dropped on its own rather than failing the file. */
+function readDigests(value: unknown, path: string, logger: StoreLogger): readonly DigestRecord[] {
+  if (!Array.isArray(value)) return [];
+  const digests: DigestRecord[] = [];
+  for (const entry of value) {
+    if (isDigestRecord(entry)) digests.push(entry);
+    else logger.warn(`dropping malformed digest record in ${path}`);
+  }
+  return digests;
 }
 
 /** Like watches, a bad entry is dropped on its own rather than failing the file. */
@@ -198,6 +257,7 @@ export function readOverlayState(appDir: string, logger: StoreLogger): OverlaySt
     collapsedSwarms: isStringArray(parsed['collapsedSwarms']) ? parsed['collapsedSwarms'] : [],
     hideDeadSwarms: isStringArray(parsed['hideDeadSwarms']) ? parsed['hideDeadSwarms'] : [],
     watches: readWatches(parsed['watches'], path, logger),
+    digests: readDigests(parsed['digests'], path, logger),
     pipes: readPipes(parsed['pipes'], path, logger),
   };
 }

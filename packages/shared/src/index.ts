@@ -272,6 +272,47 @@ export interface WatchSummary {
   /** Short plain-language cause, present only while `status` is `error`. */
   errorReason?: string;
 }
+/** The items a digest counted: ids and metadata only, never PR content. Times are ISO 8601. */
+export interface DigestItems {
+  reviews: { id: number; author: string; state: string; submittedAt: string }[];
+  issueComments: { id: number; author: string; at: string }[];
+  reviewComments: { id: number; author: string; reviewId: number | null; at: string }[];
+  checkRuns: {
+    id: number;
+    name: string;
+    conclusion: string;
+    outcome: 'failed' | 'passed';
+    completedAt: string;
+    headSha: string | null;
+  }[];
+  statuses: {
+    context: string;
+    state: string;
+    outcome: 'failed' | 'passed';
+    updatedAt: string;
+    headSha: string | null;
+  }[];
+  conflicts: { headSha: string | null; seenAt: string }[];
+}
+
+/** What one digest counted. `atMint` is the PR as of the poll that minted it; after a fold an
+ *  earlier item may have been seen on a different sha, so each check, status and conflict item
+ *  carries its own. `replaces` names the digest this one superseded, whose items it includes. */
+export interface DigestDetail {
+  id: string;
+  repo: string;
+  pr: number;
+  line: string;
+  createdAt: string;
+  replaces: string | null;
+  atMint: { headSha: string | null; mergeable: boolean | null };
+  closed: { merged: boolean } | null;
+  items: DigestItems;
+}
+
+export interface DigestResponse {
+  digest: DigestDetail;
+}
 /** Body of `POST /sessions/:id/watches`. `repo` defaults to the session cwd's `origin`;
  *  `kinds` to the default set. Re-adding an existing watch replaces its kinds. */
 export interface AddWatchRequest {

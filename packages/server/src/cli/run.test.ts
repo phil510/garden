@@ -91,12 +91,16 @@ function recordingClient(
       calls.push(`watches:${sessionId}`);
       return Promise.resolve({ watches: listedWatches });
     },
+    digest: (id) => {
+      calls.push(`digest:${id}`);
+      return Promise.reject(new Error('not used by this test'));
+    },
   };
   return { client, calls };
 }
 
 describe('isCliCommand', () => {
-  it('recognises the eleven subcommands and nothing else', () => {
+  it('recognises the twelve subcommands and nothing else', () => {
     expect(isCliCommand('new')).toBe(true);
     expect(isCliCommand('ls')).toBe(true);
     expect(isCliCommand('kill')).toBe(true);
@@ -105,6 +109,7 @@ describe('isCliCommand', () => {
     expect(isCliCommand('watch')).toBe(true);
     expect(isCliCommand('unwatch')).toBe(true);
     expect(isCliCommand('watches')).toBe(true);
+    expect(isCliCommand('digest')).toBe(true);
     expect(isCliCommand('events')).toBe(true);
     expect(isCliCommand('stop')).toBe(true);
     expect(isCliCommand('uninstall')).toBe(true);
@@ -281,6 +286,18 @@ describe('runCli', () => {
     expect(calls).toEqual([
       `place:target-1:${JSON.stringify({ type: 'parent', parentId: 'caller-1' })}`,
     ]);
+  });
+
+  it('requires an id for "digest" and needs no session for it', async () => {
+    const { io, stderr } = collectingIo();
+    const { client, calls } = recordingClient();
+
+    expect(await runCli('digest', [], io, client, undefined, {})).toBe(1);
+    expect(stderr).toEqual(['garden: usage: garden digest <id> [--json]\n']);
+    expect(calls).toEqual([]);
+
+    await runCli('digest', ['abc'], collectingIo().io, client, undefined, {});
+    expect(calls).toEqual(['digest:abc']);
   });
 
   it('requires a positional for "adopt"', async () => {

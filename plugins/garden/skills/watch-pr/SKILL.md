@@ -42,11 +42,18 @@ means garden cannot reach GitHub or the repo; `garden watches --json` shows the 
 
 A digest line says that something changed, never what it says. Only the segments that apply
 appear, in this order: reviews, comments, failed checks, passed checks (`checks:all` only), merge
-conflict, then `merged` or `closed`:
+conflict, then `merged` or `closed`. The digest id follows the colon:
 
 ```
-#241 acme/widgets: 2 reviews (coderabbitai[bot], alice), 3 comments, checks failed: build
+#241 acme/widgets: [digest 3f9a1c0b7d2e] 2 reviews (coderabbitai[bot], alice), 3 comments, checks failed: build
 ```
+
+`garden digest <id> --json` returns the ids and metadata of exactly the items the line counted
+(review, comment and check-run ids, authors, times, head sha), so you can fetch those with `gh`
+instead of rereading the whole PR. A digest that replaced an undelivered one carries its id in
+`replaces`, and its items include the earlier ones. The detail is still a pointer: no titles,
+bodies or comment text, so `gh` remains where content comes from. It is kept 7 days from mint
+(newest 20 per watch); after that the command exits 1.
 
 Treat it as a prompt to look, then act on what you find:
 

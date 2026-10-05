@@ -152,7 +152,7 @@ packages/server/src/
     pipes.ts       ack a digest, end watches with no pipe for 7 days, prune stale pipe times
     github.ts      gh api --include parsing, rate-limit resume time, REST JSON -> PR facts
     pollCursor.ts  the poller's cursor (ids, ETags, counts; no PR content) and the diffs over it
-    digest.ts      fold observed activity into a watch: kinds, quiet window, digest line
+    digest.ts      fold observed activity into a watch: kinds, quiet window, digest line and detail
     paths.ts       filesystem scoping
     diff.ts        (prev, next) -> Delta[]
   adapters/        one external system each
@@ -352,6 +352,11 @@ the CLI acks only after the line is written. The set of ids a connection has alr
 connection-local and never persisted, so a reconnect, including after a server restart, resends
 everything still pending. A watch whose session has had no pipe connected for seven days is ended
 by the sweep.
+
+Each minted digest also leaves a `DigestDetail` in the overlay's `digests` archive: the structured
+items behind the line, built from the same tally that counts them, so the two cannot diverge. Only
+`updateWatches` writes it (retention is 7 days from mint, newest 20 per watch), and
+`GET /digests/:id` reads it, which is what `garden digest <id>` calls. It survives the ack.
 
 ## 5. Client
 

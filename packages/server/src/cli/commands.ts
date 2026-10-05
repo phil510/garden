@@ -1,5 +1,6 @@
 import type {
   CreateSessionResponse,
+  DigestResponse,
   OkResponse,
   Placement,
   SessionsFilter,
@@ -40,6 +41,7 @@ export interface CliClient {
   ): Promise<WatchResponse>;
   unwatch(sessionId: string, target: { pr: number; repo?: string }): Promise<OkResponse>;
   watches(sessionId: string): Promise<WatchesResponse>;
+  digest(id: string): Promise<DigestResponse>;
 }
 
 export const defaultClient: CliClient = http;
@@ -235,5 +237,29 @@ export function runWatches(
     json,
     () => client.watches(watchSession(target.env, target.session)),
     ({ watches }) => (watches.length === 0 ? 'no watches' : watches.map(watchLine).join('\n')),
+  );
+}
+
+/** A digest is global: it needs no session, so a worker with another `GARDEN_SESSION_ID` can
+ *  read what a delivered line counted. */
+export function runDigest(
+  io: Io,
+  id: string,
+  json: boolean,
+  client: CliClient = defaultClient,
+): Promise<0 | 1> {
+  return runCommand(
+    io,
+    json,
+    async () => {
+      try {
+        return await client.digest(id);
+      } catch (error) {
+        if (error instanceof CliHttpError && error.status === 404)
+          throw new Error(`no digest ${id} (expired or never recorded)`, { cause: error });
+        throw error;
+      }
+    },
+    ({ digest }) => digest.line,
   );
 }

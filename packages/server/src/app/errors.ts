@@ -8,3 +8,6 @@ export class WatchNotFoundError extends Error {}
 
 /** A PR number given without a repo matches watches in more than one repo. */
 export class AmbiguousWatchError extends Error {}
+
+/** No archived digest has this id: it expired, was never recorded, or predates details. */
+export class DigestNotFoundError extends Error {}

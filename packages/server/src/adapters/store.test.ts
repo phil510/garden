@@ -95,6 +95,7 @@ describe('readOverlayState', () => {
         collapsedSwarms: [],
         hideDeadSwarms: [],
         watches: [],
+        digests: [],
         pipes: {},
       });
       expect(logger.warnings).toEqual([]);
@@ -271,6 +272,126 @@ describe('readOverlayState pipes', () => {
   });
 });
 
+describe('readOverlayState digests', () => {
+  const items = {
+    reviews: [],
+    issueComments: [],
+    reviewComments: [],
+    checkRuns: [],
+    statuses: [],
+    conflicts: [],
+  };
+  const detail = {
+    id: 'd1',
+    repo: 'acme/widgets',
+    pr: 7,
+    line: '#7 acme/widgets: [digest d1] 1 comment',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    replaces: null,
+    atMint: { headSha: 'sha1', mergeable: true },
+    closed: null,
+    items,
+  };
+  const watch = {
+    id: 'w1',
+    sessionId: 'session-1',
+    repo: 'acme/widgets',
+    pr: 7,
+    kinds: ['review', 'closed'],
+    createdAt: 100,
+    cursor: null,
+    pendingDigest: null,
+    status: 'active',
+  };
+  const file = (extra: Record<string, unknown>) => ({
+    version: 1,
+    tmuxNames: { 'session-1': 'garden-project' },
+    groups: {},
+    stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
+    ...extra,
+  });
+  const read = (contents: unknown) => {
+    const logger = collectingLogger();
+    let state: OverlayState | undefined;
+    withTempAppDir((appDir) => {
+      mkdirSync(appDir, { recursive: true });
+      writeFileSync(join(appDir, 'state.json'), JSON.stringify(contents));
+      state = readOverlayState(appDir, logger);
+    });
+    if (state === undefined) throw new Error('not read');
+    return { state, logger };
+  };
+
+  it('reads no digests from a file written before they existed', () => {
+    const { state, logger } = read(file({}));
+
+    expect(state.digests).toEqual([]);
+    expect(state.tmuxNames).toEqual({ 'session-1': 'garden-project' });
+    expect(logger.warnings).toEqual([]);
+  });
+
+  it('round-trips archived digests and a pending digest that carries a detail', () => {
+    withTempAppDir((appDir) => {
+      const state: OverlayState = {
+        ...DEFAULT_OVERLAY_STATE,
+        watches: [
+          { ...watch, pendingDigest: { id: 'd1', line: detail.line, createdAt: 5, detail } },
+        ] as unknown as OverlayState['watches'],
+        digests: [{ sessionId: 'session-1', detail }],
+      };
+      writeOverlayState(appDir, state);
+
+      expect(readOverlayState(appDir, collectingLogger())).toEqual(state);
+    });
+  });
+
+  it('keeps a watch whose pending digest has no detail', () => {
+    const { state } = read(
+      file({ watches: [{ ...watch, pendingDigest: { id: 'd1', line: 'x', createdAt: 5 } }] }),
+    );
+
+    expect(state.watches.map((w) => w.pendingDigest?.id)).toEqual(['d1']);
+  });
+
+  it('strips a malformed detail from a pending digest and keeps the watch', () => {
+    const { state } = read(
+      file({
+        watches: [
+          {
+            ...watch,
+            pendingDigest: {
+              id: 'd1',
+              line: 'x',
+              createdAt: 5,
+              detail: { ...detail, items: { reviews: [] } },
+            },
+          },
+        ],
+      }),
+    );
+
+    expect(state.watches).toHaveLength(1);
+    expect(state.watches[0]?.pendingDigest).toEqual({ id: 'd1', line: 'x', createdAt: 5 });
+  });
+
+  it('drops a malformed digest record with a warning while keeping the rest', () => {
+    const { state, logger } = read(
+      file({
+        digests: [
+          { sessionId: 'session-1', detail },
+          { sessionId: 'session-1', detail: { ...detail, items: { reviews: [] } } },
+          { detail },
+          'junk',
+        ],
+      }),
+    );
+
+    expect(state.digests.map((r) => r.detail.id)).toEqual(['d1']);
+    expect(state.tmuxNames).toEqual({ 'session-1': 'garden-project' });
+    expect(logger.warnings).toHaveLength(3);
+  });
+});
+
 describe('writeOverlayState', () => {
   it('round-trips a written state, including swarms, placements and swarm order/collapse/hide-dead', () => {
     withTempAppDir((appDir) => {
@@ -297,6 +418,7 @@ describe('writeOverlayState', () => {
             status: 'closed',
           },
         ],
+        digests: [],
         pipes: { 'session-1': 300 },
       };
       writeOverlayState(appDir, state);
