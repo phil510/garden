@@ -110,8 +110,7 @@ function isPendingDigest(value: unknown): boolean {
     isRecord(value) &&
     typeof value['id'] === 'string' &&
     typeof value['line'] === 'string' &&
-    typeof value['createdAt'] === 'number' &&
-    (value['detail'] === undefined || isDigestDetail(value['detail']))
+    typeof value['createdAt'] === 'number'
   );
 }
 
@@ -172,6 +171,19 @@ function isOverlayState(
   );
 }
 
+/** The detail is a read-path extra; the pending digest line is what gets delivered. A malformed
+ *  detail is stripped on its own so the watch, its cursor and its line survive. */
+function withoutBadDetail(watch: Watch, path: string, logger: StoreLogger): Watch {
+  const pending = watch.pendingDigest;
+  if (pending === null || pending.detail === undefined || isDigestDetail(pending.detail))
+    return watch;
+  logger.warn(`dropping malformed digest detail in ${path}`);
+  return {
+    ...watch,
+    pendingDigest: { id: pending.id, line: pending.line, createdAt: pending.createdAt },
+  };
+}
+
 /** Watches are written often by an automated poller and their shape evolves, so one bad entry
  *  is dropped on its own: failing the whole file would fall back to defaults, and the next
  *  write would permanently lose every session's tmux name. */
@@ -179,7 +191,7 @@ function readWatches(value: unknown, path: string, logger: StoreLogger): readonl
   if (!Array.isArray(value)) return [];
   const watches: Watch[] = [];
   for (const entry of value) {
-    if (isWatch(entry)) watches.push(entry);
+    if (isWatch(entry)) watches.push(withoutBadDetail(entry, path, logger));
     else logger.warn(`dropping malformed watch in ${path}`);
   }
   return watches;

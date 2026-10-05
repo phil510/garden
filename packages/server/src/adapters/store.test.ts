@@ -353,6 +353,27 @@ describe('readOverlayState digests', () => {
     expect(state.watches.map((w) => w.pendingDigest?.id)).toEqual(['d1']);
   });
 
+  it('strips a malformed detail from a pending digest and keeps the watch', () => {
+    const { state } = read(
+      file({
+        watches: [
+          {
+            ...watch,
+            pendingDigest: {
+              id: 'd1',
+              line: 'x',
+              createdAt: 5,
+              detail: { ...detail, items: { reviews: [] } },
+            },
+          },
+        ],
+      }),
+    );
+
+    expect(state.watches).toHaveLength(1);
+    expect(state.watches[0]?.pendingDigest).toEqual({ id: 'd1', line: 'x', createdAt: 5 });
+  });
+
   it('drops a malformed digest record with a warning while keeping the rest', () => {
     const { state, logger } = read(
       file({
