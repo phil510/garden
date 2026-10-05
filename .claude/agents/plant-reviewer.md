@@ -341,17 +341,28 @@ decides whether a fix round runs at all.
    `## Summary` — the orchestrator can change strategy without an
    escalation.
 
-   a. Append:
+   a. Write the escalation event with `**Stage:** review`,
+   `**Reason:** review_cap`, and `**Artifact:**
+review-round-${ROUND}.md`. The event file comes first so the
+   annotation never points at nothing.
+   b. Append:
 
    ```
    > NOTE <iso> — reviewer: round ${ROUND} dirty (<N> fix-disposition findings)
    > ESCALATED <iso> — reviewer: review_cap; see events/<iso>-escalation.md
    ```
 
-   b. Write the escalation event with `**Stage:** review`,
-   `**Reason:** review_cap`, and `**Artifact:**
-review-round-${ROUND}.md`.
-   c. Send your `ESCALATING` message and stop.
+   c. Send your `ESCALATING` message, then end your turn and wait for
+   the decision. You may be woken by a message carrying it; read the
+   Resolution block (authoritative over the message), record the
+   decision in `## Summary`, and report per the decision: a dirty
+   round if another fix round is wanted (the orchestrator dispatches
+   the developer — you don't), a clean round if the user accepts the
+   artifact as is (take step 7 — flip the stage-3 checkbox — naming
+   the accepted findings as limitations in `## Summary`, as for
+   advisory limitations, then signal clean). If you are gone by then,
+   no replacement reviewer is spawned: the orchestrator reads the same
+   Resolution from disk and carries it out itself.
 
 ## Signalling
 

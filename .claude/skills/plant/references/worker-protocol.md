@@ -27,9 +27,11 @@ disk.
 
 ## Idempotency
 
-There is no resume primitive. Every re-entry into a stage is a **fresh
-spawn**: a cold start and a post-escalation replacement are the same
-code path, and must produce the same outcome.
+A stage is entered by a **fresh spawn** — at the start, and on the
+escalation fallback when the escalator is gone. A cold start and a
+fallback replacement are the same code path and must produce the same
+outcome. A worker woken by an escalation decision is the exception: it
+continues with its own context rather than rebuilding.
 
 Rebuild your state from `${WORKFLOW}` plus the stage artifacts on disk —
 `${PLANTDIR}/plan.md`, `${PLANTDIR}/events/`, `review-round-*.md`, and
@@ -49,7 +51,9 @@ options and the brief.
 
 While you are the active stage worker you are the sole writer to
 `${WORKFLOW}` (single-writer-per-moment, enforced by the orchestrator's
-sequential dispatch).
+sequential dispatch). This holds through an escalation pause: while you
+wait for a decision you still hold the pen, which is why nothing else is
+dispatched.
 
 ## Resolving your inputs
 
@@ -111,9 +115,10 @@ to a few lines — which stage, the verdict, the file holding the detail —
 because the orchestrator's context is never compacted and every line here
 is re-read on every turn it takes afterwards.
 
-After sending, **stop and go idle.** You will not be messaged again; a
-fresh worker handles the next round, and you may remain idle until the
-session ends. Do not keep working, poll, or re-message.
+After sending the done signal, **stop and go idle.** You will not be
+messaged again; a fresh worker handles the next round, and you may remain
+idle until the session ends. Do not keep working, poll, or re-message.
+(An `ESCALATING` message is different — see Escalation.)
 
 ## Escalation
 
@@ -122,7 +127,8 @@ classify, escalate rather than gate. The orchestrator decides the next
 move.
 
 1. Save whatever you learned to your stage artifact, even incomplete
-   (atomic rename). Your successor reads it.
+   (atomic rename). If you are gone by the time a decision arrives, your
+   successor reads it.
 2. Write `${PLANTDIR}/events/<iso>-escalation.md` yourself, whole —
    there is no orchestrator-populated resume metadata and no
    `Worker UUID` field. Shape and reason codes:
@@ -131,7 +137,8 @@ move.
 3. Append `> ESCALATED <iso> — <actor>: <reason>; see
 events/<iso>-escalation.md` to the end of `## Annotations`.
 4. Send `ESCALATING — see events/<iso>-escalation.md, decision needed
-on <X>`, then stop and go idle.
+on <X>`, then end your turn and wait. You have not finished, so you
+   may be woken by a message carrying the decision.
 
 The coded reasons are `autonomy_exceeded | error | stall | ambiguity |
 review_cap`. They name the common cases, not the legal ones. When none
@@ -141,9 +148,14 @@ the evidence, and a proposed alternative. Free-text escalations route
 exactly like coded ones. Following protocol into a failure you can see
 coming costs more than any escalation.
 
-The orchestrator pages the user, appends the `## Resolution` block, and
-fresh-spawns a replacement under the next-numbered name with the
-decision in its opener. You stay idle; treat yourself as dead.
+The orchestrator decides (auto-resolving or paging the user), appends the
+`## Resolution` block to the event file, then messages you the decision.
+Read the block — disk is authoritative over the message — apply it to the
+escalated point, finish your stage, and report as normal. If you are gone
+by then, a fresh spawn under a new name picks up from your artifacts and
+that same block. A reviewer that escalated `review_cap` is the exception:
+the orchestrator carries out that decision itself and spawns no
+replacement.
 
 ## Guardrails common to every role
 

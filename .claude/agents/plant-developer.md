@@ -90,7 +90,12 @@ command without a working environment.
 1. Read `${WORKFLOW}` and resolve your input shape per the protocol
    file.
 2. Read your stage's annotations to reconstruct prior progress, and
-   apply any decided escalation's `## Resolution` block.
+   apply any decided escalation's `## Resolution` block. This is how a
+   fresh spawn (first entry, or the fallback after a crash) picks up
+   where the last worker left off. If you instead wake from an
+   escalation you sent, you already hold that context: read the
+   Resolution block (authoritative over the message that woke you),
+   apply it, and continue — don't re-run the opener steps.
 3. Invoke the `using-subagents` skill.
 4. Flip `- [ ]` → `- [x]` on success in the same atomic write as your
    final `> NOTE`, then signal and stop. **Never flip stage 3** —
@@ -205,8 +210,12 @@ round.
 4. **Autonomy gate.** For each remaining `fix` finding, check the
    brief's Autonomy bounds. If any finding falls under `Ask first:` or
    `Never:`, escalate `autonomy_exceeded` before doing anything. Do not
-   partially apply — escalate first, fix on the fresh spawn.
-5. **Address each `fix` finding in order.** One commit per finding:
+   partially apply — escalate first, and fix once the decision arrives
+   (or on the fallback spawn, if you are gone by then).
+5. **Address each `fix` finding in order.** One commit per finding. A
+   finding with `Location: base branch <name>` is a conflict with the
+   base: fix it as § Base-branch conflicts describes, not by a code
+   change.
    a. Implement the fix (TDD where tests apply).
    b. Re-run the verify command after each meaningful change — see
    § Verify failures and ambiguity below if it won't pass.
@@ -217,11 +226,9 @@ round.
    > NOTE <iso> — developer: finding <n> fixed — <commit-sha>
    ```
 6. **Push** all commits to `${BRANCH}`. The PR updates automatically.
+   (A base-branch merge is pushed here like any other commit.)
 7. **Append the developer-round section** to `${REVIEW_FILE}` so it
-   stays the complete, linear audit trail for the round. The heading
-   must be exactly `## Developer round` — the pipeline's status script
-   matches that literal to tell a routed round from an unrouted one, so
-   any variation makes a completed round read as never-started:
+   stays the complete, linear audit trail for the round:
    ```
    ## Developer round ${ROUND} — <iso>
    <one line per finding: <n> — <disposition> — <commit-sha or "no commit">>
@@ -260,12 +267,42 @@ The full ladder — what's decide-and-log versus a hard stop, and why —
 is in `references/autonomy.md`. This section is the developer-specific
 slice of it.
 
+## Base-branch conflicts
+
+A finding with `Location: base branch <name>` means the PR no longer
+merges cleanly into its base. Fix it by merging the base into
+`${BRANCH}`: `git fetch origin`, `git merge origin/<name>`, resolve the
+conflicts, re-run the verify command, commit the merge, and push with
+the round's other commits.
+
+Merge rather than rebase. A merge commit is additive, so it keeps the
+no-history-rewrite guardrail; a rebase rewrites pushed history and
+needs a force-push. The PR is squash-merged, so `main` stays linear
+either way and rebase plus force-push buys nothing.
+
+If resolving means choosing between this PR's intent and what landed on
+the base — both sides changed the same behaviour, not just adjacent
+lines — that is an `ambiguity` escalation, not a call to make alone.
+`references/autonomy.md`'s rework-cost test decides whether a smaller
+call can be logged and continued.
+
+Escalate from a clean tree: run `git merge --abort` first, so a
+successor spawned after the decision finds the branch as pushed rather
+than half-merged and failing on "You have not concluded your merge".
+A developer woken with the decision starts from that clean tree, so it
+re-runs `git fetch origin` and `git merge origin/<name>` before applying
+the decision, and does not report done without the merge commit.
+
 ## Signalling
 
 - **Initial mode done:** `stage 2 done — draft PR <url>, commits <shas>`
 - **Fix-round done:** `fix-round K done — N findings fixed, commits
 <shas>, pushed`
 - **Escalating (either mode):** `ESCALATING — see events/<iso>-escalation.md, decision needed on <X>`
+  Then end your turn and wait: you still hold the pen, so make no
+  further changes. You may be woken by a message carrying the decision;
+  read the Resolution block in the event file, apply it, finish the
+  stage, and signal done as normal.
 
 Your escalations set `**Stage:** dev` and `**Artifact:**` to the path
 of `plan.md` or `review-round-<k>.md`.

@@ -13,7 +13,7 @@ no aliases, no drift.
 | `${PLANTDIR}`    | orchestrator | all roles                                      | absolute path to `${WORKTREE}/.plant/${BRANCH}/`                                       |
 | `${WORKFLOW}`    | orchestrator | planner, developer, reviewer                   | absolute path to `workflow.md`                                                         |
 | `${MODE}`        | orchestrator | developer                                      | selects `initial` or `fix-round`                                                       |
-| `${ROUND}`       | orchestrator | developer fix-round, reviewer internal         | review/fix round number (1, 2, 3)                                                      |
+| `${ROUND}`       | orchestrator | developer fix-round, reviewer internal         | review/fix round number (1, 2, 3); a finish-gate fix round takes the next number       |
 | `${PR_URL}`      | orchestrator | developer (after stage 2 completes), reviewer  | PR URL once known                                                                      |
 | `${REVIEW_FILE}` | orchestrator | developer fix-round-from-internal              | absolute path to current `review-round-N.md`                                           |
 
@@ -47,9 +47,9 @@ Workers and orchestrator append-only, flat and chronological, at the
 end of `## Annotations` — never inserted under a stage's checkbox
 line. Each line already carries its own actor and ISO timestamp, so
 grouping by stage would add nothing. The harder constraint is that both
-script readers anchor annotations at **column 0** — `grep '^>'` in
-`pipeline-status.sh:115` and `grep -c '^> ESCALATED'` in
-`pipeline-finish.sh:89` — so an indented or checkbox-nested annotation is
+script readers anchor annotations at **column 0** — the `grep '^>'` of
+`pipeline-status.sh`'s annotation read and the `grep -c '^> ESCALATED'`
+of `pipeline-finish.sh`'s escalation tally — so an indented or checkbox-nested annotation is
 silently invisible to status reporting and escalation counting.
 `<actor>` is `planner | developer | reviewer | orchestrator`.
 
@@ -68,7 +68,8 @@ silently invisible to status reporting and escalation counting.
   (see `escalate-resume.md`).
 - `> RESOLVED <iso> — orchestrator: <what was decided>` — closes a
   prior `> ESCALATED`, or marks a brief edit that resolved a prior
-  concern.
+  concern. Written before the decision is sent to the escalator, so
+  the decision is on disk first.
 
 These five kinds are the entire vocabulary. Do not invent new kinds
 (e.g., `STARTED`, `EDITED`, `RETRY`) — if you find yourself wanting
@@ -80,6 +81,7 @@ grammar.
 | ------------------------------------------------- | --------------------------------------------------------------------------------------------- |
 | Stage `- [ ]` → `- [x]` flip (worker, on success) | Worker spawn (orchestrator) — teammates are addressed by role name; there's nothing to record |
 | Brief edit by orchestrator (`> RESOLVED`)         | Sub-task progress — TaskUpdate metadata covers it                                             |
+| `> ESCALATED` → `> RESOLVED` lifecycle            |                                                                                               |
 | Worker milestone (e.g., "draft PR opened")        | Anything a downstream worker can derive from `workflow.md` or `events/`                       |
 
 **Worker self-annotations are the durable record.** The orchestrator
@@ -99,4 +101,4 @@ checklist, so nothing ever ticks `- [ ] 4. Finish`. `Status: completed
 | aborted` is the actual completion signal for stage 4, not its
 checkbox. This matters for the resume path, which reads
 `current_stage` — a pipeline that reached the finish gate still
-reports stage 4 unticked until `pipeline-finish.sh` runs.
+reports stage 4 unticked, even after `pipeline-finish.sh` has run.

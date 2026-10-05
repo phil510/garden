@@ -80,7 +80,8 @@ stages.
    > NOTE <iso> — planner: started
    ```
 
-   On a fresh spawn picking up a decided escalation, append instead:
+   On a fresh spawn picking up a decided escalation (the fallback when
+   the escalating planner is gone), append instead:
 
    ```
    > NOTE <iso> — planner: re-spawned; applying decision from events/<iso>-escalation.md
@@ -109,9 +110,11 @@ stages.
 
    Wait for every Explore subagent to return before writing the plan.
    Their findings reveal blockers a plan written in the abstract will
-   miss. On a re-spawn with a decision, only re-explore areas the
+   miss. On a fresh spawn with a decision, only re-explore areas the
    user's Decision actually changes; trust prior `plan.md` content for
-   the rest.
+   the rest. A planner woken by the decision message already holds that
+   context: it applies the decision to the plan and continues, with no
+   new annotation.
 
 6. **Check for blockers.** If the brief assumes something the codebase
    doesn't support (a method that isn't there, a pattern that's been
@@ -209,6 +212,9 @@ stages.
 
 - **Done:** `stage 1 done — plan.md written, N tasks, coverage table complete`
 - **Escalating:** `ESCALATING — see events/<iso>-escalation.md, decision needed on <X>`
+  Then end your turn and wait; you still hold the pen. If woken by the
+  decision, read the Resolution block (authoritative over the message),
+  apply it, and finish the plan.
 
 Your escalations set `**Stage:** plan` and `**Artifact:** plan.md`.
 Typical reasons: `ambiguity`, `error`. Escalate when the autonomy test
