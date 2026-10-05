@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { AddWatchRequest, WatchSummary } from '@garden/shared';
 import {
+  archiveDigests,
   normalizeRepo,
   parseGitHubRepo,
   pruneWatches,
@@ -41,13 +42,14 @@ export function updateWatches(
   let changed: [string, WatchSummary[]][] = [];
   const next = deps.projection.updateOverlay((base) => {
     const watches = pruneWatches(mutate(base.watches), now);
-    if (watches === base.watches) return base;
+    const digests = archiveDigests(base.digests, watches, now);
+    if (watches === base.watches && digests === base.digests) return base;
     const before = summarizeWatches(base.watches);
     const after = summarizeWatches(watches);
     changed = [...new Set([...Object.keys(before), ...Object.keys(after)])]
       .filter((sessionId) => !sameSummaries(before[sessionId], after[sessionId]))
       .map((sessionId) => [sessionId, after[sessionId] ?? []]);
-    return { ...base, watches };
+    return { ...base, watches, digests };
   });
   for (const [sessionId, watches] of changed)
     deps.projection.dispatch({ type: 'watches-changed', sessionId, watches });

@@ -13,6 +13,12 @@ export interface PendingDigest {
   readonly detail?: DigestDetail;
 }
 
+/** An archived digest detail and the session it was delivered to. */
+export interface DigestRecord {
+  readonly sessionId: string;
+  readonly detail: DigestDetail;
+}
+
 /** A session's subscription to one pull request. Garden decided it and nothing can recompute
  *  it, so it lives in the overlay. Unique on `sessionId` + `repo` + `pr`. */
 export interface Watch {
@@ -33,6 +39,12 @@ export interface Watch {
 }
 
 const DIGEST_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const DIGESTS_KEPT_PER_WATCH = 20;
+
+/** Whether a digest minted at `createdAt` (epoch ms) is past its retention. Both the pending
+ *  digest and its archived detail expire by this one rule. */
+export const digestExpired = (createdAt: number, now: number): boolean =>
+  now - createdAt > DIGEST_TTL_MS;
 
 /** Defaults when omitted; `closed` is always on and `checks:all` implies `checks`. The result
  *  is deduped in canonical order so equal sets compare equal. */
@@ -142,7 +154,7 @@ export function pruneWatches(watches: readonly Watch[], now: number): readonly W
   const kept: Watch[] = [];
   for (const watch of watches) {
     const expired =
-      watch.pendingDigest !== null && now - watch.pendingDigest.createdAt > DIGEST_TTL_MS;
+      watch.pendingDigest !== null && digestExpired(watch.pendingDigest.createdAt, now);
     const current = expired ? { ...watch, pendingDigest: null } : watch;
     if (current.status === 'closed' && current.pendingDigest === null) {
       changed = true;
@@ -152,6 +164,36 @@ export function pruneWatches(watches: readonly Watch[], now: number): readonly W
     kept.push(current);
   }
   return changed ? kept : watches;
+}
+
+/** Adds the detail of every pending digest not yet archived, drops records past retention, and
+ *  keeps the newest 20 per watch. An acknowledged or superseded digest keeps its record until it
+ *  expires or falls out of the 20, so a later reader can still fetch what it counted. Returns the
+ *  input array when nothing changes. */
+export function archiveDigests(
+  archive: readonly DigestRecord[],
+  watches: readonly Watch[],
+  now: number,
+): readonly DigestRecord[] {
+  const known = new Set(archive.map((record) => record.detail.id));
+  const added: DigestRecord[] = [];
+  for (const watch of watches) {
+    const detail = watch.pendingDigest?.detail;
+    if (detail === undefined || known.has(detail.id)) continue;
+    known.add(detail.id);
+    added.push({ sessionId: watch.sessionId, detail });
+  }
+  const all = added.length === 0 ? archive : [...archive, ...added];
+  const perWatch = new Map<string, number>();
+  const kept: DigestRecord[] = [];
+  for (const record of [...all].reverse()) {
+    if (digestExpired(Date.parse(record.detail.createdAt), now)) continue;
+    const key = `${record.sessionId}\0${record.detail.repo}\0${String(record.detail.pr)}`;
+    const count = (perWatch.get(key) ?? 0) + 1;
+    perWatch.set(key, count);
+    if (count <= DIGESTS_KEPT_PER_WATCH) kept.push(record);
+  }
+  return kept.length === all.length && added.length === 0 ? archive : kept.reverse();
 }
 
 /** Each session's watches as clients see them, ordered by repo then PR. */

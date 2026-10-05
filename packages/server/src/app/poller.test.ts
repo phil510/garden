@@ -377,6 +377,7 @@ const emptyOverlay: OverlayState = {
   collapsedSwarms: [],
   hideDeadSwarms: [],
   watches: [],
+  digests: [],
   pipes: {},
 };
 

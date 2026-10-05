@@ -33,6 +33,7 @@ const emptyOverlay: OverlayState = {
   collapsedSwarms: [],
   hideDeadSwarms: [],
   watches: [],
+  digests: [],
   pipes: {},
 };
 
@@ -878,6 +879,7 @@ describe('killSession', () => {
       collapsedSwarms: [],
       hideDeadSwarms: [],
       watches: [],
+      digests: [],
       pipes: {},
     });
 

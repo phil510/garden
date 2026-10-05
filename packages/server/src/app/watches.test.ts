@@ -26,6 +26,7 @@ const emptyOverlay: OverlayState = {
   collapsedSwarms: [],
   hideDeadSwarms: [],
   watches: [],
+  digests: [],
   pipes: {},
 };
 
@@ -263,6 +264,77 @@ describe('updateWatches', () => {
 
     expect(overlay().watches.map((w) => w.id)).toEqual(['w1']);
     expect(listWatches(deps, 's2')).toEqual([]);
+  });
+
+  it('archives a newly minted digest in the same write that stores it', () => {
+    const { deps, overlay, writes } = setup({ watches: [aWatch()] });
+    const detail = {
+      id: 'd1',
+      repo: 'acme/widgets',
+      pr: 7,
+      line: '#7 acme/widgets: [digest d1] 1 comment',
+      createdAt: new Date(DAY_MS).toISOString(),
+      replaces: null,
+      atMint: { headSha: null, mergeable: null },
+      closed: null,
+      items: {
+        reviews: [],
+        issueComments: [],
+        reviewComments: [],
+        checkRuns: [],
+        statuses: [],
+        conflicts: [],
+      },
+    };
+
+    updateWatches(
+      deps,
+      (watches) =>
+        watches.map((w) => ({
+          ...w,
+          pendingDigest: { id: 'd1', line: detail.line, createdAt: DAY_MS, detail },
+        })),
+      DAY_MS,
+    );
+
+    expect(writes()).toBe(1);
+    expect(overlay().digests).toEqual([{ sessionId: 's1', detail }]);
+
+    updateWatches(deps, (watches) => watches.map((w) => ({ ...w, pendingDigest: null })), DAY_MS);
+
+    expect(overlay().digests).toHaveLength(1);
+  });
+
+  it('writes when only an archived record expires', () => {
+    const { deps, overlay, writes } = setup({ watches: [aWatch()] });
+    const old = {
+      sessionId: 's1',
+      detail: {
+        id: 'd1',
+        repo: 'acme/widgets',
+        pr: 7,
+        line: 'x',
+        createdAt: new Date(0).toISOString(),
+        replaces: null,
+        atMint: { headSha: null, mergeable: null },
+        closed: null,
+        items: {
+          reviews: [],
+          issueComments: [],
+          reviewComments: [],
+          checkRuns: [],
+          statuses: [],
+          conflicts: [],
+        },
+      },
+    };
+    deps.projection.updateOverlay((base) => ({ ...base, digests: [old] }));
+    const before = writes();
+
+    updateWatches(deps, (watches) => watches, 8 * DAY_MS);
+
+    expect(writes()).toBe(before + 1);
+    expect(overlay().digests).toEqual([]);
   });
 
   it('performs no write when nothing changes', () => {

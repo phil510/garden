@@ -1,5 +1,7 @@
+import type { DigestDetail } from '@garden/shared';
 import { describe, expect, it } from 'vitest';
 import {
+  archiveDigests,
   normalizeRepo,
   dropSessionWatches,
   normalizeKinds,
@@ -9,7 +11,7 @@ import {
   summarizeWatches,
   upsertWatch,
 } from './watches.js';
-import type { Watch } from './watches.js';
+import type { DigestRecord, Watch } from './watches.js';
 
 const DAY = 24 * 60 * 60 * 1000;
 const NOW = 1_000 * DAY;
@@ -261,5 +263,110 @@ describe('dropSessionWatches', () => {
     const watches = [aWatch({ sessionId: 's2' })];
 
     expect(dropSessionWatches(watches, 's1')).toBe(watches);
+  });
+});
+
+describe('archiveDigests', () => {
+  const aDetail = (id: string, createdAt: number, overrides: Partial<DigestDetail> = {}) => ({
+    id,
+    repo: 'acme/widgets',
+    pr: 7,
+    line: `#7 acme/widgets: [digest ${id}] 1 comment`,
+    createdAt: new Date(createdAt).toISOString(),
+    replaces: null,
+    atMint: { headSha: 'sha1', mergeable: true },
+    closed: null,
+    items: {
+      reviews: [],
+      issueComments: [],
+      reviewComments: [],
+      checkRuns: [],
+      statuses: [],
+      conflicts: [],
+    },
+    ...overrides,
+  });
+  const minted = (id: string, createdAt: number, watch: Partial<Watch> = {}) =>
+    aWatch({
+      pendingDigest: { id, line: 'x', createdAt, detail: aDetail(id, createdAt) },
+      ...watch,
+    });
+  const ids = (archive: readonly DigestRecord[]) => archive.map((r) => r.detail.id);
+
+  it('archives the detail of a pending digest with its session', () => {
+    const archive = archiveDigests([], [minted('d1', NOW)], NOW);
+
+    expect(archive).toEqual([{ sessionId: 's1', detail: aDetail('d1', NOW) }]);
+  });
+
+  it('adds nothing for a digest without a detail and returns the same array', () => {
+    const archive: readonly DigestRecord[] = [];
+
+    expect(archiveDigests(archive, [aWatch({ pendingDigest: digest(NOW) })], NOW)).toBe(archive);
+  });
+
+  it('does not archive a digest twice and returns the same array when nothing changed', () => {
+    const once = archiveDigests([], [minted('d1', NOW)], NOW);
+
+    expect(archiveDigests(once, [minted('d1', NOW)], NOW)).toBe(once);
+  });
+
+  it('keeps a superseded digest after a re-mint', () => {
+    const first = archiveDigests([], [minted('d1', NOW)], NOW);
+
+    const second = archiveDigests(first, [minted('d2', NOW + 1)], NOW + 1);
+
+    expect(ids(second)).toEqual(['d1', 'd2']);
+  });
+
+  it('keeps a record after the digest is acknowledged or its watch removed', () => {
+    const archive = archiveDigests([], [minted('d1', NOW)], NOW);
+
+    expect(archiveDigests(archive, [aWatch({ pendingDigest: null })], NOW)).toBe(archive);
+    expect(archiveDigests(archive, [], NOW)).toBe(archive);
+  });
+
+  it('keeps a record exactly seven days old and drops one older', () => {
+    const archive = archiveDigests([], [minted('d1', NOW - 7 * DAY)], NOW - 7 * DAY);
+
+    expect(archiveDigests(archive, [], NOW)).toBe(archive);
+    expect(archiveDigests(archive, [], NOW + 1)).toEqual([]);
+  });
+
+  it('never expires a record while its pending digest is live, so it is not archived again', () => {
+    const watch = minted('d1', NOW - 7 * DAY);
+    const archive = archiveDigests([], [watch], NOW - 7 * DAY);
+
+    const pruned = pruneWatches([watch], NOW);
+
+    expect(pruned).toEqual([watch]);
+    expect(archiveDigests(archive, pruned, NOW)).toBe(archive);
+  });
+
+  it('keeps the newest twenty records per watch and leaves other watches alone', () => {
+    const other = aWatch({ id: 'w2', pr: 9 });
+    let archive: readonly DigestRecord[] = [];
+    for (let i = 0; i < 25; i += 1)
+      archive = archiveDigests(archive, [minted(`d${String(i)}`, NOW + i)], NOW + i);
+    archive = archiveDigests(
+      archive,
+      [
+        {
+          ...other,
+          pendingDigest: {
+            id: 'o1',
+            line: 'x',
+            createdAt: NOW,
+            detail: aDetail('o1', NOW, { pr: 9 }),
+          },
+        },
+      ],
+      NOW + 25,
+    );
+
+    expect(ids(archive).filter((id) => id.startsWith('d'))).toEqual(
+      Array.from({ length: 20 }, (_, i) => `d${String(i + 5)}`),
+    );
+    expect(ids(archive)).toContain('o1');
   });
 });

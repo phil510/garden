@@ -37,6 +37,7 @@ const emptyOverlay: OverlayState = {
   collapsedSwarms: [],
   hideDeadSwarms: [],
   watches: [],
+  digests: [],
   pipes: {},
 };
 
@@ -749,6 +750,7 @@ describe('POST /sessions/:id/kill', () => {
         collapsedSwarms: [],
         hideDeadSwarms: [],
         watches: [],
+        digests: [],
         pipes: {},
       }),
       projection: fakeProjection([session]),
@@ -780,6 +782,7 @@ describe('POST /sessions/:id/kill', () => {
           collapsedSwarms: [],
           hideDeadSwarms: [],
           watches: [],
+          digests: [],
           pipes: {},
         }),
         projection: fakeProjection([session]),
