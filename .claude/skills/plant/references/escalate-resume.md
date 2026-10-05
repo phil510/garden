@@ -56,8 +56,7 @@ needed on <X>` `SendMessage`, then ends its turn and **waits**. It has
 
 6. `SendMessage` the escalating worker by its existing live name: the
    decision text plus a pointer to the event file, and a request to
-   re-read the brief if the resolution edited it. Then append
-   `> NOTE <iso> — orchestrator: decision sent to <name>`. Reusing the
+   re-read the brief if the resolution edited it. Reusing the
    name is safe because nothing else was dispatched during the pause, so
    the escalator is still the only writer.
 7. The worker reads the `## Resolution` block (disk is authoritative; the
@@ -81,10 +80,7 @@ A worker that is merely **silent** after the decision was sent — an idle
 notification arrives with no result message — is not gone. It may still
 write, and a replacement beside it would be a second writer, so page the
 user instead of spawning; `/plant resume` in a new session is the clean
-way past it. Within a session, a `> RESOLVED` that closes an `> ESCALATED` and has
-no `decision sent` note after it means the send never happened: send
-it, don't spawn — unless the escalator is gone, which is the fallback
-above.
+way past it.
 
 ## Escalation event shape
 

@@ -365,13 +365,10 @@ view --json baseRefName`, never assume `main`) — the shape the
     `references/escalate-resume.md`. Auto-resolve within the brief's
     Autonomy bounds if you can, otherwise page the user. Then, in this
     order: append the event's `## Resolution` block and the `> RESOLVED`
-    annotation (disk first, so the decision survives the worker),
+    annotation (disk first, so the decision survives the worker), then
     `SendMessage` the escalator by its live name with the decision and a
-    pointer to the event file, and append `> NOTE <iso> — orchestrator:
-decision sent to <name>`. Within a session, a `> RESOLVED` that closes an
-    `> ESCALATED` and has no such note after it means the send never
-    happened — send it, don't spawn (unless the escalator is gone, below). Fresh-spawn under the next name with the decision in the
-    opener only when the escalator is gone (a new session, or
+    pointer to the event file. Fresh-spawn under the next name with the
+    decision in the opener only when the escalator is gone (a new session, or
     `teammate-terminated` with no result). A live worker that goes idle
     after the decision with no result message is silent, not gone — it may
     still write, and a replacement beside it is a second writer — so page
@@ -454,8 +451,9 @@ isn't already recorded there, then append the event's `## Resolution`
 block and the `> RESOLVED` annotation. This is the fallback path: the
 escalating worker died with the old session, so a fresh spawn reads its
 decision from that block, and an unresolved escalation left dangling means
-it has nothing to act on. A `review_cap` one goes to a reviewer with
-`${ROUND}` the round it escalated on.
+it has nothing to act on. A `review_cap` one needs no reviewer: the decision is a fix round or an
+accept, and you act on it directly (a fix round spawns a developer with
+the round file; accept goes to step 9).
 
 Re-enter at the reported `current_stage` by fresh-spawning that stage's
 worker. Worker counters restart at 1 in a new session — the old team died

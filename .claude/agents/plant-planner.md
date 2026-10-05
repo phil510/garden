@@ -114,8 +114,7 @@ stages.
    user's Decision actually changes; trust prior `plan.md` content for
    the rest. A planner woken by the decision message already holds that
    context: it applies the decision to the plan and continues, with no
-   new annotation — the orchestrator's `decision sent` note records the
-   wake-up.
+   new annotation.
 
 6. **Check for blockers.** If the brief assumes something the codebase
    doesn't support (a method that isn't there, a pattern that's been

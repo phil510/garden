@@ -292,6 +292,9 @@ call can be logged and continued.
 Escalate from a clean tree: run `git merge --abort` first, so a
 successor spawned after the decision finds the branch as pushed rather
 than half-merged and failing on "You have not concluded your merge".
+A developer woken with the decision starts from that clean tree, so it
+re-runs `git fetch origin` and `git merge origin/<name>` before applying
+the decision, and does not report done without the merge commit.
 
 ## Signalling
 
