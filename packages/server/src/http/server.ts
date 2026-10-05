@@ -10,6 +10,7 @@ import type { RepoCatalog } from '../app/repoCatalog.js';
 import type { SessionsDeps } from '../app/sessions.js';
 import type { SwarmsDeps } from '../app/swarms.js';
 import type { WatchesDeps } from '../app/watches.js';
+import { digestRoutes } from './routes/digests.js';
 import { fsRoutes } from './routes/fs.js';
 import { healthRoutes } from './routes/health.js';
 import { hookRoutes } from './routes/hooks.js';
@@ -56,6 +57,7 @@ export function createServer(deps: ServerDeps, logger: Logger = noopLogger): Fas
   app.register((instance) => uiStateRoutes(instance, deps));
   app.register((instance) => swarmRoutes(instance, deps));
   app.register((instance) => watchRoutes(instance, deps));
+  app.register((instance) => digestRoutes(instance, deps));
   app.register((instance) => fsRoutes(instance, deps));
 
   const clientDir = resolveClientDir(dirname(fileURLToPath(import.meta.url)));

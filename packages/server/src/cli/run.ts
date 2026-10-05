@@ -12,6 +12,7 @@ import type { CliClient, Io } from './commands.js';
 import {
   defaultClient,
   runAdopt,
+  runDigest,
   runKill,
   runLs,
   runNew,
@@ -36,6 +37,7 @@ const CLI_COMMANDS = [
   'watch',
   'unwatch',
   'watches',
+  'digest',
   'events',
   'stop',
   'uninstall',
@@ -49,7 +51,7 @@ export function isCliCommand(command: string | undefined): command is CliCommand
 export function usageLines(): string {
   return (
     'usage: garden [new <dir> | ls | kill <id> | resume <id> | adopt <id> | ' +
-    'watch <pr> | unwatch <pr> | unwatch --all | watches | events --follow | ' +
+    'watch <pr> | unwatch <pr> | unwatch --all | watches | digest <id> | events --follow | ' +
     'stop [--all] | uninstall]\n'
   );
 }
@@ -294,6 +296,10 @@ export async function runCli(
     }
     case 'watches':
       return runWatches(io, { env, session: values.session }, json, client);
+    case 'digest':
+      return positionals[0] === undefined
+        ? usage(io, 'garden digest <id> [--json]')
+        : runDigest(io, positionals[0], json, client);
     case 'events': {
       if (!values.follow || values.session !== undefined)
         return usage(io, 'garden events --follow');

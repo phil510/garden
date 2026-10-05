@@ -1,5 +1,6 @@
 import type {
   CreateSessionResponse,
+  DigestResponse,
   OkResponse,
   SessionsFilter,
   SessionState,
@@ -11,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { CliClient, Io } from './commands.js';
 import {
   runAdopt,
+  runDigest,
   runKill,
   runLs,
   runNew,
@@ -73,6 +75,7 @@ function throwingClient(error: Error): CliClient {
     watch: () => Promise.reject(error),
     unwatch: () => Promise.reject(error),
     watches: () => Promise.reject(error),
+    digest: () => Promise.reject(error),
   };
 }
 
@@ -502,5 +505,66 @@ describe('runUnwatch', () => {
 
     expect(exitCode).toBe(1);
     expect(stderr).toEqual(['garden: boom\n']);
+  });
+});
+
+describe('runDigest', () => {
+  const response: DigestResponse = {
+    digest: {
+      id: 'abc123',
+      repo: 'owner/name',
+      pr: 7,
+      line: '#7 owner/name: [digest abc123] 1 comment',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      replaces: null,
+      atMint: { headSha: 'sha1', mergeable: true },
+      closed: null,
+      items: {
+        reviews: [],
+        issueComments: [{ id: 1, author: 'alice', at: '2026-01-01T00:00:00.000Z' }],
+        reviewComments: [],
+        checkRuns: [],
+        statuses: [],
+        conflicts: [],
+      },
+    },
+  };
+  const client = (...ids: string[]): CliClient => ({
+    ...throwingClient(new Error('unused')),
+    digest: (id) => {
+      ids.push(id);
+      return Promise.resolve(response);
+    },
+  });
+
+  it('prints the stored line, or the whole response as JSON with --json', async () => {
+    const { io, stdout } = collectingIo();
+    const ids: string[] = [];
+
+    expect(await runDigest(io, 'abc123', false, client(...ids))).toBe(0);
+    expect(await runDigest(io, 'abc123', true, client(...ids))).toBe(0);
+
+    expect(stdout).toEqual([`${response.digest.line}\n`, `${JSON.stringify(response)}\n`]);
+  });
+
+  it('says the digest expired or was never recorded on a 404, and exits 1', async () => {
+    const { io, stdout, stderr } = collectingIo();
+    const missing: CliClient = {
+      ...throwingClient(new Error('unused')),
+      digest: () => Promise.reject(new CliHttpError('no digest nope', { status: 404 })),
+    };
+
+    expect(await runDigest(io, 'nope', true, missing)).toBe(1);
+
+    expect(stdout).toEqual([]);
+    expect(stderr).toEqual(['garden: no digest nope (expired or never recorded)\n']);
+  });
+
+  it('surfaces any other failure as it is, and exits 1', async () => {
+    const { io, stderr } = collectingIo();
+
+    expect(await runDigest(io, 'x', false, throwingClient(new Error('server is down')))).toBe(1);
+
+    expect(stderr).toEqual(['garden: server is down\n']);
   });
 });
