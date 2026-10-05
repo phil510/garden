@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { readClaudeSessionNames } from './adapters/claudeSessions.js';
@@ -290,7 +290,7 @@ export async function main(detached: boolean): Promise<void> {
     config: configAdapter,
     logger,
     now: Date.now,
-    mintId: randomUUID,
+    mintId: () => randomBytes(6).toString('hex'),
   });
 
   const poll = setInterval(() => {
