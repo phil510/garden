@@ -1,5 +1,5 @@
 import { DEFAULT_WATCH_KINDS, WATCH_KINDS } from '@garden/shared';
-import type { WatchKind, WatchStatus, WatchSummary } from '@garden/shared';
+import type { DigestDetail, WatchKind, WatchStatus, WatchSummary } from '@garden/shared';
 
 /** Activity waiting to be delivered to the session. `createdAt` is when this digest id was
  *  minted: whoever replaces the digest with a new id sets a fresh `createdAt`, so the expiry
@@ -8,6 +8,9 @@ export interface PendingDigest {
   readonly id: string;
   readonly line: string;
   readonly createdAt: number;
+  /** What the line counted. Absent on a digest minted before details were recorded, or one folded
+   *  from a tally whose items are unknown. */
+  readonly detail?: DigestDetail;
 }
 
 /** A session's subscription to one pull request. Garden decided it and nothing can recompute

@@ -439,7 +439,7 @@ describe('createPoller', () => {
     await t.poller.tick();
 
     expect(t.state()).toMatchObject([{ pendingDigest: true }]);
-    expect(t.stored()[0]?.pendingDigest?.line).toBe('#7 acme/widgets: 1 comment');
+    expect(t.stored()[0]?.pendingDigest?.line).toBe('#7 acme/widgets: [digest digest-1] 1 comment');
   });
 
   it('writes nothing when every call is a 304', async () => {
@@ -460,7 +460,7 @@ describe('createPoller', () => {
     t.at(T0 + 5 * MIN);
     await t.poller.tick();
     const first = t.stored()[0]?.pendingDigest;
-    expect(first?.line).toBe('#7 acme/widgets: 1 comment');
+    expect(first?.line).toBe('#7 acme/widgets: [digest digest-1] 1 comment');
     t.github.set(page(`${PR}/reviews`, 1), [
       {
         id: 9,
@@ -482,7 +482,7 @@ describe('createPoller', () => {
     await t.poller.tick();
 
     const next = t.stored()[0]?.pendingDigest;
-    expect(next?.line).toBe('#7 acme/widgets: 1 review (bob)');
+    expect(next?.line).toBe('#7 acme/widgets: [digest digest-2] 1 review (bob)');
     expect(next?.id).not.toBe(first?.id);
   });
 
@@ -580,7 +580,7 @@ describe('createPoller', () => {
     await t.poller.tick();
 
     expect(t.state()).toMatchObject([{ status: 'closed', pendingDigest: true }]);
-    expect(t.stored()[0]?.pendingDigest?.line).toBe('#7 acme/widgets: merged');
+    expect(t.stored()[0]?.pendingDigest?.line).toBe('#7 acme/widgets: [digest digest-1] merged');
     t.github.clearCalls();
 
     t.at(T0 + 10 * MIN);

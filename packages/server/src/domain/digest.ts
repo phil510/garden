@@ -1,6 +1,6 @@
-import type { DigestItems, WatchKind, WatchStatus } from '@garden/shared';
+import type { DigestDetail, DigestItems, WatchKind, WatchStatus } from '@garden/shared';
 import { emptyCursor, emptyItems, emptyTally, isEmptyTally, readCursor } from './pollCursor.js';
-import type { Activity, Cursor, Observation, Tally } from './pollCursor.js';
+import type { Activity, Cursor, Observation, Tally, Tracking } from './pollCursor.js';
 import type { Watch } from './watches.js';
 
 export interface DigestSettings {
@@ -128,10 +128,13 @@ function tallyActivity(
 
 const plural = (n: number, noun: string) => `${String(n)} ${noun}${n === 1 ? '' : 's'}`;
 
-/** `#241 helloextend/foo: 2 reviews (coderabbitai[bot], alice), 3 comments, checks failed: build` */
+/** `#241 helloextend/foo: [digest 3f9a2c7b01de] 2 reviews (coderabbitai[bot], alice), 3 comments,
+ *  checks failed: build`. The id sits after the colon so the line still starts with the PR and
+ *  ends with `merged` or `closed`. */
 export function formatDigestLine(
   repo: string,
   pr: number,
+  id: string,
   tally: Tally,
   closed: { readonly merged: boolean } | null,
 ): string {
@@ -143,7 +146,28 @@ export function formatDigestLine(
   if (tally.checksPassed.length > 0) parts.push(`checks passed: ${tally.checksPassed.join(', ')}`);
   if (tally.conflict) parts.push('merge conflict');
   if (closed !== null) parts.push(closed.merged ? 'merged' : 'closed');
-  return `#${String(pr)} ${repo}: ${parts.join(', ')}`;
+  return `#${String(pr)} ${repo}: [digest ${id}] ${parts.join(', ')}`;
+}
+
+function digestDetail(
+  watch: Watch,
+  minted: { readonly id: string; readonly line: string; readonly replaces: string | null },
+  items: DigestItems,
+  pr: Tracking['pr'],
+  closed: { readonly merged: boolean } | null,
+  now: number,
+): DigestDetail {
+  return {
+    id: minted.id,
+    repo: watch.repo,
+    pr: watch.pr,
+    line: minted.line,
+    createdAt: iso(now),
+    replaces: minted.replaces,
+    atMint: { headSha: pr.headSha, mergeable: pr.mergeable },
+    closed: closed === null ? null : { merged: closed.merged },
+    items,
+  };
 }
 
 /**
@@ -182,10 +206,23 @@ export function applyObservation(
     written = addTallies(written, fresh);
     fresh = emptyTally();
     const id = mintId();
+    const line = formatDigestLine(watch.repo, watch.pr, id, written, closed);
     pendingDigest = {
       id,
-      line: formatDigestLine(watch.repo, watch.pr, written, closed),
+      line,
       createdAt: now,
+      ...(written.items === null
+        ? {}
+        : {
+            detail: digestDetail(
+              watch,
+              { id, line, replaces: pending?.id ?? null },
+              written.items,
+              observation.tracking.pr,
+              closed,
+              now,
+            ),
+          }),
     };
     if (closed !== null) status = 'closed';
   }
