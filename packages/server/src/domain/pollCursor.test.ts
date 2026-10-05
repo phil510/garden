@@ -227,15 +227,24 @@ describe('readCursor', () => {
     });
   });
 
-  it('keeps unknown items as null and rejects malformed items', () => {
+  it('keeps unknown items as null', () => {
     const unknown = { ...emptyCursor(), written: { ...emptyCursor().written, items: null } };
-    const malformed = {
-      ...emptyCursor(),
-      fresh: { ...emptyCursor().fresh, items: { reviews: [] } },
-    };
 
     expect(readCursor(JSON.parse(JSON.stringify(unknown)))?.written.items).toBeNull();
-    expect(readCursor(malformed)).toBeNull();
+  });
+
+  it('keeps the cursor and treats invalid items on a counted tally as unknown', () => {
+    const persisted = {
+      ...emptyCursor(),
+      written: { ...emptyCursor().written, comments: 2, items: { reviews: [] } },
+    };
+    const before = JSON.stringify(persisted);
+
+    const cursor = readCursor(persisted);
+
+    expect(cursor?.written.items).toBeNull();
+    expect(cursor?.written.comments).toBe(2);
+    expect(JSON.stringify(persisted)).toBe(before);
   });
 
   it.each([

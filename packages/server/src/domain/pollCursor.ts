@@ -131,10 +131,9 @@ const ITEM_LISTS = [
 const isItems = (value: unknown): value is DigestItems =>
   isRecord(value) && ITEM_LISTS.every((list) => Array.isArray(value[list]));
 
-/** `items` may be absent, as in a tally written before items were recorded. */
+/** `items` is not checked here: an absent or invalid one is repaired by `withItems`. */
 const isTally = (value: unknown): value is Omit<Tally, 'items'> & { items?: unknown } =>
   isRecord(value) &&
-  (value['items'] === undefined || value['items'] === null || isItems(value['items'])) &&
   typeof value['reviews'] === 'number' &&
   isStringArray(value['reviewAuthors']) &&
   typeof value['comments'] === 'number' &&
@@ -144,9 +143,10 @@ const isTally = (value: unknown): value is Omit<Tally, 'items'> & { items?: unkn
   typeof value['lastActivityAt'] === 'number';
 
 /** A tally from before items were recorded has none: empty if it counted nothing, otherwise its
- *  items are unknown. Returns a new object; the persisted one is never written into. */
+ *  items are unknown. Items that are present but invalid are unknown too. Returns a new object; the persisted one is never written into. */
 function withItems(tally: Omit<Tally, 'items'> & { items?: unknown }): Tally {
-  if (tally.items !== undefined) return tally as Tally;
+  if (isItems(tally.items) || tally.items === null) return tally as Tally;
+  if (tally.items !== undefined) return { ...tally, items: null };
   return { ...tally, items: isEmptyTally({ ...tally, items: null }) ? emptyItems() : null };
 }
 
