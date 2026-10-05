@@ -164,21 +164,32 @@ export function newListItems<T extends { readonly id: number }>(
   return { fresh, seen: [...known] };
 }
 
-export interface CheckTransition {
+/** A check run or commit status that reached a reportable state, with the sha it was read on. */
+export type CheckTransition = {
   readonly name: string;
   readonly outcome: 'failed' | 'passed';
   readonly at: number;
-}
+} & (
+  | {
+      readonly kind: 'check-run';
+      readonly id: number;
+      readonly conclusion: string;
+      readonly headSha: string | null;
+    }
+  | { readonly kind: 'status'; readonly state: string; readonly headSha: string | null }
+);
 
 const CHECK_FAILURES = new Set(['failure', 'timed_out', 'startup_failure', 'action_required']);
 
 /** Completed runs that finished in or after the watch's creation second and are not already reported in
  *  that state. A run re-run in place gets a new `completed_at`, so it fires again. A run that
- *  finishes with another conclusion (skipped, cancelled, neutral) is recorded but not reported. */
+ *  finishes with another conclusion (skipped, cancelled, neutral) is recorded but not reported.
+ *  `headSha` is the commit the runs were fetched for. */
 export function checkTransitions(
   runs: readonly CheckRunFact[],
   reported: Readonly<Record<string, string>>,
   createdAt: number,
+  headSha: string | null,
 ): { transitions: CheckTransition[]; reported: Record<string, string> } {
   const next = { ...reported };
   const transitions: CheckTransition[] = [];
@@ -188,10 +199,21 @@ export function checkTransitions(
     if (next[String(run.id)] === key) continue;
     next[String(run.id)] = key;
     if (!sinceCreation(run.completedAt, createdAt)) continue;
-    if (CHECK_FAILURES.has(run.conclusion))
-      transitions.push({ name: run.name, outcome: 'failed', at: run.completedAt });
-    else if (run.conclusion === 'success')
-      transitions.push({ name: run.name, outcome: 'passed', at: run.completedAt });
+    const outcome = CHECK_FAILURES.has(run.conclusion)
+      ? 'failed'
+      : run.conclusion === 'success'
+        ? 'passed'
+        : null;
+    if (outcome !== null)
+      transitions.push({
+        kind: 'check-run',
+        id: run.id,
+        name: run.name,
+        conclusion: run.conclusion,
+        outcome,
+        at: run.completedAt,
+        headSha,
+      });
   }
   return { transitions, reported: next };
 }
@@ -202,6 +224,7 @@ export function statusTransitions(
   statuses: readonly StatusFact[],
   reported: Readonly<Record<string, string>>,
   createdAt: number,
+  headSha: string | null,
 ): { transitions: CheckTransition[]; reported: Record<string, string> } {
   const next = { ...reported };
   const transitions: CheckTransition[] = [];
@@ -213,9 +236,12 @@ export function statusTransitions(
     next[status.context] = key;
     if (!sinceCreation(status.updatedAt, createdAt)) continue;
     transitions.push({
+      kind: 'status',
       name: status.context,
+      state: status.state,
       outcome: failed ? 'failed' : 'passed',
       at: status.updatedAt,
+      headSha,
     });
   }
   return { transitions, reported: next };
@@ -233,10 +259,26 @@ export function conflictTransition(
 
 /** New activity as the digest sees it: no content, only who and when. */
 export interface Activity {
-  readonly reviews: readonly { readonly login: string; readonly at: number }[];
-  readonly comments: readonly { readonly login: string; readonly at: number }[];
+  readonly reviews: readonly {
+    readonly id: number;
+    readonly login: string;
+    readonly state: string;
+    readonly at: number;
+  }[];
+  readonly issueComments: readonly {
+    readonly id: number;
+    readonly login: string;
+    readonly at: number;
+  }[];
+  readonly reviewComments: readonly {
+    readonly id: number;
+    readonly login: string;
+    readonly reviewId: number | null;
+    readonly at: number;
+  }[];
   readonly checks: readonly CheckTransition[];
-  readonly conflict: boolean;
+  /** Set when the PR turned conflicting, with the head sha it was seen on. */
+  readonly conflict: { readonly headSha: string | null } | null;
   /** Set when the PR is no longer open. */
   readonly closed: { readonly merged: boolean } | null;
 }

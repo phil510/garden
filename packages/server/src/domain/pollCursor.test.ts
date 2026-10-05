@@ -75,32 +75,42 @@ describe('checkTransitions', () => {
   });
 
   it('records runs that finished before the watch without reporting them', () => {
-    const result = checkTransitions([run(1, 'failure', T0 - 1)], {}, T0);
+    const result = checkTransitions([run(1, 'failure', T0 - 1)], {}, T0, 'sha1');
 
     expect(result.transitions).toEqual([]);
     expect(result.reported).toEqual({ '1': `failure@${String(T0 - 1)}` });
   });
 
   it('reports a run that completed in the second the watch was created', () => {
-    const result = checkTransitions([run(1, 'failure', T0)], {}, T0 + 300);
+    const result = checkTransitions([run(1, 'failure', T0)], {}, T0 + 300, 'sha1');
 
-    expect(result.transitions).toEqual([{ name: 'check-1', outcome: 'failed', at: T0 }]);
+    expect(result.transitions).toEqual([
+      {
+        kind: 'check-run',
+        id: 1,
+        name: 'check-1',
+        conclusion: 'failure',
+        outcome: 'failed',
+        at: T0,
+        headSha: 'sha1',
+      },
+    ]);
   });
 
   it('reports a run first seen in progress that later fails, once', () => {
-    const first = checkTransitions([run(1, null, null)], {}, T0);
-    const second = checkTransitions([run(1, 'failure', T0 + 5)], first.reported, T0);
-    const third = checkTransitions([run(1, 'failure', T0 + 5)], second.reported, T0);
+    const first = checkTransitions([run(1, null, null)], {}, T0, 'sha1');
+    const second = checkTransitions([run(1, 'failure', T0 + 5)], first.reported, T0, 'sha1');
+    const third = checkTransitions([run(1, 'failure', T0 + 5)], second.reported, T0, 'sha1');
 
     expect(first.transitions).toEqual([]);
-    expect(second.transitions).toEqual([{ name: 'check-1', outcome: 'failed', at: T0 + 5 }]);
+    expect(second.transitions).toMatchObject([{ name: 'check-1', outcome: 'failed', at: T0 + 5 }]);
     expect(third.transitions).toEqual([]);
   });
 
   it('reports a run re-run in place with a new completion time', () => {
-    const first = checkTransitions([run(1, 'failure', T0 + 5)], {}, T0);
+    const first = checkTransitions([run(1, 'failure', T0 + 5)], {}, T0, 'sha1');
 
-    const again = checkTransitions([run(1, 'failure', T0 + 50)], first.reported, T0);
+    const again = checkTransitions([run(1, 'failure', T0 + 50)], first.reported, T0, 'sha1');
 
     expect(again.transitions).toHaveLength(1);
   });
@@ -110,9 +120,20 @@ describe('checkTransitions', () => {
       [run(1, 'success', T0 + 1), run(2, 'skipped', T0 + 1), run(3, 'cancelled', T0 + 1)],
       {},
       T0,
+      'sha1',
     );
 
-    expect(result.transitions).toEqual([{ name: 'check-1', outcome: 'passed', at: T0 + 1 }]);
+    expect(result.transitions).toEqual([
+      {
+        kind: 'check-run',
+        id: 1,
+        name: 'check-1',
+        conclusion: 'success',
+        outcome: 'passed',
+        at: T0 + 1,
+        headSha: 'sha1',
+      },
+    ]);
   });
 });
 
@@ -120,19 +141,33 @@ describe('statusTransitions', () => {
   const status = (state: string, updatedAt: number) => ({ context: 'ci/x', state, updatedAt });
 
   it('reports pending moving to error once, and a repeated failure with a new timestamp again', () => {
-    const pending = statusTransitions([status('pending', T0 + 1)], {}, T0);
-    const error = statusTransitions([status('error', T0 + 2)], pending.reported, T0);
-    const failure = statusTransitions([status('failure', T0 + 3)], error.reported, T0);
-    const failureAgain = statusTransitions([status('failure', T0 + 4)], failure.reported, T0);
+    const pending = statusTransitions([status('pending', T0 + 1)], {}, T0, 'sha1');
+    const error = statusTransitions([status('error', T0 + 2)], pending.reported, T0, 'sha1');
+    const failure = statusTransitions([status('failure', T0 + 3)], error.reported, T0, 'sha1');
+    const failureAgain = statusTransitions(
+      [status('failure', T0 + 4)],
+      failure.reported,
+      T0,
+      'sha1',
+    );
 
     expect(pending.transitions).toEqual([]);
-    expect(error.transitions).toEqual([{ name: 'ci/x', outcome: 'failed', at: T0 + 2 }]);
+    expect(error.transitions).toEqual([
+      {
+        kind: 'status',
+        name: 'ci/x',
+        state: 'error',
+        outcome: 'failed',
+        at: T0 + 2,
+        headSha: 'sha1',
+      },
+    ]);
     expect(failure.transitions).toHaveLength(1);
     expect(failureAgain.transitions).toHaveLength(1);
   });
 
   it('does not report a status already failing when the watch was created', () => {
-    expect(statusTransitions([status('failure', T0 - 1)], {}, T0).transitions).toEqual([]);
+    expect(statusTransitions([status('failure', T0 - 1)], {}, T0, 'sha1').transitions).toEqual([]);
   });
 });
 

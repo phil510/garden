@@ -65,6 +65,8 @@ export interface ReviewFact {
   readonly id: number;
   readonly login: string;
   readonly submittedAt: number;
+  /** GitHub's review state, such as `APPROVED` or `CHANGES_REQUESTED`. */
+  readonly state: string;
   /** An empty-body COMMENTED review: the shell GitHub makes around a standalone inline comment
    *  or a thread reply. Only the comment counts, never the shell. */
   readonly wrapper: boolean;
@@ -144,6 +146,7 @@ export function parseReviews(body: unknown): ParsedPage<ReviewFact> {
       id,
       login: login(item['user']),
       submittedAt,
+      state: str(item['state']) ?? '',
       wrapper: item['state'] === 'COMMENTED' && (str(item['body']) ?? '').trim() === '',
     };
   });

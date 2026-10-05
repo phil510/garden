@@ -125,7 +125,7 @@ describe('fetchWatch', () => {
 
     const first = await fetchObserved(github, null);
 
-    expect(first.activity.comments).toHaveLength(201);
+    expect(first.activity.issueComments).toHaveLength(201);
     expect(first.tracking.issueComments.etags).toHaveLength(3);
     github.clearCalls();
 
@@ -138,7 +138,7 @@ describe('fetchWatch', () => {
       'not-modified',
       'not-modified',
     ]);
-    expect(second.activity.comments).toEqual([]);
+    expect(second.activity.issueComments).toEqual([]);
   });
 
   it('stops after one call when the PR is not found', async () => {
@@ -171,7 +171,7 @@ describe('fetchWatch', () => {
 
     const observation = await fetchObserved(github, null);
 
-    expect(observation.activity.comments).toEqual([{ login: 'alice', at: T0 + 5000 }]);
+    expect(observation.activity.issueComments).toEqual([{ id: 2, login: 'alice', at: T0 + 5000 }]);
     expect(observation.tracking.issueComments.seen).toEqual([1, 2]);
   });
 
@@ -196,7 +196,9 @@ describe('fetchWatch', () => {
     const second = await fetchObserved(github, cursor);
 
     expect(second.activity.reviews).toEqual([]);
-    expect(second.activity.comments).toEqual([{ login: 'bob', at: T0 + 9000 }]);
+    expect(second.activity.reviewComments).toEqual([
+      { id: 40, login: 'bob', reviewId: 3, at: T0 + 9000 },
+    ]);
   });
 
   it('counts an empty approval or change request and a commented review with a body', async () => {
@@ -219,6 +221,11 @@ describe('fetchWatch', () => {
     const observation = await fetchObserved(github, null);
 
     expect(observation.activity.reviews.map((r) => r.login)).toEqual(['u1', 'u2', 'u3']);
+    expect(observation.activity.reviews.map((r) => [r.id, r.state])).toEqual([
+      [1, 'APPROVED'],
+      [2, 'CHANGES_REQUESTED'],
+      [3, 'COMMENTED'],
+    ]);
   });
 
   it('reports a check run first seen in progress that later fails, and a status going to error', async () => {
@@ -251,7 +258,25 @@ describe('fetchWatch', () => {
 
     const second = await fetchObserved(github, cursor);
 
-    expect(second.activity.checks.map((check) => check.name)).toEqual(['build', 'ci/x']);
+    expect(second.activity.checks).toEqual([
+      {
+        kind: 'check-run',
+        id: 1,
+        name: 'build',
+        conclusion: 'failure',
+        outcome: 'failed',
+        at: T0 + 5000,
+        headSha: 'sha1',
+      },
+      {
+        kind: 'status',
+        name: 'ci/x',
+        state: 'error',
+        outcome: 'failed',
+        at: T0 + 6000,
+        headSha: 'sha1',
+      },
+    ]);
     expect(first.activity.checks).toEqual([]);
   });
 
@@ -290,7 +315,7 @@ describe('fetchWatch', () => {
 
     const second = await fetchObserved(github, cursorAfter(first));
 
-    expect(second.activity).toMatchObject({ conflict: false, closed: { merged: true } });
+    expect(second.activity).toMatchObject({ conflict: null, closed: { merged: true } });
   });
 
   it('stamps a reply on an old review with its own creation time', async () => {
@@ -311,7 +336,9 @@ describe('fetchWatch', () => {
 
     const second = await fetchObserved(github, cursorAfter(first));
 
-    expect(second.activity.comments).toEqual([{ login: 'alice', at: T0 + 90_000 }]);
+    expect(second.activity.reviewComments).toEqual([
+      { id: 40, login: 'alice', reviewId: 3, at: T0 + 90_000 },
+    ]);
   });
 
   it('reports a PR becoming conflicting once, not again while GitHub recomputes', async () => {
@@ -326,9 +353,9 @@ describe('fetchWatch', () => {
     const third = await fetchObserved(github, cursor2);
 
     expect([first.activity.conflict, second.activity.conflict, third.activity.conflict]).toEqual([
-      false,
-      true,
-      false,
+      null,
+      { headSha: 'sha1' },
+      null,
     ]);
   });
 });

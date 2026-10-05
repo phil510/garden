@@ -22,13 +22,30 @@ const watch = (overrides: Partial<Watch> = {}): Watch => ({
   ...overrides,
 });
 
-const none: Activity = { reviews: [], comments: [], checks: [], conflict: false, closed: null };
+const none: Activity = {
+  reviews: [],
+  issueComments: [],
+  reviewComments: [],
+  checks: [],
+  conflict: null,
+  closed: null,
+};
 const observe = (activity: Partial<Activity> = {}): Observation => ({
   activity: { ...none, ...activity },
   tracking: emptyTracking(),
 });
-const comment = (login: string, at: number) => ({ login, at });
-const review = (login: string, at: number) => ({ login, at });
+let itemId = 0;
+const comment = (login: string, at: number) => ({ id: ++itemId, login, at });
+const review = (login: string, at: number) => ({ id: ++itemId, login, state: 'APPROVED', at });
+const checkRun = (name: string, outcome: 'failed' | 'passed', at: number) => ({
+  kind: 'check-run' as const,
+  id: ++itemId,
+  name,
+  conclusion: outcome === 'failed' ? 'failure' : 'success',
+  outcome,
+  at,
+  headSha: 'sha1',
+});
 
 let counter = 0;
 const mint = () => `d${String(++counter)}`;
@@ -41,15 +58,15 @@ describe('kinds and filters', () => {
   it('ignores comments for a watch without the comment kind', () => {
     const w = watch({ kinds: ['review', 'closed'] });
 
-    const next = apply(w, { comments: [comment('a', T0 - 10 * MIN)] }, T0);
+    const next = apply(w, { issueComments: [comment('a', T0 - 10 * MIN)] }, T0);
 
     expect(next.pendingDigest).toBeNull();
   });
 
   it('reports failed checks under checks and passes only under checks:all', () => {
     const checks = [
-      { name: 'build', outcome: 'failed' as const, at: T0 - 10 * MIN },
-      { name: 'lint', outcome: 'passed' as const, at: T0 - 10 * MIN },
+      checkRun('build', 'failed', T0 - 10 * MIN),
+      checkRun('lint', 'passed', T0 - 10 * MIN),
     ];
 
     const plain = apply(watch(), { checks }, T0);
@@ -65,7 +82,7 @@ describe('kinds and filters', () => {
     const next = apply(
       watch(),
       {
-        comments: [
+        issueComments: [
           comment('Dependabot', T0 - 10 * MIN),
           comment('coderabbitai[bot]', T0 - 10 * MIN),
         ],
@@ -80,7 +97,7 @@ describe('kinds and filters', () => {
 
 describe('quiet window and coalescing', () => {
   it('holds activity inside the window without a digest, then publishes once past it', () => {
-    const held = apply(watch(), { comments: [comment('a', T0 - MIN)] }, T0);
+    const held = apply(watch(), { issueComments: [comment('a', T0 - MIN)] }, T0);
     const ready = apply(held, {}, T0 + 3 * MIN);
 
     expect(held.pendingDigest).toBeNull();
@@ -92,7 +109,7 @@ describe('quiet window and coalescing', () => {
   });
 
   it('folds further activity into one combined line under a new id', () => {
-    const first = apply(watch(), { comments: [comment('a', T0 - 10 * MIN)] }, T0);
+    const first = apply(watch(), { issueComments: [comment('a', T0 - 10 * MIN)] }, T0);
     const second = apply(first, { reviews: [review('b', T0 + 5 * MIN)] }, T0 + 10 * MIN);
 
     expect(second.pendingDigest?.line).toBe('#7 acme/widgets: 1 review (b), 1 comment');
@@ -101,15 +118,15 @@ describe('quiet window and coalescing', () => {
   });
 
   it('keeps the pending digest untouched while later activity is still inside its window', () => {
-    const first = apply(watch(), { comments: [comment('a', T0 - 10 * MIN)] }, T0);
+    const first = apply(watch(), { issueComments: [comment('a', T0 - 10 * MIN)] }, T0);
 
-    const second = apply(first, { comments: [comment('b', T0 + MIN)] }, T0 + 2 * MIN);
+    const second = apply(first, { issueComments: [comment('b', T0 + MIN)] }, T0 + 2 * MIN);
 
     expect(second.pendingDigest).toBe(first.pendingDigest);
   });
 
   it('counts only new activity once the digest was acknowledged', () => {
-    const first = apply(watch(), { comments: [comment('a', T0 - 10 * MIN)] }, T0);
+    const first = apply(watch(), { issueComments: [comment('a', T0 - 10 * MIN)] }, T0);
     const acked = { ...first, pendingDigest: null };
 
     const next = apply(acked, { reviews: [review('b', T0 + MIN)] }, T0 + 10 * MIN);
@@ -118,7 +135,7 @@ describe('quiet window and coalescing', () => {
   });
 
   it('starts a conflict quiet window when it is seen', () => {
-    const seen = apply(watch(), { conflict: true }, T0);
+    const seen = apply(watch(), { conflict: { headSha: 'sha1' } }, T0);
     const ready = apply(seen, {}, T0 + 3 * MIN);
 
     expect(seen.pendingDigest).toBeNull();
@@ -128,7 +145,7 @@ describe('quiet window and coalescing', () => {
 
 describe('closing', () => {
   it('publishes the final digest at once, folding in activity still inside the window', () => {
-    const held = apply(watch(), { comments: [comment('a', T0 - MIN)] }, T0);
+    const held = apply(watch(), { issueComments: [comment('a', T0 - MIN)] }, T0);
 
     const closed = apply(held, { closed: { merged: true } }, T0 + MIN);
 
@@ -183,11 +200,11 @@ describe('status and identity', () => {
   it('leaves a closed watch alone', () => {
     const closed = watch({ status: 'closed' });
 
-    expect(apply(closed, { comments: [comment('a', 0)] }, T0)).toBe(closed);
+    expect(apply(closed, { issueComments: [comment('a', 0)] }, T0)).toBe(closed);
   });
 
   it('keeps the digest and tally when marking an error', () => {
-    const held = apply(watch(), { comments: [comment('a', T0 - MIN)] }, T0);
+    const held = apply(watch(), { issueComments: [comment('a', T0 - MIN)] }, T0);
 
     const errored = markWatchError(held, 'why');
 

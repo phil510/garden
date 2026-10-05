@@ -51,7 +51,7 @@ function tallyActivity(
     }
   }
   if (kinds.includes('comment')) {
-    for (const comment of activity.comments) {
+    for (const comment of [...activity.issueComments, ...activity.reviewComments]) {
       if (!wanted(comment.login)) continue;
       tally = { ...tally, comments: tally.comments + 1, lastActivityAt: at(comment.at) };
     }
@@ -71,7 +71,7 @@ function tallyActivity(
       };
   }
   // GitHub gives a conflict no timestamp of its own, so its quiet window starts when it is seen.
-  if (activity.conflict && kinds.includes('conflict'))
+  if (activity.conflict !== null && kinds.includes('conflict'))
     tally = { ...tally, conflict: true, lastActivityAt: at(now) };
   return tally;
 }

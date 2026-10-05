@@ -156,6 +156,7 @@ export async function fetchWatch(
       runs.items,
       sameSha ? previous.checkRuns.reported : {},
       watch.createdAt,
+      pr.headSha,
     );
     checks.push(...transitions.transitions);
     checkRuns = { sha: pr.headSha, etags: runs.etags, reported: transitions.reported };
@@ -174,6 +175,7 @@ export async function fetchWatch(
         parseStatuses(statusResult.body).items,
         status.reported,
         watch.createdAt,
+        pr.headSha,
       );
       checks.push(...transitions.transitions);
       status = { sha: pr.headSha, etag: statusResult.etag, reported: transitions.reported };
@@ -202,13 +204,25 @@ export async function fetchWatch(
   const activity: Activity = {
     reviews: newReviews.fresh
       .filter((review) => !review.wrapper)
-      .map((review) => ({ login: review.login, at: review.submittedAt })),
-    comments: [
-      ...newIssueComments.fresh.map((c) => ({ login: c.login, at: c.createdAt })),
-      ...newReviewComments.fresh.map((c) => ({ login: c.login, at: reviewCommentAt(c) })),
-    ],
+      .map((review) => ({
+        id: review.id,
+        login: review.login,
+        state: review.state,
+        at: review.submittedAt,
+      })),
+    issueComments: newIssueComments.fresh.map((c) => ({
+      id: c.id,
+      login: c.login,
+      at: c.createdAt,
+    })),
+    reviewComments: newReviewComments.fresh.map((c) => ({
+      id: c.id,
+      login: c.login,
+      reviewId: c.reviewId,
+      at: reviewCommentAt(c),
+    })),
     checks,
-    conflict: conflict.fires,
+    conflict: conflict.fires ? { headSha: pr.headSha } : null,
     closed: pr.open ? null : { merged: pr.merged },
   };
   return { kind: 'observed', observation: { activity, tracking } };
