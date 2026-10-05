@@ -84,7 +84,7 @@ fresh spawn of a role a unique numbered name:
   value. This removes the routing ambiguity that same-name re-spawns
   would create — a live worker and one or more idle zombies sharing a
   name.
-- **A worker that reported its stage done is dead.** Once it reports and
+- **A worker that reported its stage done is finished.** Once it reports and
   idles, the orchestrator never messages it again: its successor may
   already hold the pen, and a message would wake a second writer. It MAY
   send `shutdown_request` as best-effort cleanup but does not depend on
@@ -274,7 +274,9 @@ escalator is never replaced for a brief edit.
 
 Only when the escalator is _gone_ — the session is new (`/plant resume`)
 or the worker `teammate-terminated` with no result — **fresh-spawn** the
-role via `Agent` under the next-numbered name, with the same decision
+role via `Agent` under the next-numbered name (a `review_cap` decision is
+the exception: the orchestrator carries it out itself,
+`escalate-resume.md` § Fallback), with the same decision
 block in the opener and a pointer to the escalation event file. A worker
 that is merely silent after the decision was sent is not gone and is
 paged to the user, not replaced (`escalate-resume.md`). Template for

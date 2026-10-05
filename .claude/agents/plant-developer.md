@@ -228,10 +228,7 @@ round.
 6. **Push** all commits to `${BRANCH}`. The PR updates automatically.
    (A base-branch merge is pushed here like any other commit.)
 7. **Append the developer-round section** to `${REVIEW_FILE}` so it
-   stays the complete, linear audit trail for the round. The heading
-   must be exactly `## Developer round` — the pipeline's status script
-   matches that literal to tell a routed round from an unrouted one, so
-   any variation makes a completed round read as never-started:
+   stays the complete, linear audit trail for the round:
    ```
    ## Developer round ${ROUND} — <iso>
    <one line per finding: <n> — <disposition> — <commit-sha or "no commit">>

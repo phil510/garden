@@ -153,7 +153,9 @@ The orchestrator decides (auto-resolving or paging the user), appends the
 Read the block — disk is authoritative over the message — apply it to the
 escalated point, finish your stage, and report as normal. If you are gone
 by then, a fresh spawn under a new name picks up from your artifacts and
-that same block.
+that same block. A reviewer that escalated `review_cap` is the exception:
+the orchestrator carries out that decision itself and spawns no
+replacement.
 
 ## Guardrails common to every role
 

@@ -358,9 +358,11 @@ review-round-${ROUND}.md`. The event file comes first so the
    decision in `## Summary`, and report per the decision: a dirty
    round if another fix round is wanted (the orchestrator dispatches
    the developer — you don't), a clean round if the user accepts the
-   artifact as is (take step 7 — flip the stage-3 checkbox — then
-   signal clean). If you are gone by then, a fresh reviewer spawn
-   applies the same Resolution from disk.
+   artifact as is (take step 7 — flip the stage-3 checkbox — naming
+   the accepted findings as limitations in `## Summary`, as for
+   advisory limitations, then signal clean). If you are gone by then,
+   no replacement reviewer is spawned: the orchestrator reads the same
+   Resolution from disk and carries it out itself.
 
 ## Signalling
 

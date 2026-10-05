@@ -33,7 +33,9 @@ reason worth understanding, because the failure modes are silent.
   degrades into a confused one. If you're about to edit code, spawn a
   worker instead. The same line bars _commissioning_: don't dispatch work
   no finding, plan task, or user decision asked for — it skips the review
-  loop and the audit trail. Ticking stage 1 for a `Size: small` pipeline
+  loop and the audit trail. If you notice something worth changing, put
+  it in front of the next review round (or the user) so it becomes a
+  finding first. Ticking stage 1 for a `Size: small` pipeline
   is bookkeeping, not stage work — no plan is produced, so nothing is
   commissioned.
 - **You never read worker agent definitions or `worker-protocol.md`.**
@@ -50,7 +52,10 @@ reason worth understanding, because the failure modes are silent.
   over raw reads. When you send a subagent to do that verifying, ask it
   for the verdict plus a `file:line` pointer, not the evidence itself. A
   subagent's return lands whole in your context, so a quoted source dump
-  spends there exactly what delegating it was meant to save.
+  spends there exactly what delegating it was meant to save. Polling
+  costs context and tells you nothing the message won't: before a worker
+  reports, no `ls events/`, no `cat workflow.md`. A user's status ask is
+  a legitimate reason to run the status script.
 - **A bare `teammate-terminated` with no preceding result message means the
   worker died mid-stage.** The message-based fast path has nothing to
   route, so fall back to `scripts/pipeline-status.sh` to classify what (if
@@ -157,7 +162,8 @@ the event's `## Resolution` block and the `> RESOLVED` annotation first,
 so the decision survives the worker, then `SendMessage` the escalator by
 its live name and it continues in place. Only when it is gone do you
 fresh-spawn under the next-numbered name with the decision in the opener
-and let it rebuild from disk. `references/escalate-resume.md` has the
+and let it rebuild from disk (a `review_cap` decision you carry out
+yourself instead). `references/escalate-resume.md` has the
 full protocol;
 `references/autonomy.md` has the ladder that decides which branch you're
 on.
@@ -250,7 +256,7 @@ scripts/pipeline-finish.sh --worktree <abs> [--branch <name>] --status completed
   releases the lock (only if it names this branch), and returns the
   summary numbers: `duration_seconds`, `duration_human`, `review_rounds`,
   `escalations{annotated,open,open_files[]}`, `events_total`,
-  `lock_released`. Pass `completed` once the PR merges, `aborted` for a
+  `decisions_entries`, `lock_released`. Pass `completed` once the PR merges, `aborted` for a
   user abort or a closed PR.
 
 The scripts own scaffolding only. The brief's _content_ is your judgment —
@@ -317,9 +323,13 @@ small); developer works from brief ACs`, then go to step 6. The box
 9. **Reviewer clean** → it has already flipped stage 3. An accepted
    `review_cap` on resume also lands here, but no reviewer is left to
    flip: you tick stage 3 yourself, with a `> NOTE` recording the accepted
-   cap, in one atomic write. The PR is still a draft. If the round's `## Summary` names limitations to disclose,
-   record them in `decisions.md`; the finish gate puts every entry on the
-   PR. Go to step 10.
+   cap, in one atomic write, and write the accepted findings to
+   `decisions.md` yourself, since no reviewer is left to name them in
+   `## Summary`. The PR is still a draft. If the round's `## Summary`
+   names limitations to disclose, record them in `decisions.md` too; the
+   finish gate puts every entry on the PR. Every `decisions.md` entry
+   you write takes the scaffold's line shape: a bare ISO timestamp at
+   column 0, then ` — orchestrator: <decision>`. Go to step 10.
 10. **Stage 4 — the finish gate.**
     a. `gh pr ready <url>` — flip the draft to ready. Then check
     `gh pr view <url> --json mergeable` before waiting on anything: a
@@ -335,14 +345,15 @@ small); developer works from brief ACs`, then go to step 6. The box
     preferred form; if you ever need a different wait, a bare
     foreground `sleep` is hard-blocked by the harness, so use
     `until <terminal-check>; do sleep N; done` instead.
-    c. **CI red** → treat the failure as a finding: write it into a
-    review-round file in the findings shape the developer's fix-round
+    c. **CI red** → treat the failure as a finding: write it into the next
+    `review-round-N.md` (the number after the last one, never an existing
+    file; `review_rounds` counts these too) in the findings shape the developer's fix-round
     mode already expects (`Disposition: fix`, `Severity`, `Location`,
     `Issue`, `Failure scenario`) describing what CI reported, dispatch
     a developer fix-round against it, then re-check from (a)'s
     mergeability check — the base may have moved during the round.
     c2. **Conflict with base** → the base branch moved under the PR.
-    Write a review-round file with one `Disposition: fix` finding whose
+    Write the next `review-round-N.md`, numbered as in (c), with one `Disposition: fix` finding whose
     `Location` is `base branch <baseRefName>` (read the name from `gh pr
 view --json baseRefName`, never assume `main`) — the shape the
     developer's fix-round mode keys on to merge the base in — dispatch a
@@ -371,7 +382,10 @@ view --json baseRefName`, never assume `main`) — the shape the
     `SendMessage` the escalator by its live name with the decision and a
     pointer to the event file. Fresh-spawn under the next name with the
     decision in the opener only when the escalator is gone (a new session, or
-    `teammate-terminated` with no result). A live worker that goes idle
+    `teammate-terminated` with no result). `review_cap` is the exception:
+    with its reviewer gone you act on the decision directly — a fix round
+    spawns a developer with the round file, an accept goes to step 9 —
+    and spawn no reviewer. A live worker that goes idle
     after the decision with no result message is silent, not gone — it may
     still write, and a replacement beside it is a second writer — so page
     the user instead of replacing it.
@@ -448,9 +462,10 @@ exist, so it exits 3 or 2 instead of doing anything; that exit is itself
 the signal you should have resumed instead of initialized.
 
 Before advancing the pipeline, resolve anything in the status output's
-`open_escalations[]`: read that event file, page the user if the decision
-isn't already recorded there, then append the event's `## Resolution`
-block and the `> RESOLVED` annotation. This is the fallback path: the
+`open_escalations[]`: read that event file, then resolve it as in step 11
+— auto-resolve within the brief's Autonomy bounds, else page the user,
+unless the decision is already recorded there — and append the event's
+`## Resolution` block and the `> RESOLVED` annotation. This is the fallback path: the
 escalating worker died with the old session, so a fresh spawn reads its
 decision from that block, and an unresolved escalation left dangling means
 it has nothing to act on. A `review_cap` one needs no reviewer: the
@@ -468,7 +483,10 @@ the finish gate, not a stage worker — check `gh pr view --json
 isDraft,state,mergeable` and pick up at whichever of step 10's sub-steps
 the PR's actual state implies (still draft → (a); `mergeable:
 CONFLICTING` → (c2); ready with checks pending → (b); checks failed →
-(c)). Stage 4's checkbox is never flipped by any worker —
+(c)). If a finish-gate fix round escalated before it finished, its
+finding file already exists: re-dispatch a developer on that file once
+the escalation is resolved, and write no new finding. Stage 4's checkbox
+is never flipped by any worker —
 `Status: completed | aborted` is the real completion signal, so a
 `current_stage: 4` with `status: active` means the finish gate was
 underway, not that stage 4 never started.

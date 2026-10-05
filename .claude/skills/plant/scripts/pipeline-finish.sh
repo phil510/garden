@@ -66,14 +66,17 @@ if [ -n "$STARTED" ]; then
 fi
 
 # --- flip status + annotate (single atomic rewrite) ---
-TMP="$WORKFLOW.tmp.$$"
-sed "s/^\*\*Status:\*\*.*/**Status:** ${NEW_STATUS}/" "$WORKFLOW" > "$TMP"
-if [ -n "$NOTE" ]; then
-  printf '> NOTE %s — orchestrator: pipeline %s; %s\n' "$ENDED" "$NEW_STATUS" "$NOTE" >> "$TMP"
-else
-  printf '> NOTE %s — orchestrator: pipeline %s\n' "$ENDED" "$NEW_STATUS" >> "$TMP"
+# A repeat run with the status already set writes nothing, so the finish step is safe to rerun.
+if [ "$(workflow_field "$WORKFLOW" 'Status')" != "$NEW_STATUS" ]; then
+  TMP="$WORKFLOW.tmp.$$"
+  sed "s/^\*\*Status:\*\*.*/**Status:** ${NEW_STATUS}/" "$WORKFLOW" > "$TMP"
+  if [ -n "$NOTE" ]; then
+    printf '> NOTE %s — orchestrator: pipeline %s; %s\n' "$ENDED" "$NEW_STATUS" "$NOTE" >> "$TMP"
+  else
+    printf '> NOTE %s — orchestrator: pipeline %s\n' "$ENDED" "$NEW_STATUS" >> "$TMP"
+  fi
+  mv -- "$TMP" "$WORKFLOW"
 fi
-mv -- "$TMP" "$WORKFLOW"
 
 # --- tallies ---
 shopt -s nullglob

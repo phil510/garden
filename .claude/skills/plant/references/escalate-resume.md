@@ -28,11 +28,12 @@ needed on <X>` `SendMessage`, then ends its turn and **waits**. It has
    `shutdown_request` — it is the one who will apply the decision.
 5. Can the orchestrator auto-resolve within `autonomy.md`'s bounds for
    this role and reason?
-   - **Yes** → auto-resolve, and append a line to `decisions.md`: what
-     was decided, what settled it (a doc, a finding, the issue's
-     surviving objective), and the escalation it closes. This is what
-     makes an unattended run reviewable after the fact — without it,
-     "it merged" is unauditable.
+   - **Yes** → auto-resolve, and append a line to `decisions.md` in the
+     scaffold's shape (a bare ISO timestamp at column 0, then
+     "— orchestrator: <decision>"): what was decided, what settled it
+     (a doc, a finding, the issue's surviving objective), and the
+     escalation it closes. This is what makes an unattended run
+     reviewable after the fact — without it, "it merged" is unauditable.
    - **No** → page the user and collect a decision.
 
    Both branches end the same way: message the escalator back. An
@@ -75,6 +76,13 @@ state. The new worker rebuilds from `workflow.md` + stage artifacts, which
 is why a waiting worker saves its state to disk before escalating.
 Fresh-spawn-with-decision is the same code path as post-crash recovery;
 the only difference is the decision block in the opener.
+
+`review_cap` is carved out. Its decision is only "another fix round" or
+"accept as is", and the orchestrator can carry out either without a
+reviewer: a fix round spawns a developer with the round file, and an
+accept ticks stage 3 itself (SKILL.md step 9). No reviewer is spawned
+when the one that escalated is gone, so there is no escalated-round
+special case for a fresh reviewer to handle.
 
 A worker that is merely **silent** after the decision was sent — an idle
 notification arrives with no result message — is not gone. It may still
