@@ -68,7 +68,7 @@ mechanism.
 Idle teammates can't be reliably killed — a `shutdown_request` handshake
 doesn't reliably complete, so a "shut down" worker lingers idle-alive
 until the session ends with `/exit`. So once a worker has reported its
-stage _done_, the orchestrator **treats it as dead** and gives every
+stage _done_, the orchestrator **treats it as finished** and gives every
 fresh spawn of a role a unique numbered name:
 
 - **Counter per role, incremented on EACH spawn — decoupled from the
@@ -150,7 +150,7 @@ Stages 1–3 run strictly sequentially. For each:
 3. Orchestrator routes off the message.
 4. Worker self-idles; once it has reported its stage done, the
    orchestrator spawns the next worker under the next counter value,
-   treating the prior as dead (§ Naming).
+   treating the prior as finished (§ Naming).
 
 **Single-writer-per-moment comes from self-idle + sequential dispatch,
 not from a kill.** Each worker idles itself after reporting, and the
@@ -194,7 +194,7 @@ and only one worker holds a write pen at any time — enforced by each
 worker self-idling after it reports (an escalator self-idles _waiting_
 and is messaged back, still the only writer), plus strictly sequential
 dispatch. The orchestrator gives each fresh worker a unique numbered
-name and treats a worker that reported done as dead; it does not rely
+name and treats a worker that reported done as finished; it does not rely
 on `shutdown_request` to serialize (that handshake is unreliable).
 
 Every worker reports with a typed `SendMessage`. There is no exit code

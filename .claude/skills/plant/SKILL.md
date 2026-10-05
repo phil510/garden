@@ -322,7 +322,8 @@ small); developer works from brief ACs`, then go to step 6. The box
    plus a re-review, or accept as is, with the decision messaged back to
    the reviewer (step 11).
 9. **Reviewer clean** → it has already flipped stage 3. An accepted
-   `review_cap` on resume also lands here, but no reviewer is left to
+   `review_cap` also lands here when its reviewer is gone (a resume, or
+   teammate-terminated), and then no reviewer is left to
    flip: you tick stage 3 yourself, with a `> NOTE` recording the accepted
    cap, in one atomic write, and write the accepted findings to
    `decisions.md` yourself, since no reviewer is left to name them in
