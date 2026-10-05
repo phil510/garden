@@ -60,7 +60,8 @@ reason worth understanding, because the failure modes are silent.
   worker died mid-stage.** The message-based fast path has nothing to
   route, so fall back to `scripts/pipeline-status.sh` to classify what (if
   anything) completed, then fresh-spawn — the fallback path, because the
-  worker is gone. Disk is the always-correct fallback; the message is only
+  worker is gone (a dead reviewer with an open `review_cap` escalation is
+  the exception: act on the decision yourself, step 11). Disk is the always-correct fallback; the message is only
   the optimization.
 - **Resolve ambiguity at stage 0.** An artifact read carelessly doesn't
   fail early — an assumption about _what_ to build produces an
@@ -474,7 +475,8 @@ round spawns a developer with the round file; accept goes to step 9,
 where you tick stage 3).
 
 Re-enter at the reported `current_stage` by fresh-spawning that stage's
-worker. Worker counters restart at 1 in a new session — the old team died
+worker (after a `review_cap` fix round, the developer comes first and the
+next reviewer round follows it). Worker counters restart at 1 in a new session — the old team died
 with the old session, so there's no live `developer3` to collide with a
 new `developer1` (`references/spawn-details.md` § Naming).
 

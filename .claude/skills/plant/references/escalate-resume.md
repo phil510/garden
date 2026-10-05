@@ -70,7 +70,7 @@ needed on <X>` `SendMessage`, then ends its turn and **waits**. It has
 The escalator is **gone** in exactly two cases: the session is new
 (`/plant resume`), or it `teammate-terminated` without a result. Then
 fresh-spawn the role via `Agent` under the next-numbered name (§
-spawn-details.md Naming), with the decision block in the opener plus a
+spawn-details.md Naming; `review_cap` is the exception, below), with the decision block in the opener plus a
 pointer to the event file, and record the new live name in workflow
 state. The new worker rebuilds from `workflow.md` + stage artifacts, which
 is why a waiting worker saves its state to disk before escalating.
@@ -121,7 +121,7 @@ resume metadata (no session UUID exists to record).
 **Resolved at:** <iso>
 **Decision:** <option letter / free-text>
 **Rationale:** <optional note>
-**Applied via:** auto-resolve, logged to decisions.md | message to <worker name> | fresh-spawn as <worker name> — each `at <iso>`
+**Applied via:** auto-resolve, logged to decisions.md | message to <worker name> | fresh-spawn as <worker name> | orchestrator (a `review_cap` carried out directly) — each `at <iso>`
 ```
 
 The reason codes name the common cases, not the legal ones. When none

@@ -167,7 +167,8 @@ most.
 teammate reading the diff + `plan.md` cold has clean context, which is
 the point. Round workers are fresh per round. An escalation decision is
 messaged back to the waiting escalator, which continues with its
-context; fresh-spawn is the fallback for when that worker is gone, and
+context; fresh-spawn is the fallback for when that worker is gone (except
+`review_cap`, which the orchestrator carries out itself), and
 idempotent briefs (§ Why this shape) make it behave the same as the
 in-place continuation.
 
