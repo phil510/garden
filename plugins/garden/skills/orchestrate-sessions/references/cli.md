@@ -139,6 +139,7 @@ garden watch <pr> [--repo <owner/name>] [--on <kinds>] [--session <id>] --json
 garden unwatch <pr> [--repo <owner/name>] [--session <id>] --json
 garden unwatch --all [--session <id>] --json
 garden watches [--session <id>] --json
+garden digest <id> --json
 ```
 
 A watch ties a PR to a session; its digests arrive in that session through the plugin's pipe (see
@@ -158,6 +159,13 @@ session, repo and PR replaces its kinds and touches nothing else.
 when `status` is `error` (the plain listing omits it; use `--json`). `unwatch` outputs
 `{ "ok": true }`. Without `--repo`, `unwatch` matches the PR among the session's own watches and
 fails if the number is watched in more than one repo.
+
+`digest <id>` takes the id from a digest line (`#241 owner/name: [digest <id>] ...`) and needs no
+`--session`. It outputs `{ "digest": DigestDetail }`, typed in `packages/shared`: `id`, `repo`, `pr`,
+`line`, `createdAt`, `replaces` (the digest this one superseded, whose items it includes), `atMint`
+(head sha, mergeable), `closed`, and `items` (reviews, issue comments, review comments, check runs,
+statuses, conflicts) as ids, authors, states and times, never PR content. Digests are kept 7 days
+from mint, newest 20 per watch; an expired or unknown id exits 1.
 
 ## Events pipe
 
