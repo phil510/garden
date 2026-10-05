@@ -302,6 +302,14 @@ describe('isListedPath', () => {
     expect(await isListedPath(deps, join(root, 'real', 'repoA'))).toBe(true);
   });
 
+  it('skips a configured root that does not exist and still checks the others', async () => {
+    const root = tempRoot();
+    repo(join(root, 'repoA'));
+    const deps = { git: diskGit(), roots: [join(root, 'missing'), root] };
+
+    expect(await isListedPath(deps, join(root, 'repoA'))).toBe(true);
+  });
+
   it('rejects paths that are not a repo or worktree directly under a root', async () => {
     const root = tempRoot();
     const outside = realpathSync(mkdtempSync(join(tmpdir(), 'garden-outside-')));
