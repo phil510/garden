@@ -68,7 +68,9 @@ silently invisible to status reporting and escalation counting.
   (see `escalate-resume.md`).
 - `> RESOLVED <iso> — orchestrator: <what was decided>` — closes a
   prior `> ESCALATED`, or marks a brief edit that resolved a prior
-  concern.
+  concern. Written before the decision is sent to the escalator, so
+  the decision is on disk first. That the decision was then sent is a
+  `> NOTE` (`decision sent to <name>`), not a new kind.
 
 These five kinds are the entire vocabulary. Do not invent new kinds
 (e.g., `STARTED`, `EDITED`, `RETRY`) — if you find yourself wanting

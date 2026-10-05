@@ -161,7 +161,9 @@ When a user resolution changes scope:
    round), append a matching annotation noting invalidation. Staleness
    is detected by comparing the brief edit's ISO to the artifact's
    timestamp — no version counter needed. Fresh-spawn the affected stage
-   with the new brief.
+   with the new brief — except a stage whose worker is waiting on this
+   very escalation: it is not replaced, it re-reads the brief when the
+   decision message arrives.
 
 Scope changes narrow as often as they grow. An AC that has run past a
 short paragraph has usually absorbed implementation detail that
@@ -171,7 +173,10 @@ the AC down rather than appending qualifiers.
 
 The orchestrator edits the brief only **between worker invocations**
 (at an escalation pause or stage boundary). Never while a worker is
-running — single-writer-per-moment extends to the brief.
+running — single-writer-per-moment extends to the brief. An escalation
+pause counts as between invocations: the escalator is waiting, not
+working. The edit lands on disk before the decision message, and the
+message tells the escalator to re-read the brief.
 
 **Workers never edit the brief.** The brief belongs to the user; the
 orchestrator is the user's proxy.
@@ -191,11 +196,14 @@ override the brief, not as another reviewer finding:
    ISO. Invalidate affected artifacts the same way.
 3. If fix-round: synthesize a minimal findings-shaped input (`## User
 concern` section with `Disposition: fix`, `Severity`, `Location`,
-   `Issue`, `Failure scenario`) and dispatch the developer per the
-   fresh-spawn path.
+   `Issue`, `Failure scenario`) and dispatch the developer as a fresh
+   fix-round spawn.
 4. Same single-writer-per-moment rule applies — act only between
    worker invocations. If a worker is running, wait for it to report
-   and treat it as idle before editing the brief or dispatching.
+   and treat it as idle before editing the brief or dispatching. A
+   worker waiting on an escalation is not running: edit the brief, then
+   tell it to re-read it in the decision message; a concern that is a
+   fix-round ask waits until that worker reports.
 
 The user's authorial word trumps the brief. If a concern contradicts
 an active AC, edit the AC; don't route the user's own note through

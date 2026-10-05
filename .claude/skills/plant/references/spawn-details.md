@@ -55,8 +55,8 @@ mechanism.
   `model` param takes precedence over the frontmatter.
 - **`name`** is the role string plus a per-role counter (`planner1`,
   `developer2`, `reviewer1`). It's how the orchestrator addresses the
-  worker with `SendMessage`. **Never reuse a name** — each re-spawn of a
-  role takes the next counter value; the orchestrator tracks the
+  worker with `SendMessage`. **Never reuse a name** — each fresh spawn of
+  a role takes the next counter value; the orchestrator tracks the
   current live name + next counter per role in workflow state (see §
   Naming). (This is the orchestrator naming _its_ teammates — distinct
   from the in-process `name` param a teammate cannot pass to _its own_
@@ -67,14 +67,15 @@ mechanism.
 
 Idle teammates can't be reliably killed — a `shutdown_request` handshake
 doesn't reliably complete, so a "shut down" worker lingers idle-alive
-until the session ends with `/exit`. So the orchestrator **treats idle
-as dead** and gives every re-spawn of a role a unique numbered name:
+until the session ends with `/exit`. So once a worker has reported its
+stage _done_, the orchestrator **treats it as dead** and gives every
+fresh spawn of a role a unique numbered name:
 
 - **Counter per role, incremented on EACH spawn — decoupled from the
   round tag.** Do _not_ equate `developerN` with `review-round-N`: the
   round tag (`fix-round mode, round 2`) lives in the opener and is
   separate from the routing name. `planner1` (normally spawned once;
-  increments only if fresh-spawned on escalation). `developer1` = the
+  increments only if fresh-spawned as the escalation fallback). `developer1` = the
   stage-2 initial dev, `developer2` = the first fix round (whatever
   review it addresses), `developer3` = the second fix round, etc.
   `reviewer1`, `reviewer2`, … one per spawn, always taking the next
@@ -83,14 +84,21 @@ as dead** and gives every re-spawn of a role a unique numbered name:
   value. This removes the routing ambiguity that same-name re-spawns
   would create — a live worker and one or more idle zombies sharing a
   name.
-- **Treat idle as dead.** Once a worker reports and idles, the
-  orchestrator never messages it again. It MAY send `shutdown_request` as
-  best-effort cleanup but does not depend on it — the idle teammate
-  harmlessly lingers (holds no pen, writes nothing) until `/exit`.
+- **A worker that reported its stage done is dead.** Once it reports and
+  idles, the orchestrator never messages it again: its successor may
+  already hold the pen, and a message would wake a second writer. It MAY
+  send `shutdown_request` as best-effort cleanup but does not depend on
+  it — the idle teammate harmlessly lingers (holds no pen, writes
+  nothing) until `/exit`.
+- **The exception is a worker waiting on an escalation.** It has not
+  finished, nothing else was dispatched, and it still holds the pen, so
+  messaging it under its own name keeps it the only writer. It is the
+  decision's target, never a `shutdown_request` target — a shutdown
+  would end the one worker that can continue in place.
 - **The orchestrator tracks the current live worker name + the next
   counter per role** in `workflow.md` / pipeline state, so `SendMessage`
-  targets the right teammate and a resume re-enters with the right
-  counter. On a resume _within the same session_, continue the counters;
+  targets the right teammate (including an escalator awaiting its
+  decision) and a resume re-enters with the right counter. On a resume _within the same session_, continue the counters;
   after `/exit` the old team is gone, so a fresh session may restart at 1.
 - **Residue:** idle `developerN` teammates accumulate, bounded by round
   count, harmless, cleared on `/exit`.
@@ -140,23 +148,28 @@ Stages 1–3 run strictly sequentially. For each:
 2. Worker does its stage, finishes its disk writes (atomic rename), then
    sends its typed `SendMessage` (§ Messages, below).
 3. Orchestrator routes off the message.
-4. Worker self-idles; orchestrator spawns the next worker under the next
-   counter value, treating the prior as dead (§ Naming).
+4. Worker self-idles; once it has reported its stage done, the
+   orchestrator spawns the next worker under the next counter value,
+   treating the prior as dead (§ Naming).
 
 **Single-writer-per-moment comes from self-idle + sequential dispatch,
 not from a kill.** Each worker idles itself after reporting, and the
 orchestrator spawns the next only after the prior has reported — so only
-one ever holds a write pen. Idle workers _do_ coexist (they linger
-until `/exit`), but an idle worker holds no pen and writes nothing, so
-they don't race. A `shutdown_request` is not what prevents the race —
+one ever holds a write pen. An escalation pause extends this: the
+escalator idles _waiting_ and keeps the pen, nothing else is dispatched
+until it has its decision and reports. Idle workers _do_ coexist (they
+linger until `/exit`), but a worker that reported done holds no pen and
+writes nothing, so they don't race. A `shutdown_request` is not what prevents the race —
 its handshake doesn't reliably complete, so it's best-effort cleanup at
 most.
 
 **Fresh-spawn-per-round is the default**, not an optimization — a fresh
 teammate reading the diff + `plan.md` cold has clean context, which is
-the point. There is no resume primitive and none is wanted; idempotent
-briefs (§ Why this shape) make a fresh spawn behaviorally equivalent to
-a resume would have been.
+the point. Round workers are fresh per round. An escalation decision is
+messaged back to the waiting escalator, which continues with its
+context; fresh-spawn is the fallback for when that worker is gone, and
+idempotent briefs (§ Why this shape) make it behave the same as the
+in-place continuation.
 
 **Retry / replace.** To retry a failed spawn, just re-dispatch `Agent`
 under the next counter value — there is no UUID to relock, no dead
@@ -164,7 +177,7 @@ session to evict. For the normal next-round case that's all there is:
 spawn the next-numbered worker, leave the prior idle. To replace a
 _misbehaving_ (non-idle) worker there is no clean in-place swap — the
 `shutdown_request` handshake won't fire on a runaway. The honest options
-are a corrective `SendMessage` (if it's cooperative or already idle) or,
+are a corrective `SendMessage` (if it's cooperative) or,
 if it's genuinely dangerous, `/exit` the session; you cannot guarantee
 killing a runaway mid-session.
 
@@ -177,10 +190,11 @@ edits), every write is an atomic rename.
 
 **Single-writer-per-moment.** The orchestrator is the sole dispatcher,
 and only one worker holds a write pen at any time — enforced by each
-worker self-idling after it reports, plus strictly sequential dispatch.
-The orchestrator gives each fresh worker a unique numbered name and
-treats the prior as dead; it does not rely on `shutdown_request` to
-serialize (that handshake is unreliable).
+worker self-idling after it reports (an escalator self-idles _waiting_
+and is messaged back, still the only writer), plus strictly sequential
+dispatch. The orchestrator gives each fresh worker a unique numbered
+name and treats a worker that reported done as dead; it does not rely
+on `shutdown_request` to serialize (that handshake is unreliable).
 
 Every worker reports with a typed `SendMessage`. There is no exit code
 and no stdout file — the message body **is** the signal. This is the
@@ -199,6 +213,8 @@ and `events/` on every hop to reconstruct what a subprocess did.
    - Developer (initial): `stage 2 done — draft PR <url>, commits <shas>`
    - Reviewer: `round K clean — PR remains draft` _or_ `round K dirty — M fix findings in review-round-K.md`
    - Any worker: `ESCALATING — see events/<iso>-escalation.md, decision needed on <X>`
+   - Orchestrator to a waiting escalator: the decision block plus a
+     pointer to the event file (§ Messaging the decision)
 3. **The orchestrator routes off the message.** It reads disk only when
    (a) it needs detail it chose not to inline, or (b) a high-stakes hop
    warrants verification — the finish gate, pipeline completion, or a
@@ -229,26 +245,43 @@ completed. The message fast-path is the steady-state optimization;
 disk-read is the always-correct fallback that fires on a bare
 termination signal.
 
-### Fresh-spawn with the decision
+### Messaging the decision
 
 When a worker escalates, it writes the escalation event, sends its
-`ESCALATING` message, and self-idles. If the orchestrator can't
-auto-resolve within `autonomy.md`'s bounds, it pages the user, then
-**fresh-spawns** the role via `Agent` under the next-numbered name, with
-the decision baked into the opener and a pointer to the escalation event
-file (a `shutdown_request` to the idle escalator is optional best-effort
-cleanup, not relied on; treat idle as dead). There is no resume
-primitive and none is needed — see `escalate-resume.md`.
+`ESCALATING` message, and ends its turn _waiting_ — it still holds the
+pen. The orchestrator auto-resolves within `autonomy.md`'s bounds or
+pages the user, writes the `## Resolution` block and `> RESOLVED`
+annotation to disk first (so the decision survives the worker), then
+`SendMessage`s the escalator under its current live name. Every
+resolution is messaged back, auto-resolves included: an escalator nobody
+messages never finishes. The message is the wake-up; the Resolution
+block on disk is authoritative. See `escalate-resume.md`.
 
-Standard decision block, pasted into the fresh-spawn opener:
+Message body: the standard decision block below, then _"Read the
+Resolution block in `events/<iso>-escalation.md`, apply the decision,
+and complete your stage."_ If the resolution edited the brief, the edit
+is already on disk and the message adds _"re-read the brief"_ — the live
+escalator is never replaced for a brief edit.
 
 ```markdown
 # Resolution for escalation <iso>
 
 **Decision:** <option from worker's Suggested options, or free-text>
 **Rationale:** <optional user clarification>
+```
 
-Apply the user's decision and complete your stage per your agent instructions.
+### Fresh-spawn fallback
+
+Only when the escalator is _gone_ — the session is new (`/plant resume`)
+or the worker `teammate-terminated` with no result — **fresh-spawn** the
+role via `Agent` under the next-numbered name, with the same decision
+block in the opener and a pointer to the escalation event file. A worker
+that is merely silent after the decision was sent is not gone and is
+paged to the user, not replaced (`escalate-resume.md`). Template for
+the opener's tail:
+
+```markdown
+Apply the decision and complete your stage per your agent instructions.
 Reconstruct state from ${WORKFLOW} + the escalation event file.
 ```
 
@@ -262,7 +295,8 @@ Only the orchestrator talks to the user. Workers never do.
   § Stage 0).
 - **Escalation pages.** Render the escalation event's one-liner +
   options + artifact pointer; wait for user input; translate the
-  response into a fresh-spawn decision block (see `escalate-resume.md`).
+  response into a decision block messaged back to the escalator (see
+  `escalate-resume.md`).
 - **Mid-pipeline questions.** Run `scripts/pipeline-status.sh` and render
   a digest from its JSON. Never pull raw worker output into your context.
 - **Finish gate.** `Merge policy: ask` → report CI-green status and
@@ -319,10 +353,10 @@ precondition and will say so when it doesn't hold.
   without a per-pipeline copy-edit.
 - **Idempotent-instructions parity.** Because the agent definition is
   stable and a worker reconstructs all state from `workflow.md` + stage
-  artifacts, a fresh spawn mid-pipeline (after a death, or to apply an
-  escalation decision) behaves the same as the original worker would
-  have. This is what lets the skill have _no_ resume primitive and
-  still recover cleanly — see `escalate-resume.md`.
+  artifacts, a fresh spawn mid-pipeline (after a death, or as the
+  escalation fallback) behaves the same as the original worker would
+  have. This is what makes the fallback safe to take — it behaves like
+  the in-place continuation — see `escalate-resume.md`.
 
 The orchestrator never writes `planner.md`, `developer-initial.md`, or
 `reviewer-internal.md` into `.plant/<branch>/`. The only files in that
