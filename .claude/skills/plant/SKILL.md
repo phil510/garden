@@ -314,8 +314,10 @@ small); developer works from brief ACs`, then go to step 6. The box
    user with the findings summary. Typical resolutions are one fix round
    plus a re-review, or accept as is, with the decision messaged back to
    the reviewer (step 11).
-9. **Reviewer clean** → it has already flipped stage 3. The PR is still a
-   draft. If the round's `## Summary` names limitations to disclose,
+9. **Reviewer clean** → it has already flipped stage 3. An accepted
+   `review_cap` on resume also lands here, but no reviewer is left to
+   flip: you tick stage 3 yourself, with a `> NOTE` recording the accepted
+   cap, in one atomic write. The PR is still a draft. If the round's `## Summary` names limitations to disclose,
    record them in `decisions.md`; the finish gate puts every entry on the
    PR. Go to step 10.
 10. **Stage 4 — the finish gate.**
@@ -451,9 +453,10 @@ isn't already recorded there, then append the event's `## Resolution`
 block and the `> RESOLVED` annotation. This is the fallback path: the
 escalating worker died with the old session, so a fresh spawn reads its
 decision from that block, and an unresolved escalation left dangling means
-it has nothing to act on. A `review_cap` one needs no reviewer: the decision is a fix round or an
-accept, and you act on it directly (a fix round spawns a developer with
-the round file; accept goes to step 9).
+it has nothing to act on. A `review_cap` one needs no reviewer: the
+decision is a fix round or an accept, and you act on it directly (a fix
+round spawns a developer with the round file; accept goes to step 9,
+where you tick stage 3).
 
 Re-enter at the reported `current_stage` by fresh-spawning that stage's
 worker. Worker counters restart at 1 in a new session — the old team died
