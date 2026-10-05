@@ -1,5 +1,5 @@
-import type { WatchKind, WatchStatus } from '@garden/shared';
-import { emptyCursor, emptyTally, readCursor } from './pollCursor.js';
+import type { DigestItems, WatchKind, WatchStatus } from '@garden/shared';
+import { emptyCursor, emptyItems, emptyTally, isEmptyTally, readCursor } from './pollCursor.js';
 import type { Activity, Cursor, Observation, Tally } from './pollCursor.js';
 import type { Watch } from './watches.js';
 
@@ -10,6 +10,18 @@ export interface DigestSettings {
 
 const union = (a: readonly string[], b: readonly string[]) => [...new Set([...a, ...b])];
 
+const addItems = (a: DigestItems | null, b: DigestItems | null): DigestItems | null =>
+  a === null || b === null
+    ? null
+    : {
+        reviews: [...a.reviews, ...b.reviews],
+        issueComments: [...a.issueComments, ...b.issueComments],
+        reviewComments: [...a.reviewComments, ...b.reviewComments],
+        checkRuns: [...a.checkRuns, ...b.checkRuns],
+        statuses: [...a.statuses, ...b.statuses],
+        conflicts: [...a.conflicts, ...b.conflicts],
+      };
+
 const addTallies = (a: Tally, b: Tally): Tally => ({
   reviews: a.reviews + b.reviews,
   reviewAuthors: union(a.reviewAuthors, b.reviewAuthors),
@@ -18,17 +30,14 @@ const addTallies = (a: Tally, b: Tally): Tally => ({
   checksPassed: union(a.checksPassed, b.checksPassed),
   conflict: a.conflict || b.conflict,
   lastActivityAt: Math.max(a.lastActivityAt, b.lastActivityAt),
+  items: addItems(a.items, b.items),
 });
 
-const isEmpty = (t: Tally) =>
-  t.reviews === 0 &&
-  t.comments === 0 &&
-  t.checksFailed.length === 0 &&
-  t.checksPassed.length === 0 &&
-  !t.conflict;
+const iso = (ms: number) => new Date(ms).toISOString();
 
 /** The part of `activity` this watch wants: its kinds decide what counts, `ignoreAuthors` drops
- *  people. */
+ *  people. Each item is recorded in the same branch that counts it, so the detail and the line
+ *  cannot disagree. */
 function tallyActivity(
   activity: Activity,
   kinds: readonly WatchKind[],
@@ -37,11 +46,18 @@ function tallyActivity(
 ): Tally {
   const ignored = new Set(ignoreAuthors.map((author) => author.toLowerCase()));
   const wanted = (login: string) => !ignored.has(login.toLowerCase());
+  const items = emptyItems();
   let tally = emptyTally();
   const at = (ms: number) => Math.max(tally.lastActivityAt, ms);
   if (kinds.includes('review')) {
     for (const review of activity.reviews) {
       if (!wanted(review.login)) continue;
+      items.reviews.push({
+        id: review.id,
+        author: review.login,
+        state: review.state,
+        submittedAt: iso(review.at),
+      });
       tally = {
         ...tally,
         reviews: tally.reviews + 1,
@@ -51,29 +67,63 @@ function tallyActivity(
     }
   }
   if (kinds.includes('comment')) {
-    for (const comment of [...activity.issueComments, ...activity.reviewComments]) {
+    for (const comment of activity.issueComments) {
       if (!wanted(comment.login)) continue;
+      items.issueComments.push({ id: comment.id, author: comment.login, at: iso(comment.at) });
+      tally = { ...tally, comments: tally.comments + 1, lastActivityAt: at(comment.at) };
+    }
+    for (const comment of activity.reviewComments) {
+      if (!wanted(comment.login)) continue;
+      items.reviewComments.push({
+        id: comment.id,
+        author: comment.login,
+        reviewId: comment.reviewId,
+        at: iso(comment.at),
+      });
       tally = { ...tally, comments: tally.comments + 1, lastActivityAt: at(comment.at) };
     }
   }
   for (const check of activity.checks) {
-    if (check.outcome === 'failed' && kinds.includes('checks'))
-      tally = {
-        ...tally,
-        checksFailed: union(tally.checksFailed, [check.name]),
-        lastActivityAt: at(check.at),
-      };
-    if (check.outcome === 'passed' && kinds.includes('checks:all'))
-      tally = {
-        ...tally,
-        checksPassed: union(tally.checksPassed, [check.name]),
-        lastActivityAt: at(check.at),
-      };
+    const reported =
+      (check.outcome === 'failed' && kinds.includes('checks')) ||
+      (check.outcome === 'passed' && kinds.includes('checks:all'));
+    if (!reported) continue;
+    if (check.kind === 'check-run')
+      items.checkRuns.push({
+        id: check.id,
+        name: check.name,
+        conclusion: check.conclusion,
+        outcome: check.outcome,
+        completedAt: iso(check.at),
+        headSha: check.headSha,
+      });
+    else
+      items.statuses.push({
+        context: check.name,
+        state: check.state,
+        outcome: check.outcome,
+        updatedAt: iso(check.at),
+        headSha: check.headSha,
+      });
+    tally =
+      check.outcome === 'failed'
+        ? {
+            ...tally,
+            checksFailed: union(tally.checksFailed, [check.name]),
+            lastActivityAt: at(check.at),
+          }
+        : {
+            ...tally,
+            checksPassed: union(tally.checksPassed, [check.name]),
+            lastActivityAt: at(check.at),
+          };
   }
   // GitHub gives a conflict no timestamp of its own, so its quiet window starts when it is seen.
-  if (activity.conflict !== null && kinds.includes('conflict'))
+  if (activity.conflict !== null && kinds.includes('conflict')) {
+    items.conflicts.push({ headSha: activity.conflict.headSha, seenAt: iso(now) });
     tally = { ...tally, conflict: true, lastActivityAt: at(now) };
-  return tally;
+  }
+  return { ...tally, items };
 }
 
 const plural = (n: number, noun: string) => `${String(n)} ${noun}${n === 1 ? '' : 's'}`;
@@ -127,7 +177,7 @@ export function applyObservation(
   let status: WatchStatus = watch.status === 'error' ? 'active' : watch.status;
 
   const { closed } = observation.activity;
-  const quiet = !isEmpty(fresh) && now - fresh.lastActivityAt >= settings.quietWindowMs;
+  const quiet = !isEmptyTally(fresh) && now - fresh.lastActivityAt >= settings.quietWindowMs;
   if (closed !== null || quiet) {
     written = addTallies(written, fresh);
     fresh = emptyTally();

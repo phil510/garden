@@ -3,6 +3,7 @@ import {
   checkTransitions,
   conflictTransition,
   emptyCursor,
+  emptyItems,
   newListItems,
   readCursor,
   statusTransitions,
@@ -194,6 +195,47 @@ describe('readCursor', () => {
     const cursor = emptyCursor();
 
     expect(readCursor(JSON.parse(JSON.stringify(cursor)))).toEqual(cursor);
+  });
+
+  describe('a cursor persisted before items were recorded', () => {
+    const legacy = (written: Record<string, unknown>) => {
+      const empty: Record<string, unknown> = { ...emptyCursor().written };
+      delete empty['items'];
+      return JSON.parse(
+        JSON.stringify({
+          ...emptyCursor(),
+          written: { ...empty, ...written },
+          fresh: empty,
+        }),
+      ) as unknown;
+    };
+
+    it('gets empty items for an empty tally and unknown items for a counted one', () => {
+      const cursor = readCursor(legacy({ comments: 2 }));
+
+      expect(cursor?.written.items).toBeNull();
+      expect(cursor?.fresh.items).toEqual(emptyItems());
+    });
+
+    it('is normalised without writing into the value passed in', () => {
+      const persisted = legacy({ comments: 2 });
+      const before = JSON.stringify(persisted);
+
+      readCursor(persisted);
+
+      expect(JSON.stringify(persisted)).toBe(before);
+    });
+  });
+
+  it('keeps unknown items as null and rejects malformed items', () => {
+    const unknown = { ...emptyCursor(), written: { ...emptyCursor().written, items: null } };
+    const malformed = {
+      ...emptyCursor(),
+      fresh: { ...emptyCursor().fresh, items: { reviews: [] } },
+    };
+
+    expect(readCursor(JSON.parse(JSON.stringify(unknown)))?.written.items).toBeNull();
+    expect(readCursor(malformed)).toBeNull();
   });
 
   it.each([

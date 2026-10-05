@@ -95,6 +95,29 @@ describe('kinds and filters', () => {
   });
 });
 
+describe('items behind the counts', () => {
+  it('records an item only where its count is bumped', () => {
+    const w = watch({ kinds: ['comment', 'closed'] });
+    const kept = comment('alice', T0 - MIN);
+
+    const held = apply(
+      w,
+      {
+        issueComments: [kept, comment('Bot', T0 - MIN)],
+        reviews: [review('alice', T0 - MIN)],
+        checks: [checkRun('build', 'failed', T0 - MIN)],
+        conflict: { headSha: 'sha1' },
+      },
+      T0,
+      { ...settings, ignoreAuthors: ['bot'] },
+    );
+
+    const items = readCursor(held.cursor)?.fresh.items;
+    expect(items?.issueComments.map((c) => c.id)).toEqual([kept.id]);
+    expect(items).toMatchObject({ reviews: [], checkRuns: [], statuses: [], conflicts: [] });
+  });
+});
+
 describe('quiet window and coalescing', () => {
   it('holds activity inside the window without a digest, then publishes once past it', () => {
     const held = apply(watch(), { issueComments: [comment('a', T0 - MIN)] }, T0);

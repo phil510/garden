@@ -1,6 +1,8 @@
+import type { DigestItems } from '@garden/shared';
 import type { CheckRunFact, StatusFact } from './github.js';
 
-/** What has been counted for a digest but not yet delivered. Counts and names only. */
+/** What has been counted for a digest but not yet delivered. Counts, names, and the id and
+ *  metadata of each counted item. */
 export interface Tally {
   readonly reviews: number;
   readonly reviewAuthors: readonly string[];
@@ -10,6 +12,9 @@ export interface Tally {
   readonly conflict: boolean;
   /** Epoch ms of the latest activity counted; 0 while empty. */
   readonly lastActivityAt: number;
+  /** The items behind the counts. Null when the tally was persisted with counts but no items, so
+   *  they are unknown and no detail can be built from it. */
+  readonly items: DigestItems | null;
 }
 
 export interface ListCursor {
@@ -19,8 +24,8 @@ export interface ListCursor {
   readonly seen: readonly number[];
 }
 
-/** The poller's progress marker for one watch. It holds ids, ETags, states and counts, never PR
- *  content (no titles, bodies or diffs). */
+/** The poller's progress marker for one watch. It holds ids, ETags, states, counts and the id and
+ *  metadata of counted items, never PR content (no titles, bodies or diffs). */
 export interface Cursor {
   readonly v: 1;
   readonly pr: {
@@ -53,6 +58,15 @@ export interface Cursor {
 
 export type Tracking = Omit<Cursor, 'written' | 'fresh'>;
 
+export const emptyItems = (): DigestItems => ({
+  reviews: [],
+  issueComments: [],
+  reviewComments: [],
+  checkRuns: [],
+  statuses: [],
+  conflicts: [],
+});
+
 export const emptyTally = (): Tally => ({
   reviews: 0,
   reviewAuthors: [],
@@ -61,7 +75,15 @@ export const emptyTally = (): Tally => ({
   checksPassed: [],
   conflict: false,
   lastActivityAt: 0,
+  items: emptyItems(),
 });
+
+export const isEmptyTally = (t: Tally) =>
+  t.reviews === 0 &&
+  t.comments === 0 &&
+  t.checksFailed.length === 0 &&
+  t.checksPassed.length === 0 &&
+  !t.conflict;
 
 export function emptyTracking(): Tracking {
   const list = { etags: [], seen: [] };
@@ -97,8 +119,22 @@ const isNullableString = (value: unknown): value is string | null =>
 const isListCursor = (value: unknown): value is ListCursor =>
   isRecord(value) && isStringArray(value['etags']) && isNumberArray(value['seen']);
 
-const isTally = (value: unknown): value is Tally =>
+const ITEM_LISTS = [
+  'reviews',
+  'issueComments',
+  'reviewComments',
+  'checkRuns',
+  'statuses',
+  'conflicts',
+] as const;
+
+const isItems = (value: unknown): value is DigestItems =>
+  isRecord(value) && ITEM_LISTS.every((list) => Array.isArray(value[list]));
+
+/** `items` may be absent, as in a tally written before items were recorded. */
+const isTally = (value: unknown): value is Omit<Tally, 'items'> & { items?: unknown } =>
   isRecord(value) &&
+  (value['items'] === undefined || value['items'] === null || isItems(value['items'])) &&
   typeof value['reviews'] === 'number' &&
   isStringArray(value['reviewAuthors']) &&
   typeof value['comments'] === 'number' &&
@@ -106,6 +142,13 @@ const isTally = (value: unknown): value is Tally =>
   isStringArray(value['checksPassed']) &&
   typeof value['conflict'] === 'boolean' &&
   typeof value['lastActivityAt'] === 'number';
+
+/** A tally from before items were recorded has none: empty if it counted nothing, otherwise its
+ *  items are unknown. Returns a new object; the persisted one is never written into. */
+function withItems(tally: Omit<Tally, 'items'> & { items?: unknown }): Tally {
+  if (tally.items !== undefined) return tally as Tally;
+  return { ...tally, items: isEmptyTally({ ...tally, items: null }) ? emptyItems() : null };
+}
 
 /** The cursor a watch persisted, or null when there is none or it is not a cursor this code
  *  wrote. The caller treats null as a first poll. */
@@ -134,7 +177,11 @@ export function readCursor(value: unknown): Cursor | null {
     !isTally(value['fresh'])
   )
     return null;
-  return value as unknown as Cursor;
+  return {
+    ...(value as unknown as Cursor),
+    written: withItems(value['written']),
+    fresh: withItems(value['fresh']),
+  };
 }
 
 /** GitHub stamps whole seconds while `createdAt` has milliseconds, so activity in the creation
