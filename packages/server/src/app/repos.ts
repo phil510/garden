@@ -1,6 +1,6 @@
 // One-shot node:fs reads are allowed in app/; see the dependency rules in docs/architecture.md.
 import { readdir, realpath, stat } from 'node:fs/promises';
-import { basename, join } from 'node:path';
+import { basename, isAbsolute, join, relative, sep } from 'node:path';
 import type { RepoEntry } from '@garden/shared';
 import type { GitPort } from './ports.js';
 
@@ -103,29 +103,6 @@ async function repoEntry(
 }
 
 /**
- * `.worktrees/` nests one directory per branch-name path segment (`.worktrees/feat/x` for
- * branch `feat/x`), so a worktree can sit several levels deep. Recurse until a directory is a
- * git working tree in its own right, then stop — nothing inside a worktree is another one.
- *
- * Each directory's children are explored concurrently (`Promise.all`, which preserves input
- * order regardless of settle order), but the recursive call itself never goes through
- * `limiter` — only the leaf `repoEntry` git call does. A parent holding a slot while it awaits
- * children that need slots from the same pool would deadlock once the tree is deeper than the
- * limiter's bound.
- */
-async function findWorktrees(git: ReposGit, limiter: Limiter, dir: string): Promise<RepoEntry[]> {
-  const results = await Promise.all(
-    (await subdirectories(dir)).map(async (child): Promise<RepoEntry[]> => {
-      if (await isGitWorkingTree(child)) {
-        return [await repoEntry(git, limiter, child, true)];
-      }
-      return findWorktrees(git, limiter, child);
-    }),
-  );
-  return results.flat();
-}
-
-/**
  * A repo's own toplevel and a worktree's toplevel are both the directory itself, so that
  * alone can't tell them apart. `repoRoot` resolves through `--git-common-dir` instead, which a
  * repo shares with every one of its worktrees: equal to `dir` only for the checkout that owns
@@ -140,28 +117,102 @@ async function isRepo(git: ReposGit, limiter: Limiter, dir: string): Promise<boo
   return root === resolvedDir;
 }
 
+const WORKTREES = '.worktrees';
+
+/** Where a directory sits relative to a configured root: a child of the root, a child of a repo,
+ *  or a descendant of a repo's `.worktrees/`. */
+type Position = 'root' | 'repo' | 'worktrees';
+
+interface Step {
+  /** Set when the directory is itself a listed entry. */
+  readonly listed?: 'repo' | 'worktree';
+  /** Set when listed entries may sit below the directory, and at which position its children are. */
+  readonly next?: Position;
+}
+
+/**
+ * The one rule for what `listRepos` lists, applied to a single directory at `pos`. A root's
+ * child qualifies as a repo, a repo's only interesting child is `.worktrees`, and below that
+ * the first directory with its own `.git` is a worktree (nothing inside one is another).
+ * `listRepos` walks this step over directory listings; `isListedPath` folds it over one path.
+ */
+async function step(git: ReposGit, limiter: Limiter, pos: Position, dir: string): Promise<Step> {
+  switch (pos) {
+    case 'root':
+      if (!(await isGitWorkingTree(dir))) return {};
+      // a worktree stray under a root has a `.git` too, but is not a repo
+      return (await isRepo(git, limiter, dir)) ? { listed: 'repo', next: 'repo' } : {};
+    case 'repo':
+      return basename(dir) === WORKTREES ? { next: 'worktrees' } : {};
+    case 'worktrees':
+      return (await isGitWorkingTree(dir)) ? { listed: 'worktree' } : { next: 'worktrees' };
+  }
+}
+
+/**
+ * `.worktrees/` nests one directory per branch-name path segment (`.worktrees/feat/x` for
+ * branch `feat/x`), so a worktree can sit several levels deep. Each directory's children are
+ * explored concurrently (`Promise.all`, which preserves input order regardless of settle
+ * order), but the recursive call itself never goes through `limiter` — only the leaf git calls
+ * do. A parent holding a slot while it awaits children that need slots from the same pool would
+ * deadlock once the tree is deeper than the limiter's bound.
+ */
+async function walk(
+  git: ReposGit,
+  limiter: Limiter,
+  pos: Position,
+  dir: string,
+): Promise<RepoEntry[]> {
+  const children = pos === 'repo' ? [join(dir, WORKTREES)] : await subdirectories(dir);
+  const results = await Promise.all(
+    children.map(async (child): Promise<RepoEntry[]> => {
+      const { listed, next } = await step(git, limiter, pos, child);
+      const own =
+        listed === undefined ? [] : [await repoEntry(git, limiter, child, listed === 'worktree')];
+      const below = next === undefined ? [] : await walk(git, limiter, next, child);
+      return [...own, ...below];
+    }),
+  );
+  return results.flat();
+}
+
 /** Repos and their worktrees under the configured roots, for the new-session picker. One
  *  limiter is created here and threaded through every call for the whole `listRepos` invocation,
  *  so `MAX_CONCURRENT_GIT_SPAWNS` bounds the total number of concurrent git subprocesses across
  *  every root and every recursion level, not per level. Candidates (and roots) are explored
  *  concurrently via `Promise.all`, which preserves input order in its result regardless of which
- *  one settles first — so this keeps the same repo-then-its-worktrees, in-input-order shape the
- *  sequential version produced. */
+ *  one settles first — so this keeps the repo-then-its-worktrees, in-input-order shape. */
 export async function listRepos(deps: ReposDeps): Promise<RepoEntry[]> {
   const limiter = createLimiter(MAX_CONCURRENT_GIT_SPAWNS);
   const perRoot = await Promise.all(
-    deps.roots.map(async (root): Promise<RepoEntry[]> => {
-      const candidates = await Promise.all(
-        (await subdirectories(root)).map(async (candidate): Promise<RepoEntry[]> => {
-          if (!(await isGitWorkingTree(candidate))) return [];
-          if (!(await isRepo(deps.git, limiter, candidate))) return []; // a worktree stray under a root, not a repo
-          const entry = await repoEntry(deps.git, limiter, candidate, false);
-          const worktrees = await findWorktrees(deps.git, limiter, join(candidate, '.worktrees'));
-          return [entry, ...worktrees];
-        }),
-      );
-      return candidates.flat();
-    }),
+    deps.roots.map((root) => walk(deps.git, limiter, 'root', root)),
   );
   return perRoot.flat();
+}
+
+/** Whether `real` (an absolute realpath) is an entry `listRepos` would list, checked by running
+ *  `step` down the path from each configured root rather than scanning the roots. */
+export async function isListedPath(deps: ReposDeps, real: string): Promise<boolean> {
+  // One git spawn per root at most, so there is nothing for a limiter to bound.
+  const limiter: Limiter = { run: (fn) => fn() };
+  for (const root of deps.roots) {
+    const rootReal = await realpath(root).catch(() => undefined);
+    if (rootReal === undefined) continue;
+    const rel = relative(rootReal, real);
+    if (rel === '' || rel === '..' || rel.startsWith('..' + sep) || isAbsolute(rel)) continue;
+    const segments = rel.split(sep);
+    let pos: Position = 'root';
+    let dir = rootReal;
+    for (const [i, segment] of segments.entries()) {
+      dir = join(dir, segment);
+      const { listed, next } = await step(deps.git, limiter, pos, dir);
+      if (i === segments.length - 1) {
+        if (listed !== undefined) return true;
+        break;
+      }
+      if (next === undefined) break;
+      pos = next;
+    }
+  }
+  return false;
 }

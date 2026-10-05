@@ -14,7 +14,7 @@ import {
 } from './filesystem.js';
 import type { GitPort, GitStatusEntry } from './ports.js';
 import type { Projection } from './projection.js';
-import { REPO_CACHE_TTL_MS, RootNotListedError, createRepoCatalog } from './repoCatalog.js';
+import { RootNotListedError, createRepoCatalog } from './repoCatalog.js';
 import { SessionNotFoundError } from './sessions.js';
 
 type FilesystemGit = Pick<GitPort, 'workTreePrefix' | 'status'>;
@@ -629,16 +629,13 @@ describe('root-keyed resolution', () => {
       );
     });
 
-    it('is accepted until the cache expires, then rejected once it stops being a repo', async () => {
+    it('is rejected on the next request once it stops being a repo', async () => {
       setup();
-      vi.useFakeTimers({ toFake: ['Date'] });
       const deps = depsFor();
       await readTree(deps, { root: repoA, path: '' });
 
       rmSync(join(repoA, '.git'), { recursive: true });
-      await expect(readTree(deps, { root: repoA, path: '' })).resolves.toBeDefined();
 
-      vi.setSystemTime(Date.now() + REPO_CACHE_TTL_MS + 1);
       await expect(readTree(deps, { root: repoA, path: '' })).rejects.toBeInstanceOf(
         RootNotListedError,
       );

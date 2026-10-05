@@ -1,9 +1,18 @@
-import { mkdirSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  realpathSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { GitPort } from './ports.js';
-import { listRepos } from './repos.js';
+import { isListedPath, listRepos } from './repos.js';
 
 /**
  * Fakes `GitPort` by directory: a path with no entry in `roots` fails `repoRoot` exactly as a
@@ -224,5 +233,149 @@ describe('listRepos', () => {
     const repos = await listRepos({ git, roots: [dir] });
 
     expect(repos).toEqual([{ path: repo, name: 'repoD', branch: 'main', isWorktree: false }]);
+  });
+});
+
+describe('isListedPath', () => {
+  let dir: string | undefined;
+
+  afterEach(() => {
+    if (dir !== undefined) rmSync(dir, { recursive: true, force: true });
+    dir = undefined;
+  });
+
+  /** Answers `repoRoot` from what is on disk, as git does: a `.git` directory makes `cwd` its
+   *  own repo root, a `.git` file (a worktree's gitlink) points at some other repo. */
+  function diskGit(): Pick<GitPort, 'repoRoot' | 'branch'> {
+    return {
+      repoRoot: (cwd) => {
+        try {
+          const real = realpathSync(cwd);
+          const isDir = statSync(join(real, '.git')).isDirectory();
+          return Promise.resolve(isDir ? real : '/elsewhere');
+        } catch {
+          return Promise.reject(new Error(`not a git repository: ${cwd}`));
+        }
+      },
+      branch: () => Promise.resolve('main'),
+    };
+  }
+
+  function tempRoot(): string {
+    dir = realpathSync(mkdtempSync(join(tmpdir(), 'garden-listed-')));
+    return dir;
+  }
+
+  function repo(path: string): void {
+    mkdirSync(join(path, '.git'), { recursive: true });
+  }
+
+  function worktree(path: string): void {
+    mkdirSync(path, { recursive: true });
+    writeFileSync(join(path, '.git'), 'gitdir: /elsewhere\n');
+  }
+
+  it('accepts a repo, single-segment and nested worktrees, and a repo named like a parent ref', async () => {
+    const root = tempRoot();
+    repo(join(root, 'repoA'));
+    worktree(join(root, 'repoA', '.worktrees', 'one'));
+    worktree(join(root, 'repoA', '.worktrees', 'feat', 'x'));
+    repo(join(root, '..foo'));
+    const deps = { git: diskGit(), roots: [root] };
+
+    for (const accepted of [
+      join(root, 'repoA'),
+      join(root, 'repoA', '.worktrees', 'one'),
+      join(root, 'repoA', '.worktrees', 'feat', 'x'),
+      join(root, '..foo'),
+    ]) {
+      expect(await isListedPath(deps, accepted), accepted).toBe(true);
+    }
+  });
+
+  it('accepts a repo reached through a symlinked configured root', async () => {
+    const root = tempRoot();
+    repo(join(root, 'real', 'repoA'));
+    symlinkSync(join(root, 'real'), join(root, 'linked'));
+    const deps = { git: diskGit(), roots: [join(root, 'linked')] };
+
+    expect(await isListedPath(deps, join(root, 'real', 'repoA'))).toBe(true);
+  });
+
+  it('skips a configured root that does not exist and still checks the others', async () => {
+    const root = tempRoot();
+    repo(join(root, 'repoA'));
+    const deps = { git: diskGit(), roots: [join(root, 'missing'), root] };
+
+    expect(await isListedPath(deps, join(root, 'repoA'))).toBe(true);
+  });
+
+  it('rejects paths that are not a repo or worktree directly under a root', async () => {
+    const root = tempRoot();
+    const outside = realpathSync(mkdtempSync(join(tmpdir(), 'garden-outside-')));
+    try {
+      repo(join(outside, 'repoO'));
+      repo(join(root, 'repoA'));
+      mkdirSync(join(root, 'repoA', 'src'));
+      worktree(join(root, 'repoA', '.worktrees', 'one'));
+      mkdirSync(join(root, 'repoA', '.worktrees', 'bare'));
+      mkdirSync(join(root, 'plain'));
+      mkdirSync(join(root, 'plain', '.worktrees', 'x'), { recursive: true });
+      worktree(join(root, 'plain', '.worktrees', 'x'));
+      worktree(join(root, 'stray'));
+      worktree(join(root, 'repoA', '.worktrees', 'one', 'inner'));
+      const deps = { git: diskGit(), roots: [root] };
+
+      for (const rejected of [
+        join(outside, 'repoO'),
+        root,
+        join(root, 'plain'),
+        join(root, 'repoA', 'src'),
+        join(root, 'stray'),
+        join(root, 'repoA', '.worktrees'),
+        join(root, 'repoA', '.worktrees', 'bare'),
+        join(root, 'repoA', '.worktrees', 'one', 'inner'),
+        join(root, 'plain', '.worktrees', 'x'),
+        join(root, 'nonexistent'),
+      ]) {
+        expect(await isListedPath(deps, rejected), rejected).toBe(false);
+      }
+    } finally {
+      rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  it('agrees with listRepos on every directory in the tree', async () => {
+    const root = tempRoot();
+    repo(join(root, 'repoA'));
+    worktree(join(root, 'repoA', '.worktrees', 'one'));
+    worktree(join(root, 'repoA', '.worktrees', 'feat', 'x'));
+    mkdirSync(join(root, 'repoA', '.worktrees', 'bare'));
+    mkdirSync(join(root, 'repoA', 'other'));
+    worktree(join(root, 'repoA', 'other', 'looks-like-a-worktree'));
+    worktree(join(root, 'repoA', '.worktrees', 'one', '.worktrees', 'nested'));
+    repo(join(root, 'repoA', '.worktrees', 'one', 'vendor', 'inner'));
+    repo(join(root, 'org', 'deep'));
+    mkdirSync(join(root, 'plain', '.worktrees', 'x'), { recursive: true });
+    worktree(join(root, 'plain', '.worktrees', 'x'));
+    worktree(join(root, 'stray'));
+    repo(join(root, 'repoB'));
+    repo(join(root, '..foo'));
+    const deps = { git: diskGit(), roots: [root] };
+    const listed = new Set((await listRepos(deps)).map((entry) => realpathSync(entry.path)));
+
+    const directories: string[] = [root];
+    for (let i = 0; i < directories.length; i += 1) {
+      const current = directories[i] as string;
+      for (const entry of readdirSync(current, { withFileTypes: true })) {
+        if (entry.isDirectory() && entry.name !== '.git')
+          directories.push(join(current, entry.name));
+      }
+    }
+
+    expect(listed.size).toBeGreaterThan(4);
+    for (const candidate of directories) {
+      expect(await isListedPath(deps, candidate), candidate).toBe(listed.has(candidate));
+    }
   });
 });

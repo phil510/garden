@@ -7,35 +7,31 @@ import { REPO_CACHE_TTL_MS, RootNotListedError, createRepoCatalog } from './repo
 
 interface FakeGit extends Pick<GitPort, 'repoRoot' | 'branch'> {
   readonly repoRootCalls: () => number;
+  readonly branchCalls: () => number;
 }
 
 /** A directory is a repo while it has a `.git` entry on disk, and `repoRoot` reports its
- *  realpath the way `git rev-parse` does. `gate` holds every `repoRoot` call until released,
- *  so a scan can be kept in flight. */
-function fakeGit(options: { gate?: Promise<void> } = {}): FakeGit {
+ *  realpath the way `git rev-parse` does. */
+function fakeGit(): FakeGit {
   let calls = 0;
+  let branchCalls = 0;
   return {
     repoRootCalls: () => calls,
-    repoRoot: async (cwd) => {
+    branchCalls: () => branchCalls,
+    repoRoot: (cwd) => {
       calls += 1;
-      await options.gate;
       try {
         realpathSync(join(cwd, '.git'));
-        return realpathSync(cwd);
+        return Promise.resolve(realpathSync(cwd));
       } catch {
-        throw new Error(`not a git repository: ${cwd}`);
+        return Promise.reject(new Error(`not a git repository: ${cwd}`));
       }
     },
-    branch: () => Promise.resolve('main'),
+    branch: () => {
+      branchCalls += 1;
+      return Promise.resolve('main');
+    },
   };
-}
-
-function deferred(): { promise: Promise<void>; release: () => void } {
-  let release!: () => void;
-  const promise = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  return { promise, release };
 }
 
 describe('createRepoCatalog', () => {
@@ -65,77 +61,54 @@ describe('createRepoCatalog', () => {
     expect(git.repoRootCalls()).toBe(0);
   });
 
-  it('shares one scan between overlapping refreshes', async () => {
+  it('shares one scan between overlapping list() calls', async () => {
     setup();
     const git = fakeGit();
     const catalog = createRepoCatalog({ git, roots: [dir] });
 
-    await Promise.all([catalog.list(), catalog.list(), catalog.resolveRoot(repoA)]);
+    await Promise.all([catalog.list(), catalog.list()]);
 
     expect(git.repoRootCalls()).toBe(1); // only repoA has a `.git`, so one candidate is checked
   });
 
-  it('holds a miss until the pending scan completes instead of deciding early', async () => {
-    setup();
-    const gate = deferred();
-    const catalog = createRepoCatalog({ git: fakeGit({ gate: gate.promise }), roots: [dir] });
-
-    mkdirSync(join(other, '.git'));
-    let settled = false;
-    const misses = [catalog.resolveRoot(other), catalog.resolveRoot(other)].map((miss) =>
-      miss.finally(() => {
-        settled = true;
-      }),
-    );
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    expect(settled).toBe(false);
-    gate.release();
-
-    // `other` qualifies once scanned, so this also shows the miss waited for the scan.
-    for (const miss of misses) await expect(miss).resolves.toBe(other);
-  });
-
-  it('accepts a repo created after the cache was built, on the miss refresh', async () => {
+  it('accepts a repo created after the snapshot was built', async () => {
     setup();
     const catalog = createRepoCatalog({ git: fakeGit(), roots: [dir] });
-    await catalog.resolveRoot(repoA);
+    await catalog.list();
 
     mkdirSync(join(other, '.git'));
 
     await expect(catalog.resolveRoot(other)).resolves.toBe(other);
   });
 
-  it('bounds a removal by the TTL from the start of the scan that listed it', async () => {
+  it('rejects a repo on the next call once its .git is removed, inside the TTL', async () => {
     setup();
-    vi.useFakeTimers({ toFake: ['Date'] });
-    const gate = deferred();
-    const git = fakeGit({ gate: gate.promise });
-    const catalog = createRepoCatalog({ git, roots: [dir] });
-    const scan = catalog.list();
-    // The scan is held at its git check; the repo stops qualifying after that check ran.
-    // Not vi.waitFor: it advances the faked clock while polling.
-    while (git.repoRootCalls() === 0) await new Promise((resolve) => setImmediate(resolve));
-    vi.setSystemTime(Date.now() + REPO_CACHE_TTL_MS - 1);
-    gate.release();
-    await scan;
+    const catalog = createRepoCatalog({ git: fakeGit(), roots: [dir] });
+    await catalog.list();
+    await expect(catalog.resolveRoot(repoA)).resolves.toBe(repoA);
+
     rmSync(join(repoA, '.git'), { recursive: true });
 
-    // The snapshot dates from the scan's start, so it is nearly expired though just finished.
-    await expect(catalog.resolveRoot(repoA)).resolves.toBe(repoA);
-    vi.setSystemTime(Date.now() + 2);
     await expect(catalog.resolveRoot(repoA)).rejects.toBeInstanceOf(RootNotListedError);
   });
 
-  it('rescans once past the TTL rather than trusting the old set', async () => {
+  it('checks only the requested path instead of scanning every repo', async () => {
     setup();
-    vi.useFakeTimers({ toFake: ['Date'] });
-    const catalog = createRepoCatalog({ git: fakeGit(), roots: [dir] });
-    await catalog.resolveRoot(repoA);
+    for (const name of ['repoB', 'repoC', 'repoD'])
+      mkdirSync(join(dir, name, '.git'), { recursive: true });
+    mkdirSync(join(repoA, '.worktrees', 'feat'), { recursive: true });
+    mkdirSync(join(repoA, '.worktrees', 'feat', '.git'));
+    const git = fakeGit();
+    const catalog = createRepoCatalog({ git, roots: [dir] });
 
-    rmSync(join(repoA, '.git'), { recursive: true });
-    vi.setSystemTime(Date.now() + REPO_CACHE_TTL_MS + 1);
+    await expect(catalog.resolveRoot(join(dir, 'repoC'))).resolves.toBe(join(dir, 'repoC'));
+    expect(git.repoRootCalls()).toBe(1);
+    expect(git.branchCalls()).toBe(0);
 
-    await expect(catalog.resolveRoot(repoA)).rejects.toBeInstanceOf(RootNotListedError);
+    await catalog.list();
+    const afterScan = git.repoRootCalls();
+    await catalog.resolveRoot(join(repoA, '.worktrees', 'feat'));
+    expect(git.repoRootCalls()).toBe(afterScan + 1); // the worktree's repo, not a rescan
   });
 
   it('serves list() from the snapshot inside the TTL and rescans after it', async () => {

@@ -2,11 +2,10 @@
 import { realpath } from 'node:fs/promises';
 import { isAbsolute } from 'node:path';
 import type { RepoEntry } from '@garden/shared';
-import { listRepos } from './repos.js';
+import { isListedPath, listRepos } from './repos.js';
 import type { ReposDeps } from './repos.js';
 
-/** How long a scan's realpath set may vouch for a root. A repo that stops qualifying (its
- *  `.git` removed) is rejected at most this long after the scan that last listed it began. */
+/** How long `list()` serves one scan before rescanning. */
 export const REPO_CACHE_TTL_MS = 10_000;
 
 /** The requested root is not (the realpath of) an entry in the repo list — including a path
@@ -14,17 +13,18 @@ export const REPO_CACHE_TTL_MS = 10_000;
 export class RootNotListedError extends Error {}
 
 export interface RepoCatalog {
-  /** The configured roots' repos from the TTL-bounded snapshot `resolveRoot` checks, rescanned
-   *  only when it is stale or absent. A repo created within the TTL may be missing. */
+  /** The configured roots' repos from a TTL-bounded snapshot, rescanned only when it is stale
+   *  or absent. A repo created within the TTL may be missing. */
   list(): Promise<RepoEntry[]>;
-  /** The realpath of `requested` if it is the realpath of a listed repo entry, else throws
-   *  `RootNotListedError`. Equality, not containment: a subdirectory of a repo is not a root. */
+  /** The realpath of `requested` if it is a repo or worktree `list()` would include, else throws
+   *  `RootNotListedError`. Only that one path is checked, against the rule `listRepos` lists by,
+   *  so it never waits on a scan and reflects the filesystem as of the call. Equality, not
+   *  containment: a subdirectory of a repo is not a root. */
   resolveRoot(requested: string): Promise<string>;
 }
 
 interface Snapshot {
   readonly entries: RepoEntry[];
-  readonly realpaths: ReadonlySet<string>;
   readonly fetchedAt: number;
 }
 
@@ -40,14 +40,7 @@ export function createRepoCatalog(deps: ReposDeps): RepoCatalog {
       const fetchedAt = Date.now();
       try {
         const entries = await listRepos(deps);
-        const realpaths = new Set<string>();
-        await Promise.all(
-          entries.map(async (entry) => {
-            const real = await realpath(entry.path).catch(() => undefined);
-            if (real !== undefined) realpaths.add(real);
-          }),
-        );
-        snapshot = { entries, realpaths, fetchedAt };
+        snapshot = { entries, fetchedAt };
         return snapshot;
       } finally {
         inFlight = undefined;
@@ -73,8 +66,7 @@ export function createRepoCatalog(deps: ReposDeps): RepoCatalog {
       const real = await realpath(requested).catch(() => {
         throw new RootNotListedError(`root is not listed: ${requested}`);
       });
-      if ((await fresh()).realpaths.has(real)) return real;
-      if ((await refresh()).realpaths.has(real)) return real;
+      if (await isListedPath(deps, real)) return real;
       throw new RootNotListedError(`root is not listed: ${requested}`);
     },
   };
