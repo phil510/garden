@@ -92,3 +92,13 @@ export function nextLoaded(
   }
   return { key, result };
 }
+
+/** Whether a file is selected but has no result yet. `current` is the result for the selected
+ *  source only — one left over from another source counts as none, so a switch reads as loading
+ *  rather than as "No file open". */
+export function isLoading(
+  source: ViewerSource | null,
+  current: LoadedFile['result'] | null,
+): boolean {
+  return source !== null && current === null;
+}

@@ -14,6 +14,7 @@ import { tokenStyle } from './tokenStyle';
 import { resetModeForOpenedFile, shouldResetMode, type ViewMode } from './viewMode';
 import {
   activeSource,
+  isLoading,
   liveTransient,
   nextLoaded,
   sourceKey,
@@ -255,6 +256,21 @@ export function Viewer({
         <div className="fp-viewer-body">
           <div className="fp-load-error" role="alert">
             Couldn&apos;t load this file: {loadError}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (source !== null && isLoading(source, current)) {
+    return (
+      <div className="fp-viewer">
+        <div className="fp-viewer-header">
+          <span className="fp-viewer-path">{source.path}</span>
+        </div>
+        <div className="fp-viewer-body">
+          <div className="fp-viewer-empty" role="status">
+            Loading…
           </div>
         </div>
       </div>
