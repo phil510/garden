@@ -89,6 +89,10 @@ export async function remoteUrl(cwd: string): Promise<string | null> {
  *  rediscover, and spawn, on the same tick. */
 const HEAD_PATH_MAX_AGE_MS = 5 * 60_000;
 
+/** How long a cwd outside any repository is remembered as one, so it costs one launch per window
+ *  rather than one per sweep while a later `git init` is still noticed. */
+const NOT_A_REPO_RETRY_MS = 30_000;
+
 /** Fs calls have no timeout of their own, so a stalled mount would hang one forever. The
  *  stalled call itself is abandoned, not cancelled. */
 async function bounded<T>(operation: Promise<T>): Promise<T> {
@@ -106,10 +110,9 @@ async function bounded<T>(operation: Promise<T>): Promise<T> {
   }
 }
 
-interface HeadPath {
-  readonly path: string;
-  readonly expiresAt: number;
-}
+type HeadPath =
+  | { readonly path: string; readonly expiresAt: number }
+  | { readonly failure: unknown; readonly expiresAt: number };
 
 /**
  * Resolves a cwd's branch by reading its `HEAD` file, so a steady-state call spawns no process:
@@ -119,17 +122,23 @@ interface HeadPath {
  * elsewhere) and the file is read fresh every call. Whatever the file doesn't settle falls back
  * to `rev-parse --abbrev-ref HEAD`.
  */
-export function createBranchReader(): (cwd: string) => Promise<string> {
+export function createBranchReader(now: () => number = Date.now): (cwd: string) => Promise<string> {
   const headPaths = new Map<string, HeadPath>();
 
   const viaGit = async (cwd: string): Promise<string> =>
     (await run(cwd, ['rev-parse', '--abbrev-ref', 'HEAD'])).trim();
 
   async function discover(cwd: string): Promise<string> {
-    const stdout = await run(cwd, ['rev-parse', '--path-format=absolute', '--git-path', 'HEAD']);
+    let stdout: string;
+    try {
+      stdout = await run(cwd, ['rev-parse', '--path-format=absolute', '--git-path', 'HEAD']);
+    } catch (error) {
+      headPaths.set(cwd, { failure: error, expiresAt: now() + NOT_A_REPO_RETRY_MS });
+      throw error;
+    }
     const path = stdout.trim();
     const jitter = Math.random() * HEAD_PATH_MAX_AGE_MS * 0.5;
-    headPaths.set(cwd, { path, expiresAt: Date.now() + HEAD_PATH_MAX_AGE_MS + jitter });
+    headPaths.set(cwd, { path, expiresAt: now() + HEAD_PATH_MAX_AGE_MS + jitter });
     return path;
   }
 
@@ -150,14 +159,14 @@ export function createBranchReader(): (cwd: string) => Promise<string> {
       return viaGit(cwd);
     }
     const cached = headPaths.get(cwd);
-    if (cached !== undefined && cached.expiresAt > Date.now()) {
+    if (cached !== undefined && cached.expiresAt > now()) {
+      if ('failure' in cached) throw cached.failure;
       try {
         return (await readHead(cached.path)) ?? (await viaGit(cwd));
       } catch {
         headPaths.delete(cwd);
       }
     }
-    // A failed discovery caches nothing, so a later `git init` is picked up.
     const path = await discover(cwd);
     try {
       return (await readHead(path)) ?? (await viaGit(cwd));

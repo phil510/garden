@@ -150,12 +150,16 @@ describe('the git adapter', () => {
       await expect(branch(worktreeDir)).rejects.toBeInstanceOf(GitError);
     });
 
-    it('recovers when a directory that was not a repository becomes one', async () => {
+    it('remembers a directory is not a repository for a while, then notices it became one', async () => {
       dir = mkdtempSync(join(tmpdir(), 'garden-git-'));
-      const branch = createBranchReader();
+      let clock = 0;
+      const branch = createBranchReader(() => clock);
       await expect(branch(dir)).rejects.toBeInstanceOf(GitError);
 
       initRepo(dir);
+      await expect(branch(dir)).rejects.toBeInstanceOf(GitError);
+
+      clock += 30_000;
       expect(await branch(dir)).toBe('main');
     });
 
