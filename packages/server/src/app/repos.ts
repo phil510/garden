@@ -90,8 +90,8 @@ async function isGitWorkingTree(dir: string): Promise<boolean> {
   }
 }
 
-/** A repo with no commits yet has no branch to resolve; that failure is reported as
- *  `branch: null` rather than dropping the repo. */
+/** A branch that can't be resolved is reported as `branch: null` rather than dropping the
+ *  repo. */
 async function repoEntry(
   git: ReposGit,
   limiter: Limiter,

@@ -152,7 +152,14 @@ export function createBranchReader(now: () => number = Date.now): (cwd: string) 
     try {
       stdout = await run(cwd, ['rev-parse', '--path-format=absolute', '--git-path', 'HEAD']);
     } catch (error) {
-      headPaths.set(cwd, { failure: error, expiresAt: now() + NOT_A_REPO_RETRY_MS });
+      // Only an answer from git itself is remembered; a launch that failed or timed out is
+      // retried on the next call.
+      if (
+        error instanceof GitError &&
+        typeof (error.cause as { code?: unknown }).code === 'number'
+      ) {
+        headPaths.set(cwd, { failure: error, expiresAt: now() + NOT_A_REPO_RETRY_MS });
+      }
       throw error;
     }
     const path = stdout.trim();
@@ -173,9 +180,9 @@ export function createBranchReader(now: () => number = Date.now): (cwd: string) 
     // cwd itself has to be checked rather than trusting the read to fail.
     try {
       await bounded(stat(cwd));
-    } catch {
+    } catch (error) {
       headPaths.delete(cwd);
-      return viaGit(cwd);
+      throw new GitError(['rev-parse', '--abbrev-ref', 'HEAD'], '', error);
     }
     const cached = headPaths.get(cwd);
     if (cached !== undefined && cached.expiresAt > now()) {
