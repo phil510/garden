@@ -267,6 +267,12 @@ on remount, handing the observer over, closing the right socket. Those files may
 `// @vitest-environment happy-dom` at their top; `vitest.config.ts` stays on `node` for
 everything else.
 
+The second exception is a render-cost contract: a test may mount a single leaf component to pin
+that an expensive child is not re-run on unrelated updates, with the expensive child mocked to
+count its calls. `MarkdownBody.test.ts` is the instance — the file viewer re-renders on every
+`ui-state` echo, and the test pins that an unchanged file is not re-parsed. Both categories may
+declare `// @vitest-environment happy-dom`.
+
 A pure decision inside such a file still belongs outside it: the pane epoch reuse rule lives in
 `paneReuse.ts` and is tested under `node`. And this is not a licence to mount feature
 components — if logic can be exercised as a function over data, the forcing function above
