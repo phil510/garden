@@ -1,15 +1,13 @@
 import type { FileResponse } from '@garden/shared';
 import type { ThemedToken } from 'shiki';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
-import ReactMarkdown, { type Components } from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { getFile } from '../../api/client';
 import { isUnresolvablePath } from '../../api/unresolvablePath';
 import { commandFailureMessage } from '../../api/reportCommandFailure';
 import { useLocalStore, type OpenFileRequest } from '../../state/localStore';
 import { tokenizeFile } from './highlighter';
 import { isMarkdownFile } from './markdown';
-import { MarkdownCodeBlock } from './MarkdownCodeBlock';
+import { MarkdownBody } from './MarkdownBody';
 import { tokenStyle } from './tokenStyle';
 import { resetModeForOpenedFile, shouldResetMode, type ViewMode } from './viewMode';
 import {
@@ -34,45 +32,6 @@ interface ViewerProps {
   /** Whether a session-sourced file is on top of the root's open file, so the tree can skip highlighting it. */
   onTransientShownChange: (shown: boolean) => void;
 }
-
-/** Every link renders as inert text — the viewer has no route to resolve a relative link's
- *  target, and the brief scopes navigation and absolute-vs-relative treatment out alike. */
-const MarkdownLink: NonNullable<Components['a']> = ({ children }) => (
-  <span className="fp-md-link">{children}</span>
-);
-
-/** Images never fetch — same reasoning as links, plus no appetite for a markdown file to
- *  reach out to an arbitrary URL from inside the console. */
-const MarkdownImage: NonNullable<Components['img']> = ({ alt }) => (
-  <span className="fp-md-image">{alt || 'image'}</span>
-);
-
-/** Overrides `pre` rather than `code` so a fenced block (wrapped in `pre`) and an inline code
- *  span (bare `code`, never reaching this component) are told apart structurally instead of by
- *  guessing from a `language-*` class that a fence without an info string never gets. Reads the
- *  fence's language and text straight off the raw hast node rather than `props.children`, since
- *  `children` here is already-rendered output from the default (unoverridden) `code` element. */
-const MarkdownPre: NonNullable<Components['pre']> = ({ node }) => {
-  let language: string | undefined;
-  let value = '';
-  for (const child of node?.children ?? []) {
-    if (child.type !== 'element' || child.tagName !== 'code') continue;
-    const classNameProp = child.properties?.className;
-    const classNames = Array.isArray(classNameProp) ? classNameProp.map(String) : [];
-    language = classNames.find((name) => name.startsWith('language-'))?.slice('language-'.length);
-    value = child.children
-      .map((grandchild) => (grandchild.type === 'text' ? grandchild.value : ''))
-      .join('')
-      .replace(/\n$/, '');
-  }
-  return <MarkdownCodeBlock language={language} value={value} />;
-};
-
-const markdownComponents: Components = {
-  pre: MarkdownPre,
-  a: MarkdownLink,
-  img: MarkdownImage,
-};
 
 /**
  * Read-only, one file at a time, no tabs of its own. Shows the panel root's persisted open file,
@@ -348,11 +307,7 @@ export function Viewer({
             </button>
           </div>
         ) : showMarkdown && mode === 'rendered' ? (
-          <div className="fp-markdown">
-            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-              {file.text}
-            </ReactMarkdown>
-          </div>
+          <MarkdownBody text={file.text} />
         ) : (
           (tokens ?? []).map((line, index) => (
             <div className="code-line" key={index}>
