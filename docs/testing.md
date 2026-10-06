@@ -257,26 +257,28 @@ logic can be tested by mounting a component — by construction. That is the int
 function: if logic cannot be exercised as a plain function over plain data, extract it into
 one rather than adding a DOM environment to reach it.
 
-The first exception is a file whose subject _is_ DOM wiring, where extracting a pure function would
-leave the part that actually breaks untested. Two files qualify. One pins a third-party layout
-library's own documented-but-unverifiable behavior (identity preservation across a `fromJSON`,
-for example), which belongs to the library rather than to garden's code. The other is the
-terminal registry, garden's one imperative escape hatch, whose whole content is the wiring
-between xterm, the fit addon, a `ResizeObserver` and a pane socket — reparenting a live terminal
-on remount, handing the observer over, closing the right socket. Those files may declare
-`// @vitest-environment happy-dom` at their top; `vitest.config.ts` stays on `node` for
-everything else.
+Two narrow exceptions exist, each with its own test a file must pass.
 
-The second exception is a render-cost contract: a test may mount a single leaf component to pin
-that an expensive child is not re-run on unrelated updates, with the expensive child mocked to
-count its calls. `MarkdownBody.test.ts` is the instance — the file viewer re-renders on every
-`ui-state` echo, and the test pins that an unchanged file is not re-parsed. Both exceptions use
-`// @vitest-environment happy-dom`.
+The first is a file whose subject _is_ DOM wiring, where extracting a pure function would leave
+the part that actually breaks untested. Two files are the current instances. One pins a
+third-party layout library's own documented-but-unverifiable behavior (identity preservation
+across a `fromJSON`, for example), which belongs to the library rather than to garden's code. The
+other is the terminal registry, garden's one imperative escape hatch, whose whole content is the
+wiring between xterm, the fit addon, a `ResizeObserver` and a pane socket — reparenting a live
+terminal on remount, handing the observer over, closing the right socket.
 
-A pure decision inside either kind of file still belongs outside it: the pane epoch reuse rule lives in
-`paneReuse.ts` and is tested under `node`. And this is not a licence to mount feature
-components — if logic can be exercised as a function over data, the forcing function above
-still applies.
+The second is a render-cost contract: a test may mount a single leaf component to pin that an
+expensive child is not re-run on unrelated updates, with the expensive child mocked to count its
+calls. `MarkdownBody.test.ts` is the current instance — the file viewer re-renders on every
+`ui-state` echo, and the test pins that an unchanged file is not re-parsed.
+
+Files in either category may declare `// @vitest-environment happy-dom` at their top;
+`vitest.config.ts` stays on `node` for everything else.
+
+Both categories are narrow. The render-cost one mounts a single leaf with its expensive child
+mocked, never a feature component, and a pure decision inside either kind of file still belongs
+outside it: the pane epoch reuse rule lives in `paneReuse.ts` and is tested under `node`. Logic
+that can be exercised as a function over data is still extracted, per the forcing function above.
 
 **Coverage as a number.** No threshold is enforced and none should be. A percentage cannot
 distinguish the round-trip invariant from a test asserting a default port.
