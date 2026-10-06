@@ -128,6 +128,9 @@ export function createProjection(store: StorePort): Projection {
     dispatch(event) {
       const prev = state;
       state = reduce(state, event);
+      // The reducer hands back the same object for an event that changes nothing, which is
+      // the common case for the per-tick branch sweep.
+      if (state === prev) return;
       const deltas = diff(prev, state);
       if (deltas.length === 0) return;
       for (const listener of [...listeners]) listener(deltas);
