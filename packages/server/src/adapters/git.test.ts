@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseHead } from './head.js';
+import { parseHead } from './git.js';
 
 describe('parseHead', () => {
   it('reads a branch name out of a symbolic ref, slashes included', () => {

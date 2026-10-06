@@ -162,6 +162,7 @@ export default tseslint.config(
                 '!./claudeSessions.js',
                 '!./fsWatch.js',
                 '!./gh.js',
+                '!./git.js',
                 '!./logger.js',
               ],
               message:
