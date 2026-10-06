@@ -191,6 +191,10 @@ packages/server/src/
 Repo grouping and pin ordering are not server-side: that logic lives in
 `packages/web/src/features/sidebar/groupSessions.ts`, run client-side against the session map.
 
+Spawning a process blocks the server's event loop on macOS (`posix_spawn` is synchronous, and
+endpoint security can push it to ~15ms each), so a spawn per cwd or per session on every tick grows
+with session count. Read state the external system keeps on disk instead, as `git.ts` does for HEAD.
+
 The server ships as a single esbuild bundle, and `node-pty`'s native addon cannot be bundled
 (`packages/server/build.ts` says how it is kept external). The consequence: `dist/` only runs where
 `node_modules/node-pty` resolves from it — in practice the checkout after `pnpm install`, with the
