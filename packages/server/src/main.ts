@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { readClaudeSessionNames } from './adapters/claudeSessions.js';
 import { watchFsRoot } from './adapters/fsWatch.js';
 import { ghGet } from './adapters/gh.js';
-import { branch, remoteUrl, repoRoot, status, workTreePrefix } from './adapters/git.js';
+import { createBranchReader, remoteUrl, repoRoot, status, workTreePrefix } from './adapters/git.js';
 import { createLogger, guardStderr, type Logger } from './adapters/logger.js';
 import { attachPty } from './adapters/pty.js';
 import type { PtyTarget } from './adapters/pty.js';
@@ -113,7 +113,7 @@ function fsWatchPort(logger: Logger): FsWatchPort {
 }
 
 function gitPort(): GitPort {
-  return { repoRoot, branch, remoteUrl, status, workTreePrefix };
+  return { repoRoot, branch: createBranchReader(), remoteUrl, status, workTreePrefix };
 }
 
 function ghPort(): GhPort {

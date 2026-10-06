@@ -1,11 +1,19 @@
 import { execFileSync } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   GitError,
-  branch,
+  createBranchReader,
   remoteUrl,
   repoRoot,
   status,
@@ -85,11 +93,111 @@ describe('the git adapter', () => {
     expect(await status(nested)).toContainEqual({ path: 'src/lib/tracked.txt', status: ' M' });
   });
 
-  it('reports the checked-out branch', async () => {
-    dir = mkdtempSync(join(tmpdir(), 'garden-git-'));
-    initRepo(dir);
-    git(dir, ['checkout', '-b', 'feat/y']);
-    expect(await branch(dir)).toBe('feat/y');
+  describe('branch', () => {
+    it('reports the checked-out branch of a repository, from a subdirectory too', async () => {
+      dir = mkdtempSync(join(tmpdir(), 'garden-git-'));
+      initRepo(dir);
+      git(dir, ['checkout', '-b', 'feat/y']);
+      const nested = join(dir, 'src', 'lib');
+      mkdirSync(nested, { recursive: true });
+
+      const branch = createBranchReader();
+      expect(await branch(dir)).toBe('feat/y');
+      expect(await branch(nested)).toBe('feat/y');
+    });
+
+    it('gives a linked worktree its own HEAD and follows a checkout in either place', async () => {
+      dir = mkdtempSync(join(tmpdir(), 'garden-git-'));
+      const repoDir = join(dir, 'repo');
+      mkdirSync(repoDir);
+      initRepo(repoDir);
+      const worktreeDir = join(dir, 'worktree');
+      git(repoDir, ['worktree', 'add', worktreeDir, '-b', 'feat/x']);
+
+      const branch = createBranchReader();
+      expect(await branch(repoDir)).toBe('main');
+      expect(await branch(worktreeDir)).toBe('feat/x');
+
+      git(worktreeDir, ['checkout', '-b', 'feat/z']);
+      expect(await branch(worktreeDir)).toBe('feat/z');
+      expect(await branch(repoDir)).toBe('main');
+    });
+
+    it('reports HEAD for a detached checkout', async () => {
+      dir = mkdtempSync(join(tmpdir(), 'garden-git-'));
+      initRepo(dir);
+      git(dir, ['checkout', '--detach']);
+
+      expect(await createBranchReader()(dir)).toBe('HEAD');
+    });
+
+    it('rejects when the cwd is gone even though the worktree gitdir HEAD survives', async () => {
+      dir = mkdtempSync(join(tmpdir(), 'garden-git-'));
+      const repoDir = join(dir, 'repo');
+      mkdirSync(repoDir);
+      initRepo(repoDir);
+      const worktreeDir = join(dir, 'worktree');
+      git(repoDir, ['worktree', 'add', worktreeDir, '-b', 'feat/x']);
+
+      const branch = createBranchReader();
+      expect(await branch(worktreeDir)).toBe('feat/x');
+      rmSync(worktreeDir, { recursive: true });
+      // The worktree's metadata under the main repo's .git is what a stale read would hit.
+      expect(
+        readFileSync(join(repoDir, '.git', 'worktrees', 'worktree', 'HEAD'), 'utf8'),
+      ).toContain('feat/x');
+
+      await expect(branch(worktreeDir)).rejects.toBeInstanceOf(GitError);
+    });
+
+    it('recovers when a directory that was not a repository becomes one', async () => {
+      dir = mkdtempSync(join(tmpdir(), 'garden-git-'));
+      const branch = createBranchReader();
+      await expect(branch(dir)).rejects.toBeInstanceOf(GitError);
+
+      initRepo(dir);
+      expect(await branch(dir)).toBe('main');
+    });
+
+    it('spawns git to discover a cwd once and never again while HEAD stays readable', async () => {
+      dir = mkdtempSync(join(tmpdir(), 'garden-git-'));
+      initRepo(dir);
+      // A `git` on PATH that logs each launch and then runs the real one, so the count is of
+      // real process launches rather than of calls into a seam.
+      const fakeBinDir = join(dir, 'fake-bin');
+      mkdirSync(fakeBinDir);
+      const log = join(dir, 'git-calls.log');
+      const realGit = execFileSync('which', ['git']).toString().trim();
+      const fakeGit = join(fakeBinDir, 'git');
+      writeFileSync(fakeGit, `#!/bin/sh\necho "$@" >> '${log}'\nexec '${realGit}' "$@"\n`);
+      chmodSync(fakeGit, 0o755);
+      const launches = () => readFileSync(log, 'utf8').trim().split('\n').length;
+
+      const originalPath = process.env.PATH;
+      process.env.PATH = `${fakeBinDir}:${originalPath ?? ''}`;
+      try {
+        const branch = createBranchReader();
+        expect(await branch(dir)).toBe('main');
+        expect(launches()).toBe(1);
+
+        git(dir, ['checkout', '-b', 'feat/y']);
+        const afterCheckout = launches();
+        expect(await branch(dir)).toBe('feat/y');
+        expect(await branch(dir)).toBe('feat/y');
+        expect(launches()).toBe(afterCheckout);
+      } finally {
+        process.env.PATH = originalPath;
+      }
+    });
+
+    it('asks git when HEAD is a symbolic ref outside refs/heads', async () => {
+      dir = mkdtempSync(join(tmpdir(), 'garden-git-'));
+      initRepo(dir);
+      git(dir, ['update-ref', 'refs/remotes/origin/main', 'HEAD']);
+      git(dir, ['symbolic-ref', 'HEAD', 'refs/remotes/origin/main']);
+
+      expect(await createBranchReader()(dir)).toBe('origin/main');
+    });
   });
 
   it('reports untracked and modified paths from status --porcelain', async () => {
@@ -162,7 +270,7 @@ describe('the git adapter', () => {
     const originalPath = process.env.PATH;
     process.env.PATH = `${fakeBinDir}:${originalPath ?? ''}`;
     try {
-      await expect(branch(dir)).rejects.toBeInstanceOf(GitError);
+      await expect(createBranchReader()(dir)).rejects.toBeInstanceOf(GitError);
     } finally {
       process.env.PATH = originalPath;
     }

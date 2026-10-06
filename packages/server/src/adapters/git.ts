@@ -1,6 +1,8 @@
 import { execFile } from 'node:child_process';
+import { lstat, readFile, stat } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { promisify } from 'node:util';
+import { parseHead } from '../domain/head.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -81,9 +83,89 @@ export async function remoteUrl(cwd: string): Promise<string | null> {
   }
 }
 
-export async function branch(cwd: string): Promise<string> {
-  const stdout = await run(cwd, ['rev-parse', '--abbrev-ref', 'HEAD']);
-  return stdout.trim();
+/** A cached HEAD path is rediscovered after this long, bounding how stale it can get when a
+ *  symlink is retargeted or a nested `git init` changes which repository owns a cwd. Each entry
+ *  adds up to half again at random so the cwds discovered together at boot don't all
+ *  rediscover, and spawn, on the same tick. */
+const HEAD_PATH_MAX_AGE_MS = 5 * 60_000;
+
+/** Fs calls have no timeout of their own, so a stalled mount would hang one forever. The
+ *  stalled call itself is abandoned, not cancelled. */
+async function bounded<T>(operation: Promise<T>): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`filesystem read timed out after ${String(GIT_TIMEOUT_MS)}ms`)),
+      GIT_TIMEOUT_MS,
+    );
+  });
+  try {
+    return await Promise.race([operation, timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+interface HeadPath {
+  readonly path: string;
+  readonly expiresAt: number;
+}
+
+/**
+ * Resolves a cwd's branch by reading its `HEAD` file, so a steady-state call spawns no process:
+ * every launch blocks the event loop for the length of the `posix_spawn`, and the branch sweep
+ * makes one call per live cwd every tick. The `HEAD` path is discovered with git once per cwd
+ * (git, not a walk up for `.git`, because a linked worktree or submodule keeps its own `HEAD`
+ * elsewhere) and the file is read fresh every call. Whatever the file doesn't settle falls back
+ * to `rev-parse --abbrev-ref HEAD`.
+ */
+export function createBranchReader(): (cwd: string) => Promise<string> {
+  const headPaths = new Map<string, HeadPath>();
+
+  const viaGit = async (cwd: string): Promise<string> =>
+    (await run(cwd, ['rev-parse', '--abbrev-ref', 'HEAD'])).trim();
+
+  async function discover(cwd: string): Promise<string> {
+    const stdout = await run(cwd, ['rev-parse', '--path-format=absolute', '--git-path', 'HEAD']);
+    const path = stdout.trim();
+    const jitter = Math.random() * HEAD_PATH_MAX_AGE_MS * 0.5;
+    headPaths.set(cwd, { path, expiresAt: Date.now() + HEAD_PATH_MAX_AGE_MS + jitter });
+    return path;
+  }
+
+  /** null when the file needs git to interpret; throws when it can't be read. A symlinked
+   *  `HEAD` is a legacy layout whose target holds the ref, so it is not read here. */
+  async function readHead(path: string): Promise<string | null> {
+    if ((await bounded(lstat(path))).isSymbolicLink()) return null;
+    return parseHead(await bounded(readFile(path, 'utf8')));
+  }
+
+  return async (cwd) => {
+    // A deleted linked worktree can leave its `.git/worktrees/<id>/HEAD` readable, so the
+    // cwd itself has to be checked rather than trusting the read to fail.
+    try {
+      await bounded(stat(cwd));
+    } catch {
+      headPaths.delete(cwd);
+      return viaGit(cwd);
+    }
+    const cached = headPaths.get(cwd);
+    if (cached !== undefined && cached.expiresAt > Date.now()) {
+      try {
+        return (await readHead(cached.path)) ?? (await viaGit(cwd));
+      } catch {
+        headPaths.delete(cwd);
+      }
+    }
+    // A failed discovery caches nothing, so a later `git init` is picked up.
+    const path = await discover(cwd);
+    try {
+      return (await readHead(path)) ?? (await viaGit(cwd));
+    } catch {
+      headPaths.delete(cwd);
+      return viaGit(cwd);
+    }
+  };
 }
 
 /**

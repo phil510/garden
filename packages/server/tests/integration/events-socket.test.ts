@@ -7,7 +7,13 @@ import { EVENTS_CLOSE_CODES, type Delta, type ServerMessage } from '@garden/shar
 import { WebSocket } from 'ws';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { watchFsRoot } from '../../src/adapters/fsWatch.js';
-import { branch, remoteUrl, repoRoot, status, workTreePrefix } from '../../src/adapters/git.js';
+import {
+  createBranchReader,
+  remoteUrl,
+  repoRoot,
+  status,
+  workTreePrefix,
+} from '../../src/adapters/git.js';
 import { DEFAULT_OVERLAY_STATE } from '../../src/adapters/store.js';
 import { createProjection } from '../../src/app/projection.js';
 import { createRepoCatalog } from '../../src/app/repoCatalog.js';
@@ -217,7 +223,7 @@ describe('WS /events root watches against a real watcher', () => {
   }
 
   it('sends fs-changed in the watcher spelling to the watching connection only', async () => {
-    const git = { repoRoot, branch, remoteUrl, status, workTreePrefix };
+    const git = { repoRoot, branch: createBranchReader(), remoteUrl, status, workTreePrefix };
     const repos = createRepoCatalog({ git, roots: [dir] });
     const logger = { warn: () => undefined, error: () => undefined };
     app = createServer({
