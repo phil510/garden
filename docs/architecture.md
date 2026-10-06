@@ -157,7 +157,7 @@ packages/server/src/
     diff.ts        (prev, next) -> Delta[]
   adapters/        one external system each
     tmux.ts        execFile wrapper: list, new-session, respawn-pane, kill, version check
-    git.ts         git-common-dir, branch, status --porcelain, worktree prefix, origin URL
+    git.ts         git-common-dir, branch (read from HEAD, no spawn), status --porcelain, worktree prefix, origin URL
     gh.ts          one conditional `gh api` GET: ETag in, classified result out
     transcripts.ts chokidar watch + read
     fsWatch.ts     native recursive fs.watch on one root, debounced, .git/ filtered
