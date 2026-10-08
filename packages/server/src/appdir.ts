@@ -10,7 +10,9 @@ export const TMUX_CONF = [
   'set-option -g mouse on',
   'set-option -g status off',
   'set-option -g default-terminal tmux-256color',
-  'set-option -g terminal-features ",*:RGB"',
+  // Without `hyperlinks` tmux drops OSC 8 before it reaches the attached client, and the
+  // client here is a node-pty one, which has no terminal of its own to announce the feature.
+  'set-option -g terminal-features ",*:RGB:hyperlinks"',
   'set-option -g aggressive-resize on',
   'set-option -g window-size latest',
   '',
