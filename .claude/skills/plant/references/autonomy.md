@@ -75,8 +75,9 @@ move:
 
 Lives in the pipeline's state directory alongside `workflow.md` and the
 `events/` log, append-only with the same discipline. Every gate that got
-auto-resolved — decided rather than escalated — gets one line: what was
-decided, what settled it, and which doc or finding backs it up.
+auto-resolved — decided rather than escalated — gets one line, and so does
+every limitation the reviewer accepted: what was decided, what settled it,
+and which doc or finding backs it up.
 
 It's what makes a run reviewable after the fact. Under low autonomy the user
 sees each decision as it happens, because they're the one making it. Under

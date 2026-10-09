@@ -49,7 +49,8 @@ reason worth understanding, because the failure modes are silent.
   high-stakes hop warrants verification (the finish gate, pipeline
   completion, a contradictory signal) — and prefer `scripts/pipeline-status.sh`
   over raw reads. When you send a subagent to do that verifying, ask it
-  for the verdict plus a `file:line` pointer, not the evidence itself. A
+  for the verdict plus where you'd go to confirm it — a `file:line`, a
+  job name, a PR thread — not the evidence itself. A
   subagent's return lands whole in your context, so a quoted source dump
   spends there exactly what delegating it was meant to save. Polling
   costs context and tells you nothing the message won't: before a worker
@@ -311,8 +312,7 @@ small); developer works from brief ACs`, then go to step 6. The box
    previous round's own fixes — another per-finding patch round reliably
    makes it worse; use the alternative in `references/escalate-resume.md`
    § Churn in internal rounds instead. Churn means severity holding or
-   rising across rounds; findings that get less reachable each round are
-   the reviewer's to close as clean with the limitation noted, not yours
+   rising across rounds; falling severity is the reviewer's to close as clean with the limitation noted, not yours
    to re-adjudicate. Either way, carry the diagnosis into the next
    worker's opener — information left in the round file steers nobody.
    On `Size: small` the cap is one round, so a dirty round
@@ -326,9 +326,11 @@ small); developer works from brief ACs`, then go to step 6. The box
    flip: you tick stage 3 yourself, with a `> NOTE` recording the accepted
    cap, in one atomic write, and write the accepted findings to
    `decisions.md` yourself, since no reviewer is left to name them in
-   `## Summary`. The PR is still a draft. If the round's `## Summary`
-   names limitations to disclose, record them in `decisions.md` too; the
-   finish gate puts every entry on the PR. Every `decisions.md` entry
+   `## Summary`. The PR is still a draft. Record each limitation the
+   reviewer's clean message names in `decisions.md` as its own entry
+   (on a resume there is no message — read the last clean round's
+   `## Summary`); never record nits. The finish gate puts every entry on
+   the PR. Every `decisions.md` entry
    you write takes the scaffold's line shape: a bare ISO timestamp at
    column 0, then ` — orchestrator: <decision>`. Go to step 10.
 10. **Stage 4 — the finish gate.**

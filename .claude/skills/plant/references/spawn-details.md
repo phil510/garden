@@ -212,7 +212,7 @@ and `events/` on every hop to reconstruct what a subprocess did.
    orchestrator to pick the next dispatch without reading disk:
    - Planner: `stage 1 done — plan.md written, N tasks, coverage table complete`
    - Developer (initial): `stage 2 done — draft PR <url>, commits <shas>`
-   - Reviewer: `round K clean — PR remains draft` _or_ `round K dirty — M fix findings in review-round-K.md`
+   - Reviewer: `round K clean — PR remains draft` (plus one line per accepted limitation) _or_ `round K dirty — M fix findings in review-round-K.md`
    - Any worker: `ESCALATING — see events/<iso>-escalation.md, decision needed on <X>`
    - Orchestrator to a waiting escalator: the decision block plus a
      pointer to the event file (§ Messaging the decision)

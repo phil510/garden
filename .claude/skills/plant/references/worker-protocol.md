@@ -166,8 +166,9 @@ replacement.
 - **Brief your own subagents to return conclusions, not source.** A
   subagent's return lands whole in your context, so an `Explore` that
   quotes the files it read hands back the reading you delegated to avoid
-  doing. Ask for the answer and a `file:line` pointer; open the file
-  yourself on the rare occasion the text itself matters.
+  doing. Ask for the answer and where you'd go to confirm it — a
+  `file:line`, a job name, a PR thread — and open that yourself on the
+  rare occasion the text itself matters.
 - **Never talk to the user.** That belongs to the orchestrator. Workers
   own PR voice only where their role says so.
 - **Never open a peer-worker channel.** The orchestrator dispatches
