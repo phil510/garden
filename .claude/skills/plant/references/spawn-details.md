@@ -328,10 +328,11 @@ is wrong. `acceptEdits` is insufficient: it still gates Bash, and
 workers run git / gh / pnpm constantly. Per-call escalation would be
 death by a thousand pages.
 
-Both are safe because the real boundaries live where a worker cannot
-cross them: the brief's **Autonomy bounds** and **Stop conditions**,
-draft-PR isolation, and worktree confinement. A UI gate that fails open
-silently is worse than no gate at all.
+Either mode is safe because the real boundaries live where a worker cannot
+cross them: the brief's **Autonomy bounds** and **Stop conditions** (see
+`brief.md`), draft-PR isolation, and worktree confinement. For an
+unattended pipeline, a UI gate that fails open silently is worse than no
+gate at all.
 
 No API lets a session read its own permission mode, and nothing in the
 environment reveals it reliably — injected instruction blocks that
@@ -339,7 +340,8 @@ correlate with a mode describe tool preferences, not the mode, and can
 be reworded or dropped without anyone treating it as a contract change,
 so a check built on one reads as authoritative while resting on a
 coincidence. So **assume the session was launched with the autonomy the
-pipeline needs** and spawn without asking. Whoever runs `/plant` knows the
+pipeline needs** and spawn without asking. Whoever runs `/plant` is
+deliberately starting an unattended multi-hour pipeline; they know the
 precondition and will say so when it doesn't hold.
 
 ## Why this shape
