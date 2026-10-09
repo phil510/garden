@@ -23,6 +23,7 @@ type RightPanel = 'files' | 'watches' | null;
 
 export function App() {
   const [rightPanel, setRightPanel] = useState<RightPanel>('files');
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   // What the eye button returns to when it closes the watches view.
   const beforeWatches = useRef<RightPanel>('files');
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -91,6 +92,24 @@ export function App() {
     <ErrorBoundary>
       <div className="app-shell">
         <div className="topbar">
+          <button
+            className={sidebarOpen ? 'ghost icon-btn active-btn' : 'ghost icon-btn'}
+            title="Toggle session sidebar"
+            aria-pressed={sidebarOpen}
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+          >
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <rect x="3" y="4" width="18" height="16" rx="1.5" />
+              <path d="M10 4v16" />
+            </svg>
+          </button>
           <PresetSwitcher />
           <AppTitle />
           <div className="topbar-spacer" />
@@ -141,19 +160,23 @@ export function App() {
         </div>
         {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
         <div className="body-row">
-          <div className="sidebar" style={{ width: `${sidebarWidth}px` }}>
+          {/* Stays mounted while hidden so the picker, finished list and scroll position survive. */}
+          <div className="sidebar" hidden={!sidebarOpen} style={{ width: `${sidebarWidth}px` }}>
             <Sidebar />
           </div>
           <ResizeHandle
             onResize={(delta) =>
               resizeSidebarBy(delta, window.innerWidth, rightPanel !== null ? filePanelWidth : 0)
             }
+            hidden={!sidebarOpen}
           />
           <div className="stage-wrap">
             <Stage />
           </div>
           <ResizeHandle
-            onResize={(delta) => resizeFilePanelBy(-delta, window.innerWidth, sidebarWidth)}
+            onResize={(delta) =>
+              resizeFilePanelBy(-delta, window.innerWidth, sidebarOpen ? sidebarWidth : 0)
+            }
             hidden={rightPanel === null}
           />
           <div
