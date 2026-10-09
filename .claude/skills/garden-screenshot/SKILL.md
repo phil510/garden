@@ -52,7 +52,7 @@ about how it looks.
 matching the selector, moves in ten steps, and releases, as real `Input.dispatchMouseEvent` input.
 The app's own pointer handlers and clamps decide where the drag ends up, which is the evidence
 you want: injecting state only proves the renderer can draw that state, not that the interaction
-produces it. The run logs the from/to coordinates and fails if nothing matches the selector.
+produces it. The run logs the from/to coordinates and fails if nothing visible matches the selector.
 
 `querySelector` returns the first match, and `.resize-handle` has two (sidebar and file panel), so
 pick one on purpose:

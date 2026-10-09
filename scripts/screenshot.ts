@@ -160,10 +160,8 @@ interface Point {
 
 async function captureScreenshot(url: string, opts: Options): Promise<Buffer> {
   const page = await createTab();
-  let ws: WebSocket | undefined;
+  const socket = new WebSocket(page.webSocketDebuggerUrl);
   try {
-    ws = new WebSocket(page.webSocketDebuggerUrl);
-    const socket = ws;
     await new Promise<void>((resolvePromise, rejectPromise) => {
       socket.addEventListener('open', () => resolvePromise(), { once: true });
       socket.addEventListener('error', () => rejectPromise(new Error('CDP websocket error')), {
@@ -177,6 +175,10 @@ async function captureScreenshot(url: string, opts: Options): Promise<Buffer> {
       { resolve: (result: unknown) => void; reject: (error: Error) => void }
     >();
     const eventWaiters = new Map<string, () => void>();
+    socket.addEventListener('close', () => {
+      for (const waiter of pending.values()) waiter.reject(new Error('CDP websocket closed'));
+      pending.clear();
+    });
     socket.addEventListener('message', (event) => {
       const message = JSON.parse(String(event.data)) as {
         id?: number;
@@ -210,12 +212,18 @@ async function captureScreenshot(url: string, opts: Options): Promise<Buffer> {
       return new Promise((resolvePromise) => eventWaiters.set(method, resolvePromise));
     }
 
-    function mouse(type: string, point: Point, buttons: number, clickCount = 0) {
+    function mouse(
+      type: string,
+      point: Point,
+      button: 'none' | 'left',
+      buttons: number,
+      clickCount = 0,
+    ) {
       return send('Input.dispatchMouseEvent', {
         type,
         x: point.x,
         y: point.y,
-        button: buttons === 0 && type !== 'mouseReleased' ? 'none' : 'left',
+        button,
         buttons,
         clickCount,
       });
@@ -231,7 +239,7 @@ async function captureScreenshot(url: string, opts: Options): Promise<Buffer> {
         returnByValue: true,
         expression: `(() => {
           const r = document.querySelector(${JSON.stringify(selector)})?.getBoundingClientRect();
-          return r ? { x: r.x + r.width / 2, y: r.y + r.height / 2 } : null;
+          return r && (r.width > 0 || r.height > 0) ? { x: r.x + r.width / 2, y: r.y + r.height / 2 } : null;
         })()`,
       });
       if (exceptionDetails) {
@@ -243,14 +251,14 @@ async function captureScreenshot(url: string, opts: Options): Promise<Buffer> {
       if (!from) throw new Error(`no element matches --drag ${selector}`);
       const to = { x: from.x + dx, y: from.y + dy };
 
-      await mouse('mouseMoved', from, 0);
-      await mouse('mousePressed', from, 1, 1);
+      await mouse('mouseMoved', from, 'none', 0);
+      await mouse('mousePressed', from, 'left', 1, 1);
       const steps = 10;
       for (let step = 1; step <= steps; step++) {
         const t = step / steps;
-        await mouse('mouseMoved', { x: from.x + dx * t, y: from.y + dy * t }, 1);
+        await mouse('mouseMoved', { x: from.x + dx * t, y: from.y + dy * t }, 'left', 1);
       }
-      await mouse('mouseReleased', to, 0, 1);
+      await mouse('mouseReleased', to, 'left', 0, 1);
       console.log(
         `[screenshot] dragged ${selector} from ${String(from.x)},${String(from.y)} ` +
           `to ${String(to.x)},${String(to.y)}`,
@@ -275,7 +283,7 @@ async function captureScreenshot(url: string, opts: Options): Promise<Buffer> {
     const { data } = await send<{ data: string }>('Page.captureScreenshot', { format: 'png' });
     return Buffer.from(data, 'base64');
   } finally {
-    ws?.close();
+    socket.close();
     await fetch(`${CDP_URL}/json/close/${page.id}`).catch(() => undefined);
   }
 }
