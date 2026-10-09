@@ -32,17 +32,57 @@ Check the user's config before believing that message.
 
 ```
 pnpm screenshot [--path <url path>] [--out <name>] [--width <n>] [--height <n>] [--wait <ms>]
+                [--drag <css selector> --drag-by <dx>,<dy>]
 ```
 
 Defaults: `--path /` (the whole app), 1600x1000, `--out screenshot`, `--wait 300`. The tool also ensures a vite
 dev server (on a port derived from this checkout's path) and a debuggable Chrome instance (port 9222) exist, spawning either if
-missing and leaving both running for the next invocation — later runs are fast.
+missing and leaving both running for the next invocation — later runs are fast. Each run opens a
+tab of its own in that Chrome and closes it on exit, so any other page open on 9222 is never what
+gets captured. Unknown flags and a lone `--drag` or `--drag-by` exit 1 rather than quietly
+producing an undragged screenshot.
 
 The last line of stdout is the absolute path to the saved PNG under `.screenshots/`. **Use the Read
 tool on that path** to actually look at the image — running the command alone tells you nothing
 about how it looks.
 
+## Driving a drag
+
+`--drag <selector> --drag-by <dx>,<dy>` presses the left button on the centre of the first element
+matching the selector, moves in ten steps, and releases, as real `Input.dispatchMouseEvent` input.
+The app's own pointer handlers and clamps decide where the drag ends up, which is the evidence
+you want: injecting state only proves the renderer can draw that state, not that the interaction
+produces it. The run logs the from/to coordinates and fails if nothing matches the selector.
+
+`querySelector` returns the first match, and `.resize-handle` has two (sidebar and file panel), so
+pick one on purpose:
+
+```
+pnpm screenshot --out sidebar-wide --drag '.sidebar + .resize-handle' --drag-by 60,0
+pnpm screenshot --out panel-wide --drag '.stage-wrap + .resize-handle' --drag-by -80,0
+```
+
+The drag happens in the run's own tab and that tab is closed afterwards. Panel widths are
+in-memory, so the drag shows only in that run's PNG and the next plain screenshot is back to the
+default. A change a screenshot has to show after a drag therefore has to be driven in the same run.
+
 ## Iterating on a visual change
+
+Confirm the build under test before the first comparison. Branch-specific content visible in the
+frame is **not** proof of which build you captured: `main` can render an identical frame (a new
+preset or empty-slot placeholder looks the same on both). The vite port is a hash of the checkout
+path with 1000 buckets, and a 2xx response is all the tool needs to reuse a running server, so a
+different checkout's vite, or any other server on that port, can be what gets captured. Check the
+served source instead. Take the port from the `[screenshot] vite dev server ok on <port>` line,
+then:
+
+```
+curl -s http://127.0.0.1:<port>/src/<path under packages/web/src> | grep -c <symbol>
+```
+
+where `<symbol>` exists only on the commit under test. A count of 0 means the wrong build. Use a
+runtime identifier or string literal: vite serves modules with TypeScript types stripped, so an
+`interface` or `type` name greps 0 even on the right build.
 
 Screenshot before you touch anything to see the current state, make the change, screenshot again,
 and compare. For a ticket about a visual bug, a before/after screenshot pair is what you attach as
@@ -56,23 +96,24 @@ outside the terminals — sidebar, file panel, pane headers, borders, empty slot
 still accurate, so that is only a problem when the change you are checking is about terminal
 content itself. Against the sandbox this rarely comes up, since nothing else is normally attached
 to it; against a real instance, ask the user to close their garden window for a moment — the
-server and the tmux sessions keep running, and the attach frees up.
+server and the tmux sessions keep running, and the attach frees up. A garden window left open in
+the 9222 Chrome (older versions of this tool launched one) holds an attach too; quit that Chrome
+to free it.
 
 ## Warning: driving a real instance is live, not contained
 
 This only applies when `GARDEN_PORT` points at the user's real instance rather than the
 sandbox. The Chrome window this tool controls talks to the same garden server the user's own
-browser does, so nothing you do in it is contained. This tool only captures screenshots. If you
-ever extend it to script interactions against a real instance, the blast radius rises sharply in
-three tiers:
+browser does, so nothing you do in it is contained. This tool can drag but never types, so against
+a real instance the blast radius is the second tier below; the three tiers are:
 
 - **Typing into an attached pane is the dangerous one.** Keystrokes go straight through to the
   real pty, which is the user's actual running Claude Code session or shell. There is no
   sandbox and no undo — you would be typing into their session.
-- **Clicking and dragging stage or sidebar chrome persists server-side.** Preset, slots, layout,
+- **Dragging stage or sidebar chrome persists server-side.** Preset, slots, layout,
   group order, pins, collapsed repos and the dead-session filter are written to disk and shared,
-  so they change what the user sees in their own window.
-- **Scrolling and expanding file-tree nodes are client-local** and harmless — they never leave
+  so they change what the user sees in their own window. Run such drags against the sandbox.
+- **Panel resizes, scrolling and expanding file-tree nodes are client-local** and harmless — they never leave
   this browser.
 
 None of this applies against the sandbox. Its panes run the fake Claude, not a real Claude Code
