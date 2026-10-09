@@ -1,4 +1,5 @@
 import { EVENTS_CLOSE_CODES, type EventsClientMessage, type ServerMessage } from '@garden/shared';
+import { connectReconnectingSocket, socketUrl } from './reconnectingSocket.js';
 
 export interface EventSocketHandlers {
   onSnapshot: (message: Extract<ServerMessage, { type: 'snapshot' }>) => void;
@@ -14,14 +15,6 @@ export interface EventSocketHandlers {
   onShutdown?: () => void;
 }
 
-const INITIAL_RECONNECT_DELAY_MS = 250;
-const MAX_RECONNECT_DELAY_MS = 10_000;
-
-/** Doubles from `INITIAL_RECONNECT_DELAY_MS`, capped at `MAX_RECONNECT_DELAY_MS`. */
-export function nextReconnectDelayMs(attempt: number): number {
-  return Math.min(INITIAL_RECONNECT_DELAY_MS * 2 ** attempt, MAX_RECONNECT_DELAY_MS);
-}
-
 export type EventCloseDisposition = 'reconnect' | 'terminal';
 
 /** This is client behavior, not part of the wire contract in `@garden/shared` — it decides
@@ -30,11 +23,6 @@ export type EventCloseDisposition = 'reconnect' | 'terminal';
  *  plain dropped connection, which has no code from the app's perspective. */
 export function eventCloseDisposition(code: number): EventCloseDisposition {
   return code === EVENTS_CLOSE_CODES.DELIBERATE_SHUTDOWN ? 'terminal' : 'reconnect';
-}
-
-function eventsUrl(): string {
-  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${protocol}//${location.host}/events`;
 }
 
 export interface EventSocketController {
@@ -49,51 +37,58 @@ export interface EventSocketController {
 /** Connects `WS /events` and dispatches messages to `handlers`, reconnecting with backoff
  *  after every drop. */
 export function connectEventSocket(handlers: EventSocketHandlers): EventSocketController {
-  let attempt = 0;
-  let socket: WebSocket | null = null;
-  let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
-  let stopped = false;
   let watchedRoot: string | null = null;
 
   function sendWatch() {
+    const socket = connection.current();
     if (watchedRoot === null || socket?.readyState !== WebSocket.OPEN) return;
     socket.send(JSON.stringify({ type: 'watch', root: watchedRoot } satisfies EventsClientMessage));
   }
 
-  function connect() {
-    socket = new WebSocket(eventsUrl());
-    socket.addEventListener('open', () => {
-      attempt = 0;
-      sendWatch();
-      handlers.onConnect();
-    });
-    socket.addEventListener('message', (event) => {
-      const message = JSON.parse(event.data as string) as ServerMessage;
-      if (message.type === 'snapshot') handlers.onSnapshot(message);
-      else if (message.type === 'deltas') handlers.onDeltas(message);
-      else if (message.type === 'ui-state') handlers.onUiState(message);
-      else handlers.onFsChanged(message.root);
-    });
-    socket.addEventListener('close', (event) => {
-      if (stopped) return;
-      if (eventCloseDisposition(event.code) === 'terminal') {
-        stopped = true;
-        handlers.onShutdown?.();
-        return;
-      }
-      reconnectTimer = setTimeout(connect, nextReconnectDelayMs(attempt));
-      attempt += 1;
-    });
+  function dispatch(data: unknown) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(data as string);
+    } catch {
+      console.warn('garden: dropped malformed event frame', data);
+      return;
+    }
+    // Only `type` is checked, not the payload behind it: the server is trusted, and this guards
+    // against a frame that is not a message at all.
+    const message =
+      typeof parsed === 'object' && parsed !== null ? (parsed as ServerMessage) : null;
+    switch (message?.type) {
+      case 'snapshot':
+        return handlers.onSnapshot(message);
+      case 'deltas':
+        return handlers.onDeltas(message);
+      case 'ui-state':
+        return handlers.onUiState(message);
+      case 'fs-changed':
+        return handlers.onFsChanged(message.root);
+      default:
+        console.warn('garden: dropped malformed event frame', data);
+    }
   }
 
-  connect();
+  const connection = connectReconnectingSocket({
+    url: () => socketUrl('/events'),
+    setup: (socket) => {
+      socket.addEventListener('open', () => {
+        sendWatch();
+        handlers.onConnect();
+      });
+      socket.addEventListener('message', (event) => dispatch(event.data));
+    },
+    onClose: (code) => {
+      if (eventCloseDisposition(code) === 'reconnect') return 'reconnect';
+      handlers.onShutdown?.();
+      return 'stop';
+    },
+  });
 
   return {
-    stop: () => {
-      stopped = true;
-      clearTimeout(reconnectTimer);
-      socket?.close();
-    },
+    stop: connection.close,
     watch: (root) => {
       watchedRoot = root;
       sendWatch();
