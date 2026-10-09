@@ -141,7 +141,7 @@ themselves — there is no shell `cd` at spawn time.
 
 Four actors: you plus three workers. The user is an implicit fifth —
 supplies the issue, answers the triage gate and escalation pages, and
-either merges the PR or hands you the go-ahead to.
+either merges the PR or hands you the go-ahead to merge it.
 
 | Persona                                   | Lifetime        | Key responsibility                                                                                                                                                                                                                                                    |
 | ----------------------------------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -365,10 +365,13 @@ view --json baseRefName`, never assume `main`) — the shape the
     mergeability first (a conflict goes to (c2), not to the user), then
     report CI-green status to whoever is waiting on this pipeline — the
     local user, and the dispatching peer if the brief named one — and
-    hand them the merge; the pipeline pauses here until step 12 confirms
-    it. If the gate is re-entered after the handover (the user comes
-    back, or a resume) and the PR is not `MERGED`, re-query `mergeable`
-    the same way before doing anything else. `auto` →
+    hand them the merge; the pipeline pauses here. It ends one of two
+    ways: they merge the PR themselves and step 12 confirms `MERGED`, or
+    they give you the go-ahead and you run `auto`'s merge command below,
+    with the same handling if the PR is not `MERGED` afterwards. If the
+    gate is re-entered after the handover (the user comes back, or a
+    resume) and the PR is not `MERGED`, re-query `mergeable` the same
+    way before doing anything else. `auto` →
     `gh pr merge <url> --squash`; if the PR is not `MERGED`
     afterwards, re-query `mergeable` and send `CONFLICTING` to
     (c2). Default is `ask` — this is the one
