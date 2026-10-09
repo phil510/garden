@@ -293,8 +293,11 @@ decides whether a fix round runs at all.
    a separate axis — how bad the finding is if someone hits it. Its
    direction across rounds, on text the previous fixes wrote, is the
    trajectory the orchestrator reads for churn: holding or rising is
-   churn, falling is a mechanism converging, whose findings you mark
-   `advisory` and close clean with limitations. Clean with limitations noted is a real outcome;
+   churn. Falling severity does not by itself make a finding
+   `advisory`; a minor defect a user will hit stays `fix`. What does is
+   falling reachability (step 2): findings a user would not hit are
+   `advisory`, and a round of only those closes clean with the
+   limitations named. Clean with limitations noted is a real outcome;
    swallowing them is not.
 
    Two checks on the verdict. A clean round 1 on a substantive change

@@ -312,8 +312,9 @@ small); developer works from brief ACs`, then go to step 6. The box
    previous round's own fixes — another per-finding patch round reliably
    makes it worse; use the alternative in `references/escalate-resume.md`
    § Churn in internal rounds instead. Churn means severity holding or
-   rising across rounds; falling severity is the reviewer's to close as clean with the limitation noted, not yours
-   to re-adjudicate. Either way, carry the diagnosis into the next
+   rising across rounds. Findings the reviewer marked `advisory`
+   because users would not hit them are its to close as clean with the
+   limitation noted, not yours to re-adjudicate. Either way, carry the diagnosis into the next
    worker's opener — information left in the round file steers nobody.
    On `Size: small` the cap is one round, so a dirty round
    arrives as a `review_cap` escalation carrying the round file: page the

@@ -156,8 +156,9 @@ round" it dispatches a developer fix round.
 A round file's `## Summary` diagnoses churn when the findings sit in
 text the previous round's fixes wrote — severity (how bad the finding
 is if hit, a separate axis from whether it blocks) holding or rising
-across the rounds; falling severity is the reviewer's
-clean-with-limitations outcome and does not arrive here. Another
+across the rounds. Findings the reviewer marked `advisory` as
+unreachable are its clean-with-limitations outcome and do not arrive
+here. Another
 per-finding patch round reliably yields a narrower instance of the same
 defect: each fix is locally correct against one finding, and nobody
 holds the whole region. Instead of a fix round, give one author the
