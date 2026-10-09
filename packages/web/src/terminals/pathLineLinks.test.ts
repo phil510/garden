@@ -101,6 +101,8 @@ describe('findPathLineLinks', () => {
       'https://x.com/~u/f.md',
       'redirect_uri=https%3A%2F%2Fconsole.anthropic.com',
       'https://github.com/a/b.md',
+      'https://en.wikipedia.org/wiki/Foo_(bar.html)',
+      'https://x.com/?q=[a.md]',
     ])('does not link inside the URL %j', (text) => {
       expect(findPathLineLinks(text)).toEqual([]);
     });

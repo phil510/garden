@@ -12,6 +12,14 @@ const CANDIDATE = /[\w.\-/]+(?::(\d+))?/g;
 const FILE_EXTENSION = /\.[a-z][a-z0-9]{0,4}$/;
 const TOKEN_START_PREFIX = /[\s([{<"'`]/;
 
+/** Whether the whitespace-delimited token around `index` contains a URL scheme separator, so a
+ *  file-shaped fragment after a bracket or quote inside a URL isn't claimed. */
+function insideUrl(text: string, index: number): boolean {
+  const start = text.lastIndexOf(' ', index) + 1;
+  const end = text.indexOf(' ', index);
+  return text.slice(start, end === -1 ? undefined : end).includes('://');
+}
+
 /**
  * Finds file links in a line of terminal output: `path:line` (a trailing `:column` is matched
  * but ignored) and bare paths. A `path:line` candidate whose path has neither a `.` nor a `/` is
@@ -43,7 +51,7 @@ export function findPathLineLinks(text: string, continuesPreviousRow = false): P
     const before = match.index === 0 ? undefined : text[match.index - 1];
     const startsToken =
       before === undefined ? !continuesPreviousRow : TOKEN_START_PREFIX.test(before);
-    if (!startsToken) continue;
+    if (!startsToken || insideUrl(text, match.index)) continue;
     links.push({ path, line: null, index: match.index, length: path.length });
   }
   return links;

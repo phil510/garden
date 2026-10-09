@@ -68,8 +68,8 @@ class FakeTerminal {
   }
   /** Sets the text of a 0-based buffer row, as `provideLinks` (1-based line numbers) will read it
    *  back via `getLine(lineNumber - 1)`. */
-  setLine(lineNumber0Based: number, text: string): void {
-    this.bufferLines.set(lineNumber0Based, new FakeBufferLine(text));
+  setLine(lineNumber0Based: number, text: string, isWrapped = false): void {
+    this.bufferLines.set(lineNumber0Based, new FakeBufferLine(text, isWrapped));
   }
   onData(): void {}
   write(): void {}
@@ -384,6 +384,15 @@ describe('attachPane', () => {
           null,
         ),
       );
+    });
+
+    it('does not link a path-shaped fragment at the start of a wrapped row', async () => {
+      const { attachPane } = await loadRegistry();
+      attachPane('session-a', aContainer({ width: '800px', height: '600px' }), 0);
+      const terminal = lastTerminal();
+      terminal.setLine(0, 'ers/profile.json', true);
+
+      expect(provideLinks(pathLineProvider(terminal), 1)).toBeUndefined();
     });
 
     it('opens a path:line link at its line', async () => {
