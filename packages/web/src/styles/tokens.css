@@ -93,6 +93,9 @@ button.ghost:hover:not(:disabled) {
   background: var(--raised);
   border-color: var(--border);
 }
+button.ghost.icon-btn.active-btn {
+  background: var(--raised);
+}
 button.ghost:disabled:hover {
   border-color: transparent;
 }
@@ -132,6 +135,9 @@ button.danger:hover {
   overflow-x: hidden;
   background: var(--surface);
   border-right: 1px solid var(--border);
+}
+.sidebar[hidden] {
+  display: none;
 }
 
 .stage-wrap {
