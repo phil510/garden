@@ -62,7 +62,7 @@ merges them; nothing else computes a session fact.
 | Fact                                 | Source                                                                                                      |
 | ------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
 | id, cwd, title, recap, last activity | transcript (a just-spawned session exists from its `session-registered` event until the transcript appears) |
-| tmux name                            | the id-to-name map in `state.json`, set when garden creates or resumes the session                          |
+| tmux name                            | the id-to-name map in `state.json`, written by `dispatch` when a session is (un)registered                  |
 | liveness, exit code                  | tmux pane facts (`pane_dead`, `pane_dead_status`), overridden to dead by `ended`                            |
 | `ended`                              | hooks: `SessionEnd` sets it, `SessionStart` clears it; `session-registered` also clears it                  |
 | status, reason                       | hooks (`domain/status.ts` holds the event-to-status mapping)                                                |
@@ -319,7 +319,9 @@ Digest lines are the only thing it writes to stdout.
 ### 4.5 Create, resume, kill
 
 `app/sessions.ts` holds the three commands. Create and resume follow §4.1's order: tmux first,
-then dispatch `session-registered`. Kill dispatches nothing and relies on the next tmux snapshot.
+then dispatch `session-registered`. Kill dispatches `session-unregistered` after killing tmux. The
+use cases never touch the store: `dispatch` persists the tmux name map itself, so the projection
+is its only writer.
 
 - **Create** mints the session id and passes it to `claude --session-id`, so garden knows the id
   before any transcript exists. The transcript watcher picks the session up once Claude Code
@@ -330,9 +332,9 @@ then dispatch `session-registered`. Kill dispatches nothing and relies on the ne
   comes back where it sits. If not (a historical session, a killed one, a restarted tmux server),
   it creates a tmux session at the recorded cwd under a fresh name. The session id never changes,
   so the card keeps its identity either way, and the UI offers one Resume action for both.
-- **Kill** kills the tmux session and drops the id-to-name mapping. The next snapshot reports the
-  session gone, so it is `dead` with no exit code through the ordinary path. The transcript
-  remains, so the session stays listed and resumable.
+- **Kill** kills the tmux session and dispatches `session-unregistered`, which drops the
+  id-to-name mapping. The session is `dead` with no tmux name at once, through the reducer. The
+  transcript remains, so the session stays listed and resumable.
 
 ### 4.6 PR watches: store, poller, stream
 
