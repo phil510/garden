@@ -160,7 +160,7 @@ export function App() {
         </div>
         {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
         <div className="body-row">
-          {/* Stays mounted while hidden so the picker, finished list and scroll position survive. */}
+          {/* Stays mounted while hidden so the picker and finished list state survive. */}
           <div className="sidebar" hidden={!sidebarOpen} style={{ width: `${sidebarWidth}px` }}>
             <Sidebar />
           </div>
