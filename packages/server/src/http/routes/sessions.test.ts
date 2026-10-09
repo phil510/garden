@@ -1,13 +1,7 @@
 import { aSession } from '@garden/shared/fixtures';
 import type { SessionsFilter, SessionState } from '@garden/shared';
 import { describe, expect, it } from 'vitest';
-import type {
-  Logger,
-  OverlayState,
-  StorePort,
-  TmuxNewSessionRequest,
-  TmuxPort,
-} from '../../app/ports.js';
+import type { Logger, OverlayState, TmuxNewSessionRequest, TmuxPort } from '../../app/ports.js';
 import type { Projection } from '../../app/projection.js';
 import type { SessionsDeps } from '../../app/sessions.js';
 import { createApp } from '../server.js';
@@ -48,16 +42,6 @@ function fakeTmux(overrides: Partial<TmuxPort> = {}): TmuxPort {
     respawnPane: () => Promise.reject(new Error('not used by this test')),
     killSession: () => Promise.reject(new Error('not used by this test')),
     ...overrides,
-  };
-}
-
-function fakeStore(initial: OverlayState = emptyOverlay): StorePort {
-  let current = initial;
-  return {
-    read: () => current,
-    write: (state) => {
-      current = state;
-    },
   };
 }
 
@@ -107,7 +91,6 @@ describe('GET /sessions', () => {
     const session = aSession({ id: 'sid-1' });
     const app = buildApp({
       tmux: fakeTmux(),
-      store: fakeStore(),
       projection: fakeProjection([session]),
       serverPort: 4310,
       settingsPath,
@@ -124,7 +107,6 @@ describe('GET /sessions', () => {
     let seenFilter: SessionsFilter | undefined;
     const app = buildApp({
       tmux: fakeTmux(),
-      store: fakeStore(),
       projection: fakeProjection([], (filter) => (seenFilter = filter)),
       serverPort: 4310,
       settingsPath,
@@ -141,7 +123,6 @@ describe('GET /sessions', () => {
     let seenFilter: SessionsFilter | undefined;
     const app = buildApp({
       tmux: fakeTmux(),
-      store: fakeStore(),
       projection: fakeProjection([], (filter) => (seenFilter = filter)),
       serverPort: 4310,
       settingsPath,
@@ -165,7 +146,6 @@ describe('GET /sessions', () => {
   it('rejects a non-numeric sinceDays with a 400', async () => {
     const app = buildApp({
       tmux: fakeTmux(),
-      store: fakeStore(),
       projection: fakeProjection(),
       serverPort: 4310,
       settingsPath,
@@ -180,7 +160,6 @@ describe('GET /sessions', () => {
   it('rejects a non-numeric maxRecapChars with a 400', async () => {
     const app = buildApp({
       tmux: fakeTmux(),
-      store: fakeStore(),
       projection: fakeProjection(),
       serverPort: 4310,
       settingsPath,
@@ -195,7 +174,6 @@ describe('GET /sessions', () => {
   it('rejects a negative sinceDays with a 400', async () => {
     const app = buildApp({
       tmux: fakeTmux(),
-      store: fakeStore(),
       projection: fakeProjection(),
       serverPort: 4310,
       settingsPath,
@@ -210,7 +188,6 @@ describe('GET /sessions', () => {
   it('rejects a negative maxRecapChars with a 400', async () => {
     const app = buildApp({
       tmux: fakeTmux(),
-      store: fakeStore(),
       projection: fakeProjection(),
       serverPort: 4310,
       settingsPath,
@@ -227,7 +204,6 @@ describe('GET /sessions', () => {
     // alone would silently apply sinceDays: 0 instead of surfacing the caller's mistake.
     const app = buildApp({
       tmux: fakeTmux(),
-      store: fakeStore(),
       projection: fakeProjection(),
       serverPort: 4310,
       settingsPath,
@@ -242,7 +218,6 @@ describe('GET /sessions', () => {
   it('rejects an empty maxRecapChars with a 400 rather than coercing to 0', async () => {
     const app = buildApp({
       tmux: fakeTmux(),
-      store: fakeStore(),
       projection: fakeProjection(),
       serverPort: 4310,
       settingsPath,
@@ -259,7 +234,6 @@ describe('GET /sessions', () => {
     // toward zero to `.slice(-0)`, which is `.slice(0)` — the whole string, uncapped.
     const app = buildApp({
       tmux: fakeTmux(),
-      store: fakeStore(),
       projection: fakeProjection(),
       serverPort: 4310,
       settingsPath,
@@ -278,7 +252,6 @@ describe('GET /sessions', () => {
     // caught this — a field-specific message would mean some other check got lucky instead.
     const app = buildApp({
       tmux: fakeTmux(),
-      store: fakeStore(),
       projection: fakeProjection(),
       serverPort: 4310,
       settingsPath,
@@ -294,7 +267,6 @@ describe('GET /sessions', () => {
   it('rejects a repeated maxRecapChars query key with a 400 from the boundary, not a downstream guard', async () => {
     const app = buildApp({
       tmux: fakeTmux(),
-      store: fakeStore(),
       projection: fakeProjection(),
       serverPort: 4310,
       settingsPath,
@@ -313,7 +285,6 @@ describe('GET /sessions', () => {
   it('rejects a repeated live query key with a 400 from the boundary', async () => {
     const app = buildApp({
       tmux: fakeTmux(),
-      store: fakeStore(),
       projection: fakeProjection(),
       serverPort: 4310,
       settingsPath,
@@ -329,7 +300,6 @@ describe('GET /sessions', () => {
   it('rejects a repeated status query key with a 400 from the boundary', async () => {
     const app = buildApp({
       tmux: fakeTmux(),
-      store: fakeStore(),
       projection: fakeProjection(),
       serverPort: 4310,
       settingsPath,
@@ -348,7 +318,6 @@ describe('GET /sessions', () => {
   it('rejects a status value outside the four Status literals with a 400', async () => {
     const app = buildApp({
       tmux: fakeTmux(),
-      store: fakeStore(),
       projection: fakeProjection(),
       serverPort: 4310,
       settingsPath,
@@ -364,7 +333,6 @@ describe('GET /sessions', () => {
     let seenFilter: SessionsFilter | undefined;
     const app = buildApp({
       tmux: fakeTmux(),
-      store: fakeStore(),
       projection: fakeProjection([], (filter) => (seenFilter = filter)),
       serverPort: 4310,
       settingsPath,
@@ -380,7 +348,6 @@ describe('GET /sessions', () => {
   it('rejects a repeated swarm query key with a 400 from the boundary', async () => {
     const app = buildApp({
       tmux: fakeTmux(),
-      store: fakeStore(),
       projection: fakeProjection(),
       serverPort: 4310,
       settingsPath,
@@ -407,7 +374,6 @@ describe('POST /sessions', () => {
           return Promise.resolve();
         },
       }),
-      store: fakeStore(),
       projection: fakeProjection(),
       serverPort: 4310,
       settingsPath,
@@ -432,7 +398,6 @@ describe('POST /sessions', () => {
           return Promise.resolve();
         },
       }),
-      store: fakeStore(),
       projection: fakeProjection(),
       serverPort: 4310,
       settingsPath,
@@ -458,7 +423,6 @@ describe('POST /sessions', () => {
           return Promise.resolve();
         },
       }),
-      store: fakeStore(),
       projection: fakeProjection(),
       serverPort: 4310,
       settingsPath,
@@ -480,7 +444,6 @@ describe('POST /sessions', () => {
   it('creates a session and answers with its id and tmux name', async () => {
     const app = buildApp({
       tmux: fakeTmux({ newSession: () => Promise.resolve() }),
-      store: fakeStore(),
       projection: fakeProjection(),
       serverPort: 4310,
       settingsPath,
@@ -504,7 +467,6 @@ describe('POST /sessions', () => {
     const app = buildApp(
       {
         tmux: fakeTmux({ newSession: () => Promise.resolve() }),
-        store: fakeStore(),
         projection: {
           ...fakeProjection(),
           updateOverlay: (mutate) => mutate(emptyOverlay),
@@ -531,7 +493,6 @@ describe('POST /sessions', () => {
   it('maps a tmux failure to a 500 rather than a 404', async () => {
     const app = buildApp({
       tmux: fakeTmux({ newSession: () => Promise.reject(new Error('tmux is not installed')) }),
-      store: fakeStore(),
       projection: fakeProjection(),
       serverPort: 4310,
       settingsPath,
@@ -553,7 +514,6 @@ describe('POST /sessions', () => {
     const app = buildApp(
       {
         tmux: fakeTmux({ newSession: () => Promise.reject(new Error('tmux is not installed')) }),
-        store: fakeStore(),
         projection: fakeProjection(),
         serverPort: 4310,
         settingsPath,
@@ -573,7 +533,6 @@ describe('POST /sessions/:id/resume', () => {
   it('maps an unknown session id to 404', async () => {
     const app = buildApp({
       tmux: fakeTmux(),
-      store: fakeStore(),
       projection: fakeProjection([]),
       serverPort: 4310,
       settingsPath,
@@ -593,7 +552,6 @@ describe('POST /sessions/:id/resume', () => {
         listPanes: () => Promise.resolve([{ session: 'garden', dead: true, exitCode: 1 }]),
         respawnPane: () => Promise.resolve(),
       }),
-      store: fakeStore(),
       projection: fakeProjection([deadSession]),
       serverPort: 4310,
       settingsPath,
@@ -621,7 +579,6 @@ describe('POST /sessions/:id/resume', () => {
           return Promise.resolve();
         },
       }),
-      store: fakeStore(),
       projection: fakeProjection([deadSession]),
       serverPort: 4310,
       settingsPath,
@@ -649,7 +606,6 @@ describe('POST /sessions/:id/resume', () => {
           return Promise.resolve();
         },
       }),
-      store: fakeStore(),
       projection: fakeProjection([deadSession]),
       serverPort: 4310,
       settingsPath,
@@ -674,7 +630,6 @@ describe('POST /sessions/:id/resume', () => {
         listPanes: () => Promise.resolve([{ session: 'garden', dead: true, exitCode: 1 }]),
         respawnPane: () => Promise.resolve(),
       }),
-      store: fakeStore(),
       projection: fakeProjection([
         aSession({ id: 'sid-1', cwd: '/Users/dev/garden', tmuxName: 'garden' }),
         aSession({ id: 'sid-2', cwd: '/Users/dev/other', tmuxName: 'other' }),
@@ -702,7 +657,6 @@ describe('POST /sessions/:id/resume', () => {
           listPanes: () => Promise.resolve([{ session: 'garden', dead: true, exitCode: 1 }]),
           respawnPane: () => Promise.reject(new Error('tmux is not installed')),
         }),
-        store: fakeStore(),
         projection: fakeProjection([deadSession]),
         serverPort: 4310,
         settingsPath,
@@ -722,7 +676,6 @@ describe('POST /sessions/:id/kill', () => {
   it('maps an unknown session id to 404', async () => {
     const app = buildApp({
       tmux: fakeTmux(),
-      store: fakeStore(),
       projection: fakeProjection([]),
       serverPort: 4310,
       settingsPath,
@@ -739,20 +692,6 @@ describe('POST /sessions/:id/kill', () => {
     const session = aSession({ id: 'sid-1', tmuxName: 'garden' });
     const app = buildApp({
       tmux: fakeTmux({ killSession: () => Promise.resolve() }),
-      store: fakeStore({
-        version: 1,
-        tmuxNames: { 'sid-1': 'garden' },
-        groups: {},
-        stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
-        swarms: [],
-        placements: {},
-        swarmOrder: [],
-        collapsedSwarms: [],
-        hideDeadSwarms: [],
-        watches: [],
-        digests: [],
-        pipes: {},
-      }),
       projection: fakeProjection([session]),
       serverPort: 4310,
       settingsPath,
@@ -771,20 +710,6 @@ describe('POST /sessions/:id/kill', () => {
     const app = buildApp(
       {
         tmux: fakeTmux({ killSession: () => Promise.reject(new Error('tmux is not installed')) }),
-        store: fakeStore({
-          version: 1,
-          tmuxNames: { 'sid-1': 'garden' },
-          groups: {},
-          stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
-          swarms: [],
-          placements: {},
-          swarmOrder: [],
-          collapsedSwarms: [],
-          hideDeadSwarms: [],
-          watches: [],
-          digests: [],
-          pipes: {},
-        }),
         projection: fakeProjection([session]),
         serverPort: 4310,
         settingsPath,

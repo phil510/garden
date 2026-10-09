@@ -127,10 +127,17 @@ export function createProjection(store: StorePort): Projection {
 
     dispatch(event) {
       const prev = state;
-      state = reduce(state, event);
+      const next = reduce(prev, event);
       // The reducer hands back the same object for an event that changes nothing, which is
       // the common case for the per-tick branch sweep.
-      if (state === prev) return;
+      if (next === prev) return;
+      // The one writer of the tmux name map, landing before `state` moves like the other store
+      // writes here. `store-loaded` is skipped: its map came from the store, and writing it back
+      // would replace an unreadable state.json that the store deliberately left on disk.
+      if (event.type !== 'store-loaded' && next.tmuxNames !== prev.tmuxNames) {
+        store.write({ ...store.read(), tmuxNames: next.tmuxNames });
+      }
+      state = next;
       const deltas = diff(prev, state);
       if (deltas.length === 0) return;
       for (const listener of [...listeners]) listener(deltas);

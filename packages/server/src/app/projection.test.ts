@@ -353,6 +353,104 @@ describe('ui state', () => {
   });
 });
 
+describe('persisting the tmux name map', () => {
+  const registered = (id: string, tmuxName: string): GardenEvent => ({
+    type: 'session-registered',
+    id,
+    tmuxName,
+    cwd: '/Users/dev/repo',
+  });
+
+  const populated: OverlayState = {
+    ...emptyOverlay,
+    groups: { '/Users/dev/repo': { pinned: true, order: 0, collapsed: false, hideDead: true } },
+    stage: { preset: 'single', slots: ['sid-9'], focusedSlot: 0, layout: {} },
+    watches: [
+      {
+        id: 'w-1',
+        sessionId: 'sid-9',
+        repo: 'acme/widgets',
+        pr: 7,
+        kinds: ['closed'],
+        createdAt: now,
+        cursor: null,
+        pendingDigest: null,
+        status: 'active',
+      },
+    ],
+    swarms: [{ id: 'swarm-1', name: 'A swarm', archived: false }],
+    placements: { 'sid-9': { swarmId: 'swarm-1' } },
+  };
+
+  /** Counts writes so a test can tell "wrote the same thing" from "did not write". */
+  function countingStore(initial: OverlayState = emptyOverlay) {
+    const store = fakeStore(initial);
+    let writes = 0;
+    const port: StorePort = {
+      read: () => store.port.read(),
+      write: (state) => {
+        writes += 1;
+        store.port.write(state);
+      },
+    };
+    return { port, written: store.written, writes: () => writes };
+  }
+
+  it('writes a registered name to the store and leaves every other field as it was', () => {
+    const store = fakeStore(populated);
+    const projection = createProjection(store.port);
+
+    projection.dispatch(registered('sid-1', 'repo'));
+
+    expect(store.written()).toEqual({ ...populated, tmuxNames: { 'sid-1': 'repo' } });
+  });
+
+  it('removes an unregistered name from the store', () => {
+    const store = fakeStore();
+    const projection = createProjection(store.port);
+    projection.dispatch(registered('sid-1', 'repo'));
+    projection.dispatch(registered('sid-2', 'repo-2'));
+
+    projection.dispatch({ type: 'session-unregistered', id: 'sid-1' });
+
+    expect(store.written().tmuxNames).toEqual({ 'sid-2': 'repo-2' });
+  });
+
+  it('does not write for an event that leaves the map alone', () => {
+    const store = countingStore();
+    const projection = createProjection(store.port);
+
+    projection.dispatch(transcript());
+    projection.dispatch({ type: 'session-unregistered', id: 'sid-1' });
+
+    expect(store.writes()).toBe(0);
+  });
+
+  it('does not write the map back when the store is loaded', () => {
+    const store = countingStore({ ...emptyOverlay, tmuxNames: { 'sid-1': 'repo' } });
+    const projection = createProjection(store.port);
+
+    projection.dispatch({ type: 'store-loaded', tmuxNames: { 'sid-1': 'repo' } });
+
+    expect(store.writes()).toBe(0);
+    expect(projection.sessions()).toEqual([]);
+  });
+
+  it('applies nothing when the write fails', () => {
+    const failing: StorePort = {
+      read: () => emptyOverlay,
+      write: () => {
+        throw new Error('EACCES');
+      },
+    };
+    const projection = createProjection(failing);
+    projection.dispatch(transcript());
+
+    expect(() => projection.dispatch(registered('sid-1', 'repo'))).toThrow('EACCES');
+    expect(projection.sessions()[0]?.tmuxName).toBeNull();
+  });
+});
+
 describe('updateUiState when the store write fails', () => {
   it('leaves the reported ui state and its subscribers untouched', () => {
     const failing: StorePort = {

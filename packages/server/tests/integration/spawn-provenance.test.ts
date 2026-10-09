@@ -57,7 +57,6 @@ describe('spawn provenance', () => {
       const { id, tmuxName } = await createSession(
         {
           tmux: tmuxPort(target),
-          store: fakeStore(),
           projection,
           serverPort: 4310,
           settingsPath: '/nonexistent/claude-settings.json',
@@ -158,7 +157,6 @@ describe('spawn provenance', () => {
       const result = await createSession(
         {
           tmux: tmuxPort(target),
-          store: fakeStore(),
           projection,
           serverPort: 4310,
           settingsPath: '/nonexistent/claude-settings.json',

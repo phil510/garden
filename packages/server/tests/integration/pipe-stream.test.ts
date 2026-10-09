@@ -92,7 +92,6 @@ describe('garden events --follow against the real server', () => {
       const server = createServer({
         projection,
         pipes: createPipes(deps),
-        store,
         repos: { list: () => Promise.resolve([]), resolveRoot: notUsed },
         serverPort: port,
         settingsPath: '/home/.garden/claude-settings.json',

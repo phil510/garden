@@ -342,7 +342,6 @@ export async function main(detached: boolean): Promise<void> {
       projection,
       pipes,
       tmux,
-      store,
       git,
       attach,
       repos,

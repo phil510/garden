@@ -87,7 +87,6 @@ function receiveOne(socket: WebSocket): Promise<ServerMessage> {
 function serverWithProjection() {
   return createServer({
     projection: createProjection(fakeStore()),
-    store: fakeStore(),
     repos: {
       list: () => Promise.resolve([]),
       resolveRoot: () => Promise.reject(new Error('not used by this test')),
@@ -116,7 +115,6 @@ describe('WS /events against the real server', () => {
     const projection = createProjection(fakeStore());
     app = createServer({
       projection,
-      store: fakeStore(),
       repos: {
         list: () => Promise.resolve([]),
         resolveRoot: () => Promise.reject(new Error('not used by this test')),
@@ -228,7 +226,6 @@ describe('WS /events root watches against a real watcher', () => {
     const logger = { warn: () => undefined, error: () => undefined };
     app = createServer({
       projection: createProjection(fakeStore()),
-      store: fakeStore(),
       repos,
       serverPort: 4310,
       settingsPath: '/home/.garden/claude-settings.json',
