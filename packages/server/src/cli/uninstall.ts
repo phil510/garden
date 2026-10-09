@@ -61,7 +61,12 @@ export async function runUninstall(
   const stopResult = await deps.stop(io, deps.home);
   if (stopResult !== 0) return stopResult;
 
-  await deps.killTmuxServer(join(deps.appDir, 'tmux.conf'), deps.tmuxSocket);
+  try {
+    await deps.killTmuxServer(join(deps.appDir, 'tmux.conf'), deps.tmuxSocket);
+  } catch (error) {
+    await writeAll(io.stderr, `garden: ${(error as Error).message}\n`);
+    return 1;
+  }
   deps.removeAppDir(deps.appDir);
 
   await writeAll(io.stdout, 'garden uninstalled\n');

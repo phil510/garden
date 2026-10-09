@@ -272,6 +272,20 @@ describe('runStopAll', () => {
     expect(calls.some((c) => c.startsWith('killTmuxServer'))).toBe(false);
   });
 
+  it('fails without the success line when the tmux server cannot be reached', async () => {
+    const { io, stdout, stderr } = collectingIo();
+    const { client } = fakeClient();
+    const { deps } = baseStopAllDeps({
+      killTmuxServer: () => Promise.reject(new Error('cannot reach the tmux server socket /x')),
+    });
+
+    const exitCode = await runStopAll(io, true, client, deps);
+
+    expect(exitCode).toBe(1);
+    expect(stderr).toEqual(['garden: cannot reach the tmux server socket /x\n']);
+    expect(stdout.join('')).not.toContain('tmux server killed');
+  });
+
   it('stops the server then kills tmux, in order, on a successful run', async () => {
     const { io, stdout } = collectingIo();
     const { client, calls: clientCalls } = fakeClient();

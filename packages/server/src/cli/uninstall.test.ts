@@ -98,4 +98,18 @@ describe('runUninstall', () => {
     expect(exitCode).toBe(1);
     expect(calls).toEqual(['confirm']);
   });
+
+  it('keeps the app dir and exits non-zero when the tmux server cannot be reached', async () => {
+    const { io, stdout, stderr } = collectingIo();
+    const { deps, calls } = baseDeps({
+      killTmuxServer: () => Promise.reject(new Error('cannot reach the tmux server socket /x')),
+    });
+
+    const exitCode = await runUninstall(io, true, deps);
+
+    expect(exitCode).toBe(1);
+    expect(calls.some((c) => c.startsWith('removeAppDir'))).toBe(false);
+    expect(stdout.join('')).not.toContain('garden uninstalled');
+    expect(stderr).toEqual(['garden: cannot reach the tmux server socket /x\n']);
+  });
 });
