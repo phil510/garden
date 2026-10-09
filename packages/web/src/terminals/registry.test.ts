@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import type { ILink, ILinkHandler, ILinkProvider } from '@xterm/xterm';
 import type { PaneSize, PaneSocketHandlers } from '../api/paneSocket.js';
 import { unicodeV11Provider } from './unicodeWidth.js';
@@ -20,7 +20,10 @@ class FakeUnicodeHandling {
 /** Minimal stand-in for xterm's `IBufferLine`. Only `translateToString` is exercised by the
  *  registry, so that's all this needs. */
 class FakeBufferLine {
-  constructor(private readonly text: string) {}
+  constructor(
+    private readonly text: string,
+    readonly isWrapped = false,
+  ) {}
   translateToString(): string {
     return this.text;
   }
@@ -139,6 +142,9 @@ class FakeResizeObserver {
 vi.mock('@xterm/xterm', () => ({ Terminal: FakeTerminal }));
 vi.mock('@xterm/addon-fit', () => ({ FitAddon: FakeFitAddon }));
 vi.mock('@xterm/addon-web-links', () => ({ WebLinksAddon: FakeWebLinksAddon }));
+vi.mock('../features/sidebar/repoListCache.js', () => ({
+  refreshRepoList: () => Promise.resolve([]),
+}));
 vi.mock('../api/paneSocket.js', () => ({
   connectPaneSocket: (_sessionId: string, size: PaneSize, handlers: PaneSocketHandlers) =>
     new FakeSocket(size, handlers),
@@ -181,6 +187,13 @@ function lastSocket(): FakeSocket {
 function markdownLinkProvider(terminal: FakeTerminal): ILinkProvider {
   const provider = terminal.linkProviders[0];
   if (provider === undefined) throw new Error('no link provider was registered');
+  return provider;
+}
+
+/** The path-line provider is always the second one `createPane` registers. */
+function pathLineProvider(terminal: FakeTerminal): ILinkProvider {
+  const provider = terminal.linkProviders[1];
+  if (provider === undefined) throw new Error('no path-line provider was registered');
   return provider;
 }
 
@@ -337,6 +350,54 @@ describe('attachPane', () => {
       'path-line',
       'web-links',
     ]);
+  });
+
+  describe('path-line links', () => {
+    async function clickLink(lineText: string): Promise<{
+      text: string | undefined;
+      requestOpenFile: Mock;
+    }> {
+      const { attachPane } = await loadRegistry();
+      const { useLocalStore } = await import('../state/localStore.js');
+      const { useSessionStore } = await import('../state/sessionStore.js');
+      useSessionStore.setState({
+        sessions: { 'session-a': { cwd: '/work/repo' } } as never,
+      });
+      const requestOpenFile = vi.fn();
+      useLocalStore.setState({ requestOpenFile });
+      attachPane('session-a', aContainer({ width: '800px', height: '600px' }), 0);
+      const terminal = lastTerminal();
+      terminal.setLine(0, lineText);
+      const links = provideLinks(pathLineProvider(terminal), 1);
+      links?.[0]?.activate(new MouseEvent('click'), links[0].text);
+      return { text: links?.[0]?.text, requestOpenFile };
+    }
+
+    it('opens a bare path without a line', async () => {
+      const { text, requestOpenFile } = await clickLink('edited src/foo.ts today');
+
+      expect(text).toBe('src/foo.ts');
+      await vi.waitFor(() =>
+        expect(requestOpenFile).toHaveBeenCalledWith(
+          { kind: 'session', sessionId: 'session-a' },
+          'src/foo.ts',
+          null,
+        ),
+      );
+    });
+
+    it('opens a path:line link at its line', async () => {
+      const { text, requestOpenFile } = await clickLink('at src/foo.ts:42');
+
+      expect(text).toBe('src/foo.ts:42');
+      await vi.waitFor(() =>
+        expect(requestOpenFile).toHaveBeenCalledWith(
+          { kind: 'session', sessionId: 'session-a' },
+          'src/foo.ts',
+          42,
+        ),
+      );
+    });
   });
 
   it("opens a markdown link's url through openExternalLink when its label is activated", async () => {

@@ -47,9 +47,9 @@ function hasSize(element: HTMLElement): boolean {
   return parseFloat(style.width) > 0 && parseFloat(style.height) > 0;
 }
 
-/** Opens a clicked `path:line` in the file panel: re-rooting it onto the project containing the
- *  file, or showing it through the session when no listed project does. */
-async function openPathLine(sessionId: string, path: string, line: number): Promise<void> {
+/** Opens a clicked file path, with an optional line, in the file panel: re-rooting it onto the
+ *  project containing the file, or showing it through the session when no listed project does. */
+async function openPathLine(sessionId: string, path: string, line: number | null): Promise<void> {
   const cwd = useSessionStore.getState().sessions[sessionId]?.cwd;
   if (cwd === undefined) return;
   const target = resolvePathLineTarget((await refreshRepoList()) ?? [], cwd, sessionId, path, line);
@@ -106,14 +106,16 @@ function createPane(sessionId: string, container: HTMLElement, epoch: number): P
   terminal.open(container);
 
   // xterm's Linkifier resolves overlapping link matches by registration order, first registered
-  // wins. Three providers are registered below, in this order: markdown-link, path:line, then
+  // wins. Three providers are registered below, in this order: markdown-link, file path, then
   // WebLinksAddon. A markdown link's label text can itself look like a path:line reference or a
   // bare URL (e.g. `[src/foo.ts:42](https://example.com)`), so markdown-link goes first — it's
   // the only ordering where clicking the label always opens the parenthesized url rather than
-  // being shadowed by a more generic matcher over the same buffer columns. path:line goes next,
-  // still ahead of WebLinksAddon, so a path:line link (e.g. inside a dev-server URL like
-  // `http://localhost:5173/src/App.tsx:120`) keeps opening in garden's own editor instead of
-  // being shadowed by the addon's plain URL match over the same buffer columns.
+  // being shadowed by a more generic matcher over the same buffer columns. The file-path provider
+  // (`path:line` or a bare path) goes next, still ahead of WebLinksAddon, so a path:line link
+  // (e.g. inside a dev-server URL like `http://localhost:5173/src/App.tsx:120`) keeps opening in
+  // garden's own editor instead of being shadowed by the addon's plain URL match over the same
+  // buffer columns. A bare path that is merely the tail of a URL is excluded by the matcher
+  // itself, not by ordering.
   terminal.registerLinkProvider({
     provideLinks(bufferLineNumber, callback) {
       const line = terminal.buffer.active.getLine(bufferLineNumber - 1);
@@ -144,8 +146,8 @@ function createPane(sessionId: string, container: HTMLElement, epoch: number): P
         return;
       }
       const text = line.translateToString(true);
-      const links = findPathLineLinks(text).map((link) => ({
-        text: `${link.path}:${String(link.line)}`,
+      const links = findPathLineLinks(text, line.isWrapped).map((link) => ({
+        text: text.slice(link.index, link.index + link.length),
         range: {
           start: { x: link.index + 1, y: bufferLineNumber },
           end: { x: link.index + link.length + 1, y: bufferLineNumber },
