@@ -88,6 +88,14 @@ export function reduce(state: GardenState, event: GardenEvent): GardenState {
         ended: { ...state.ended, [event.id]: false },
       });
     }
+    case 'session-unregistered': {
+      if (!(event.id in state.tmuxNames)) return state;
+      // The session itself stays: transcripts decide that a session exists, so it reads
+      // dead with no tmux name rather than vanishing.
+      const tmuxNames = { ...state.tmuxNames };
+      delete tmuxNames[event.id];
+      return rederive({ ...state, tmuxNames });
+    }
     case 'transcript-changed': {
       const { record } = event;
       const id = record.sessionId;

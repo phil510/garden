@@ -270,6 +270,22 @@ describe('reduce', () => {
     });
   });
 
+  it('drops the tmux name on unregister but keeps the session, dead', () => {
+    const state = fold([
+      transcript(),
+      { type: 'session-registered', id: 'sid-1', tmuxName: 'repo', cwd: '/Users/dev/repo' },
+      snapshot(false),
+      { type: 'session-unregistered', id: 'sid-1' },
+    ]);
+    expect(state.tmuxNames).not.toHaveProperty('sid-1');
+    expect(state.sessions['sid-1']).toMatchObject({ tmuxName: null, liveness: 'dead' });
+  });
+
+  it('returns the same state when unregistering an id with no tmux name', () => {
+    const state = fold([transcript()]);
+    expect(reduce(state, { type: 'session-unregistered', id: 'sid-1' })).toBe(state);
+  });
+
   it('reports no repo root for a session whose cwd nothing has resolved', () => {
     expect(fold([transcript()]).sessions['sid-1']?.repoRoot).toBeNull();
   });

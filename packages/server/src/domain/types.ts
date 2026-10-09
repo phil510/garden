@@ -27,6 +27,7 @@ export interface ReportedStatus {
 export type GardenEvent =
   | { type: 'store-loaded'; tmuxNames: Record<string, string> }
   | { type: 'session-registered'; id: string; tmuxName: string; cwd: string }
+  | { type: 'session-unregistered'; id: string }
   | { type: 'transcript-changed'; path: string; record: TranscriptRecord }
   | { type: 'repo-root-resolved'; cwd: string; repoRoot: string }
   | { type: 'branch-resolved'; cwd: string; branch: string | null }
