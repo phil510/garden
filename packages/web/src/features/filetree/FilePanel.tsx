@@ -14,6 +14,7 @@ import { useLocalStore } from '../../state/localStore';
 import { useSessionStore } from '../../state/sessionStore';
 import { useUiStore } from '../../state/uiStore';
 import { getCachedRepoList, refreshRepoList, subscribeRepoList } from '../sidebar/repoListCache';
+import { focusedSessionId } from '../sidebar/stageFocus';
 import { effectiveTab, type TabOverride } from './panelTab';
 import { mostSpecificEntry } from './projectPaths';
 import { TreeRow } from './TreeRow';
@@ -36,7 +37,7 @@ export function FilePanel() {
   const slots = useUiStore((state) => state.uiState.slots);
   const focusedSlot = useUiStore((state) => state.uiState.focusedSlot);
   const hydrated = useUiStore((state) => state.hydrated);
-  const focusedId = slots[focusedSlot] ?? null;
+  const focusedId = focusedSessionId(slots, focusedSlot);
   const focusedCwd = useSessionStore((state) =>
     focusedId === null ? null : (state.sessions[focusedId]?.cwd ?? null),
   );
