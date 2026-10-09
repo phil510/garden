@@ -171,6 +171,23 @@ export async function killSession(target: TmuxTarget, name: string): Promise<voi
   await run(target, ['kill-session', '-t', name]);
 }
 
+/**
+ * Loads the conf into an already-running server, whose `-f` was read (or not) when it started.
+ * Every line in the conf is a plain `set-option -g`, which replaces rather than appends, so
+ * repeating this is safe. No server is a no-op: the next command that starts one reads the conf.
+ * Sent without `-f`, which would start a server just to source into it.
+ */
+export async function applyConf(target: TmuxTarget): Promise<void> {
+  const argv = ['-L', target.socket, 'source-file', target.confPath];
+  try {
+    await execFileAsync('tmux', argv);
+  } catch (error) {
+    const stderr = (error as { stderr?: string }).stderr ?? '';
+    if (/no server running|error connecting to/i.test(stderr)) return;
+    throw new TmuxError(argv, stderr, error);
+  }
+}
+
 /** Throws when `tmux -V`'s output is unparseable or below garden's minimum. The pure half of
  *  the startup gate — callable from a plain string, with no process involved. */
 export function assertTmuxVersion(versionOutput: string): void {

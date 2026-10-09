@@ -15,6 +15,7 @@ import {
   watchTranscripts,
 } from './adapters/transcripts.js';
 import {
+  applyConf,
   checkTmuxVersion,
   killSession,
   listPanes,
@@ -233,6 +234,15 @@ export async function main(detached: boolean): Promise<void> {
   const config = loadConfig(process.env, ensureConfigFile(home, logger), home);
   const confPath = writeTmuxConf(config.appDir);
   const settingsPath = writeClaudeSettings(config.appDir);
+
+  // A tmux server that outlives a garden upgrade never re-reads the conf on its own.
+  try {
+    await applyConf({ socket: config.tmuxSocket, confPath });
+  } catch (error) {
+    logger.error(
+      `applying tmux conf failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
 
   const store = storePort(config.appDir, logger);
   const configAdapter = configPort(home);

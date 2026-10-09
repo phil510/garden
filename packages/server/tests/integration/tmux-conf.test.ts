@@ -1,11 +1,12 @@
 import { execFile } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 import { attachPty } from '../../src/adapters/pty.js';
+import { applyConf } from '../../src/adapters/tmux.js';
 import { writeTmuxConf } from '../../src/appdir.js';
 import { until } from './support/poll.js';
 
@@ -90,6 +91,53 @@ describe('the generated tmux.conf', () => {
     } finally {
       attachment?.kill();
       await execFileAsync('tmux', ['-L', socket, 'kill-server']).catch(() => {});
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+
+  it('reaches a server that started on an older conf, once, however often it is applied', async () => {
+    const socket = `garden-test-${randomBytes(4).toString('hex')}`;
+    const home = mkdtempSync(join(tmpdir(), 'garden-home-'));
+    const oldConf = join(home, 'old.conf');
+    writeFileSync(oldConf, 'set-option -g terminal-features ",*:RGB"\n');
+    const confPath = writeTmuxConf(join(home, '.garden'));
+    const tmux = (...args: string[]) => execFileAsync('tmux', ['-L', socket, ...args]);
+    let attachment: ReturnType<typeof attachPty> | undefined;
+    try {
+      await tmux('-f', oldConf, 'new-session', '-d', '-s', 'old', 'sleep 60');
+      const target = { socket, confPath };
+      await applyConf(target);
+      await applyConf(target);
+
+      const features = (await tmux('show-options', '-s', 'terminal-features')).stdout;
+      expect(features.trim().split('\n')).toEqual(['terminal-features[0] *:RGB:hyperlinks']);
+      expect((await tmux('has-session', '-t', 'old')).stderr).toBe('');
+
+      attachment = attachPty(
+        target,
+        'old',
+        { cols: 80, rows: 24 },
+        { onData: () => {}, onExit: () => {} },
+      );
+      await until(
+        'the attached client to report hyperlinks',
+        async () => (await tmux('list-clients', '-F', '#{client_termfeatures}')).stdout,
+        (out) => out.includes('hyperlinks'),
+      );
+    } finally {
+      attachment?.kill();
+      await tmux('kill-server').catch(() => {});
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+
+  it('does nothing when no server is running', async () => {
+    const socket = `garden-test-${randomBytes(4).toString('hex')}`;
+    const home = mkdtempSync(join(tmpdir(), 'garden-home-'));
+    try {
+      await applyConf({ socket, confPath: writeTmuxConf(join(home, '.garden')) });
+      await expect(execFileAsync('tmux', ['-L', socket, 'list-sessions'])).rejects.toThrow();
+    } finally {
       rmSync(home, { recursive: true, force: true });
     }
   });
