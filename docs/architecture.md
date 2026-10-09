@@ -245,7 +245,9 @@ of them can only be wrong.
 
 So the startup sequence is a replay, not a restore:
 
-1. Read `config.json` and `state.json`.
+1. Read `config.json` and `state.json`. Write `tmux.conf` and `source-file` it into the tmux
+   server if one is already running — a server that outlives a garden upgrade never re-reads it
+   on its own. A failure here is logged, not fatal to boot.
 2. Start the transcript watcher — before any dispatch below, so a write landing anywhere in
    this sequence still reaches it instead of being lost until the next unrelated event or a
    restart. Its own initial scan dispatches nothing (`ignoreInitial`), so the existing corpus is
