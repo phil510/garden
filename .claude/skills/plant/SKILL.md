@@ -5,8 +5,7 @@ description: >-
   brief from the issue, plan, develop, draft a PR, run internal review, then
   a finish gate that flips the PR to ready, waits on CI, and merges per the
   brief's merge policy. Invoked as `/plant <issue-number>`, or `/plant
-  resume` to re-hydrate an interrupted pipeline. Requires a
-  `bypassPermissions` session.
+  resume` to re-hydrate an interrupted pipeline.
 ---
 
 # Plant
@@ -76,13 +75,13 @@ reason worth understanding, because the failure modes are silent.
   Length is earned by the brief you print at init, an escalation carrying
   a real decision, or an answer the user asked for.
 - **Assume the session has the autonomy the pipeline needs**
-  (`bypassPermissions`). Workers inherit the session's permission mode and
-  a per-spawn `mode` doesn't override it, so a worker that hits a prompt
-  with nobody attached stalls invisibly — no escalation, no message, no
-  signal, which is the exact failure unattended operation exists to
-  prevent. Nothing lets a session read its own mode, so **spawn without
+  (auto mode normally suffices; `bypassPermissions` removes the remaining
+  stalls). Workers inherit the session's permission mode and a per-spawn
+  `mode` doesn't override it, so a worker that hits a prompt with nobody
+  attached stalls invisibly — no escalation, no message, which is the
+  exact failure unattended operation exists to prevent. Nothing lets a session read its own mode, so **spawn without
   asking**: whoever ran `/plant` knows the precondition and will say so
-  when it doesn't hold. Rationale and boundaries:
+  when it doesn't hold. Rationale:
   `references/spawn-details.md` § Permission mode.
 
 Two consequences worth holding in mind: **briefs are idempotent** (a fresh

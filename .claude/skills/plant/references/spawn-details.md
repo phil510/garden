@@ -312,14 +312,15 @@ Only the orchestrator talks to the user. Workers never do.
 
 ## Permission mode
 
-**The pipeline session must run in `bypassPermissions`, and every worker
-inherits it.** `Agent`-spawned teammates run under the parent session's
+**The pipeline session needs the autonomy to run unattended — auto mode
+normally suffices, `bypassPermissions` removes the remaining stalls — and
+every worker inherits it.** `Agent`-spawned teammates run under the parent session's
 permission mode, and a per-spawn `mode` does not reliably tighten or
 loosen it (probed 2026-06-15: a teammate spawned with `mode: default`
 still ran Write + Bash ungated under a permissive session). The lever is
 the **session**, set once at launch — not the spawn.
 
-Why bypass and not something tighter: `plant` runs hands-off for hours
+Why this much autonomy and not less: `plant` runs hands-off for hours
 with nobody attached. Anything that prompts — a Bash permission wall, an
 edit confirmation, an MCP approval — stalls a worker the moment it hits
 the gate, with no escalation event, no message, no signal that anything
@@ -327,11 +328,10 @@ is wrong. `acceptEdits` is insufficient: it still gates Bash, and
 workers run git / gh / pnpm constantly. Per-call escalation would be
 death by a thousand pages.
 
-That is safe because the real boundaries live where a worker cannot
-cross them: the brief's **Autonomy bounds** and **Stop conditions** (see
-`brief.md`), draft-PR isolation, and worktree confinement. For an
-unattended pipeline, a UI gate that fails open silently is worse than no
-gate at all.
+Both are safe because the real boundaries live where a worker cannot
+cross them: the brief's **Autonomy bounds** and **Stop conditions**,
+draft-PR isolation, and worktree confinement. A UI gate that fails open
+silently is worse than no gate at all.
 
 No API lets a session read its own permission mode, and nothing in the
 environment reveals it reliably — injected instruction blocks that
@@ -339,8 +339,7 @@ correlate with a mode describe tool preferences, not the mode, and can
 be reworded or dropped without anyone treating it as a contract change,
 so a check built on one reads as authoritative while resting on a
 coincidence. So **assume the session was launched with the autonomy the
-pipeline needs** and spawn without asking. Whoever runs `/plant` is
-deliberately starting an unattended multi-hour pipeline; they know the
+pipeline needs** and spawn without asking. Whoever runs `/plant` knows the
 precondition and will say so when it doesn't hold.
 
 ## Why this shape
