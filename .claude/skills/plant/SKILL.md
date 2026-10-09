@@ -369,11 +369,9 @@ view --json baseRefName`, never assume `main`) — the shape the
     it. If the gate is re-entered after the handover (the user comes
     back, or a resume) and the PR is not `MERGED`, re-query `mergeable`
     the same way before doing anything else. `auto` →
-    `gh pr merge <url> --squash --delete-branch`; step 12's check is
-    what tells you whether this succeeded, not the exit code, and the
-    trigger for a conflict is likewise the PR's state: if it is not
-    `MERGED` after the attempt, re-query `mergeable` and send
-    `CONFLICTING` to (c2). Default is `ask` — this is the one
+    `gh pr merge <url> --squash`; if the PR is not `MERGED`
+    afterwards, re-query `mergeable` and send `CONFLICTING` to
+    (c2). Default is `ask` — this is the one
     irreversible act in the pipeline, which is why field 7 is the
     explicit switch for it.
 11. **Worker escalation** (any stage, including a stage-4 fix round) →
@@ -393,17 +391,11 @@ view --json baseRefName`, never assume `main`) — the shape the
     the user instead of replacing it.
 12. **Completion or abort — the shared convergence point for however the
     pipeline ends**, reached from step 10(d) once `gh pr view --json state`
-    confirms `MERGED`, under every merge policy — neither of the
-    two things that might otherwise stand in for that confirmation can
-    be trusted. `gh pr merge --delete-branch`'s exit code lies when run
-    from inside the worktree: its local post-merge step tries to switch
-    to the default branch to free the feature branch for deletion, and
-    that switch fails (the default branch is already checked out in the
-    main checkout) even though the GitHub-side merge and remote branch
-    deletion both went through. And a report that the PR merged, from
-    the user or from a dispatching peer, is only a prompt to check it,
-    not the confirmation itself — verifying against GitHub directly is
-    what makes the reporter's identity irrelevant. Otherwise the
+    confirms `MERGED`, under every merge policy. A report that the PR
+    merged, from the user or from a dispatching peer, is only a prompt
+    to check it, not the confirmation itself — verifying against GitHub
+    directly is what makes the reporter's identity irrelevant.
+    Otherwise the
     pipeline closes without merging, or aborts at any earlier stage.
     a. **Merged only.** Read `decisions.md` and confirm every entry is
     reflected on the PR — its description, a commit, or a review thread.
@@ -421,7 +413,9 @@ view --json baseRefName`, never assume `main`) — the shape the
     reflected; a higher count than you accounted for means going back to
     cover the gap before moving on.
     c. **Merged only, from the main checkout, never from inside the
-    worktree being removed:** `git -C <main-checkout> worktree remove
+    worktree being removed.** GitHub deletes the remote head branch on
+    merge (`delete_branch_on_merge` is set on the repo), so only the
+    local branch needs removing: `git -C <main-checkout> worktree remove
 <abs>`, then `git -C <main-checkout> branch -D <branch>`, in that
     order. Removal must precede the branch delete — git refuses to
     delete a branch checked out in a linked worktree, from either
