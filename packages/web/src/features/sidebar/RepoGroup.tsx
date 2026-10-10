@@ -5,6 +5,7 @@ import { useState, type KeyboardEvent } from 'react';
 import type { ActiveSwarmOption } from './groupSwarms';
 import { resolveTopLevelSwarmId } from './groupSwarms';
 import type { SidebarGroup } from './groupSessions';
+import { useSettingsStore } from '../../state/settingsStore';
 import { hideDeadLabel } from './hideDeadLabel';
 import { SessionRow } from './SessionRow';
 import {
@@ -41,6 +42,7 @@ export function RepoGroup({
 }: RepoGroupProps) {
   const [showOlder, setShowOlder] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const deadSessionCap = useSettingsStore((s) => s.deadSessionCap);
   const { setNodeRef, attributes, listeners, transform, transition, isDragging } = useSortable({
     id: group.repoRoot,
     // Tagged so RepoSidebar's onDragEnd can bail on a foreign active type — defense in depth,
@@ -63,8 +65,8 @@ export function RepoGroup({
     .filter((s): s is NonNullable<typeof s> => s !== undefined);
   const visible = visibleSessions(members, { hideDead: group.hideDead, showOlder }, now);
   const hiddenCount = hiddenOldDeadCount(members, group.hideDead, now);
-  const capped = capDeadSessions(visible, expanded);
-  const hiddenCappedCount = hiddenCappedDeadCount(visible);
+  const capped = capDeadSessions(visible, expanded, deadSessionCap);
+  const hiddenCappedCount = hiddenCappedDeadCount(visible, deadSessionCap);
 
   const style = {
     transform: CSS.Transform.toString(transform),

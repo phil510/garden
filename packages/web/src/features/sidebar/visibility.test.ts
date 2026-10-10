@@ -67,21 +67,21 @@ describe('capDeadSessions', () => {
     const sessions = Array.from({ length: 5 }, (_, i) =>
       aSession({ id: `dead-${i}`, liveness: 'dead' }),
     );
-    expect(capDeadSessions(sessions, false)).toEqual(sessions);
+    expect(capDeadSessions(sessions, false, 10)).toEqual(sessions);
   });
 
   it('keeps only the first 10 dead sessions, in their original order, when collapsed', () => {
     const sessions = Array.from({ length: 15 }, (_, i) =>
       aSession({ id: `dead-${i}`, liveness: 'dead' }),
     );
-    expect(capDeadSessions(sessions, false)).toEqual(sessions.slice(0, 10));
+    expect(capDeadSessions(sessions, false, 10)).toEqual(sessions.slice(0, 10));
   });
 
   it('keeps every dead session when expanded', () => {
     const sessions = Array.from({ length: 15 }, (_, i) =>
       aSession({ id: `dead-${i}`, liveness: 'dead' }),
     );
-    expect(capDeadSessions(sessions, true)).toEqual(sessions);
+    expect(capDeadSessions(sessions, true, 10)).toEqual(sessions);
   });
 
   it('never drops a live session, even past the dead-session cap boundary', () => {
@@ -90,7 +90,7 @@ describe('capDeadSessions', () => {
     );
     const live = aSession({ id: 'live', liveness: 'live' });
     const sessions = [...deadSessions, live];
-    const capped = capDeadSessions(sessions, false);
+    const capped = capDeadSessions(sessions, false, 10);
     expect(capped).toContainEqual(live);
     expect(capped).toHaveLength(11);
   });
@@ -99,14 +99,23 @@ describe('capDeadSessions', () => {
     const sessions = Array.from({ length: 10 }, (_, i) =>
       aSession({ id: `dead-${i}`, liveness: 'dead' }),
     );
-    expect(capDeadSessions(sessions, false)).toEqual(sessions);
+    expect(capDeadSessions(sessions, false, 10)).toEqual(sessions);
   });
 
   it('drops exactly the 11th dead session when one over the cap', () => {
     const sessions = Array.from({ length: 11 }, (_, i) =>
       aSession({ id: `dead-${i}`, liveness: 'dead' }),
     );
-    expect(capDeadSessions(sessions, false)).toEqual(sessions.slice(0, 10));
+    expect(capDeadSessions(sessions, false, 10)).toEqual(sessions.slice(0, 10));
+  });
+});
+
+describe('capDeadSessions with a configured cap', () => {
+  it('keeps only that many dead sessions when collapsed', () => {
+    const sessions = Array.from({ length: 8 }, (_, i) =>
+      aSession({ id: `dead-${i}`, liveness: 'dead' }),
+    );
+    expect(capDeadSessions(sessions, false, 3)).toEqual(sessions.slice(0, 3));
   });
 });
 
@@ -115,14 +124,14 @@ describe('hiddenCappedDeadCount', () => {
     const sessions = Array.from({ length: 15 }, (_, i) =>
       aSession({ id: `dead-${i}`, liveness: 'dead' }),
     );
-    expect(hiddenCappedDeadCount(sessions)).toBe(5);
+    expect(hiddenCappedDeadCount(sessions, 10)).toBe(5);
   });
 
   it('is zero when dead sessions are at or under the cap', () => {
     const sessions = Array.from({ length: 10 }, (_, i) =>
       aSession({ id: `dead-${i}`, liveness: 'dead' }),
     );
-    expect(hiddenCappedDeadCount(sessions)).toBe(0);
+    expect(hiddenCappedDeadCount(sessions, 10)).toBe(0);
   });
 
   it('ignores live sessions when counting the remainder', () => {
@@ -130,6 +139,15 @@ describe('hiddenCappedDeadCount', () => {
       aSession({ id: `dead-${i}`, liveness: 'dead' }),
     );
     const live = aSession({ id: 'live', liveness: 'live' });
-    expect(hiddenCappedDeadCount([...deadSessions, live])).toBe(2);
+    expect(hiddenCappedDeadCount([...deadSessions, live], 10)).toBe(2);
+  });
+});
+
+describe('hiddenCappedDeadCount with a configured cap', () => {
+  it('counts dead sessions past that cap', () => {
+    const sessions = Array.from({ length: 8 }, (_, i) =>
+      aSession({ id: `dead-${i}`, liveness: 'dead' }),
+    );
+    expect(hiddenCappedDeadCount(sessions, 3)).toBe(5);
   });
 });
