@@ -1,7 +1,7 @@
 import { EVENTS_CLOSE_CODES } from '@garden/shared';
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 import { connectEventSocket, eventCloseDisposition, type EventSocketHandlers } from './eventSocket';
-import { FakeWebSocket } from './fakeWebSocket';
+import { FakeWebSocket } from './fakeWebSocket.fixture';
 import { nextReconnectDelayMs } from './reconnectingSocket';
 
 describe('eventCloseDisposition', () => {

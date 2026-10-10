@@ -1,6 +1,6 @@
 import { PANE_CLOSE_CODES } from '@garden/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { FakeWebSocket } from './fakeWebSocket';
+import { FakeWebSocket } from './fakeWebSocket.fixture';
 import { connectPaneSocket, paneCloseDisposition } from './paneSocket';
 import { nextReconnectDelayMs } from './reconnectingSocket';
 

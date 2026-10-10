@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { FakeWebSocket } from './fakeWebSocket';
+import { FakeWebSocket } from './fakeWebSocket.fixture';
 import { connectReconnectingSocket, nextReconnectDelayMs } from './reconnectingSocket';
 
 describe('nextReconnectDelayMs', () => {
