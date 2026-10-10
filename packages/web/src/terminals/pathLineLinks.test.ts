@@ -39,4 +39,77 @@ describe('findPathLineLinks', () => {
   it('returns nothing for plain text', () => {
     expect(findPathLineLinks('all tests passed')).toEqual([]);
   });
+
+  describe('bare paths', () => {
+    it('links a relative path with no line number', () => {
+      expect(findPathLineLinks('edited src/foo.ts today')).toEqual([
+        { path: 'src/foo.ts', line: null, index: 7, length: 10 },
+      ]);
+    });
+
+    it('links an absolute path', () => {
+      expect(findPathLineLinks('/abs/path/file.py')).toEqual([
+        { path: '/abs/path/file.py', line: null, index: 0, length: 17 },
+      ]);
+    });
+
+    it('links a file in the current directory', () => {
+      expect(findPathLineLinks('see package.json and README.md').map((l) => l.path)).toEqual([
+        'package.json',
+        'README.md',
+      ]);
+    });
+
+    it('leaves a sentence-ending period out of the link', () => {
+      expect(findPathLineLinks('see src/foo.ts.')).toEqual([
+        { path: 'src/foo.ts', line: null, index: 4, length: 10 },
+      ]);
+    });
+
+    it('links a path in parentheses or backticks', () => {
+      expect(findPathLineLinks('(src/a.ts) `src/b.ts`').map((l) => l.path)).toEqual([
+        'src/a.ts',
+        'src/b.ts',
+      ]);
+    });
+
+    it('finds bare and path:line links on one line', () => {
+      expect(
+        findPathLineLinks('src/a.ts then src/b.ts:3').map((l) => ({ path: l.path, line: l.line })),
+      ).toEqual([
+        { path: 'src/a.ts', line: null },
+        { path: 'src/b.ts', line: 3 },
+      ]);
+    });
+
+    it.each([
+      'all tests passed',
+      'fooBar snake_case',
+      'store.getState',
+      'v1.2.3 and 3.14',
+      'Loading...',
+      'and/or client/server origin/main 2026/10/09',
+      'cd src/components',
+      'host:8080',
+    ])('does not link %j', (text) => {
+      expect(findPathLineLinks(text)).toEqual([]);
+    });
+
+    it.each([
+      'http://localhost:5173/src/App.tsx',
+      'https://x.com/login?next=/a.html',
+      'https://x.com/~u/f.md',
+      'redirect_uri=https%3A%2F%2Fconsole.anthropic.com',
+      'https://github.com/a/b.md',
+      'https://en.wikipedia.org/wiki/Foo_(bar.html)',
+      'https://x.com/?q=[a.md]',
+    ])('does not link inside the URL %j', (text) => {
+      expect(findPathLineLinks(text)).toEqual([]);
+    });
+
+    it('does not link the start of a wrapped row, but links the same text on a fresh row', () => {
+      expect(findPathLineLinks('ers/profile.json', true)).toEqual([]);
+      expect(findPathLineLinks('ers/profile.json', false)).toHaveLength(1);
+    });
+  });
 });
