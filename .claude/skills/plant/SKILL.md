@@ -328,9 +328,8 @@ small); developer works from brief ACs`, then go to step 6. The box
    cap, in one atomic write, and write the accepted findings to
    `decisions.md` yourself, since no reviewer is left to name them in
    `## Summary`. The PR is still a draft. Record each limitation the
-   reviewer's clean message names in `decisions.md` as its own entry
-   (on a resume there is no message — read the last clean round's
-   `## Summary`); never record nits. The finish gate puts every entry on
+   reviewer's clean message names in `decisions.md` as its own entry;
+   never record nits. The finish gate puts every entry on
    the PR. Every `decisions.md` entry
    you write takes the scaffold's line shape: a bare ISO timestamp at
    column 0, then ` — orchestrator: <decision>`. Go to step 10.
@@ -485,7 +484,10 @@ with the old session, so there's no live `developer3` to collide with a
 new `developer1` (`references/spawn-details.md` § Naming).
 
 `current_stage: 4` means stages 1–3 are flipped, so the re-entry point is
-the finish gate, not a stage worker — check `gh pr view --json
+the finish gate, not a stage worker. A resume never passes step 9, so
+first record any limitation in the last clean round's `## Summary` that
+`decisions.md` lacks; the session may have died between the reviewer's
+clean message and that write. Then check `gh pr view --json
 isDraft,state,mergeable` and pick up at whichever of step 10's sub-steps
 the PR's actual state implies (still draft → (a); `mergeable:
 CONFLICTING` → (c2); ready with checks pending → (b); checks failed →
