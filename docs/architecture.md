@@ -374,7 +374,7 @@ packages/web/src/
     sessionStore.ts   zustand. applyDelta is the only writer
     uiStore.ts        stage preset, slots, group order/pins, hide-dead — mirrors state.json
     localStore.ts     scroll positions, tree expansion, and other per-browser state
-    settingsStore.ts  dead-session cap from GET /settings, loaded before first render
+    settingsStore.ts  dead-session cap from GET /settings, loaded on startup
   api/
     client.ts         typed fetch wrappers
     eventSocket.ts    WS /events -> applyDelta
