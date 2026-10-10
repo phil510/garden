@@ -219,22 +219,6 @@ describe('parseConfigFile', () => {
     expect(parseConfigFile('{"deadSessionCap": 25}', '/c.json').deadSessionCap).toBe(25);
   });
 
-  it('rejects a terminalFontSize of the wrong type', () => {
-    expect(() => parseConfigFile('{"terminalFontSize": "13"}', '/c.json')).toThrow(
-      /"terminalFontSize"/,
-    );
-  });
-
-  it.each([5, 73])('rejects a terminalFontSize outside the valid range (%d)', (value) => {
-    expect(() => parseConfigFile(`{"terminalFontSize": ${String(value)}}`, '/c.json')).toThrow(
-      /"terminalFontSize"/,
-    );
-  });
-
-  it('resolves a valid terminalFontSize', () => {
-    expect(parseConfigFile('{"terminalFontSize": 18}', '/c.json').terminalFontSize).toBe(18);
-  });
-
   it.each([1, '', '   '])('rejects a claudeCommand of the wrong type or blank (%j)', (value) => {
     expect(() => parseConfigFile(`{"claudeCommand": ${JSON.stringify(value)}}`, '/c.json')).toThrow(
       /"claudeCommand"/,
@@ -407,7 +391,6 @@ describe('readConfigFile', () => {
       writeFileSync(
         path,
         JSON.stringify({
-          terminalFontSize: 1,
           ignoreAuthors: ['dependabot'],
           quietWindowMinutes: 7,
           pollIntervalMinutes: 0,

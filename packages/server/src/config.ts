@@ -17,7 +17,6 @@ export interface ConfigFile {
   readonly roots: readonly string[];
   readonly permissionMode: PermissionMode;
   readonly deadSessionCap: number;
-  readonly terminalFontSize: number;
   readonly claudeCommand: string;
   readonly ignoreAuthors: readonly string[];
   readonly quietWindowMinutes: number;
@@ -33,7 +32,6 @@ export interface Config {
   readonly claudeSessionsDir: string;
   readonly permissionMode: PermissionMode;
   readonly deadSessionCap: number;
-  readonly terminalFontSize: number;
 }
 
 export const DEFAULT_CONFIG_FILE: ConfigFile = {
@@ -41,7 +39,6 @@ export const DEFAULT_CONFIG_FILE: ConfigFile = {
   roots: ['~/Desktop/Extend'],
   permissionMode: 'default',
   deadSessionCap: 10,
-  terminalFontSize: 13,
   claudeCommand: 'claude',
   ignoreAuthors: [],
   quietWindowMinutes: 3,
@@ -61,10 +58,6 @@ function isPort(value: unknown): value is number {
 
 function isDeadSessionCap(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 1000;
-}
-
-function isTerminalFontSize(value: unknown): value is number {
-  return typeof value === 'number' && Number.isInteger(value) && value >= 6 && value <= 72;
 }
 
 export function isClaudeCommand(value: unknown): value is string {
@@ -150,7 +143,6 @@ export function parseConfigFile(text: string, source: string): ConfigFile {
     roots,
     permissionMode,
     deadSessionCap,
-    terminalFontSize,
     claudeCommand,
     ignoreAuthors,
     quietWindowMinutes,
@@ -160,7 +152,6 @@ export function parseConfigFile(text: string, source: string): ConfigFile {
     roots?: unknown;
     permissionMode?: unknown;
     deadSessionCap?: unknown;
-    terminalFontSize?: unknown;
     claudeCommand?: unknown;
     ignoreAuthors?: unknown;
     quietWindowMinutes?: unknown;
@@ -181,9 +172,6 @@ export function parseConfigFile(text: string, source: string): ConfigFile {
   if (deadSessionCap !== undefined && !isDeadSessionCap(deadSessionCap)) {
     throw new Error(`${source}: "deadSessionCap" must be an integer between 1 and 1000`);
   }
-  if (terminalFontSize !== undefined && !isTerminalFontSize(terminalFontSize)) {
-    throw new Error(`${source}: "terminalFontSize" must be an integer between 6 and 72`);
-  }
   if (claudeCommand !== undefined && !isClaudeCommand(claudeCommand)) {
     throw new Error(`${source}: "claudeCommand" must be a non-empty string`);
   }
@@ -201,7 +189,6 @@ export function parseConfigFile(text: string, source: string): ConfigFile {
     roots: (roots as readonly string[] | undefined) ?? DEFAULT_CONFIG_FILE.roots,
     permissionMode: permissionMode ?? DEFAULT_CONFIG_FILE.permissionMode,
     deadSessionCap: deadSessionCap ?? DEFAULT_CONFIG_FILE.deadSessionCap,
-    terminalFontSize: terminalFontSize ?? DEFAULT_CONFIG_FILE.terminalFontSize,
     claudeCommand: claudeCommand ?? DEFAULT_CONFIG_FILE.claudeCommand,
     ignoreAuthors: ignoreAuthors ?? DEFAULT_CONFIG_FILE.ignoreAuthors,
     quietWindowMinutes: quietWindowMinutes ?? DEFAULT_CONFIG_FILE.quietWindowMinutes,
@@ -233,7 +220,6 @@ export function loadConfig(
     claudeSessionsDir: join(home, '.claude', 'sessions'),
     permissionMode: file.permissionMode,
     deadSessionCap: file.deadSessionCap,
-    terminalFontSize: file.terminalFontSize,
   };
 }
 

@@ -351,7 +351,6 @@ export async function main(detached: boolean): Promise<void> {
       readClaudeCommand: readClaudeCommand(configAdapter),
       permissionMode: config.permissionMode,
       deadSessionCap: config.deadSessionCap,
-      terminalFontSize: config.terminalFontSize,
       configPort: configAdapter,
     },
     logger,

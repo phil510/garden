@@ -95,7 +95,6 @@ function serverWithProjection() {
     settingsPath: '/home/.garden/claude-settings.json',
     readClaudeCommand: () => ['claude'],
     deadSessionCap: 10,
-    terminalFontSize: 13,
     ...unusedPorts(),
   });
 }
@@ -123,7 +122,6 @@ describe('WS /events against the real server', () => {
       settingsPath: '/home/.garden/claude-settings.json',
       readClaudeCommand: () => ['claude'],
       deadSessionCap: 10,
-      terminalFontSize: 13,
       ...unusedPorts(),
     });
     await app.listen({ port: 0, host: '127.0.0.1' });
@@ -231,7 +229,6 @@ describe('WS /events root watches against a real watcher', () => {
       settingsPath: '/home/.garden/claude-settings.json',
       readClaudeCommand: () => ['claude'],
       deadSessionCap: 10,
-      terminalFontSize: 13,
       ...unusedPorts(),
       git,
       pipes: noPipes,

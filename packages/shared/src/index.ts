@@ -223,7 +223,6 @@ export interface ReposResponse {
 /** Body of the server's `GET /settings` response — the client-side settings from `config.json`. */
 export interface SettingsResponse {
   deadSessionCap: number;
-  terminalFontSize: number;
   claudeCommand: string;
   /** PR comment/review authors whose activity a watch does not report. */
   ignoreAuthors: string[];

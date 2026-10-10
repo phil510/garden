@@ -25,12 +25,10 @@ describe('getSettings', () => {
         read: () => ({ ...DEFAULT_CONFIG_FILE, claudeCommand: 'ec bedrock launch claude --' }),
       }),
       deadSessionCap: 25,
-      terminalFontSize: 18,
     });
 
     expect(result).toEqual({
       deadSessionCap: 25,
-      terminalFontSize: 18,
       claudeCommand: 'ec bedrock launch claude --',
       ignoreAuthors: [],
       quietWindowMinutes: 3,
@@ -45,7 +43,6 @@ describe('getSettings watch settings', () => {
     const deps = {
       configPort: fakeConfigPort({ read: () => file }),
       deadSessionCap: 10,
-      terminalFontSize: 13,
     };
 
     file = {
@@ -74,7 +71,6 @@ describe('settings round trip', () => {
           write: (patch: Parameters<typeof patchConfigFile>[1]) => patchConfigFile(path, patch),
         },
         deadSessionCap: 10,
-        terminalFontSize: 13,
       };
 
       updateSettings(deps, { pollIntervalMinutes: 12, ignoreAuthors: ['bot'] });
@@ -98,7 +94,6 @@ describe('updateSettings', () => {
           },
         }),
         deadSessionCap: 10,
-        terminalFontSize: 13,
       },
     };
   };
@@ -133,7 +128,6 @@ describe('updateSettings', () => {
         },
       }),
       deadSessionCap: 10,
-      terminalFontSize: 13,
     };
 
     for (const invalid of ['', '   ']) {
@@ -151,7 +145,6 @@ describe('updateSettings', () => {
         },
       }),
       deadSessionCap: 10,
-      terminalFontSize: 13,
     };
 
     updateSettings(deps, { claudeCommand: 'tsx scripts/fake-claude.ts' });
@@ -167,7 +160,6 @@ describe('updateSettings', () => {
         },
       }),
       deadSessionCap: 10,
-      terminalFontSize: 13,
     };
 
     expect(() => updateSettings(deps, { claudeCommand: 'claude' })).toThrow(

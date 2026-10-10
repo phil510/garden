@@ -69,7 +69,6 @@ function fakeDeps(): ServerDeps {
     settingsPath: '/home/.garden/claude-settings.json',
     readClaudeCommand: () => ['claude'],
     deadSessionCap: 10,
-    terminalFontSize: 13,
   };
 }
 

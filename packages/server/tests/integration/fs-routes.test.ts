@@ -82,7 +82,6 @@ describe('/fs routes against a real temp repo', () => {
       settingsPath: '/home/.garden/claude-settings.json',
       readClaudeCommand: () => ['claude'],
       deadSessionCap: 10,
-      terminalFontSize: 13,
     });
     return app;
   }
