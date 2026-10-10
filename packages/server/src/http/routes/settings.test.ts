@@ -56,14 +56,6 @@ function fakeDeps(overrides: Partial<ServerDeps> = {}): ServerDeps {
       respawnPane: () => Promise.reject(new Error('not used by this test')),
       killSession: () => Promise.reject(new Error('not used by this test')),
     },
-    store: {
-      read: () => {
-        throw new Error('not used by this test');
-      },
-      write: () => {
-        throw new Error('not used by this test');
-      },
-    },
     configPort: fakeConfigPort(),
     git: {
       status: () => Promise.reject(new Error('not used by this test')),

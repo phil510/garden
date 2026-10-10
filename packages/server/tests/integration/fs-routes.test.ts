@@ -63,7 +63,6 @@ describe('/fs routes against a real temp repo', () => {
         respawnPane: () => Promise.reject(new Error('not used by this test')),
         killSession: () => Promise.reject(new Error('not used by this test')),
       },
-      store: fakeStore(),
       configPort: {
         read: () => {
           throw new Error('not used by this test');

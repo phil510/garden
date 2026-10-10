@@ -66,6 +66,8 @@ function setup(options: {
   const projection = createProjection(store);
   for (const id of options.sessions ?? ['s1'])
     projection.dispatch({ type: 'session-registered', id, tmuxName: id, cwd: `/work/${id}` });
+  // Registering persists the tmux name; the tests count only the writes they provoke.
+  writes = 0;
   const deltas: Delta[] = [];
   projection.subscribe((batch) => deltas.push(...batch));
   const remoteUrls: string[] = [];

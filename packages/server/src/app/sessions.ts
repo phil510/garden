@@ -3,7 +3,7 @@ import type { EffortLevel, SessionState } from '@garden/shared';
 import type { PermissionMode } from '../config.js';
 import { deriveTmuxName } from '../domain/tmuxName.js';
 import { SessionNotFoundError } from './errors.js';
-import type { StorePort, TmuxPaneFact, TmuxPort } from './ports.js';
+import type { TmuxPaneFact, TmuxPort } from './ports.js';
 import type { Projection } from './projection.js';
 import { recordSpawn, setArchived } from './swarms.js';
 
@@ -49,7 +49,6 @@ export interface KillSessionRequest {
  *  snapshot. */
 export interface SessionsDeps {
   readonly tmux: TmuxPort;
-  readonly store: StorePort;
   readonly projection: Projection;
   readonly serverPort: number;
   readonly settingsPath: string;
@@ -77,16 +76,6 @@ export function findSession(projection: Projection, id: string): SessionState {
   const session = projection.sessions().find((candidate) => candidate.id === id);
   if (session === undefined) throw new SessionNotFoundError(`no such session: ${id}`);
   return session;
-}
-
-/** The store's uuid-to-tmux-name map, the one fact garden cannot recompute once tmux
- *  forgets a session. A null name drops the entry rather than writing a tombstone. */
-function writeTmuxName(store: StorePort, id: string, tmuxName: string | null): void {
-  const base = store.read();
-  const tmuxNames = { ...base.tmuxNames };
-  if (tmuxName === null) delete tmuxNames[id];
-  else tmuxNames[id] = tmuxName;
-  store.write({ ...base, tmuxNames });
 }
 
 /** Every tmux name currently in use, from the two sources that can each hold one the
@@ -119,8 +108,7 @@ export async function createSession(
   deps: SessionsDeps,
   request: CreateSessionRequest,
 ): Promise<CreateSessionResult> {
-  const { tmux, store, projection, serverPort, settingsPath, readClaudeCommand, permissionMode } =
-    deps;
+  const { tmux, projection, serverPort, settingsPath, readClaudeCommand, permissionMode } = deps;
 
   const panes = await tmux.listPanes();
   const takenNames = takenTmuxNames(projection, panes);
@@ -144,7 +132,6 @@ export async function createSession(
     ],
   });
 
-  writeTmuxName(store, id, tmuxName);
   projection.dispatch({ type: 'session-registered', id, tmuxName, cwd: request.cwd });
 
   if (request.callerSessionId === undefined) return { id, tmuxName };
@@ -182,8 +169,7 @@ export async function resumeSession(
   deps: SessionsDeps,
   request: ResumeSessionRequest,
 ): Promise<ResumeSessionResult> {
-  const { tmux, store, projection, serverPort, settingsPath, readClaudeCommand, permissionMode } =
-    deps;
+  const { tmux, projection, serverPort, settingsPath, readClaudeCommand, permissionMode } = deps;
   const session = findSession(projection, request.id);
   const claudeCommand = readClaudeCommand();
   const command = [
@@ -201,7 +187,6 @@ export async function resumeSession(
   let result: ResumeSessionResult;
   if (priorName !== null && panes.some((pane) => pane.session === priorName)) {
     await tmux.respawnPane({ name: priorName, command });
-    writeTmuxName(store, request.id, priorName);
     projection.dispatch({
       type: 'session-registered',
       id: request.id,
@@ -219,7 +204,6 @@ export async function resumeSession(
       sessionId: session.id,
       command,
     });
-    writeTmuxName(store, request.id, tmuxName);
     projection.dispatch({ type: 'session-registered', id: request.id, tmuxName, cwd: session.cwd });
     result = { id: request.id, tmuxName };
   }
@@ -229,13 +213,12 @@ export async function resumeSession(
 }
 
 /**
- * Kills the tmux session and drops the store's id-to-name mapping. Nothing here
- * special-cases the resulting dead state: the next tmux snapshot reports the session
- * gone, which `reduce` already turns into `dead` with no exit code.
+ * Kills the tmux session and unregisters its name, so the session reads `dead` with no tmux
+ * name straight away rather than after the next tmux snapshot.
  */
 export async function killSession(deps: SessionsDeps, request: KillSessionRequest): Promise<void> {
-  const { tmux, store, projection } = deps;
+  const { tmux, projection } = deps;
   const session = findSession(projection, request.id);
   if (session.tmuxName !== null) await tmux.killSession(session.tmuxName);
-  writeTmuxName(store, request.id, null);
+  projection.dispatch({ type: 'session-unregistered', id: request.id });
 }

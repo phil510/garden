@@ -94,6 +94,12 @@ const sequences: GardenEvent[][] = [
     { type: 'hook', payload: aHookEvent({ session_id: 'sid-3' }) },
     { type: 'session-registered', id: 'sid-3', tmuxName: 'repo-2', cwd: '/Users/dev/repo' },
   ],
+  [
+    storeLoaded,
+    transcript({}, now),
+    snapshot(false),
+    { type: 'session-unregistered', id: 'sid-1' },
+  ],
 ];
 
 describe('the delta round trip', () => {
@@ -166,6 +172,7 @@ const everyVariant: Record<GardenEvent['type'], GardenEvent> = {
     tmuxName: 'repo',
     cwd: '/Users/dev/repo',
   },
+  'session-unregistered': { type: 'session-unregistered', id: 'sid-1' },
   'transcript-changed': transcript({}, now),
   'repo-root-resolved': rootResolved,
   'branch-resolved': branchResolved,

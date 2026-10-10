@@ -154,14 +154,12 @@ async function withFakeClaudeSession(
   const watcherComplaints: string[] = [];
 
   const projection = createProjection(fakeStore());
-  const store = fakeStore();
   const claudeCommand = fakeClaudeCommand(transcriptsDir);
   const app = createGardenServer({
     projection,
     pipes: noPipes,
     rootWatches: noRootWatches,
     tmux: tmuxPort(target),
-    store,
     configPort: { read: unused, write: unused },
     git: { status: unused, workTreePrefix: unused, remoteUrl: unused },
     attach: { attach: unused },
@@ -184,7 +182,6 @@ async function withFakeClaudeSession(
     const { id, tmuxName } = await createSession(
       {
         tmux: tmuxPort(target),
-        store,
         projection,
         serverPort: port,
         settingsPath: SETTINGS_PATH,

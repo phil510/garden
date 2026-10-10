@@ -3,7 +3,7 @@ import type { SessionState, UiState } from '@garden/shared';
 import { describe, expect, it } from 'vitest';
 import type { GardenEvent } from '../domain/types.js';
 import type { OverlayState, StorePort, TmuxNewSessionRequest, TmuxPort } from './ports.js';
-import type { Projection } from './projection.js';
+import { createProjection, type Projection } from './projection.js';
 import { createSession, killSession, resumeSession } from './sessions.js';
 
 const baseUiState: UiState = {
@@ -78,7 +78,7 @@ function fakeProjection(sessions: SessionState[] = [], overrides: Partial<Projec
   return { projection, dispatched, current: () => current };
 }
 
-/** In-memory StorePort: sessions.ts's contract with the store is read-modify-write,
+/** In-memory StorePort: the projection's contract with the store is read-modify-write,
  *  so the fake has to hold what it was handed. */
 function fakeStore(initial: OverlayState = emptyOverlay) {
   let current = initial;
@@ -101,12 +101,10 @@ describe('createSession', () => {
       },
     });
     const { projection, dispatched } = fakeProjection();
-    const { store, written } = fakeStore();
 
     const result = await createSession(
       {
         tmux,
-        store,
         projection,
         serverPort: 4310,
         settingsPath: '/home/.garden/claude-settings.json',
@@ -135,7 +133,6 @@ describe('createSession', () => {
     expect(dispatched).toEqual([
       { type: 'session-registered', id: result.id, tmuxName: 'garden', cwd: '/Users/dev/garden' },
     ]);
-    expect(written().tmuxNames).toEqual({ [result.id]: 'garden' });
   });
 
   it('puts every token of a multi-token claudeCommand ahead of the session flags', async () => {
@@ -147,12 +144,10 @@ describe('createSession', () => {
       },
     });
     const { projection } = fakeProjection();
-    const { store } = fakeStore();
 
     const result = await createSession(
       {
         tmux,
-        store,
         projection,
         serverPort: 4310,
         settingsPath: '/home/.garden/claude-settings.json',
@@ -180,7 +175,6 @@ describe('createSession', () => {
       },
     });
     const { projection } = fakeProjection();
-    const { store } = fakeStore();
     const results: readonly (readonly string[])[] = [
       ['claude'],
       ['ec', 'bedrock', 'launch', 'claude', '--'],
@@ -189,7 +183,6 @@ describe('createSession', () => {
     const readClaudeCommand = () => results[readCount++] ?? ['claude'];
     const deps = {
       tmux,
-      store,
       projection,
       serverPort: 4310,
       settingsPath: '/home/.garden/claude-settings.json',
@@ -213,12 +206,10 @@ describe('createSession', () => {
       },
     });
     const { projection } = fakeProjection();
-    const { store } = fakeStore();
 
     const result = await createSession(
       {
         tmux,
-        store,
         projection,
         serverPort: 4310,
         settingsPath: '/home/.garden/claude-settings.json',
@@ -248,10 +239,8 @@ describe('createSession', () => {
       },
     });
     const { projection } = fakeProjection();
-    const { store } = fakeStore();
     const deps = {
       tmux,
-      store,
       projection,
       serverPort: 4310,
       settingsPath: '/home/.garden/claude-settings.json',
@@ -286,12 +275,10 @@ describe('createSession', () => {
   it('derives a name unique against every tmux name the projection already knows', async () => {
     const tmux = fakeTmux({ newSession: () => Promise.resolve() });
     const { projection } = fakeProjection([aSession({ tmuxName: 'garden' })]);
-    const { store } = fakeStore();
 
     const result = await createSession(
       {
         tmux,
-        store,
         projection,
         serverPort: 4310,
         settingsPath: '/home/.garden/claude-settings.json',
@@ -309,12 +296,10 @@ describe('createSession', () => {
       newSession: () => Promise.resolve(),
     });
     const { projection } = fakeProjection([]);
-    const { store } = fakeStore();
 
     const result = await createSession(
       {
         tmux,
-        store,
         projection,
         serverPort: 4310,
         settingsPath: '/home/.garden/claude-settings.json',
@@ -334,12 +319,10 @@ describe('createSession', () => {
       newSession: () => Promise.resolve(),
     });
     const { projection } = fakeProjection([aSession({ tmuxName: 'garden' })]);
-    const { store } = fakeStore();
 
     const result = await createSession(
       {
         tmux,
-        store,
         projection,
         serverPort: 4310,
         settingsPath: '/home/.garden/claude-settings.json',
@@ -354,13 +337,11 @@ describe('createSession', () => {
   it('does not dispatch session-registered when the tmux port throws', async () => {
     const tmux = fakeTmux({ newSession: () => Promise.reject(new Error('tmux is not installed')) });
     const { projection, dispatched } = fakeProjection();
-    const { store, written } = fakeStore();
 
     await expect(
       createSession(
         {
           tmux,
-          store,
           projection,
           serverPort: 4310,
           settingsPath: '/home/.garden/claude-settings.json',
@@ -370,18 +351,15 @@ describe('createSession', () => {
       ),
     ).rejects.toThrow('tmux is not installed');
     expect(dispatched).toEqual([]);
-    expect(written().tmuxNames).toEqual({});
   });
 
   it('records the caller as parent when callerSessionId resolves to a known session', async () => {
     const tmux = fakeTmux({ newSession: () => Promise.resolve() });
     const { projection, current } = fakeProjection([aSession({ id: 'caller', title: 'Caller' })]);
-    const { store } = fakeStore();
 
     const result = await createSession(
       {
         tmux,
-        store,
         projection,
         serverPort: 4310,
         settingsPath: '/home/.garden/claude-settings.json',
@@ -398,12 +376,10 @@ describe('createSession', () => {
   it('sets unknownCaller instead of throwing when callerSessionId does not resolve', async () => {
     const tmux = fakeTmux({ newSession: () => Promise.resolve() });
     const { projection, dispatched, current } = fakeProjection([]);
-    const { store } = fakeStore();
 
     const result = await createSession(
       {
         tmux,
-        store,
         projection,
         serverPort: 4310,
         settingsPath: '/home/.garden/claude-settings.json',
@@ -434,12 +410,10 @@ describe('resumeSession', () => {
       },
     });
     const { projection, dispatched } = fakeProjection([deadSession]);
-    const { store, written } = fakeStore();
 
     const result = await resumeSession(
       {
         tmux,
-        store,
         projection,
         serverPort: 4310,
         settingsPath,
@@ -455,7 +429,6 @@ describe('resumeSession', () => {
     expect(dispatched).toEqual([
       { type: 'session-registered', id: 'sid-1', tmuxName: 'garden', cwd: '/Users/dev/garden' },
     ]);
-    expect(written().tmuxNames).toEqual({ 'sid-1': 'garden' });
   });
 
   it('adds --permission-mode bypassPermissions to the respawnPane command when configured', async () => {
@@ -468,12 +441,10 @@ describe('resumeSession', () => {
       },
     });
     const { projection } = fakeProjection([deadSession]);
-    const { store } = fakeStore();
 
     await resumeSession(
       {
         tmux,
-        store,
         projection,
         serverPort: 4310,
         settingsPath,
@@ -509,12 +480,10 @@ describe('resumeSession', () => {
       },
     });
     const { projection } = fakeProjection([deadSession]);
-    const { store } = fakeStore();
 
     await resumeSession(
       {
         tmux,
-        store,
         projection,
         serverPort: 4310,
         settingsPath,
@@ -551,12 +520,10 @@ describe('resumeSession', () => {
       },
     });
     const { projection } = fakeProjection([deadSession]);
-    const { store } = fakeStore();
 
     await resumeSession(
       {
         tmux,
-        store,
         projection,
         serverPort: 4310,
         settingsPath,
@@ -583,12 +550,10 @@ describe('resumeSession', () => {
       },
     });
     const { projection } = fakeProjection([deadSession]);
-    const { store } = fakeStore();
 
     await resumeSession(
       {
         tmux,
-        store,
         projection,
         serverPort: 4310,
         settingsPath,
@@ -627,12 +592,10 @@ describe('resumeSession', () => {
       },
     });
     const { projection, dispatched } = fakeProjection([deadSession]);
-    const { store, written } = fakeStore();
 
     const result = await resumeSession(
       {
         tmux,
-        store,
         projection,
         serverPort: 4310,
         settingsPath,
@@ -654,7 +617,6 @@ describe('resumeSession', () => {
     expect(dispatched).toEqual([
       { type: 'session-registered', id: 'sid-1', tmuxName: 'garden', cwd: '/Users/dev/garden' },
     ]);
-    expect(written().tmuxNames).toEqual({ 'sid-1': 'garden' });
   });
 
   it('derives a fresh name unique against a live tmux session the projection has lost track of', async () => {
@@ -674,12 +636,10 @@ describe('resumeSession', () => {
       },
     });
     const { projection } = fakeProjection([staleSession]);
-    const { store } = fakeStore();
 
     const result = await resumeSession(
       {
         tmux,
-        store,
         projection,
         serverPort: 4310,
         settingsPath,
@@ -706,13 +666,11 @@ describe('resumeSession', () => {
       respawnPane: () => Promise.reject(new Error('tmux is not installed')),
     });
     const { projection, dispatched } = fakeProjection([deadSession]);
-    const { store } = fakeStore();
 
     await expect(
       resumeSession(
         {
           tmux,
-          store,
           projection,
           serverPort: 4310,
           settingsPath,
@@ -730,13 +688,11 @@ describe('resumeSession', () => {
       newSession: () => Promise.reject(new Error('tmux is not installed')),
     });
     const { projection, dispatched } = fakeProjection([deadSession]);
-    const { store } = fakeStore();
 
     await expect(
       resumeSession(
         {
           tmux,
-          store,
           projection,
           serverPort: 4310,
           settingsPath,
@@ -765,12 +721,10 @@ describe('resumeSession', () => {
         return overlay;
       },
     });
-    const { store } = fakeStore();
 
     await resumeSession(
       {
         tmux,
-        store,
         projection,
         serverPort: 4310,
         settingsPath,
@@ -788,14 +742,12 @@ describe('resumeSession', () => {
       respawnPane: () => Promise.resolve(),
     });
     const { projection: soloProjection } = fakeProjection([deadSession]);
-    const { store: soloStore } = fakeStore();
 
     // No swarm at all: placementOf's default ("no placement") short-circuits before
     // uiState()/updateOverlay are ever called, so nothing needs overriding.
     await resumeSession(
       {
         tmux,
-        store: soloStore,
         projection: soloProjection,
         serverPort: 4310,
         settingsPath,
@@ -819,12 +771,10 @@ describe('resumeSession', () => {
         return next;
       },
     });
-    const { store: memberStore } = fakeStore();
 
     await resumeSession(
       {
         tmux,
-        store: memberStore,
         projection: memberProjection,
         serverPort: 4310,
         settingsPath,
@@ -840,13 +790,11 @@ describe('resumeSession', () => {
   it('throws for an id the projection does not know', async () => {
     const tmux = fakeTmux();
     const { projection } = fakeProjection([]);
-    const { store } = fakeStore();
 
     await expect(
       resumeSession(
         {
           tmux,
-          store,
           projection,
           serverPort: 4310,
           settingsPath,
@@ -859,7 +807,7 @@ describe('resumeSession', () => {
 });
 
 describe('killSession', () => {
-  it('kills the tmux session and drops the store mapping', async () => {
+  it('kills the tmux session and unregisters its name', async () => {
     const killed: string[] = [];
     const tmux = fakeTmux({
       killSession: (name) => {
@@ -867,26 +815,13 @@ describe('killSession', () => {
         return Promise.resolve();
       },
     });
-    const { projection } = fakeProjection([aSession({ id: 'sid-1', tmuxName: 'garden' })]);
-    const { store, written } = fakeStore({
-      version: 1,
-      tmuxNames: { 'sid-1': 'garden', 'sid-2': 'other' },
-      groups: {},
-      stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
-      swarms: [],
-      placements: {},
-      swarmOrder: [],
-      collapsedSwarms: [],
-      hideDeadSwarms: [],
-      watches: [],
-      digests: [],
-      pipes: {},
-    });
+    const { projection, dispatched } = fakeProjection([
+      aSession({ id: 'sid-1', tmuxName: 'garden' }),
+    ]);
 
     await killSession(
       {
         tmux,
-        store,
         projection,
         serverPort: 4310,
         settingsPath: '/x',
@@ -896,59 +831,42 @@ describe('killSession', () => {
     );
 
     expect(killed).toEqual(['garden']);
-    expect(written().tmuxNames).toEqual({ 'sid-2': 'other' });
+    expect(dispatched).toEqual([{ type: 'session-unregistered', id: 'sid-1' }]);
   });
 
-  it('leaves the overlay watches intact across a kill and a resume', async () => {
-    const watch = {
-      id: 'w1',
-      sessionId: 'sid-1',
-      repo: 'acme/widgets',
-      pr: 7,
-      kinds: ['review', 'closed'] as const,
-      createdAt: 1,
-      cursor: { etag: 'abc' },
-      pendingDigest: null,
-      status: 'active' as const,
-    };
-    const tmux = fakeTmux({
-      killSession: () => Promise.resolve(),
-      listPanes: () => Promise.resolve([]),
-      newSession: () => Promise.resolve(),
-    });
-    const { projection } = fakeProjection([
-      aSession({ id: 'sid-1', cwd: '/Users/dev/garden', tmuxName: 'garden' }),
-    ]);
-    const { store, written } = fakeStore({
-      ...emptyOverlay,
-      tmuxNames: { 'sid-1': 'garden' },
-      watches: [watch],
-    });
-    const deps = {
-      tmux,
-      store,
-      projection,
-      serverPort: 4310,
-      settingsPath: '/x',
-      readClaudeCommand: () => ['claude'],
-    };
+  it('leaves no entry for the session in the store or in the projection', async () => {
+    const { store, written } = fakeStore();
+    const projection = createProjection(store);
+    for (const [id, tmuxName] of [
+      ['sid-1', 'garden'],
+      ['sid-2', 'other'],
+    ] as const) {
+      projection.dispatch({ type: 'session-registered', id, tmuxName, cwd: '/Users/dev/garden' });
+    }
 
-    await killSession(deps, { id: 'sid-1' });
-    await resumeSession(deps, { id: 'sid-1' });
+    await killSession(
+      {
+        tmux: fakeTmux({ killSession: () => Promise.resolve() }),
+        projection,
+        serverPort: 4310,
+        settingsPath: '/x',
+        readClaudeCommand: () => ['claude'],
+      },
+      { id: 'sid-1' },
+    );
 
-    expect(written().watches).toEqual([watch]);
+    expect(written().tmuxNames).toEqual({ 'sid-2': 'other' });
+    expect(projection.sessions().find((s) => s.id === 'sid-1')?.tmuxName).toBeNull();
   });
 
   it('does not call tmux when the session already has no tmux name', async () => {
     const tmux = fakeTmux({ killSession: () => Promise.reject(new Error('should not be called')) });
     const { projection } = fakeProjection([aSession({ id: 'sid-1', tmuxName: null })]);
-    const { store } = fakeStore();
 
     await expect(
       killSession(
         {
           tmux,
-          store,
           projection,
           serverPort: 4310,
           settingsPath: '/x',
@@ -962,13 +880,11 @@ describe('killSession', () => {
   it('throws for an id the projection does not know', async () => {
     const tmux = fakeTmux();
     const { projection } = fakeProjection([]);
-    const { store } = fakeStore();
 
     await expect(
       killSession(
         {
           tmux,
-          store,
           projection,
           serverPort: 4310,
           settingsPath: '/x',

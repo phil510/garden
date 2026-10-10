@@ -69,7 +69,6 @@ describe('resuming a session against real tmux', () => {
       const result = await resumeSession(
         {
           tmux: tmuxPort(target),
-          store: fakeStore(),
           projection,
           serverPort: 4310,
           settingsPath: '/nonexistent/claude-settings.json',
@@ -106,7 +105,6 @@ describe('resuming a session against real tmux', () => {
       const result = await resumeSession(
         {
           tmux: tmuxPort(target),
-          store: fakeStore(),
           projection,
           serverPort: 4310,
           settingsPath: '/nonexistent/claude-settings.json',
