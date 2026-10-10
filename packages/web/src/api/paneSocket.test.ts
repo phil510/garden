@@ -1,32 +1,8 @@
+import { PANE_CLOSE_CODES } from '@garden/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { FakeWebSocket } from './fakeWebSocket.fixture';
 import { connectPaneSocket, paneCloseDisposition } from './paneSocket';
-
-class MockWebSocket {
-  static readonly CONNECTING = 0;
-  static readonly OPEN = 1;
-  static instances: MockWebSocket[] = [];
-
-  readyState = MockWebSocket.CONNECTING;
-  binaryType = '';
-  private readonly listeners = new Map<string, Array<(event: unknown) => void>>();
-
-  constructor(public readonly url: string) {
-    MockWebSocket.instances.push(this);
-  }
-
-  addEventListener(type: string, listener: (event: unknown) => void): void {
-    const forType = this.listeners.get(type) ?? [];
-    forType.push(listener);
-    this.listeners.set(type, forType);
-  }
-
-  send(): void {}
-  close(): void {}
-
-  emit(type: string, event: unknown = {}): void {
-    for (const listener of this.listeners.get(type) ?? []) listener(event);
-  }
-}
+import { nextReconnectDelayMs } from './reconnectingSocket';
 
 describe('paneCloseDisposition', () => {
   it('disposes when the server refused a state no retry moves', () => {
@@ -51,15 +27,20 @@ describe('paneCloseDisposition', () => {
   });
 });
 
-describe('connectPaneSocket frame decoding', () => {
+describe('connectPaneSocket', () => {
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
-    MockWebSocket.instances = [];
+    FakeWebSocket.instances = [];
   });
 
-  it('decodes a multi-byte UTF-8 character split across two frames', () => {
+  function stubGlobals() {
     vi.stubGlobal('location', { protocol: 'http:', host: 'localhost:4310' });
-    vi.stubGlobal('WebSocket', MockWebSocket);
+    vi.stubGlobal('WebSocket', FakeWebSocket);
+  }
+
+  it('decodes a multi-byte UTF-8 character split across two frames', () => {
+    stubGlobals();
 
     const chunks: string[] = [];
     connectPaneSocket(
@@ -67,7 +48,7 @@ describe('connectPaneSocket frame decoding', () => {
       { cols: 80, rows: 24 },
       { onData: (chunk) => chunks.push(chunk), onClose: () => {} },
     );
-    const socket = MockWebSocket.instances.at(-1)!;
+    const socket = FakeWebSocket.instances.at(-1)!;
 
     // 'é' (U+00E9) encodes to the two UTF-8 bytes 0xC3 0xA9; split them across separate frames.
     socket.emit('message', { data: new Uint8Array([0xc3]).buffer });
@@ -75,5 +56,35 @@ describe('connectPaneSocket frame decoding', () => {
 
     expect(chunks.join('')).toBe('é');
     expect(chunks.join('')).not.toContain('�');
+  });
+
+  it('reconnects at the size the pane is now, not the size it was opened at', () => {
+    vi.useFakeTimers();
+    stubGlobals();
+
+    const pane = connectPaneSocket(
+      'session-1',
+      { cols: 80, rows: 24 },
+      { onData: () => {}, onClose: () => {} },
+    );
+    pane.resize({ cols: 100, rows: 30 });
+    FakeWebSocket.instances.at(-1)!.emit('close', { code: 1006 });
+    vi.advanceTimersByTime(nextReconnectDelayMs(0));
+
+    expect(FakeWebSocket.instances).toHaveLength(2);
+    expect(FakeWebSocket.instances.at(-1)!.url).toContain('cols=100&rows=30');
+  });
+
+  it('reports a close the pty settled and does not reconnect', () => {
+    vi.useFakeTimers();
+    stubGlobals();
+
+    const onClose = vi.fn();
+    connectPaneSocket('session-1', { cols: 80, rows: 24 }, { onData: () => {}, onClose });
+    FakeWebSocket.instances.at(-1)!.emit('close', { code: PANE_CLOSE_CODES.PTY_EXITED });
+
+    vi.runAllTimers();
+    expect(onClose).toHaveBeenCalledWith(1000);
+    expect(FakeWebSocket.instances).toHaveLength(1);
   });
 });
