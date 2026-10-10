@@ -328,8 +328,8 @@ decides whether a fix round runs at all.
    b. Send your done message and stop. If `## Summary` names
    limitations you accepted, list each in that message, one short line
    apiece: the orchestrator routes off the message, so a limitation left
-   only in the round file never reaches the PR. The orchestrator moves to stage
-   4 — flipping the PR to ready and blocking on CI — once every
+   only in the round file never reaches the PR. The orchestrator moves to
+   stage 4 — flipping the PR to ready and blocking on CI — once every
    round is clean; that flip is never yours to make, not on a clean
    round, not as a convenience.
 
@@ -380,9 +380,9 @@ review-round-${ROUND}.md`. The event file comes first so the
    the developer — you don't), a clean round if the user accepts the
    artifact as is (take step 7 — flip the stage-3 checkbox — naming
    the accepted findings as limitations in `## Summary`, as for
-   advisory limitations, and listing them in the clean message). If you are gone by then,
-   no replacement reviewer is spawned: the orchestrator reads the same
-   Resolution from disk and carries it out itself.
+   advisory limitations, and listing them in the clean message). If you
+   are gone by then, no replacement reviewer is spawned: the orchestrator
+   reads the same Resolution from disk and carries it out itself.
 
 ## Signalling
 
