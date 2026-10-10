@@ -39,10 +39,7 @@ garden reads `~/.garden/config.json` on startup, writing a default one on first 
 - `permissionMode` — `"default"` or `"bypassPermissions"`. Default `"default"`. `"bypassPermissions"`
   skips Claude Code's permission prompts for every session garden spawns or resumes.
 - `deadSessionCap` — dead sessions shown per repo group before "Show N more"; a whole number
-  1–1000. Default `10`.
-- `terminalFontSize` — font size of the terminal panes in px; a whole number 6–72. Default `13`.
-  The surrounding UI is unaffected. Both this and `deadSessionCap` apply after a restart and a
-  page reload.
+  1–1000. Default `10`. Applies after a restart and a page reload.
 - `claudeCommand` — the command used to launch Claude Code. Default `"claude"`. Split on
   whitespace into argv with no shell-style quoting or escaping, so a wrapper like
   `"ec bedrock launch claude --"` works but a quoted argument does not. Editable from the

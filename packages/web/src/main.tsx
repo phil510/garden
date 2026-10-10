@@ -11,12 +11,10 @@ if (!root) {
   throw new Error('missing #root element');
 }
 
-// Settings load before the first render: panes attach as soon as the first snapshot arrives, so
-// a fetch started from an effect could lose the race and build a terminal at the default size.
+// Settings load before the first render so the sidebar doesn't first draw at the default cap and
+// then re-flow once the configured one arrives.
 getSettings()
-  .then(({ deadSessionCap, terminalFontSize }) =>
-    useSettingsStore.getState().setSettings({ deadSessionCap, terminalFontSize }),
-  )
+  .then(({ deadSessionCap }) => useSettingsStore.getState().setSettings({ deadSessionCap }))
   .catch(reportCommandFailure)
   .finally(() => {
     createRoot(root).render(

@@ -9,7 +9,6 @@ import { resolvePathLineTarget } from '../features/filetree/projectPaths.js';
 import { refreshRepoList } from '../features/sidebar/repoListCache.js';
 import { useLocalStore } from '../state/localStore.js';
 import { useSessionStore } from '../state/sessionStore.js';
-import { useSettingsStore } from '../state/settingsStore.js';
 import { openExternalLink } from './hyperlinks.js';
 import { findMarkdownLinks } from './markdownLinks.js';
 import { findPathLineLinks } from './pathLineLinks.js';
@@ -81,7 +80,7 @@ function createPane(sessionId: string, container: HTMLElement, epoch: number): P
   // `unicode` is one of xterm.js's proposed (non-stable) APIs, gated behind allowProposedApi —
   // without it, terminal.unicode throws at runtime instead of at the type level.
   const terminal = new Terminal({
-    fontSize: useSettingsStore.getState().terminalFontSize,
+    fontSize: 13,
     theme: terminalTheme(readCssVar),
     allowProposedApi: true,
     // xterm's own OSC 8 link provider requires a scheme-qualified `http:`/`https:` URL and

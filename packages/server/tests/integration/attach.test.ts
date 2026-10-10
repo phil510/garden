@@ -165,7 +165,6 @@ describe('WS /attach/:id against a real tmux pane and a real pty', () => {
         settingsPath: '/nonexistent/claude-settings.json',
         readClaudeCommand: () => ['claude'],
         deadSessionCap: 10,
-        terminalFontSize: 13,
         git: unusedGitPort(),
         configPort: unusedConfigPort(),
         repos: {
@@ -255,7 +254,6 @@ describe('WS /attach/:id against a real tmux pane and a real pty', () => {
         settingsPath: '/nonexistent/claude-settings.json',
         readClaudeCommand: () => ['claude'],
         deadSessionCap: 10,
-        terminalFontSize: 13,
         git: unusedGitPort(),
         configPort: unusedConfigPort(),
         repos: {

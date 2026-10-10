@@ -97,7 +97,6 @@ describe('garden events --follow against the real server', () => {
         settingsPath: '/home/.garden/claude-settings.json',
         readClaudeCommand: () => ['claude'],
         deadSessionCap: 10,
-        terminalFontSize: 13,
         rootWatches: noRootWatches,
         tmux: {
           listPanes: notUsed,

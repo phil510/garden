@@ -80,7 +80,6 @@ describe('fieldsFromSettings', () => {
   it('round-trips through toSettingsRequest', () => {
     const settings = {
       deadSessionCap: 10,
-      terminalFontSize: 13,
       claudeCommand: 'claude',
       ignoreAuthors: ['a', 'b'],
       quietWindowMinutes: 0,

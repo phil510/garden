@@ -153,7 +153,6 @@ function realServer(projection: Projection) {
     settingsPath: '/home/.garden/claude-settings.json',
     readClaudeCommand: () => ['claude'],
     deadSessionCap: 10,
-    terminalFontSize: 13,
   });
 }
 

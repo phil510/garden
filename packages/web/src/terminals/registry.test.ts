@@ -48,11 +48,8 @@ class FakeTerminal {
   private readonly bufferLines = new Map<number, FakeBufferLine>();
   readonly buffer = { active: { getLine: (n: number) => this.bufferLines.get(n) } };
 
-  readonly fontSize: number | undefined;
-
-  constructor(options?: { linkHandler?: ILinkHandler; fontSize?: number }) {
+  constructor(options?: { linkHandler?: ILinkHandler }) {
     this.linkHandler = options?.linkHandler;
-    this.fontSize = options?.fontSize;
     FakeTerminal.instances.push(this);
   }
   loadAddon(addon: unknown): void {
@@ -341,16 +338,6 @@ describe('attachPane', () => {
     attachPane('session-b', aContainer({ width: '800px', height: '600px' }), 0);
 
     expect(lastTerminal().loadedAddons).toContainEqual(expect.any(FakeWebLinksAddon));
-  });
-
-  it('constructs a new pane at the configured terminal font size', async () => {
-    const { attachPane } = await loadRegistry();
-    const { useSettingsStore } = await import('../state/settingsStore.js');
-    useSettingsStore.setState({ terminalFontSize: 18 });
-
-    attachPane('session-a', aContainer({ width: '800px', height: '600px' }), 0);
-
-    expect(lastTerminal().fontSize).toBe(18);
   });
 
   it('registers the markdown-link provider, then path:line, then the web links addon, so an overlapping match resolves to the most specific provider', async () => {

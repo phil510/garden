@@ -7,12 +7,11 @@ import {
 } from '../config.js';
 import type { ConfigPort } from './ports.js';
 
-/** `deadSessionCap` and `terminalFontSize` stay boot-time-static deps — the editable keys go
+/** `deadSessionCap` stays a boot-time-static dep — the editable keys go
  *  through the `ConfigPort` for a live read. */
 export interface SettingsDeps {
   readonly configPort: ConfigPort;
   readonly deadSessionCap: number;
-  readonly terminalFontSize: number;
 }
 
 /**
@@ -25,7 +24,6 @@ export function getSettings(deps: SettingsDeps): SettingsResponse {
   const file = deps.configPort.read();
   return {
     deadSessionCap: deps.deadSessionCap,
-    terminalFontSize: deps.terminalFontSize,
     claudeCommand: file.claudeCommand,
     ignoreAuthors: [...file.ignoreAuthors],
     quietWindowMinutes: file.quietWindowMinutes,

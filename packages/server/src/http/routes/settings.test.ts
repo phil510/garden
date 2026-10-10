@@ -75,7 +75,6 @@ function fakeDeps(overrides: Partial<ServerDeps> = {}): ServerDeps {
     settingsPath: '/home/.garden/claude-settings.json',
     readClaudeCommand: () => ['claude'],
     deadSessionCap: 25,
-    terminalFontSize: 18,
     ...overrides,
   };
 }
@@ -95,7 +94,6 @@ describe('GET /settings', () => {
       expect(response.statusCode).toBe(200);
       expect(response.json()).toEqual({
         deadSessionCap: 25,
-        terminalFontSize: 18,
         claudeCommand: 'ec bedrock launch claude --',
         ignoreAuthors: [],
         quietWindowMinutes: 3,

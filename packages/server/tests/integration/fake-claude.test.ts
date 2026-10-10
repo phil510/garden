@@ -168,7 +168,6 @@ async function withFakeClaudeSession(
     settingsPath: SETTINGS_PATH,
     readClaudeCommand: () => claudeCommand,
     deadSessionCap: 10,
-    terminalFontSize: 13,
   });
   const watcher = watchTranscripts(transcriptsDir, roots, (event) => projection.dispatch(event), {
     warn: (message) => watcherComplaints.push(message),
