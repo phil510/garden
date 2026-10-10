@@ -267,7 +267,10 @@ decides whether a fix round runs at all.
    it in `## Summary`, which is how a reader of this file tells it from
    a nit. Only named limitations travel on — your clean message lists
    them, the orchestrator records each in `decisions.md`, and the
-   finish gate puts every entry on the PR. Nits stay here. Pure praise
+   finish gate puts every entry on the PR. On a clean round, re-name
+   any limitation from an earlier round's `## Summary` that still
+   holds, since a round that needed fixes never sends a clean message.
+   Nits stay here. Pure praise
    and observations belong in `## Summary`, not as findings.
 
    Round-level cleanness drives the flow, and the round cap escalates
