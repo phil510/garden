@@ -321,18 +321,17 @@ small); developer works from brief ACs`, then go to step 6. The box
    user with the findings summary. Typical resolutions are one fix round
    plus a re-review, or accept as is, with the decision messaged back to
    the reviewer (step 11).
-9. **Reviewer clean** → it has already flipped stage 3. An accepted
-   `review_cap` also lands here when its reviewer is gone (a resume, or
-   teammate-terminated), and then no reviewer is left to
-   flip: you tick stage 3 yourself, with a `> NOTE` recording the accepted
-   cap, in one atomic write, and write the accepted findings to
-   `decisions.md` yourself, since no reviewer is left to name them in
-   `## Summary`. The PR is still a draft. Record each limitation the
-   reviewer's clean message names in `decisions.md` as its own entry;
-   never record nits. The finish gate puts every entry on
-   the PR. Every `decisions.md` entry
-   you write takes the scaffold's line shape: a bare ISO timestamp at
-   column 0, then ` — orchestrator: <decision>`. Go to step 10.
+9. **Reviewer clean** → it has already flipped stage 3. The PR is still a
+   draft. Record each limitation the reviewer's clean message names in
+   `decisions.md` as its own entry; never record nits. The finish gate puts
+   every entry on the PR. An accepted `review_cap` also lands here when its
+   reviewer is gone (a resume, or teammate-terminated): no reviewer is left
+   to flip stage 3 or to name limitations in `## Summary`, so you tick stage
+   3 yourself, with a `> NOTE` recording the accepted cap, in one atomic
+   write, and write the accepted findings to `decisions.md` yourself. Every
+   `decisions.md` entry you write takes the scaffold's line shape: a bare
+   ISO timestamp at column 0, then ` — orchestrator: <decision>`. Go to
+   step 10.
 10. **Stage 4 — the finish gate.**
     a. First put every `decisions.md` entry into the PR description,
     because ready is the moment humans start reading the PR and under `ask`
