@@ -216,8 +216,9 @@ decides whether a fix round runs at all.
 
    <brief narrative — themes across findings, anything the
    orchestrator should weigh against Autonomy bounds. Name each
-   advisory you accept as a limitation; advisories left unnamed are
-   nits>
+   advisory you accept as a limitation (behaviour someone could hit
+   under conditions you judged out of reach); advisories left unnamed
+   are nits>
    ```
 
    The `## Summary` is a diagnosis channel, not a recap. `Clean:` tells
@@ -263,8 +264,9 @@ decides whether a fix round runs at all.
    skips them entirely (no commit, no reply, no autonomy gate); they
    stay in the round file as the audit trail, which is where the user
    finds a nit or a future cleanup if they choose to act post-merge.
-   A limitation you accepted rather than fixed is the exception: name
-   it in `## Summary`, which is how a reader of this file tells it from
+   A limitation you accepted rather than fixed is the exception — it
+   is behaviour someone could hit under conditions you judged out of
+   reach; polish, style and prose are nits. Name it in `## Summary`, which is how a reader of this file tells it from
    a nit. Only named limitations travel on — your clean message lists
    them, the orchestrator records each in `decisions.md`, and the
    finish gate puts every entry on the PR. On a clean round, re-name
