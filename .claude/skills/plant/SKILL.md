@@ -335,7 +335,11 @@ small); developer works from brief ACs`, then go to step 6. The box
    you write takes the scaffold's line shape: a bare ISO timestamp at
    column 0, then ` — orchestrator: <decision>`. Go to step 10.
 10. **Stage 4 — the finish gate.**
-    a. `gh pr ready <url>` — flip the draft to ready. Then check
+    a. First put every `decisions.md` entry into the PR description,
+    because ready is the moment humans start reading the PR and under `ask`
+    the merge decision is handed over before step 12 runs; step 12a stays
+    as the cross-check. Then `gh pr ready <url>` — flip the draft to
+    ready. Then check
     `gh pr view <url> --json mergeable` before waiting on anything: a
     conflicted PR often never gets CI, so `gh pr checks` reports no
     checks and `--watch` alone can stall on it. `CONFLICTING` → (c2), not
