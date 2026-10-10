@@ -287,18 +287,18 @@ decides whether a fix round runs at all.
    AC.
 
    Disposition, not the `blocker | major | minor | nit` label, gates
-   the verdict, and disposition is a reachability call: a round whose
+   the verdict, and disposition is a call against step 5's bar: a round whose
    every finding is `advisory` is clean, with any you accept as
    limitations named in `## Summary` for the PR to disclose. Severity is
    a separate axis — how bad the finding is if someone hits it. Its
    direction across rounds, on text the previous fixes wrote, is the
    trajectory the orchestrator reads for churn: holding or rising is
    churn. Falling severity does not by itself make a finding
-   `advisory`; a minor defect a user will hit stays `fix`. What does is
-   falling reachability (step 2): findings a user would not hit are
-   `advisory`, and a round of only those closes clean with the
-   limitations named. Clean with limitations noted is a real outcome;
-   swallowing them is not.
+   `advisory`; a minor defect a user will hit stays `fix`. What makes a
+   finding `advisory` is step 5's bar: findings a user would not hit,
+   and nits and polish, are `advisory`, and a round of only those
+   closes clean with the limitations named. Clean with limitations
+   noted is a real outcome; swallowing them is not.
 
    Two checks on the verdict. A clean round 1 on a substantive change
    deserves a second read of the diff before you believe it — but step 3
