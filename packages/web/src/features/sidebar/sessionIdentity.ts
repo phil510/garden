@@ -13,8 +13,7 @@ export interface MetaLineSegment {
 }
 
 /** The meta line's segments, in display order, with absent fields dropped rather than
- *  rendered empty — the caller joins what comes back with separators, so an omitted segment
- *  never produces a stray `·`. */
+ *  rendered empty, so the caller never lays out a blank segment. */
 export function metaLineSegments(
   session: Pick<SessionState, 'claudeSessionName' | 'lastActivity'>,
   now: number,
