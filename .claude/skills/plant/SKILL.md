@@ -336,8 +336,11 @@ small); developer works from brief ACs`, then go to step 6. The box
     a. First put every `decisions.md` entry into the PR description,
     because ready is the moment humans start reading the PR and under `ask`
     the merge decision is handed over before step 12 runs; step 12a stays
-    as the cross-check. Then `gh pr ready <url>` — flip the draft to
-    ready. Then check
+    as the cross-check. Write the new body to a file, check it with
+    `test -s <file>`, then `gh pr edit <url> --body-file <file>` — an
+    empty file silently blanks the PR — and read it back with
+    `gh pr view <url> --json body` to confirm it landed. Then
+    `gh pr ready <url>` — flip the draft to ready. Then check
     `gh pr view <url> --json mergeable` before waiting on anything: a
     conflicted PR often never gets CI, so `gh pr checks` reports no
     checks and `--watch` alone can stall on it. `CONFLICTING` → (c2), not
