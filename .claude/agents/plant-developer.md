@@ -204,9 +204,9 @@ round.
 3. **Filter advisory findings.** Drop any finding with
    `Disposition: advisory` from the working set before any further
    processing. You do not commit, gate, or touch the changeset for
-   them. They remain in the round file as the audit trail — nothing
-   downstream collects them, so the round file is where the user finds
-   them if they choose to act post-merge.
+   them. They remain in the round file as the audit trail. Limitations
+   the reviewer accepted reach the PR through the reviewer and
+   orchestrator, not through you.
 4. **Autonomy gate.** For each remaining `fix` finding, check the
    brief's Autonomy bounds. If any finding falls under `Ask first:` or
    `Never:`, escalate `autonomy_exceeded` before doing anything. Do not

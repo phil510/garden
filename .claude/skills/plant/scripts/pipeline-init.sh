@@ -121,9 +121,9 @@ DTMP="$DECISIONS.tmp.$$"
 {
   printf '# Decisions — %s\n\n' "$BRANCH"
   printf 'Append-only log of two kinds of entry: gates auto-resolved instead of escalating, and\n'
-  printf 'limitations the orchestrator accepted. Each records what was decided, what settled it,\n'
+  printf 'limitations the reviewer accepted. Each records what was decided, what settled it,\n'
   printf 'and which doc or finding backs it.\n\n'
-  printf '<!-- Entries go below, one per auto-resolved gate. Each starts at column 0\n'
+  printf '<!-- Entries go below, one per auto-resolved gate or accepted limitation. Each starts at column 0\n'
   printf 'with a bare ISO timestamp, then " — <actor>: <decision>".\n'
   printf 'e.g. 2026-09-12T14:03:00Z — planner: interpreted "the settings panel" as the existing web/settings route, not a new one. -->\n'
 } > "$DTMP"

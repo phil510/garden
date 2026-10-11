@@ -215,7 +215,10 @@ decides whether a fix round runs at all.
    ## Summary
 
    <brief narrative — themes across findings, anything the
-   orchestrator should weigh against Autonomy bounds>
+   orchestrator should weigh against Autonomy bounds. Name each
+   advisory you accept as a limitation (behaviour someone could hit
+   under conditions you judged out of reach); advisories left unnamed
+   are nits>
    ```
 
    The `## Summary` is a diagnosis channel, not a recap. `Clean:` tells
@@ -261,10 +264,16 @@ decides whether a fix round runs at all.
    skips them entirely (no commit, no reply, no autonomy gate); they
    stay in the round file as the audit trail, which is where the user
    finds a nit or a future cleanup if they choose to act post-merge.
-   A limitation you accepted rather than fixed is the exception: name
-   it in `## Summary` too, since the summary is the only part of this
-   file that reaches the PR. Pure praise and observations belong in
-   `## Summary`, not as findings.
+   A limitation you accepted rather than fixed is the exception — it
+   is behaviour someone could hit under conditions you judged out of
+   reach; polish, style and prose are nits. Name it in `## Summary`,
+   which is how a reader of this file tells it from a nit. Only named
+   limitations travel on — your clean message lists them, the
+   orchestrator records each in `decisions.md`, and the finish gate
+   puts every entry on the PR. On a clean round, re-name any limitation
+   from an earlier round's `## Summary` that still holds, since a round
+   that needed fixes never sends a clean message. Nits stay here. Pure
+   praise and observations belong in `## Summary`, not as findings.
 
    Round-level cleanness drives the flow, and the round cap escalates
    as a whole (step 8B) — there's no per-finding `decline` or
@@ -283,10 +292,18 @@ decides whether a fix round runs at all.
    AC.
 
    Disposition, not the `blocker | major | minor | nit` label, gates
-   the verdict, and disposition is a reachability call: a round whose
-   every finding is `advisory` is clean, with those limitations named in
-   `## Summary` for the PR to disclose. Clean with limitations noted is
-   a real outcome; swallowing them is not.
+   the verdict, and disposition is a call against step 5's bar: a round whose
+   every finding is `advisory` is clean, with any you accept as
+   limitations named in `## Summary` for the PR to disclose. Severity is
+   a separate axis — how bad the finding is if someone hits it. Its
+   direction across rounds, on text the previous fixes wrote, is the
+   trajectory the orchestrator reads for churn: holding or rising is
+   churn. Falling severity does not by itself make a finding
+   `advisory`; a minor defect a user will hit stays `fix`. What makes a
+   finding `advisory` is step 5's bar: findings a user would not hit,
+   and nits and polish, are `advisory`, and a round of only those
+   closes clean with the limitations named. Clean with limitations
+   noted is a real outcome; swallowing them is not.
 
    Two checks on the verdict. A clean round 1 on a substantive change
    deserves a second read of the diff before you believe it — but step 3
@@ -308,8 +325,11 @@ decides whether a fix round runs at all.
    > NOTE <iso> — reviewer: round ${ROUND} clean; PR remains draft
    ```
 
-   b. Send your done message and stop. The orchestrator moves to stage
-   4 — flipping the PR to ready and blocking on CI — once every
+   b. Send your done message and stop. If `## Summary` names
+   limitations you accepted, list each in that message, one short line
+   apiece: the orchestrator routes off the message, so a limitation left
+   only in the round file never reaches the PR. The orchestrator moves to
+   stage 4 — flipping the PR to ready and blocking on CI — once every
    round is clean; that flip is never yours to make, not on a clean
    round, not as a convenience.
 
@@ -360,13 +380,14 @@ review-round-${ROUND}.md`. The event file comes first so the
    the developer — you don't), a clean round if the user accepts the
    artifact as is (take step 7 — flip the stage-3 checkbox — naming
    the accepted findings as limitations in `## Summary`, as for
-   advisory limitations, then signal clean). If you are gone by then,
-   no replacement reviewer is spawned: the orchestrator reads the same
-   Resolution from disk and carries it out itself.
+   advisory limitations, and listing them in the clean message). If you
+   are gone by then, no replacement reviewer is spawned: the orchestrator
+   reads the same Resolution from disk and carries it out itself.
 
 ## Signalling
 
-- **Clean:** `round ${ROUND} clean — PR remains draft`
+- **Clean:** `round ${ROUND} clean — PR remains draft`, then each
+  accepted limitation on its own line, when there are any
 - **Dirty:** `round ${ROUND} dirty — <M> fix findings in review-round-${ROUND}.md`
 - **Escalating:** `ESCALATING — see events/<iso>-escalation.md, decision needed on <X>`
 

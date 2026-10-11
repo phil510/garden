@@ -49,7 +49,8 @@ reason worth understanding, because the failure modes are silent.
   high-stakes hop warrants verification (the finish gate, pipeline
   completion, a contradictory signal) — and prefer `scripts/pipeline-status.sh`
   over raw reads. When you send a subagent to do that verifying, ask it
-  for the verdict plus a `file:line` pointer, not the evidence itself. A
+  for the verdict plus where you'd go to confirm it — a `file:line`, a
+  job name, a PR thread — not the evidence itself. A
   subagent's return lands whole in your context, so a quoted source dump
   spends there exactly what delegating it was meant to save. Polling
   costs context and tells you nothing the message won't: before a worker
@@ -311,28 +312,35 @@ small); developer works from brief ACs`, then go to step 6. The box
    previous round's own fixes — another per-finding patch round reliably
    makes it worse; use the alternative in `references/escalate-resume.md`
    § Churn in internal rounds instead. Churn means severity holding or
-   rising across rounds; findings that get less reachable each round are
-   the reviewer's to close as clean with the limitation noted, not yours
-   to re-adjudicate. Either way, carry the diagnosis into the next
-   worker's opener — information left in the round file steers nobody.
-   On `Size: small` the cap is one round, so a dirty round
-   arrives as a `review_cap` escalation carrying the round file: page the
-   user with the findings summary. Typical resolutions are one fix round
+   rising across rounds. Findings the reviewer marked `advisory`
+   because users would not hit them are its to close as clean with the
+   limitation noted, not yours to re-adjudicate. Either way, carry the
+   diagnosis into the next worker's opener — information left in the round
+   file steers nobody. On `Size: small` the cap is one round, so a dirty
+   round arrives as a `review_cap` escalation carrying the round file: page
+   the user with the findings summary. Typical resolutions are one fix round
    plus a re-review, or accept as is, with the decision messaged back to
    the reviewer (step 11).
-9. **Reviewer clean** → it has already flipped stage 3. An accepted
-   `review_cap` also lands here when its reviewer is gone (a resume, or
-   teammate-terminated), and then no reviewer is left to
-   flip: you tick stage 3 yourself, with a `> NOTE` recording the accepted
-   cap, in one atomic write, and write the accepted findings to
-   `decisions.md` yourself, since no reviewer is left to name them in
-   `## Summary`. The PR is still a draft. If the round's `## Summary`
-   names limitations to disclose, record them in `decisions.md` too; the
-   finish gate puts every entry on the PR. Every `decisions.md` entry
-   you write takes the scaffold's line shape: a bare ISO timestamp at
-   column 0, then ` — orchestrator: <decision>`. Go to step 10.
+9. **Reviewer clean** → it has already flipped stage 3. The PR is still a
+   draft. Record each limitation the reviewer's clean message names in
+   `decisions.md` as its own entry; never record nits. The finish gate puts
+   every entry on the PR. An accepted `review_cap` also lands here when its
+   reviewer is gone (a resume, or teammate-terminated): no reviewer is left
+   to flip stage 3 or to name limitations in `## Summary`, so you tick stage
+   3 yourself, with a `> NOTE` recording the accepted cap, in one atomic
+   write, and write the accepted findings to `decisions.md` yourself. Every
+   `decisions.md` entry you write takes the scaffold's line shape: a bare
+   ISO timestamp at column 0, then ` — orchestrator: <decision>`. Go to
+   step 10.
 10. **Stage 4 — the finish gate.**
-    a. `gh pr ready <url>` — flip the draft to ready. Then check
+    a. First put every `decisions.md` entry into the PR description,
+    because ready is the moment humans start reading the PR and under `ask`
+    the merge decision is handed over before step 12 runs; step 12a stays
+    as the cross-check. Write the new body to a file, check it with
+    `test -s <file>`, then `gh pr edit <url> --body-file <file>` — an
+    empty file silently blanks the PR — and read it back with
+    `gh pr view <url> --json body` to confirm it landed. Then
+    `gh pr ready <url>` — flip the draft to ready. Then check
     `gh pr view <url> --json mergeable` before waiting on anything: a
     conflicted PR often never gets CI, so `gh pr checks` reports no
     checks and `--watch` alone can stall on it. `CONFLICTING` → (c2), not
@@ -478,7 +486,10 @@ with the old session, so there's no live `developer3` to collide with a
 new `developer1` (`references/spawn-details.md` § Naming).
 
 `current_stage: 4` means stages 1–3 are flipped, so the re-entry point is
-the finish gate, not a stage worker — check `gh pr view --json
+the finish gate, not a stage worker. A resume never passes step 9, so
+first record any limitation in the last clean round's `## Summary` that
+`decisions.md` lacks; the session may have died between the reviewer's
+clean message and that write. Then check `gh pr view --json
 isDraft,state,mergeable` and pick up at whichever of step 10's sub-steps
 the PR's actual state implies (still draft → (a); `mergeable:
 CONFLICTING` → (c2); ready with checks pending → (b); checks failed →
