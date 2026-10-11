@@ -264,15 +264,20 @@ So the startup sequence is a replay, not a restore:
    not fatal to boot. Then `pipes.replay()` dispatches a `pipe-changed` (not connected) for every
    persisted pipe time, likewise logged on failure.
 4. Dispatch a full `tmux-snapshot`.
-5. Scan `<transcriptsDir>/**` and dispatch a `transcript-changed` per file.
-6. Sweep every session's cwd for its current branch, once every distinct cwd from step 5 exists
-   in state, and dispatch a `branch-resolved` per cwd.
-7. Start the tmux poll (which repeats step 6 on every tick); serve HTTP.
+5. Scan `<transcriptsDir>/**`, reading files with bounded concurrency, and dispatch one
+   `transcripts-replayed` holding every record in listing order. Its fold equals one
+   `transcript-changed` per file but derives session state once, which is what keeps boot from
+   growing quadratically with the corpus. Live transcript events arriving during the scan are held
+   and dispatched after the batch, so an older record from the scan never overwrites a newer write.
+6. Start the tmux poll; serve HTTP.
+7. Once listening, sweep every session's cwd for its current branch and dispatch a
+   `branch-resolved` per cwd (the tmux poll repeats the sweep on every tick). Sessions read
+   `branch: null` until their cwd resolves, and the events socket delivers each branch as it lands.
 8. Once listening, start the watch poller (`app/poller.ts`). It runs its own timer, reading
    `pollIntervalMinutes` before each cycle, and goes through the same watch writer as step 3, so
    each cycle also prunes expired watches.
 
-Nothing is reconciled by hand for steps 4 and 5, because they are the same events the adapters
+Nothing is reconciled by hand for steps 4 and 5, because they carry the same facts the adapters
 emit during normal operation — boot is just the first batch of them. A live session recovered
 this way has `unknown` status until its next hook event, which is correct rather than a
 limitation.
