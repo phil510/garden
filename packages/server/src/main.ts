@@ -377,5 +377,7 @@ export async function main(detached: boolean): Promise<void> {
     // `pnpm dev:sandbox`), where the console is exactly where this should go.
     logger.redirectToFile(join(config.appDir, 'server.log'));
   }
-  logger.info(`garden listening on http://${config.host}:${String(config.port)}`);
+  logger.info(
+    `garden listening on http://${config.host}:${String(config.port)} (${String(Math.round(process.uptime() * 1000))}ms after process start)`,
+  );
 }
