@@ -106,7 +106,7 @@ for (const events of sequences) {
 ```
 
 **Boot replay equals steady state.** The same events — `store-loaded`, a `tmux-snapshot`, a
-`transcript-changed` per file — must produce the same state whether they arrive at startup or
+`transcripts-replayed` batch (equal to a `transcript-changed` per file) — must produce the same state whether they arrive at startup or
 during a long-running session. `architecture.md` §4.2 claims boot is just the first batch of
 ordinary events; this is what holds that claim to it.
 

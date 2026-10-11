@@ -29,6 +29,9 @@ export type GardenEvent =
   | { type: 'session-registered'; id: string; tmuxName: string; cwd: string }
   | { type: 'session-unregistered'; id: string }
   | { type: 'transcript-changed'; path: string; record: TranscriptRecord }
+  /** Boot's whole transcript scan as one event, in listing order; folds like the same records
+   *  as `transcript-changed` events but derives once. */
+  | { type: 'transcripts-replayed'; records: TranscriptRecord[] }
   | { type: 'repo-root-resolved'; cwd: string; repoRoot: string }
   | { type: 'branch-resolved'; cwd: string; branch: string | null }
   /** `gardenSessionId` is the hook process's own `GARDEN_SESSION_ID`. It names the session

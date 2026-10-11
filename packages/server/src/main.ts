@@ -24,7 +24,8 @@ import {
 } from './adapters/tmux.js';
 import type { TmuxTarget } from './adapters/tmux.js';
 import { createAttachRegistry, type AttachRegistry } from './app/attach.js';
-import { createBranchSweeper, type BranchSweeper } from './app/branches.js';
+import { createBranchSweeper } from './app/branches.js';
+import { createTranscriptReplay, type TranscriptReplay } from './app/transcriptReplay.js';
 import { createPoller } from './app/poller.js';
 import type {
   ConfigPort,
@@ -170,8 +171,7 @@ async function replay(
   pipes: Pipes,
   store: StorePort,
   tmux: TmuxPort,
-  transcripts: TranscriptPort,
-  branches: BranchSweeper,
+  transcriptReplay: TranscriptReplay,
   logger: Logger,
   claudeSessionsDir: string,
   git: GitPort,
@@ -198,25 +198,7 @@ async function replay(
       `claude session registry read failed: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
-  for (const path of await transcripts.listFiles()) {
-    try {
-      const { record, skipped } = await transcripts.readRecord(path);
-      if (skipped > 0) logger.warn(`skipped ${String(skipped)} unparseable line(s) in ${path}`);
-      projection.dispatch({ type: 'transcript-changed', path, record });
-    } catch (error) {
-      // One unreadable transcript is a session garden cannot describe, not a failed boot.
-      logger.error(`failed to read transcript ${path}: ${(error as Error).message}`);
-    }
-  }
-  // After the transcript loop, not alongside the dispatches above: sessions' cwds don't exist
-  // in state until that loop has run. tick() resolves per-cwd git failures to null rather than
-  // rejecting; this guards boot itself against an unexpected throw, matching the sibling calls'
-  // isolation above rather than catching a failure mode tick() is actually expected to produce.
-  try {
-    await branches.tick();
-  } catch (error) {
-    logger.error(`branch sweep failed: ${error instanceof Error ? error.message : String(error)}`);
-  }
+  await transcriptReplay.run();
 }
 
 /** The composition root: the one place that reads config and wires the parts together.
@@ -265,8 +247,9 @@ export async function main(detached: boolean): Promise<void> {
   // anywhere in that window still reaches the watch instead of being lost until the next
   // unrelated event or a restart. The watcher's own initial scan dispatches nothing
   // (ignoreInitial), so this only affects files written during boot, not the existing corpus.
+  const transcriptReplay = createTranscriptReplay({ projection, transcripts }, logger);
   const watcher = transcripts.watch((event) => {
-    projection.dispatch(event);
+    transcriptReplay.live(event);
   });
 
   await replay(
@@ -274,8 +257,7 @@ export async function main(detached: boolean): Promise<void> {
     pipes,
     store,
     tmux,
-    transcripts,
-    branches,
+    transcriptReplay,
     logger,
     config.claudeSessionsDir,
     git,
@@ -317,8 +299,8 @@ export async function main(detached: boolean): Promise<void> {
         );
       },
     );
-    // Its own catch too, for the same reason as above — see replay()'s comment on what this
-    // actually guards, since tick() resolves per-cwd git failures internally rather than rejecting.
+    // Its own catch too, for the same reason as above — see the first sweep after listen for what
+    // this actually guards, since tick() resolves per-cwd git failures internally rather than rejecting.
     branches.tick().catch((error: unknown) => {
       logger.error(
         `branch sweep failed: ${error instanceof Error ? error.message : String(error)}`,
@@ -368,6 +350,12 @@ export async function main(detached: boolean): Promise<void> {
   }
 
   await app.listen({ port: config.port, host: config.host });
+  // Only the branches fill in after listen: sessions read `branch: null` until their cwd resolves,
+  // and the events socket delivers each one as it lands. tick() resolves per-cwd git failures to
+  // null rather than rejecting, so this catch guards against an unexpected throw.
+  branches.tick().catch((error: unknown) => {
+    logger.error(`branch sweep failed: ${error instanceof Error ? error.message : String(error)}`);
+  });
   watchPoller.start();
   if (detached) {
     // Earliest the health endpoint can answer 'ok' — the earliest spawnServer's poll loop can
@@ -376,5 +364,7 @@ export async function main(detached: boolean): Promise<void> {
     // `pnpm dev:sandbox`), where the console is exactly where this should go.
     logger.redirectToFile(join(config.appDir, 'server.log'));
   }
-  logger.info(`garden listening on http://${config.host}:${String(config.port)}`);
+  logger.info(
+    `garden listening on http://${config.host}:${String(config.port)} (${String(Math.round(process.uptime() * 1000))}ms after process start)`,
+  );
 }
