@@ -178,6 +178,47 @@ describe('reduce', () => {
     expect(Object.keys(fold([transcript({ sessionId: null })]).sessions)).toEqual([]);
   });
 
+  describe('transcripts-replayed', () => {
+    const replayed = (records: TranscriptRecord[]): GardenEvent => ({
+      type: 'transcripts-replayed',
+      records,
+    });
+    const rec = (o: Partial<TranscriptRecord> = {}): TranscriptRecord => ({
+      sessionId: 'sid-1',
+      cwd: '/Users/dev/repo',
+      title: 'Wire up the fold',
+      lastPrompt: null,
+      recap: null,
+      lastActivity: now,
+      ...o,
+    });
+
+    it('returns the same state for an empty batch', () => {
+      const state = fold([mapped]);
+      expect(reduce(state, replayed([]))).toBe(state);
+    });
+
+    it('returns the same state when no record names a session', () => {
+      const state = fold([mapped]);
+      expect(reduce(state, replayed([rec({ sessionId: null })]))).toBe(state);
+    });
+
+    it('skips a record with no session id and still folds the rest', () => {
+      const state = reduce(initialState, replayed([rec({ sessionId: null }), rec()]));
+      expect(Object.keys(state.sessions)).toEqual(['sid-1']);
+    });
+
+    it('resolves two records for one session the way two events in the same order would', () => {
+      const first = rec({ title: 'First', recap: 'Early recap', lastActivity: now + 5 });
+      const second = rec({ title: 'Second', recap: null, lastActivity: now });
+      expect(reduce(initialState, replayed([first, second])).sessions['sid-1']).toMatchObject({
+        title: 'Second',
+        recap: 'Early recap',
+        lastActivity: now + 5,
+      });
+    });
+  });
+
   it('keeps the previous cwd when a slice carries none of its own', () => {
     const state = fold([transcript({ cwd: '/Users/dev/repo' }), transcript({ cwd: null })]);
     expect(state.sessions['sid-1']?.cwd).toBe('/Users/dev/repo');

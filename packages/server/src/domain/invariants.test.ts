@@ -155,6 +155,21 @@ describe('boot replay equals steady state', () => {
     expect(watchesFirst.sessions['sid-1']?.watches).toHaveLength(1);
   });
 
+  it('folds a batched transcript replay to the same state as one transcript-changed per file', () => {
+    const files = [
+      transcript({}, now),
+      transcript({ sessionId: 'sid-2', title: 'Another' }, now),
+      transcript({ title: 'Renamed', recap: null }, now + 1),
+    ];
+    const batch: GardenEvent = {
+      type: 'transcripts-replayed',
+      records: files.flatMap((file) => (file.type === 'transcript-changed' ? [file.record] : [])),
+    };
+    const perFile = [storeLoaded, snapshot(false), ...files].reduce(reduce, initialState);
+    const batched = [storeLoaded, snapshot(false), batch].reduce(reduce, initialState);
+    expect(batched).toEqual(perFile);
+  });
+
   it('is a no-op when the same boot batch is replayed onto the state it produced', () => {
     const booted = boot.reduce(reduce, initialState);
     const replayed = boot.reduce(reduce, booted);
@@ -174,6 +189,10 @@ const everyVariant: Record<GardenEvent['type'], GardenEvent> = {
   },
   'session-unregistered': { type: 'session-unregistered', id: 'sid-1' },
   'transcript-changed': transcript({}, now),
+  'transcripts-replayed': {
+    type: 'transcripts-replayed',
+    records: [record({}), record({ sessionId: 'sid-2', title: 'Another' })],
+  },
   'repo-root-resolved': rootResolved,
   'branch-resolved': branchResolved,
   hook: { type: 'hook', payload: aHookEvent({ session_id: 'sid-1' }) },

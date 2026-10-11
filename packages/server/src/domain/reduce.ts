@@ -1,7 +1,7 @@
 import type { SessionMap, SessionState, WatchSummary } from '@garden/shared';
 import { deriveLiveness } from './sessions.js';
 import { hookOutcome } from './status.js';
-import type { GardenEvent, GardenState, TmuxSessionFact } from './types.js';
+import type { GardenEvent, GardenState, TmuxSessionFact, TranscriptRecord } from './types.js';
 
 export const initialState: GardenState = {
   sessions: {},
@@ -73,6 +73,23 @@ function rederive(state: GardenState): GardenState {
   return { ...state, sessions };
 }
 
+/** Folds one transcript record into `sessions` without re-deriving, so a batch can derive once.
+ *  Returns the same state object when the record names no session. */
+function foldTranscript(state: GardenState, record: TranscriptRecord): GardenState {
+  const id = record.sessionId;
+  if (id === null) return state;
+  const prev = state.sessions[id] ?? blank(id);
+  const session: SessionState = {
+    ...prev,
+    cwd: record.cwd ?? prev.cwd,
+    title: record.title ?? record.lastPrompt ?? prev.title,
+    recap: record.recap ?? prev.recap,
+    // A transcript with no timestamped line reports no activity, so the previous stands.
+    lastActivity: Math.max(prev.lastActivity, record.lastActivity ?? 0),
+  };
+  return { ...state, sessions: { ...state.sessions, [id]: session } };
+}
+
 export function reduce(state: GardenState, event: GardenEvent): GardenState {
   switch (event.type) {
     case 'store-loaded':
@@ -97,19 +114,14 @@ export function reduce(state: GardenState, event: GardenEvent): GardenState {
       return rederive({ ...state, tmuxNames });
     }
     case 'transcript-changed': {
-      const { record } = event;
-      const id = record.sessionId;
-      if (id === null) return state;
-      const prev = state.sessions[id] ?? blank(id);
-      const session: SessionState = {
-        ...prev,
-        cwd: record.cwd ?? prev.cwd,
-        title: record.title ?? record.lastPrompt ?? prev.title,
-        recap: record.recap ?? prev.recap,
-        // A transcript with no timestamped line reports no activity, so the previous stands.
-        lastActivity: Math.max(prev.lastActivity, record.lastActivity ?? 0),
-      };
-      return rederive({ ...state, sessions: { ...state.sessions, [id]: session } });
+      const next = foldTranscript(state, event.record);
+      return next === state ? state : rederive(next);
+    }
+    case 'transcripts-replayed': {
+      // Same fold as one `transcript-changed` per record, in order, but derived once: rederive
+      // walks every session, so doing it per record is what made boot quadratic.
+      const next = event.records.reduce(foldTranscript, state);
+      return next === state ? state : rederive(next);
     }
     case 'repo-root-resolved':
       return rederive({
