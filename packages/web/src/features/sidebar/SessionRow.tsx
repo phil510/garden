@@ -1,7 +1,6 @@
 import type { SessionState } from '@garden/shared';
 import type { DraggableAttributes, DraggableSyntheticListeners } from '@dnd-kit/core';
 import {
-  Fragment,
   useCallback,
   useEffect,
   useRef,
@@ -264,11 +263,10 @@ export function SessionRow({
         )}
       </div>
       <div className="row-meta">
-        {metaLineSegments(session, now).map((segment, index) => (
-          <Fragment key={segment.key}>
-            {index > 0 && <span className="row-dot-sep faint">·</span>}
-            <span className={metaLineSegmentClassName(segment)}>{segment.text}</span>
-          </Fragment>
+        {metaLineSegments(session, now).map((segment) => (
+          <span key={segment.key} className={metaLineSegmentClassName(segment)}>
+            {segment.text}
+          </span>
         ))}
       </div>
       {hovered && rowEl !== null && contextMenuPoint === null && (

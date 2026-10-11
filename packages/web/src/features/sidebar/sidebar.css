@@ -228,10 +228,9 @@ li.tree-node:not(:last-child)::after {
   white-space: nowrap;
   min-width: 0;
 }
-.row-dot-sep {
-  flex: 0 0 auto;
-}
 .row-time {
+  /* auto left margin pins the time to the right edge, with or without a name before it. */
+  margin-left: auto;
   flex: 0 0 auto;
   font-family: var(--font-mono);
 }
