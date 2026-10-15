@@ -4,6 +4,7 @@ import { usePipeGraceStore } from '../../state/pipeGraceStore';
 import { PipeFaultBlock, WatchList } from '../watches/WatchList';
 import { computeHoverCardPosition } from './hoverCardPosition';
 import { formatRelativeTime } from './relativeTime';
+import { sessionIdentityLabel } from './sessionIdentity';
 
 interface HoverCardProps {
   title: string;
@@ -14,6 +15,7 @@ interface HoverCardProps {
 
 export function HoverCard({ title, session, anchor, now }: HoverCardProps) {
   const pipeFaulted = usePipeGraceStore((state) => state.faulted.has(session.id));
+  const name = sessionIdentityLabel(session.claudeSessionName);
   const cardRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
 
@@ -39,6 +41,12 @@ export function HoverCard({ title, session, anchor, now }: HoverCardProps) {
     >
       <div className="hc-title">{title}</div>
       <div className="hc-recap">{session.recap ?? 'No recap yet.'}</div>
+      {name !== null && (
+        <div className="hc-row">
+          <span className="hc-k">name</span>
+          <span className="hc-v">{name}</span>
+        </div>
+      )}
       <div className="hc-row">
         <span className="hc-k">cwd</span>
         <span className="hc-v">{session.cwd}</span>
