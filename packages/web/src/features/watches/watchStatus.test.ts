@@ -1,7 +1,14 @@
 import type { WatchSummary } from '@garden/shared';
 import { aSession } from '@garden/shared/fixtures';
 import { describe, expect, it } from 'vitest';
-import { PIPE_FAULT, faultSummary, kindsLabel, rowWatchState, watchLineState } from './watchStatus';
+import {
+  PIPE_FAULT,
+  faultSummary,
+  kindsLabel,
+  rowWatchState,
+  watchLineState,
+  watchPrUrl,
+} from './watchStatus';
 
 const aWatch = (overrides: Partial<WatchSummary> = {}): WatchSummary => ({
   repo: 'acme/api',
@@ -111,5 +118,13 @@ describe('faultSummary', () => {
       watches: [aWatch({ status: 'error', errorReason: 'gh is not logged in.' })],
     });
     expect(faultSummary(session, false)).toBe('gh is not logged in.');
+  });
+});
+
+describe('watchPrUrl', () => {
+  it('points at the pull request page of the watch repo', () => {
+    expect(watchPrUrl(aWatch({ repo: 'acme/api', pr: 42 }))).toBe(
+      'https://github.com/acme/api/pull/42',
+    );
   });
 });

@@ -9,6 +9,10 @@ export const PIPE_FAULT = {
   fix: 'Digests are held until the session reconnects.',
 };
 
+export function watchPrUrl(watch: WatchSummary): string {
+  return `https://github.com/${watch.repo}/pull/${String(watch.pr)}`;
+}
+
 export type RowWatchState = { tone: 'watching' | 'fault'; count: number } | null;
 
 export function rowWatchState(session: SessionState, pipeFaulted: boolean): RowWatchState {
