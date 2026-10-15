@@ -128,6 +128,12 @@ session — which row is yours when two live sessions share a messaging name.
 `shell`), garden's column is derived from hooks (the table below). Different sources, different
 questions.
 
+Your user reads reports across many sessions and PRs, so name each session with what it works on —
+"session `garden-d0` for PR #245", not "the session for #245" — and say whether a number is a PR or
+an issue, since the two share one sequence. Once the run spans more than one repo, write `<repo>#N`
+(`garden#245`): a bare number could belong to either. That is the user-facing form; notes between
+sessions keep `message-session`'s `owner/repo#N`.
+
 ## Write the run down
 
 Context windows are the one place run state does not survive: yours fills up, a peer dies, an
@@ -151,8 +157,8 @@ merge: ask-human (approver: <name>) · create-issue: auto · swarm: 6f1c9e2a-3b7
 
 ## Blocked
 
-- #160 — waiting on user: which launch commands to list (asked, unanswered)
-- #159 — user answered "SSM, not env"; peer not yet told
+- session `garden-c1` for issue #160 — waiting on user: which launch commands to list (asked, unanswered)
+- session `garden-e2` for issue #159 — user answered "SSM, not env"; peer not yet told
 
 ## Decisions
 
