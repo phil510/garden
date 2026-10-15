@@ -108,9 +108,12 @@
   font-family: var(--font-mono);
   font-weight: 500;
   cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
 }
 .wl-pr-link:hover {
-  text-decoration: underline;
+  text-decoration-style: solid;
+  color: var(--accent);
 }
 .wl-pr-link:focus-visible {
   outline: 2px solid currentColor;
