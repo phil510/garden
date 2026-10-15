@@ -7,6 +7,8 @@ interface WatchListProps {
   watches: readonly WatchSummary[];
   /** Shows a stop button on each row when given. */
   onStop?: (watch: WatchSummary) => void;
+  /** Renders the PR number as a link-styled button when given; otherwise it stays plain text. */
+  onOpenPr?: (watch: WatchSummary) => void;
 }
 
 export function PipeFaultBlock() {
@@ -18,7 +20,7 @@ export function PipeFaultBlock() {
   );
 }
 
-export function WatchList({ watches, onStop }: WatchListProps) {
+export function WatchList({ watches, onStop, onOpenPr }: WatchListProps) {
   return (
     <div className="wl">
       {watches.map((watch) => {
@@ -29,7 +31,17 @@ export function WatchList({ watches, onStop }: WatchListProps) {
               <span className="kind-mark" title="Pull request">
                 <PrIcon />
               </span>
-              <span className="wl-pr">#{watch.pr}</span>
+              {onOpenPr === undefined ? (
+                <span className="wl-pr">#{watch.pr}</span>
+              ) : (
+                <button
+                  className="wl-pr wl-pr-link"
+                  title={`Open ${watch.repo} #${String(watch.pr)} on GitHub`}
+                  onClick={() => onOpenPr(watch)}
+                >
+                  #{watch.pr}
+                </button>
+              )}
               <span className="wl-repo">{watch.repo}</span>
               <span className={`wl-state st-${tone}`}>
                 <span className="dot" />

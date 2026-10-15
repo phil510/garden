@@ -4,10 +4,12 @@ import { StatusPill } from '../../components/StatusPill';
 import { usePipeGraceStore } from '../../state/pipeGraceStore';
 import { useSessionStore } from '../../state/sessionStore';
 import { useUiStore } from '../../state/uiStore';
+import { openExternalLink } from '../../terminals/hyperlinks';
 import { lastPathSegment } from '../sidebar/lastPathSegment';
 import { placeOnStage } from '../sidebar/placeOnStage';
 import { collectWatchGroups, summarizeWatchGroups } from './allWatches';
 import { PipeFaultBlock, WatchList } from './WatchList';
+import { watchPrUrl } from './watchStatus';
 import './watches.css';
 
 /** Every session's watches in one list, faults first, in the file panel's slot. */
@@ -68,6 +70,7 @@ export function WatchesPanel() {
                 {sessionPipeFaulted && <PipeFaultBlock />}
                 <WatchList
                   watches={session.watches}
+                  onOpenPr={(watch) => openExternalLink(watchPrUrl(watch))}
                   onStop={(watch) => {
                     removeWatch(session.id, watch.pr, watch.repo).catch(reportCommandFailure);
                   }}

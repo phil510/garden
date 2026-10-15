@@ -103,6 +103,20 @@
   font-family: var(--font-mono);
   font-weight: 500;
 }
+.wl-pr-link {
+  all: unset;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  cursor: pointer;
+}
+.wl-pr-link:hover {
+  text-decoration: underline;
+}
+.wl-pr-link:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
 .wl-repo {
   color: var(--text-muted);
   font-family: var(--font-mono);
