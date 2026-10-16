@@ -12,42 +12,24 @@ the same way a human reviewer would, and iterate before handing off a visual cha
 ## Prerequisite
 
 A garden server must be running against real tmux. Start a sandbox yourself rather than asking
-the user for one: `pnpm dev:sandbox:server` boots an isolated instance (its own port, tmux
-socket, app dir and a fake Claude in place of the real one) that runs alongside the user's real
-`garden` without either seeing the other's sessions, so a visual check never risks their live
-work. Never start, stop, signal or reconfigure the user's real `garden` (the default port, socket
-and app dir); the installed `garden` CLI is only a target when the real instance is specifically
-what's under test, and then you point at it, you don't run it.
+the user for one. `docs/testing.md` ("Running a sandbox") has the start and stop sequence, and
+explains why the port, socket and app dir must be your own. Target the user's real `garden` only
+when the real instance is specifically what's under test, and then point at it; don't run it.
 
-Give your sandbox a namespace of its own, so it collides with neither the user's sandbox nor
-another pipeline's (the setup script refuses a tmux socket that is already held):
+This tool never boots a server. If it reports the server unreachable, the sandbox isn't up yet or
+has died, so check the sandbox's output.
 
-```
-D=$(mktemp -d)
-GARDEN_SANDBOX_PORT=<free port> GARDEN_SANDBOX_SOCKET=<unique name> GARDEN_SANDBOX_APP_DIR=$D \
-  pnpm dev:sandbox:server
-```
+Put `GARDEN_PORT=<sandbox port>` on every `pnpm screenshot` call. Shell state doesn't carry
+between calls, and inside a garden session `GARDEN_PORT` already names the real instance, so a
+call without it captures the user's real garden. A drag there writes to their state (see the
+warning at the end).
 
-Run it with `run_in_background`, then read its output for the `garden listening on
-http://127.0.0.1:<port>` line: that is the port it bound, and the sandbox is ready once the line
-appears. Point this tool at it with `GARDEN_PORT=<port> pnpm screenshot`. This tool never boots a
-server itself; if `pnpm screenshot` reports the server unreachable, the sandbox isn't up yet or
-has died, so check its output.
+When you stop the sandbox, also run `pnpm screenshot --stop` to stop the vite this tool started
+for your checkout. Unlike the port kill, it is safe whether or not your sandbox came up.
 
-When you are finished, stop what you started, so nothing outlives the task. Run the port kill and
-the tmux `kill-server` only if you saw your own sandbox log the `listening` line; if it never came
-up, whatever holds that port or socket belongs to someone else. Only `pnpm screenshot --stop` and
-the `rm` are safe either way.
-
-```
-kill $(lsof -ti tcp:<port> -sTCP:LISTEN)   # the server exits within seconds and takes its wrapper with it
-tmux -L <socket> kill-server               # the socket you chose
-pnpm screenshot --stop                     # this checkout's vite
-rm -rf $D
-```
-
-`GARDEN_PORT` is read by this tool and the vite dev server it spawns, so pointing it at a
-different port is always a distinct, non-colliding run. A `"port"` override in
+`GARDEN_PORT` is read by this tool and folded into the vite port, because the vite's proxy
+target is fixed when it starts. A run against a different server therefore gets its own vite,
+barring the hash collision described under "Iterating on a visual change". A `"port"` override in
 `~/.garden/config.json` is a separate mechanism this tool does not read — on a config-only custom
 port it reports the server as unreachable when it is in fact running fine. Check the user's
 config before believing that message.
@@ -57,12 +39,14 @@ config before believing that message.
 ```
 pnpm screenshot [--path <url path>] [--out <name>] [--width <n>] [--height <n>] [--wait <ms>]
                 [--drag <css selector> --drag-by <dx>,<dy>]
+pnpm screenshot --stop
 ```
 
 Defaults: `--path /` (the whole app), 1600x1000, `--out screenshot`, `--wait 300`. The tool also ensures a vite
-dev server (on a port derived from this checkout's path) and a debuggable Chrome instance (port 9222) exist, spawning either if
+dev server (on a port hashed from this checkout's path and `GARDEN_PORT`) and a debuggable Chrome instance (port 9222) exist, spawning either if
 missing and leaving both running for the next invocation — later runs are fast. What stops them:
-the vite is stopped by `pnpm screenshot --stop` (exit 0 whether or not one is running), by plant's
+every vite this checkout started (one per `GARDEN_PORT` it ran against) is stopped by
+`pnpm screenshot --stop` (exit 0 whether or not any is running), by plant's
 finish step, or by any later `pnpm screenshot` run once its checkout is gone, which reaps every
 vite it started for a removed checkout. Chrome is one shared instance on 9222 for all checkouts and
 is deliberately left running; quit it by hand if you want it gone. Each run opens a tab of its own
@@ -98,7 +82,7 @@ default. A change a screenshot has to show after a drag therefore has to be driv
 Confirm the build under test before the first comparison. Branch-specific content visible in the
 frame is **not** proof of which build you captured: `main` can render an identical frame (a new
 preset or empty-slot placeholder looks the same on both). The vite port is a hash of the checkout
-path with 1000 buckets, and a 2xx response is all the tool needs to reuse a running server, so a
+path and `GARDEN_PORT` with 1000 buckets, and a 2xx response is all the tool needs to reuse a running server, so a
 different checkout's vite, or any other server on that port, can be what gets captured. Check the
 served source instead. Take the port from the `[screenshot] vite dev server ok on <port>` line,
 then:
