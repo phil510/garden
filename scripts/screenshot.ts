@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
+import { reap, record, realDeps, stopFor, type ViteEntry } from './screenshot-registry.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -15,6 +16,7 @@ const execFileAsync = promisify(execFile);
 const SERVER_URL = `http://127.0.0.1:${process.env.GARDEN_PORT ?? 4310}`;
 const CDP_PORT = 9222;
 const CDP_URL = `http://127.0.0.1:${CDP_PORT}`;
+const VITE_REGISTRY_DIR = join(tmpdir(), 'garden-screenshot-vite');
 
 interface Options {
   path: string;
@@ -24,6 +26,7 @@ interface Options {
   wait: number;
   drag?: string;
   dragBy?: { dx: number; dy: number };
+  stop: boolean;
 }
 
 function fail(message: string): never {
@@ -32,9 +35,21 @@ function fail(message: string): never {
 }
 
 function parseArgs(argv: string[]): Options {
-  const opts: Options = { path: '/', out: 'screenshot', width: 1600, height: 1000, wait: 300 };
+  const opts: Options = {
+    path: '/',
+    out: 'screenshot',
+    width: 1600,
+    height: 1000,
+    wait: 300,
+    stop: false,
+  };
   for (let i = 0; i < argv.length; i += 2) {
     const flag = argv[i];
+    if (flag === '--stop') {
+      opts.stop = true;
+      i -= 1;
+      continue;
+    }
     const value = argv[i + 1];
     if (value === undefined) fail(`${String(flag)} needs a value`);
     if (flag === '--path') opts.path = value;
@@ -113,6 +128,8 @@ async function ensureVite(repoRoot: string, viteUrl: string, port: number): Prom
     { cwd: repoRoot, detached: true, stdio: ['ignore', log, log] },
   );
   child.unref();
+  // detached makes pnpm its own group leader, so its pid is the group id that takes vite with it.
+  if (child.pid !== undefined) record(VITE_REGISTRY_DIR, { pgid: child.pid, repoRoot, port });
   await waitUntil(
     () => probe(viteUrl),
     `vite dev server on ${String(port)} (see ${logPath})`,
@@ -291,6 +308,25 @@ async function captureScreenshot(url: string, opts: Options): Promise<Buffer> {
 async function main(): Promise<void> {
   const opts = parseArgs(process.argv.slice(2));
   const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+
+  const describeVites = (entries: ViteEntry[]) =>
+    entries.map((entry) => `${entry.repoRoot} (port ${String(entry.port)})`).join(', ');
+  const reaped = reap(VITE_REGISTRY_DIR, realDeps);
+  if (reaped.length > 0) {
+    console.log(
+      `[screenshot] stopped orphaned vite for removed checkouts: ${describeVites(reaped)}`,
+    );
+  }
+
+  if (opts.stop) {
+    const stopped = stopFor(VITE_REGISTRY_DIR, repoRoot, realDeps);
+    console.log(
+      stopped.length > 0
+        ? `[screenshot] stopped vite on ${stopped.map((entry) => String(entry.port)).join(', ')}`
+        : '[screenshot] no vite was running for this checkout',
+    );
+    return;
+  }
 
   if (!(await probe(`${SERVER_URL}/health`))) {
     console.error(
