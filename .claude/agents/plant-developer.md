@@ -159,7 +159,9 @@ the verify command pass.
    change affects, not only the default view. A diff that reads fine
    can still render wrong, and the reviewer treats missing evidence as
    a defect. The skill covers starting a sandbox and stopping it; never
-   start a server any other way.
+   start a server any other way. If a capture can't be made to work (no Chrome, a vite port
+   that won't bind), escalate `error` rather than open the PR without
+   evidence.
 
 7. **Open the draft PR directly:**
    ```bash

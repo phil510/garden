@@ -85,6 +85,17 @@ describe('screenshot vite registry', () => {
     expect(readdirSync(dir)).toEqual([]);
   });
 
+  it('keeps an entry whose group could not be inspected', () => {
+    record(dir, { pgid: 100, repoRoot: '/wt/gone', port: 5201 });
+    const { deps } = fakeWorld({}, ['/wt/gone']);
+    deps.groupCommands = () => {
+      throw new Error('ps failed');
+    };
+
+    expect(reap(dir, deps)).toEqual([]);
+    expect(readdirSync(dir)).toEqual(['100.json']);
+  });
+
   it('deletes unreadable entry files', () => {
     writeFileSync(join(dir, '7.json'), 'not json');
     writeFileSync(join(dir, '8.json'), JSON.stringify({ pgid: 'x' }));

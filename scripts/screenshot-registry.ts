@@ -67,14 +67,10 @@ function readEntries(dir: string): { file: string; entry: ViteEntry | null }[] {
 /** Stops the entry's process group and reports whether it signalled anything. The pgid may have
  *  been reused by an unrelated group since vite died, so nothing is signalled unless a process in
  *  the group still carries this entry's `--port`. Checking the whole group rather than its leader
- *  matters: pnpm can exit while vite lives on in the group. */
+ *  matters: pnpm can exit while vite lives on in the group. Throws when the outcome is unknown
+ *  (`ps` or `kill` failed), so the caller keeps the entry rather than losing the only record. */
 function stop(entry: ViteEntry, deps: RegistryDeps): boolean {
-  let commands: string[];
-  try {
-    commands = deps.groupCommands(entry.pgid);
-  } catch {
-    return false;
-  }
+  const commands = deps.groupCommands(entry.pgid);
   if (!commands.some((command) => command.includes(`--port ${String(entry.port)}`))) return false;
   try {
     deps.kill(-entry.pgid, 'SIGTERM');
@@ -93,7 +89,11 @@ function stopWhere(
   const stopped: ViteEntry[] = [];
   for (const { file, entry } of readEntries(dir)) {
     if (entry !== null && !matches(entry)) continue;
-    if (entry !== null && stop(entry, deps)) stopped.push(entry);
+    try {
+      if (entry !== null && stop(entry, deps)) stopped.push(entry);
+    } catch {
+      continue;
+    }
     rmSync(file, { force: true });
   }
   return stopped;

@@ -323,7 +323,7 @@ async function main(): Promise<void> {
     console.log(
       stopped.length > 0
         ? `[screenshot] stopped vite on ${stopped.map((entry) => String(entry.port)).join(', ')}`
-        : '[screenshot] no vite was running for this checkout',
+        : '[screenshot] no vite recorded for this checkout',
     );
     return;
   }

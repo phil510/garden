@@ -34,7 +34,9 @@ appears. Point this tool at it with `GARDEN_PORT=<port> pnpm screenshot`. This t
 server itself; if `pnpm screenshot` reports the server unreachable, the sandbox isn't up yet or
 has died, so check its output.
 
-When you are finished, stop what you started, so nothing outlives the task:
+When you are finished, stop what you started, so nothing outlives the task. Run the port kill only
+if you saw your own sandbox log the `listening` line; if it never came up, whatever holds that
+port belongs to someone else.
 
 ```
 kill $(lsof -ti tcp:<port> -sTCP:LISTEN)   # the server exits within seconds and takes its wrapper with it
