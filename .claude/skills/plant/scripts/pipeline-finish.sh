@@ -2,7 +2,8 @@
 # Close out a pipeline: flip Status, annotate, release the lock, and
 # return the numbers the completion summary needs.
 #
-# This script only touches disk.
+# Besides disk it stops the worktree's screenshot vite, which the worktree's removal would
+# otherwise orphan.
 set -euo pipefail
 
 HERE=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
@@ -18,7 +19,9 @@ Branch defaults to whatever <worktree>/.plant/active names.
 
 Flips workflow.md's **Status:**, appends a `> NOTE` annotation, and removes
 the lock (only when it names this branch — a lock held by a different
-pipeline is left alone).
+pipeline is left alone). Also stops the worktree's `pnpm screenshot` vite,
+best-effort: a worktree branched before `--stop` existed fails that call,
+and the finish carries on.
 
 Prints JSON: branch, status, pr_url, started, ended, duration_seconds,
 duration_human, review_rounds, escalations{annotated,open,open_files[]},
@@ -52,6 +55,10 @@ esac
 
 resolve_pipeline "$WORKTREE" "$BRANCH_ARG"
 [ -f "$WORKFLOW" ] || die "no workflow.md for branch '$BRANCH': $WORKFLOW"
+
+# stdout carries the one JSON line, so the stop's own output goes to stderr.
+pnpm --dir "$WORKTREE" screenshot --stop >&2 \
+  || echo "warning: could not stop the screenshot vite for $WORKTREE" >&2
 
 ENDED=$(iso_now)
 STARTED=$(workflow_field "$WORKFLOW" 'Started')

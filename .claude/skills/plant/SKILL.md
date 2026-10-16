@@ -254,8 +254,9 @@ scripts/pipeline-finish.sh --worktree <abs> [--branch <name>] --status completed
   state files exist), `events[]` (each with `resolved`), trailing
   `annotations[]`.
 - **`pipeline-finish.sh`** flips `Status`, appends the closing annotation,
-  releases the lock (only if it names this branch), and returns the
-  summary numbers: `duration_seconds`, `duration_human`, `review_rounds`,
+  releases the lock (only if it names this branch), stops the worktree's
+  `pnpm screenshot` vite (best-effort, stdout kept clean for the JSON), and
+  returns the summary numbers: `duration_seconds`, `duration_human`, `review_rounds`,
   `escalations{annotated,open,open_files[]}`, `events_total`,
   `decisions_entries`, `lock_released`. Pass `completed` once the PR merges, `aborted` for a
   user abort or a closed PR.
@@ -436,7 +437,9 @@ worktree at <path>`. Running both via `git -C` from the main
     every command after that point would otherwise need an absolute
     path to recover. This is also why (b) runs before (c):
     `pipeline-finish.sh` reads and writes `.plant/<branch>/` inside the
-    worktree it's about to lose.
+    worktree it's about to lose, and it stops that worktree's vite, which
+    needs the checkout to still exist (`--stop` is keyed on the checkout
+    path).
     d. **Merged only.** `.plant/<branch>/` — `workflow.md`, `plan.md`,
     `decisions.md`, every `review-round-N.md` — is deleted with the
     worktree by design: once (a) has put what mattered onto the PR,
