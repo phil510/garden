@@ -11,7 +11,7 @@ For the layering these rules refer to, see `architecture.md`.
 
 Two tiers, unit and integration. There is no browser or end-to-end tier. `pnpm screenshot`
 (see `scripts/screenshot.ts`) is a local dev tool for visually reviewing a UI change, not a
-third tier — it asserts nothing and CI never runs it.
+third tier — it asserts nothing and CI never runs it. `pnpm screenshot --stop` stops the vite it left running for this checkout.
 
 The line is not "fast versus slow". It is **does the thing under test need a real OS resource
 to fail for the right reason.** garden's entire risk surface sits at that boundary: a wrong
@@ -146,6 +146,10 @@ A second sandbox needs its own port, tmux socket and app dir, and the scripts ta
 reads: garden injects `GARDEN_PORT` into every pane it spawns, so a script honouring that name
 would silently point a sandbox started from inside a garden session at the real instance's
 port. Sharing any one of the three between two sandboxes puts them back in each other's state.
+
+An agent that starts its own sandbox always sets all three to values of its own (a free port, a
+unique socket name, a fresh `mktemp -d`), and stops it when done; the `garden-screenshot` skill
+has the full start and stop sequence.
 
 - **`execFile` is never mocked, anywhere.** Faking a port substitutes one implementation of a
   declared interface; mocking `execFile` pretends the process boundary behaved. The test then
