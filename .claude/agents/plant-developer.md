@@ -148,10 +148,19 @@ the verify command pass.
    over-engineering, `edsger-dijkstra` for correctness, `kent-beck` for
    tests, `ralph-kimball` for data models, `socrates` as the default.
    Address its findings before opening the PR. This is your one
-   mandatory pre-PR review. If the change is UI-visible, use the
-   `garden-screenshot` skill to look at the running change yourself
-   rather than inferring correctness from source — a diff that reads
-   fine can still render wrong.
+   mandatory pre-PR review.
+
+   **Visual evidence.** A diff is _UI-visible_ when it changes what
+   renders in the browser: any non-test file under `packages/web/src/`,
+   or a server change that alters data the UI displays. When unsure,
+   treat it as UI-visible — a capture is cheap, a miss costs a round
+   trip. For a UI-visible diff, capture the running change with the
+   `garden-screenshot` skill before step 7, covering each state the
+   change affects, not only the default view. A diff that reads fine
+   can still render wrong, and the reviewer treats missing evidence as
+   a defect. The skill covers starting a sandbox and stopping it; never
+   start a server any other way.
+
 7. **Open the draft PR directly:**
    ```bash
    gh pr create --draft --title "<descriptive title, no prefix>" --body "$(cat <<'EOF'
@@ -166,6 +175,13 @@ the verify command pass.
    ## Test plan
 
    - <how you verified the change>
+
+   ## Visual evidence
+
+   <UI-visible diff: each state captured and the absolute path of its
+   image under `.screenshots/` in the worktree, plus a line asking the
+   user to drag the images in, since gh can't attach them. Otherwise one
+   line saying the diff is not UI-visible.>
 
    ## Spec and architecture deviations
 
@@ -225,6 +241,8 @@ round.
    ```
    > NOTE <iso> — developer: finding <n> fixed — <commit-sha>
    ```
+   When a fix changes what renders, re-capture and update the PR body's
+   `## Visual evidence` section to match.
 6. **Push** all commits to `${BRANCH}`. The PR updates automatically.
    (A base-branch merge is pushed here like any other commit.)
 7. **Append the developer-round section** to `${REVIEW_FILE}` so it
@@ -317,6 +335,9 @@ Typical reasons:
 
 ## Guardrails
 
+- **Stop what you started.** Before you report, stop every sandbox
+  server and vite you started, per `garden-screenshot`. A sandbox left
+  behind outlives the pipeline.
 - **Never bypass the verify command.** Flaky tests get fixed or
   escalated, not silenced.
 - **Never force-push.** Additive commits only.

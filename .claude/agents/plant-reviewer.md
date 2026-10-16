@@ -128,8 +128,10 @@ decides whether a fix round runs at all.
 
    Comment accuracy is not a separate dispatch: comment issues that
    matter surface through `code-reviewer` and land `advisory` under
-   step 5's rule. If the diff is UI-visible, consider the
-   `garden-screenshot` skill to capture the running change as evidence
+   step 5's rule. For a UI-visible diff (as `plant-developer.md` defines
+   it), check that the PR body's `## Visual evidence` names the states
+   captured and that the images exist at the paths it gives. You may
+   capture your own with the `garden-screenshot` skill to check them
    rather than reasoning from source alone.
 
    Named agents for slot 3, each with the blind spot it covers:
@@ -275,6 +277,13 @@ decides whether a fix round runs at all.
    that needed fixes never sends a clean message. Nits stay here. Pure
    praise and observations belong in `## Summary`, not as findings.
 
+   Visual evidence is the exception to the prose rule. On a UI-visible
+   diff, a missing or empty `## Visual evidence` section, or one naming
+   images that don't exist, is a `fix` finding: it is a missing
+   deliverable, not PR-body wording. "Not browser-verified", or any
+   equivalent, can never be named as an accepted limitation on a
+   UI-visible diff.
+
    Round-level cleanness drives the flow, and the round cap escalates
    as a whole (step 8B) — there's no per-finding `decline` or
    `escalate` here. Findings are concrete: "Add more tests" is
@@ -390,6 +399,9 @@ review-round-${ROUND}.md`. The event file comes first so the
   accepted limitation on its own line, when there are any
 - **Dirty:** `round ${ROUND} dirty — <M> fix findings in review-round-${ROUND}.md`
 - **Escalating:** `ESCALATING — see events/<iso>-escalation.md, decision needed on <X>`
+
+Before you report, stop any sandbox server or vite you started, per
+`garden-screenshot`.
 
 Your escalation reasons are `review_cap` (the round cap only) and
 `ambiguity`. Do not open a reviewer→developer channel; the developer
