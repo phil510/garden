@@ -254,11 +254,14 @@ decides whether a fix round runs at all.
    needs a future bump or a hypothetical change to trigger; an input you
    cannot name a real producer for — say which producers you checked;
    and prose — a comment, docstring, PR body, log wording — however
-   wrong, since fixing it has no runtime or build effect. Two prose refinements: prose someone
-   acts on without reading the code (a security warning, a runbook
-   step) is `fix`; a comment that restates another system's behavior
-   gets one advisory saying so, because each claim is unverifiable from
-   this repo and the next round will find a new defect in it. Reviewer
+   wrong, since fixing it has no runtime or build effect. Three prose
+   refinements: prose someone acts on without reading the code (a
+   security warning, a runbook step) is `fix`; a comment that restates
+   another system's behavior gets one advisory saying so, because each
+   claim is unverifiable from this repo and the next round will find a
+   new defect in it; and on a UI-visible diff, a missing or empty
+   `## Visual evidence` section, or one naming images that don't
+   exist, is `fix`, because it is a missing deliverable, not wording. Reviewer
    agents default to `fix` because it feels safer — resist that: if you
    would not block this PR over the finding, it is `advisory`.
 
@@ -274,15 +277,10 @@ decides whether a fix round runs at all.
    orchestrator records each in `decisions.md`, and the finish gate
    puts every entry on the PR. On a clean round, re-name any limitation
    from an earlier round's `## Summary` that still holds, since a round
-   that needed fixes never sends a clean message. Nits stay here. Pure
-   praise and observations belong in `## Summary`, not as findings.
-
-   Visual evidence is the exception to the prose rule. On a UI-visible
-   diff, a missing or empty `## Visual evidence` section, or one naming
-   images that don't exist, is a `fix` finding: it is a missing
-   deliverable, not PR-body wording. "Not browser-verified", or any
-   equivalent, can never be named as an accepted limitation on a
-   UI-visible diff.
+   that needed fixes never sends a clean message. On a UI-visible diff,
+   "not browser-verified" or any equivalent is never an accepted
+   limitation; it is the missing-evidence `fix` above. Nits stay here.
+   Pure praise and observations belong in `## Summary`, not as findings.
 
    Round-level cleanness drives the flow, and the round cap escalates
    as a whole (step 8B) — there's no per-finding `decline` or

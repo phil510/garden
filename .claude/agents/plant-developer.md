@@ -158,8 +158,10 @@ the verify command pass.
    `garden-screenshot` skill before step 7, covering each state the
    change affects, not only the default view. A diff that reads fine
    can still render wrong, and the reviewer treats missing evidence as
-   a defect. The skill covers starting a sandbox and stopping it; never
-   start a server any other way. If a capture can't be made to work (no Chrome, a vite port
+   a defect. The skill points to how to run a sandbox of your own.
+   Never use `garden` or the default `pnpm dev:sandbox:server`
+   settings, because those are the user's real instance and their own
+   sandbox. If a capture can't be made to work (no Chrome, a vite port
    that won't bind), escalate `error` rather than open the PR without
    evidence.
 
@@ -331,7 +333,7 @@ Typical reasons:
 | Reason              | Trigger                                                                                                           |
 | ------------------- | ----------------------------------------------------------------------------------------------------------------- |
 | `autonomy_exceeded` | A finding (or plan task) falls outside `Auto:` bounds                                                             |
-| `error`             | Worktree bootstrap failed — `pnpm install` won't succeed                                                          |
+| `error`             | The environment won't run: `pnpm install` fails, or a required screenshot capture can't be made to work           |
 | `stall`             | Verify still failing after 3 different approaches, or no forward progress after several attempts at the same task |
 | `ambiguity`         | A task or finding asks for something the brief doesn't cover, and the repo's docs are silent too                  |
 
