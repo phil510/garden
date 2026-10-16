@@ -398,8 +398,8 @@ review-round-${ROUND}.md`. The event file comes first so the
 - **Dirty:** `round ${ROUND} dirty — <M> fix findings in review-round-${ROUND}.md`
 - **Escalating:** `ESCALATING — see events/<iso>-escalation.md, decision needed on <X>`
 
-Before you report, stop every process you started: sandbox servers and
-vite (per `garden-screenshot`), background commands, one-off probes. A
+Before you report, stop every process you started: sandbox servers (per
+`docs/testing.md`), background commands, one-off probes. A
 process left behind outlives the run and the worktree, holds ports, and
 nobody will go looking for it.
 

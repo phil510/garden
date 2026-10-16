@@ -11,7 +11,8 @@ For the layering these rules refer to, see `architecture.md`.
 
 Two tiers, unit and integration. There is no browser or end-to-end tier. `pnpm screenshot`
 (see `scripts/screenshot.ts`) is a local dev tool for visually reviewing a UI change, not a
-third tier — it asserts nothing and CI never runs it. `pnpm screenshot --stop` stops the vite it left running for this checkout.
+third tier — it asserts nothing and CI never runs it. Each run starts and stops its own vite, so it
+leaves only the shared debuggable Chrome running.
 
 The line is not "fast versus slow". It is **does the thing under test need a real OS resource
 to fail for the right reason.** garden's entire risk surface sits at that boundary: a wrong

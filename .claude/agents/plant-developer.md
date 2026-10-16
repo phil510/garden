@@ -340,7 +340,7 @@ Typical reasons:
 ## Guardrails
 
 - **Stop what you started.** Before you report, stop every process you
-  started: sandbox servers and vite (per `garden-screenshot`),
+  started: sandbox servers (per `docs/testing.md`),
   background commands, one-off probes. A process left behind outlives
   the run and the worktree, holds ports, and nobody will go looking for
   it.

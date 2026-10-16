@@ -24,12 +24,7 @@ between calls, and inside a garden session `GARDEN_PORT` already names the real 
 call without it captures the user's real garden. A drag there writes to their state (see the
 warning at the end).
 
-When you stop the sandbox, also run `pnpm screenshot --stop` to stop the vite this tool started
-for your checkout. Unlike the port kill, it is safe whether or not your sandbox came up.
-
-`GARDEN_PORT` is read by this tool and folded into the vite port, because the vite's proxy
-target is fixed when it starts. A run against a different server therefore gets its own vite,
-barring the hash collision described under "Iterating on a visual change". A `"port"` override in
+`GARDEN_PORT` is also the proxy target of the vite each run starts. A `"port"` override in
 `~/.garden/config.json` is a separate mechanism this tool does not read — on a config-only custom
 port it reports the server as unreachable when it is in fact running fine. Check the user's
 config before believing that message.
@@ -39,18 +34,16 @@ config before believing that message.
 ```
 pnpm screenshot [--path <url path>] [--out <name>] [--width <n>] [--height <n>] [--wait <ms>]
                 [--drag <css selector> --drag-by <dx>,<dy>]
-pnpm screenshot --stop
 ```
 
-Defaults: `--path /` (the whole app), 1600x1000, `--out screenshot`, `--wait 300`. The tool also ensures a vite
-dev server (on a port hashed from this checkout's path and `GARDEN_PORT`) and a debuggable Chrome instance (port 9222) exist, spawning either if
-missing and leaving both running for the next invocation — later runs are fast. What stops them:
-every vite this checkout started (one per `GARDEN_PORT` it ran against) is stopped by
-`pnpm screenshot --stop` (exit 0 whether or not any is running), by plant's
-finish step, or by any later `pnpm screenshot` run once its checkout is gone, which reaps every
-vite it started for a removed checkout. Chrome is one shared instance on 9222 for all checkouts and
-is deliberately left running; quit it by hand if you want it gone. Each run opens a tab of its own
-in that Chrome and closes it on exit, so any other page open on 9222 is never what gets captured. Unknown flags and a lone `--drag` or `--drag-by` exit 1 rather than quietly
+Defaults: `--path /` (the whole app), 1600x1000, `--out screenshot`, `--wait 300`. Each run
+starts its own vite dev server from this checkout on a free port and stops it (pnpm and vite
+together) when the run ends, whether it succeeds, fails or is interrupted, so a run leaves no vite
+behind. A cold vite costs about half a second, which is why nothing keeps one alive between runs.
+The run also needs a debuggable Chrome on port 9222 and launches one if none is answering. That
+Chrome is the one process a run leaves running: it is shared by every checkout, so no single run
+owns it. Quit it by hand when you want it gone. Each run opens a tab of its own in that Chrome and
+closes it on exit, so any other page open on 9222 is never what gets captured. Unknown flags and a lone `--drag` or `--drag-by` exit 1 rather than quietly
 producing an undragged screenshot.
 
 The last line of stdout is the absolute path to the saved PNG under `.screenshots/`. **Use the Read
@@ -79,21 +72,11 @@ default. A change a screenshot has to show after a drag therefore has to be driv
 
 ## Iterating on a visual change
 
-Confirm the build under test before the first comparison. Branch-specific content visible in the
-frame is **not** proof of which build you captured: `main` can render an identical frame (a new
-preset or empty-slot placeholder looks the same on both). The vite port is a hash of the checkout
-path and `GARDEN_PORT` with 1000 buckets, and a 2xx response is all the tool needs to reuse a running server, so a
-different checkout's vite, or any other server on that port, can be what gets captured. Check the
-served source instead. Take the port from the `[screenshot] vite dev server ok on <port>` line,
-then:
-
-```
-curl -s http://127.0.0.1:<port>/src/<path under packages/web/src> | grep -c <symbol>
-```
-
-where `<symbol>` exists only on the commit under test. A count of 0 means the wrong build. Use a
-runtime identifier or string literal: vite serves modules with TypeScript types stripped, so an
-`interface` or `type` name greps 0 even on the right build.
+The client code in the frame is always this checkout's working tree, because the vite serving it
+was started from this checkout for this run alone. Branch-specific content visible in the frame
+still isn't proof that a change took effect, since `main` can render an identical frame (a new
+preset or empty-slot placeholder looks the same on both). Pick states whose rendering differs
+between the base and your change.
 
 Screenshot before you touch anything to see the current state, make the change, screenshot again,
 and compare. For a ticket about a visual bug, a before/after screenshot pair is what you attach as
