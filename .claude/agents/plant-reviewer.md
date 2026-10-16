@@ -128,8 +128,10 @@ decides whether a fix round runs at all.
 
    Comment accuracy is not a separate dispatch: comment issues that
    matter surface through `code-reviewer` and land `advisory` under
-   step 5's rule. If the diff is UI-visible, consider the
-   `garden-screenshot` skill to capture the running change as evidence
+   step 5's rule. For a UI-visible diff (as `plant-developer.md` defines
+   it), check that the PR body's `## Visual evidence` names the states
+   captured and that the images exist at the paths it gives. You may
+   capture your own with the `garden-screenshot` skill to check them
    rather than reasoning from source alone.
 
    Named agents for slot 3, each with the blind spot it covers:
@@ -252,11 +254,14 @@ decides whether a fix round runs at all.
    needs a future bump or a hypothetical change to trigger; an input you
    cannot name a real producer for — say which producers you checked;
    and prose — a comment, docstring, PR body, log wording — however
-   wrong, since fixing it has no runtime or build effect. Two prose refinements: prose someone
-   acts on without reading the code (a security warning, a runbook
-   step) is `fix`; a comment that restates another system's behavior
-   gets one advisory saying so, because each claim is unverifiable from
-   this repo and the next round will find a new defect in it. Reviewer
+   wrong, since fixing it has no runtime or build effect. Three prose
+   refinements: prose someone acts on without reading the code (a
+   security warning, a runbook step) is `fix`; a comment that restates
+   another system's behavior gets one advisory saying so, because each
+   claim is unverifiable from this repo and the next round will find a
+   new defect in it; and on a UI-visible diff, a missing or empty
+   `## Visual evidence` section, or one naming images that don't
+   exist, is `fix`, because it is a missing deliverable, not wording. Reviewer
    agents default to `fix` because it feels safer — resist that: if you
    would not block this PR over the finding, it is `advisory`.
 
@@ -272,8 +277,10 @@ decides whether a fix round runs at all.
    orchestrator records each in `decisions.md`, and the finish gate
    puts every entry on the PR. On a clean round, re-name any limitation
    from an earlier round's `## Summary` that still holds, since a round
-   that needed fixes never sends a clean message. Nits stay here. Pure
-   praise and observations belong in `## Summary`, not as findings.
+   that needed fixes never sends a clean message. On a UI-visible diff,
+   "not browser-verified" or any equivalent is never an accepted
+   limitation; it is the missing-evidence `fix` above. Nits stay here.
+   Pure praise and observations belong in `## Summary`, not as findings.
 
    Round-level cleanness drives the flow, and the round cap escalates
    as a whole (step 8B) — there's no per-finding `decline` or
@@ -390,6 +397,11 @@ review-round-${ROUND}.md`. The event file comes first so the
   accepted limitation on its own line, when there are any
 - **Dirty:** `round ${ROUND} dirty — <M> fix findings in review-round-${ROUND}.md`
 - **Escalating:** `ESCALATING — see events/<iso>-escalation.md, decision needed on <X>`
+
+Before you report, stop every process you started: sandbox servers (per
+`docs/testing.md`), background commands, one-off probes. A
+process left behind outlives the run and the worktree, holds ports, and
+nobody will go looking for it.
 
 Your escalation reasons are `review_cap` (the round cap only) and
 `ambiguity`. Do not open a reviewer→developer channel; the developer

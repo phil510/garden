@@ -1,8 +1,9 @@
 // Dev screenshot tool: drives an already-running garden through Chrome DevTools
 // Protocol so an agent can look at its own UI changes. Zero new dependencies —
 // Node 22's global `fetch` and `WebSocket` do the CDP round trip.
-import { execFile, spawn } from 'node:child_process';
+import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import { mkdirSync, openSync, writeFileSync } from 'node:fs';
+import { createServer, type AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
@@ -78,21 +79,22 @@ async function waitUntil(check: () => Promise<boolean>, label: string, timeoutMs
   }
 }
 
-/** Each checkout gets its own port, so a dev server found already listening is always
- *  serving the code under this worktree rather than another one's. GARDEN_PORT is folded
- *  into the hash too: vite.config.ts's proxy target is fixed at vite spawn time, so two
- *  runs in the same checkout with different GARDEN_PORT values must not reuse one vite. */
-function vitePort(repoRoot: string): number {
-  const key = `${repoRoot}:${process.env.GARDEN_PORT ?? 4310}`;
-  let hash = 0;
-  for (const char of key) hash = (hash * 31 + char.charCodeAt(0)) % 1000;
-  return 5200 + hash;
+/** An OS-assigned free port, so concurrent runs, in this checkout or another, never share a vite. */
+function freePort(): Promise<number> {
+  return new Promise((resolvePort, rejectPort) => {
+    const server = createServer();
+    server.once('error', rejectPort);
+    server.listen(0, '127.0.0.1', () => {
+      const { port } = server.address() as AddressInfo;
+      server.close(() => resolvePort(port));
+    });
+  });
 }
 
-async function ensureVite(repoRoot: string, viteUrl: string, port: number): Promise<void> {
-  if (await probe(viteUrl)) return;
+/** detached makes pnpm the leader of a new process group, so signalling the negated pid
+ *  stops pnpm and the vite under it together. */
+function spawnVite(repoRoot: string, port: number, logPath: string): ChildProcess {
   console.log(`[screenshot] starting vite dev server on ${String(port)}...`);
-  const logPath = join(repoRoot, '.screenshots', 'vite.log');
   mkdirSync(dirname(logPath), { recursive: true });
   const log = openSync(logPath, 'w');
   // --host pins the bind to IPv4: vite otherwise listens on [::1] only, which the
@@ -113,11 +115,16 @@ async function ensureVite(repoRoot: string, viteUrl: string, port: number): Prom
     { cwd: repoRoot, detached: true, stdio: ['ignore', log, log] },
   );
   child.unref();
-  await waitUntil(
-    () => probe(viteUrl),
-    `vite dev server on ${String(port)} (see ${logPath})`,
-    30_000,
-  );
+  return child;
+}
+
+function stopGroup(child: ChildProcess): void {
+  if (child.pid === undefined) return;
+  try {
+    process.kill(-child.pid, 'SIGTERM');
+  } catch {
+    // ESRCH: the group has already exited.
+  }
 }
 
 async function ensureChrome(): Promise<void> {
@@ -274,7 +281,14 @@ async function captureScreenshot(url: string, opts: Options): Promise<Buffer> {
     await send('Page.enable');
     const loaded = waitForEvent('Page.loadEventFired');
     await send('Page.navigate', { url });
-    await Promise.race([loaded, sleep(10_000)]);
+    // The fallback timer is cleared once the load event wins: a pending timer keeps Node's
+    // event loop alive, so leaving it would hold the process open for the full 10 s.
+    let loadTimeout: NodeJS.Timeout | undefined;
+    await Promise.race([
+      loaded,
+      new Promise((resolveTimeout) => (loadTimeout = setTimeout(resolveTimeout, 10_000))),
+    ]);
+    clearTimeout(loadTimeout);
     await sleep(opts.wait);
     if (opts.drag !== undefined && opts.dragBy !== undefined) {
       await drag(opts.drag, opts.dragBy.dx, opts.dragBy.dy);
@@ -302,23 +316,43 @@ async function main(): Promise<void> {
   }
   console.log(`[screenshot] garden server ok on ${SERVER_URL}`);
 
-  const port = vitePort(repoRoot);
+  // vite lives only for this run. Its own process group keeps it out of a terminal's
+  // Ctrl-C, so the handlers below forward an interrupt to it before exiting.
+  const port = await freePort();
   const viteUrl = `http://127.0.0.1:${String(port)}`;
-  await ensureVite(repoRoot, viteUrl, port);
-  console.log(`[screenshot] vite dev server ok on ${String(port)}`);
+  const logPath = join(repoRoot, '.screenshots', 'vite.log');
+  const vite = spawnVite(repoRoot, port, logPath);
+  for (const [signal, code] of [
+    ['SIGINT', 130],
+    ['SIGTERM', 143],
+  ] as const) {
+    process.once(signal, () => {
+      stopGroup(vite);
+      process.exit(code);
+    });
+  }
+  try {
+    await waitUntil(
+      () => probe(viteUrl),
+      `vite dev server on ${String(port)} (see ${logPath})`,
+      30_000,
+    );
+    console.log(`[screenshot] vite dev server ok on ${String(port)}`);
 
-  const targetUrl = `${viteUrl}${opts.path}`;
-  await ensureChrome();
-  console.log('[screenshot] debuggable Chrome ok on 9222');
+    await ensureChrome();
+    console.log('[screenshot] debuggable Chrome ok on 9222');
 
-  const png = await captureScreenshot(targetUrl, opts);
+    const png = await captureScreenshot(`${viteUrl}${opts.path}`, opts);
 
-  const screenshotsDir = join(repoRoot, '.screenshots');
-  mkdirSync(screenshotsDir, { recursive: true });
-  const outPath = join(screenshotsDir, `${opts.out}.png`);
-  writeFileSync(outPath, png);
+    const screenshotsDir = join(repoRoot, '.screenshots');
+    mkdirSync(screenshotsDir, { recursive: true });
+    const outPath = join(screenshotsDir, `${opts.out}.png`);
+    writeFileSync(outPath, png);
 
-  console.log(outPath);
+    console.log(outPath);
+  } finally {
+    stopGroup(vite);
+  }
 }
 
 main().catch((error: unknown) => {

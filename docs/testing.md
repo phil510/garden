@@ -11,7 +11,8 @@ For the layering these rules refer to, see `architecture.md`.
 
 Two tiers, unit and integration. There is no browser or end-to-end tier. `pnpm screenshot`
 (see `scripts/screenshot.ts`) is a local dev tool for visually reviewing a UI change, not a
-third tier — it asserts nothing and CI never runs it.
+third tier — it asserts nothing and CI never runs it. Each run starts and stops its own vite, so it
+leaves only the shared debuggable Chrome running.
 
 The line is not "fast versus slow". It is **does the thing under test need a real OS resource
 to fail for the right reason.** garden's entire risk surface sits at that boundary: a wrong
@@ -140,13 +141,6 @@ a live model's actual output. The process boundary, the pane, the hook POSTs and
 file it writes are all still real; only the model's judgment is replaced, by a keyword mapping
 deterministic enough to assert on.
 
-A second sandbox needs its own port, tmux socket and app dir, and the scripts take those as
-`GARDEN_SANDBOX_PORT`, `GARDEN_SANDBOX_SOCKET`, `GARDEN_SANDBOX_APP_DIR` and
-`GARDEN_SANDBOX_VITE_PORT`. They are deliberately not the `GARDEN_*` names the server itself
-reads: garden injects `GARDEN_PORT` into every pane it spawns, so a script honouring that name
-would silently point a sandbox started from inside a garden session at the real instance's
-port. Sharing any one of the three between two sandboxes puts them back in each other's state.
-
 - **`execFile` is never mocked, anywhere.** Faking a port substitutes one implementation of a
   declared interface; mocking `execFile` pretends the process boundary behaved. The test then
   passes because the mock returned what you told it to, while the argument array — the thing
@@ -168,6 +162,46 @@ port. Sharing any one of the three between two sandboxes puts them back in each 
 - If a unit test reaches for `vi.mock`, treat it as a signal rather than a tool — either the
   code under test imported an adapter it should not have, or the test belongs in the other
   tier. Passing a hand-written fake into a use case is not mocking; that is the port working.
+
+## Running a sandbox
+
+`pnpm dev:sandbox:server` boots an isolated garden: its own port, tmux socket and app dir, with
+`scripts/fake-claude.ts` in place of Claude. It runs beside the user's real `garden` without
+either seeing the other's sessions, which is what makes it safe for an agent to start one on its
+own for a manual or visual check. Never start, stop, signal or reconfigure the real instance (the
+default port, socket and app dir) to do the same job, because that is the user's live work.
+
+A second sandbox needs its own port, tmux socket and app dir. The scripts take them as
+`GARDEN_SANDBOX_PORT`, `GARDEN_SANDBOX_SOCKET` and `GARDEN_SANDBOX_APP_DIR`, plus
+`GARDEN_SANDBOX_VITE_PORT` for `dev:sandbox:web`. They are deliberately not the `GARDEN_*` names
+the server itself reads: garden injects `GARDEN_PORT` into every pane it spawns, so a script
+honouring that name would silently point a sandbox started from inside a garden session at the
+real instance's port. Sharing any of the server's three between two sandboxes puts them back in
+each other's state.
+
+An agent sets all three to values of its own, so it collides with neither the user's sandbox
+(which runs on the defaults) nor another agent's. The setup script refuses a tmux socket that
+already has live panes.
+
+```
+D=$(mktemp -d)
+GARDEN_SANDBOX_PORT=<free port> GARDEN_SANDBOX_SOCKET=<unique name> GARDEN_SANDBOX_APP_DIR=$D \
+  pnpm dev:sandbox:server
+```
+
+Run it in the background. It is ready when it logs `garden listening on
+http://127.0.0.1:<port>`; if the command exits instead, its output says why.
+
+Stop it when you are done, so nothing outlives the task. The sandbox writes no pid file, so
+`garden stop` can't reach it; stop it by port and socket. Run the `kill` and the `kill-server`
+only if you saw your own sandbox log `listening`. If it never came up, whatever holds that port
+or socket belongs to someone else.
+
+```
+kill $(lsof -ti tcp:<port> -sTCP:LISTEN)   # the server exits within seconds, its pnpm parent with it
+tmux -L <socket> kill-server
+rm -rf $D
+```
 
 ## The tmux integration fixture
 

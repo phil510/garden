@@ -148,10 +148,23 @@ the verify command pass.
    over-engineering, `edsger-dijkstra` for correctness, `kent-beck` for
    tests, `ralph-kimball` for data models, `socrates` as the default.
    Address its findings before opening the PR. This is your one
-   mandatory pre-PR review. If the change is UI-visible, use the
-   `garden-screenshot` skill to look at the running change yourself
-   rather than inferring correctness from source — a diff that reads
-   fine can still render wrong.
+   mandatory pre-PR review.
+
+   **Visual evidence.** A diff is _UI-visible_ when it changes what
+   renders in the browser: any non-test file under `packages/web/src/`,
+   or a server change that alters data the UI displays. When unsure,
+   treat it as UI-visible — a capture is cheap, a miss costs a round
+   trip. For a UI-visible diff, capture the running change with the
+   `garden-screenshot` skill before step 7, covering each state the
+   change affects, not only the default view. A diff that reads fine
+   can still render wrong, and the reviewer treats missing evidence as
+   a defect. The skill points to how to run a sandbox of your own.
+   Never use `garden` or the default `pnpm dev:sandbox:server`
+   settings, because those are the user's real instance and their own
+   sandbox. If a capture can't be made to work (no Chrome, a vite port
+   that won't bind), escalate `error` rather than open the PR without
+   evidence.
+
 7. **Open the draft PR directly:**
    ```bash
    gh pr create --draft --title "<descriptive title, no prefix>" --body "$(cat <<'EOF'
@@ -166,6 +179,13 @@ the verify command pass.
    ## Test plan
 
    - <how you verified the change>
+
+   ## Visual evidence
+
+   <UI-visible diff: each state captured and the absolute path of its
+   image under `.screenshots/` in the worktree, plus a line asking the
+   user to drag the images in, since gh can't attach them. Otherwise one
+   line saying the diff is not UI-visible.>
 
    ## Spec and architecture deviations
 
@@ -225,6 +245,8 @@ round.
    ```
    > NOTE <iso> — developer: finding <n> fixed — <commit-sha>
    ```
+   When a fix changes what renders, re-capture and update the PR body's
+   `## Visual evidence` section to match.
 6. **Push** all commits to `${BRANCH}`. The PR updates automatically.
    (A base-branch merge is pushed here like any other commit.)
 7. **Append the developer-round section** to `${REVIEW_FILE}` so it
@@ -311,12 +333,17 @@ Typical reasons:
 | Reason              | Trigger                                                                                                           |
 | ------------------- | ----------------------------------------------------------------------------------------------------------------- |
 | `autonomy_exceeded` | A finding (or plan task) falls outside `Auto:` bounds                                                             |
-| `error`             | Worktree bootstrap failed — `pnpm install` won't succeed                                                          |
+| `error`             | The environment won't run: `pnpm install` fails, or a required screenshot capture can't be made to work           |
 | `stall`             | Verify still failing after 3 different approaches, or no forward progress after several attempts at the same task |
 | `ambiguity`         | A task or finding asks for something the brief doesn't cover, and the repo's docs are silent too                  |
 
 ## Guardrails
 
+- **Stop what you started.** Before you report, stop every process you
+  started: sandbox servers (per `docs/testing.md`),
+  background commands, one-off probes. A process left behind outlives
+  the run and the worktree, holds ports, and nobody will go looking for
+  it.
 - **Never bypass the verify command.** Flaky tests get fixed or
   escalated, not silenced.
 - **Never force-push.** Additive commits only.

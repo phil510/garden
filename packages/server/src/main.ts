@@ -64,6 +64,8 @@ const TMUX_POLL_INTERVAL_MS = 2000;
 
 /** How often the pipe sweep ends watches that have had no pipe for seven days. */
 const PIPE_SWEEP_INTERVAL_MS = 60 * 60 * 1000;
+// Must stay under `garden stop`'s 5s wait so the stopper sees the process exit.
+const SHUTDOWN_TIMEOUT_MS = 3000;
 
 function tmuxPort(target: TmuxTarget): TmuxPort {
   return {
@@ -346,7 +348,23 @@ export async function main(detached: boolean): Promise<void> {
     return watcher.close();
   });
   for (const signal of ['SIGINT', 'SIGTERM'] as const) {
-    process.once(signal, () => void app.close());
+    process.once(signal, () => {
+      // A handle that never lets go would otherwise leave the process alive after a clean close,
+      // and app.close() may itself never settle; the timer is the bound `garden stop` relies on.
+      setTimeout(() => {
+        logger.error(`shutdown did not finish within ${String(SHUTDOWN_TIMEOUT_MS)}ms; exiting`);
+        process.exit(1);
+      }, SHUTDOWN_TIMEOUT_MS).unref();
+      app.close().then(
+        () => process.exit(0),
+        (error: unknown) => {
+          logger.error(
+            `shutdown failed: ${error instanceof Error ? error.message : String(error)}`,
+          );
+          process.exit(1);
+        },
+      );
+    });
   }
 
   await app.listen({ port: config.port, host: config.host });
