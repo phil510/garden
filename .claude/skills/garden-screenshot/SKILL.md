@@ -11,22 +11,43 @@ the same way a human reviewer would, and iterate before handing off a visual cha
 
 ## Prerequisite
 
-A garden server must already be running against real tmux. Prefer the sandbox: `pnpm
-dev:sandbox:server` boots an isolated instance (its own port, tmux socket, app dir and a fake
-Claude in place of the real one) that runs alongside the user's real `garden` without either
-seeing the other's sessions, so a visual check never risks their live work. Point this tool at
-it with `GARDEN_PORT=<sandbox port> pnpm screenshot` — the sandbox script logs the port it
-bound on startup. The installed `garden` CLI also satisfies this prerequisite (same server, same
-boot path) for when the real instance is specifically what's under test. This tool never boots a
-server itself; reusing what is already running is the point, so if `pnpm screenshot` reports the
-server unreachable, ask the user to start garden (or the sandbox) rather than starting it
-yourself.
+A garden server must be running against real tmux. Start a sandbox yourself rather than asking
+the user for one: `pnpm dev:sandbox:server` boots an isolated instance (its own port, tmux
+socket, app dir and a fake Claude in place of the real one) that runs alongside the user's real
+`garden` without either seeing the other's sessions, so a visual check never risks their live
+work. Never start, stop, signal or reconfigure the user's real `garden` (the default port, socket
+and app dir); the installed `garden` CLI is only a target when the real instance is specifically
+what's under test, and then you point at it, you don't run it.
 
-`GARDEN_PORT` is read by this tool, the vite dev server it spawns, and its Chrome/vite process
-cache, so pointing it at a different port is always a distinct, non-colliding run. A `"port"`
-override in `~/.garden/config.json` is a separate mechanism this tool does not read — on a
-config-only custom port it reports the server as unreachable when it is in fact running fine.
-Check the user's config before believing that message.
+Give your sandbox a namespace of its own, so it collides with neither the user's sandbox nor
+another pipeline's (the setup script refuses a tmux socket that is already held):
+
+```
+D=$(mktemp -d)
+GARDEN_SANDBOX_PORT=<free port> GARDEN_SANDBOX_SOCKET=<unique name> GARDEN_SANDBOX_APP_DIR=$D \
+  pnpm dev:sandbox:server
+```
+
+Run it with `run_in_background`, then read its output for the `garden listening on
+http://127.0.0.1:<port>` line: that is the port it bound, and the sandbox is ready once the line
+appears. Point this tool at it with `GARDEN_PORT=<port> pnpm screenshot`. This tool never boots a
+server itself; if `pnpm screenshot` reports the server unreachable, the sandbox isn't up yet or
+has died, so check its output.
+
+When you are finished, stop what you started, so nothing outlives the task:
+
+```
+kill $(lsof -ti tcp:<port> -sTCP:LISTEN)   # the server exits within seconds and takes its wrapper with it
+tmux -L <socket> kill-server               # the socket you chose; harmless if already gone
+pnpm screenshot --stop                     # this checkout's vite
+rm -rf $D
+```
+
+`GARDEN_PORT` is read by this tool and the vite dev server it spawns, so pointing it at a
+different port is always a distinct, non-colliding run. A `"port"` override in
+`~/.garden/config.json` is a separate mechanism this tool does not read — on a config-only custom
+port it reports the server as unreachable when it is in fact running fine. Check the user's
+config before believing that message.
 
 ## Taking a screenshot
 
@@ -37,9 +58,12 @@ pnpm screenshot [--path <url path>] [--out <name>] [--width <n>] [--height <n>] 
 
 Defaults: `--path /` (the whole app), 1600x1000, `--out screenshot`, `--wait 300`. The tool also ensures a vite
 dev server (on a port derived from this checkout's path) and a debuggable Chrome instance (port 9222) exist, spawning either if
-missing and leaving both running for the next invocation — later runs are fast. Each run opens a
-tab of its own in that Chrome and closes it on exit, so any other page open on 9222 is never what
-gets captured. Unknown flags and a lone `--drag` or `--drag-by` exit 1 rather than quietly
+missing and leaving both running for the next invocation — later runs are fast. What stops them:
+the vite is stopped by `pnpm screenshot --stop` (exit 0 whether or not one is running), by plant's
+finish step, or by any later `pnpm screenshot` run once its checkout is gone, which reaps every
+vite it started for a removed checkout. Chrome is one shared instance on 9222 for all checkouts and
+is deliberately left running; quit it by hand if you want it gone. Each run opens a tab of its own
+in that Chrome and closes it on exit, so any other page open on 9222 is never what gets captured. Unknown flags and a lone `--drag` or `--drag-by` exit 1 rather than quietly
 producing an undragged screenshot.
 
 The last line of stdout is the absolute path to the saved PNG under `.screenshots/`. **Use the Read
