@@ -281,7 +281,14 @@ async function captureScreenshot(url: string, opts: Options): Promise<Buffer> {
     await send('Page.enable');
     const loaded = waitForEvent('Page.loadEventFired');
     await send('Page.navigate', { url });
-    await Promise.race([loaded, sleep(10_000)]);
+    // The fallback timer is cleared once the load event wins: a pending timer keeps Node's
+    // event loop alive, so leaving it would hold the process open for the full 10 s.
+    let loadTimeout: NodeJS.Timeout | undefined;
+    await Promise.race([
+      loaded,
+      new Promise((resolveTimeout) => (loadTimeout = setTimeout(resolveTimeout, 10_000))),
+    ]);
+    clearTimeout(loadTimeout);
     await sleep(opts.wait);
     if (opts.drag !== undefined && opts.dragBy !== undefined) {
       await drag(opts.drag, opts.dragBy.dx, opts.dragBy.dy);
