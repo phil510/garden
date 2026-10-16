@@ -339,9 +339,11 @@ Typical reasons:
 
 ## Guardrails
 
-- **Stop what you started.** Before you report, stop every sandbox
-  server and vite you started, per `garden-screenshot`. A sandbox left
-  behind outlives the pipeline.
+- **Stop what you started.** Before you report, stop every process you
+  started: sandbox servers and vite (per `garden-screenshot`),
+  background commands, one-off probes. A process left behind outlives
+  the run and the worktree, holds ports, and nobody will go looking for
+  it.
 - **Never bypass the verify command.** Flaky tests get fixed or
   escalated, not silenced.
 - **Never force-push.** Additive commits only.

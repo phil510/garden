@@ -398,8 +398,10 @@ review-round-${ROUND}.md`. The event file comes first so the
 - **Dirty:** `round ${ROUND} dirty — <M> fix findings in review-round-${ROUND}.md`
 - **Escalating:** `ESCALATING — see events/<iso>-escalation.md, decision needed on <X>`
 
-Before you report, stop any sandbox server or vite you started, per
-`garden-screenshot`.
+Before you report, stop every process you started: sandbox servers and
+vite (per `garden-screenshot`), background commands, one-off probes. A
+process left behind outlives the run and the worktree, holds ports, and
+nobody will go looking for it.
 
 Your escalation reasons are `review_cap` (the round cap only) and
 `ambiguity`. Do not open a reviewer→developer channel; the developer
