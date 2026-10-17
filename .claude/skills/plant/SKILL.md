@@ -354,14 +354,27 @@ small); developer works from brief ACs`, then go to step 6. The box
     preferred form; if you ever need a different wait, a bare
     foreground `sleep` is hard-blocked by the harness, so use
     `until <terminal-check>; do sleep N; done` instead.
-    c. **CI red** → treat the failure as a finding: write it into the next
+    c. **CI red** → first, a check field 5 records as deferred by the
+    user is already decided. Name the failing checks (`gh pr checks <url>
+--json name,state`; `--watch`'s exit code can't say which failed).
+    When a deferred check is the only failure, write no finding and
+    dispatch no fix round: go to (d) and name it in the report, since
+    otherwise a deferred check loops fix rounds forever. Under `auto`, (d)
+    then behaves as `ask`, because the user deferred fixing the check, not
+    necessarily merging over it. Otherwise treat the failure as a finding: write it into the next
     `review-round-N.md` (the number after the last one, never an existing
     file; `review_rounds` counts these too) in the findings shape the developer's fix-round
     mode already expects (`Disposition: fix`, `Severity`, `Location`,
     `Issue`, `Failure scenario`) describing what CI reported, dispatch
     a developer fix-round against it, then re-check from (a)'s
     mergeability check — the base may have moved during the round.
-    c2. **Conflict with base** → the base branch moved under the PR.
+    c2. **Conflict with base** → the base branch moved under the PR. If
+    field 5 records the base as on hold, dispatch nothing: the base is
+    about to change, so a merge-down would resolve against code that may
+    not land. Annotate a `> NOTE`, report to whoever is waiting as (d)
+    does, and pause. A message from the user or the dispatching peer
+    lifting the hold means removing the line from field 5 and re-entering
+    at (a).
     Write the next `review-round-N.md`, numbered as in (c), with one `Disposition: fix` finding whose
     `Location` is `base branch <baseRefName>` (read the name from `gh pr
 view --json baseRefName`, never assume `main`) — the shape the
@@ -452,8 +465,11 @@ the brief field in place and annotate — only between worker invocations,
 never while one is running. An escalation pause counts as between
 invocations: land the edit on disk before the decision message, and the
 message tells the escalator to re-read the brief; the live escalator is
-never replaced for a brief edit. See `references/brief.md` § Brief editing
-mid-pipeline and § Mid-pipeline user concerns.
+never replaced for a brief edit. A small edit after stage 3 is ticked
+ends at the developer's report, which re-enters step 10 at (a) as (c)
+and (c2) do, rather than going to a reviewer as step 8's routing would.
+See `references/brief.md` § Brief editing mid-pipeline and
+§ Mid-pipeline user concerns.
 
 ## Resume
 

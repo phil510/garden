@@ -342,9 +342,8 @@ decides whether a fix round runs at all.
 
 8. **If dirty:** two paths.
 
-   **8A. Default (a dirty round below the cap, or a new finding at the
-   cap):** a successful review round that happens to have findings, not
-   a worker crash. Do NOT write an escalation event — the orchestrator
+   **8A. Default (a dirty round below the cap):** a successful review
+   round that happens to have findings, not a worker crash. Do NOT write an escalation event — the orchestrator
    reads `review-round-${ROUND}.md` directly and spawns the next dev
    round.
 

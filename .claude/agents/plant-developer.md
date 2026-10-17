@@ -212,9 +212,8 @@ the verify command pass.
 
 ## Mode: fix-round
 
-Address every `fix` finding in `${REVIEW_FILE}` and push. The stage-3
-checkbox stays unchecked — only the reviewer flips it, on a clean
-round.
+Address every `fix` finding in `${REVIEW_FILE}` and push. Leave the
+stage-3 checkbox as you found it — only a clean internal review flips it.
 
 1. **Read `${REVIEW_FILE}`.** The findings are the file body.
 2. **Annotate start:**
