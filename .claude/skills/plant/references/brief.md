@@ -161,8 +161,8 @@ When a user resolution changes scope:
    round), append a matching annotation noting invalidation. Staleness
    is detected by comparing the brief edit's ISO to the artifact's
    timestamp — no version counter needed. Fresh-spawn the affected stage
-   with the new brief, unless the change is a small edit (§ Mid-pipeline
-   user concerns), which takes one developer and no re-review. The other
+   with the new brief, unless the change is a small edit, which
+   § Mid-pipeline user concerns routes on its own. The other
    exception is a stage whose worker is waiting on this very escalation:
    it is not replaced, it re-reads the brief when the decision message
    arrives.
@@ -238,8 +238,8 @@ concern` section with `Disposition: fix`, `Severity`, `Location`,
    fix-round ask waits until that worker reports.
 
 When told to batch — syncing several stacked PRs, say — dispatch
-developers without review until told the batch is done, then review the
-final head once. Each intermediate head is superseded before anyone
+developers without review, and hold the finish gate, until told the batch
+is done, then review the final head once. Each intermediate head is superseded before anyone
 merges it, so reviewing it pays for findings on code that never ships.
 
 The user's authorial word trumps the brief. If a concern contradicts
