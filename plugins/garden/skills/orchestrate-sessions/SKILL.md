@@ -72,8 +72,8 @@ the same id you just adopted it with; adoption changes who placed the session, n
 files and decisions and its current work has reached a stopping point (PR ready or merged); it
 already holds the context a fresh peer would have to rebuild. Start a fresh one when the task needs
 its own plan, or when it would leave the session running two pipelines at once, because two
-pipelines in one session collide. A peer paused at a finish gate (PR ready, merge waiting on
-approval) is still mid-pipeline, so the next task waits or goes elsewhere. Serial reuse is fine; this
+pipelines in one session collide. A peer whose PR is ready but waiting on the user's merge decision is still mid-pipeline, so the
+next task waits or goes elsewhere. Serial reuse is fine; this
 is not one peer per PR. Reusing a peer means updating the task line that opens its member file.
 
 **Ask for a report in the brief.** Tell the peer to message `<your session name>` when it
@@ -241,7 +241,7 @@ say whether it is small or large. **Small** means the outcome is settled, the co
 known, and it changes no contract, security boundary or data invariant: the peer makes it with no
 review round, because reviewing a decided, located change can only re-litigate the decision. Line
 count isn't the test. The label is your read without the code, so a peer that finds the edit does
-touch a contract or invariant says so and runs rounds; its review stays the control here.
+touch a contract or invariant says so and runs rounds; the peer's judgment stays the control here.
 **Large** edits run the normal pipeline rounds. When several PRs update together, such as syncing a
 stack, tell each peer to batch: say when the batch ends and review the final heads once, since each
 intermediate head is superseded before anyone merges it.
@@ -329,7 +329,7 @@ an upstream is on hold, tell its downstream peers so their conflict handling doe
 and have each record it in its brief.
 
 **Pivots**, where the user replaces a requirement rather than adjusting it, are rare. Hold peers at
-their next worker boundary and settle the replacement fully before dispatching, because anything
+their next stopping point and settle the replacement fully before dispatching, because anything
 relayed piecemeal builds code the next piece deletes. Rewrite the superseded briefs, and say whether
 the old code is deleted or kept after checking what still calls it.
 
