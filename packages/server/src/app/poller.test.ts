@@ -444,11 +444,11 @@ describe('createPoller', () => {
   });
 
   describe('ignored checks', () => {
-    const run = (name: string, id: number, at: number) => ({
+    const run = (name: string, id: number, at: number, conclusion = 'failure') => ({
       id,
       name,
       status: 'completed',
-      conclusion: 'failure',
+      conclusion,
       completed_at: iso(at),
     });
     const runsFor = (sha: string) => page(`repos/acme/widgets/commits/${sha}/check-runs`, 1);
@@ -494,6 +494,10 @@ describe('createPoller', () => {
         (ws) => ws.map((w) => ({ ...w, ignoredChecks: [] })),
         T0 + 2 * MIN,
       );
+      // A changed list makes GitHub answer 200, so the muted run is seen again, not 304'd.
+      t.github.set(runsFor('sha1'), {
+        check_runs: [run('cve-scan', 1, T0 + 1000), run('docs', 2, T0 + 3 * MIN, 'skipped')],
+      });
       t.at(T0 + 6 * MIN);
       await t.poller.tick();
       t.at(T0 + 10 * MIN);
