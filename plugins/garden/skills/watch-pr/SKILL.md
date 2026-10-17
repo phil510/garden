@@ -23,16 +23,18 @@ review, for CI, or for a review bot to settle. Not before — a watch on work yo
 only generates turns about code you know is unfinished.
 
 ```
-garden watch <pr> [--repo <owner/name>] [--on <kinds>]
+garden watch <pr> [--repo <owner/name>] [--on <kinds>] [--ignore-check <name>]... [--unignore-check <name>]...
 ```
 
 `--repo` defaults to the `origin` of your working directory, so it is only needed for a PR in
 another repo. The default kinds cover reviews, comments, failing checks, conflicts and the PR
 closing; pass `--on` only to narrow or widen them (for example `checks:all` to hear about passing
-checks too). Re-running `garden watch` for the same PR changes nothing but the kinds, which it
-replaces: a re-run without `--on` resets a widened set to the defaults, so repeat your `--on` if you
-passed one. That makes it safe to re-run when unsure a watch survived (`/clear` ends a session's
-watches), and there is no need to check first. `references/cli.md` in the
+checks too). Re-running `garden watch` for a watch that still exists changes only what you pass:
+without `--on` it keeps the kinds, without the ignore flags it keeps the ignores. But `/clear` ends
+a session's watches, and a re-run after that creates a fresh watch with the default kinds and no
+ignores, which silently drops a `checks:all` or an ignored check. So when unsure the watch
+survived, repeat every flag you passed (`--on` and each `--ignore-check`); there is no need to
+check first. `references/cli.md` in the
 `orchestrate-sessions` skill has the flags and the kinds.
 
 Confirm it took with `garden watches`: your PR should be listed with status `active`. Status `error`
@@ -62,6 +64,12 @@ Treat it as a prompt to look, then act on what you find:
    have moved since, and it never carries the review text.
 2. Several kinds can arrive in one line, as above. Handle each one; a failing check does not make
    the reviews any less pending.
+   A check that fails on every push for a reason the user has already decided to handle, now or
+   later (a deferred CVE scan, say), keeps minting a digest each time. Once they have decided,
+   mute it with `--ignore-check '<name>'`, the exact check run name or commit status context,
+   case-sensitive. Never ignore a check to make a failure go away before that decision. It mutes
+   passing and failing runs alike until you `--unignore-check` it or the watch ends, and
+   unignoring does not replay what was muted. `garden watches` lists a watch's ignored checks.
 3. Decide from what you read. A digest can be a duplicate — delivery is at least once, so a line
    can arrive again after a reconnect. If a reread shows nothing new since you last acted, go back
    to what you were doing, or idle.

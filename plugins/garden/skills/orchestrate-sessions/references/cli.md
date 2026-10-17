@@ -135,7 +135,7 @@ every other failure is: exit 1, `garden: <message>` on stderr. Output: `{ "ok": 
 ## Watch a PR
 
 ```
-garden watch <pr> [--repo <owner/name>] [--on <kinds>] [--session <id>] --json
+garden watch <pr> [--repo <owner/name>] [--on <kinds>] [--ignore-check <name>]... [--unignore-check <name>]... [--session <id>] --json
 garden unwatch <pr> [--repo <owner/name>] [--session <id>] --json
 garden unwatch --all [--session <id>] --json
 garden watches [--session <id>] --json
@@ -151,12 +151,20 @@ directory and is required when that has no GitHub remote.
 `--on` takes a comma-separated list from `review`, `comment`, `checks`, `checks:all`, `conflict`
 and `closed`. The default is `review,comment,checks,conflict,closed`; `checks:all` also reports
 passing checks and implies `checks`, and `closed` is always on. Re-adding a watch for the same
-session, repo and PR replaces its kinds and touches nothing else.
+session, repo and PR changes only what the call passes: `--on` replaces the kinds, otherwise they
+are kept.
 
-`watch` outputs `{ "watch": { "repo", "pr", "kinds", "pendingDigest", "status", "errorReason"? } }`;
+`--ignore-check` (repeatable) mutes a check run name or commit status context so it never
+contributes to a digest, passing or failing; `--unignore-check` lifts it. Names match exactly,
+case-sensitively, with no globs. Without either flag the existing ignores are kept, and a name in
+both lists in one call is unignored. The `watch-pr` skill covers when to ignore a check.
+
+`watch` outputs `{ "watch": { "repo", "pr", "kinds", "ignoredChecks", "pendingDigest", "status", "errorReason"? } }`;
 `watches` outputs `{ "watches": [...] }` of the same objects, where `status` is `active`, `error` or
 `closed`, `pendingDigest` is true while a digest waits to be delivered, and `errorReason` says why
-when `status` is `error` (the plain listing omits it; use `--json`). `unwatch` outputs
+when `status` is `error` (the plain listing omits it; use `--json`). The plain listing appends
+` ignoring: <names>` joined by commas, so a name containing a comma is ambiguous there; `--json`
+is the reliable form. `unwatch` outputs
 `{ "ok": true }`. Without `--repo`, `unwatch` matches the PR among the session's own watches and
 fails if the number is watched in more than one repo.
 
