@@ -69,7 +69,7 @@ member-file name, report contract) — tell the peer its member file is `<its ow
 the same id you just adopted it with; adoption changes who placed the session, not what it owes the run.
 
 **Decide where new work goes when you assign it.** Reuse a session when the next task shares its
-files and decisions and its current work has reached a stopping point (PR ready or merged); it
+files and decisions and its current work has reached a stopping point; it
 already holds the context a fresh peer would have to rebuild. Start a fresh one when the task needs
 its own plan, or when it would leave the session running two pipelines at once, because two
 pipelines in one session collide. A peer whose PR is ready but waiting on the user's merge decision is still mid-pipeline, so the
