@@ -268,6 +268,8 @@ export interface WatchSummary {
   kinds: WatchKind[];
   pendingDigest: boolean;
   status: WatchStatus;
+  /** Check run names and commit status contexts muted on this watch; empty when none. */
+  ignoredChecks: readonly string[];
   /** Short plain-language cause, present only while `status` is `error`. */
   errorReason?: string;
 }
@@ -312,12 +314,16 @@ export interface DigestDetail {
 export interface DigestResponse {
   digest: DigestDetail;
 }
-/** Body of `POST /sessions/:id/watches`. `repo` defaults to the session cwd's `origin`;
- *  `kinds` to the default set. Re-adding an existing watch replaces its kinds. */
+/** Body of `POST /sessions/:id/watches`. `repo` defaults to the session cwd's `origin`; a new
+ *  watch's `kinds` default to the default set. Re-adding an existing watch replaces its kinds
+ *  only when `kinds` is given. `ignoreChecks` and `unignoreChecks` add and remove muted check
+ *  names; omitting both keeps the existing ignores. */
 export interface AddWatchRequest {
   pr: number;
   repo?: string;
   kinds?: WatchKind[];
+  ignoreChecks?: string[];
+  unignoreChecks?: string[];
 }
 export interface WatchResponse {
   watch: WatchSummary;

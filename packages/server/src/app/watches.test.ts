@@ -161,6 +161,17 @@ describe('addWatch', () => {
     expect(writes()).toBe(before);
   });
 
+  it('adds an ignored check on a re-add and keeps the kinds', async () => {
+    const { deps, overlay } = setup({});
+    await addWatch(deps, { sessionId: 's1', pr: 7, kinds: ['review', 'checks:all'] });
+
+    const summary = await addWatch(deps, { sessionId: 's1', pr: 7, ignoreChecks: ['cve-scan'] });
+
+    expect(summary.ignoredChecks).toEqual(['cve-scan']);
+    expect(summary.kinds).toEqual(['review', 'checks', 'checks:all', 'closed']);
+    expect(overlay().watches).toHaveLength(1);
+  });
+
   it('replaces the kinds on a re-add instead of adding a second watch', async () => {
     const { deps, overlay } = setup({});
     await addWatch(deps, { sessionId: 's1', pr: 7 });

@@ -378,6 +378,7 @@ function aWatch(overrides: Partial<WatchSummary> = {}): WatchSummary {
     pr: 123,
     kinds: ['review', 'comment', 'checks', 'conflict', 'closed'],
     pendingDigest: false,
+    ignoredChecks: [],
     status: 'active',
     ...overrides,
   };
@@ -405,6 +406,24 @@ describe('runWatches', () => {
     expect(stdout).toEqual([
       'owner/name#123 review,comment,checks,conflict,closed active\nowner/name#7 closed active pending\n',
     ]);
+  });
+
+  it('lists ignored checks on the watch line and in --json', async () => {
+    const { io, stdout } = collectingIo();
+    const watches = [aWatch({ pr: 7, kinds: ['closed'], ignoredChecks: ['cve-scan', 'ci/x'] })];
+    const client: CliClient = {
+      ...throwingClient(new Error('unused')),
+      watches: () => Promise.resolve({ watches }),
+    };
+    const target = { env: { GARDEN_SESSION_ID: 's1' }, session: undefined };
+
+    await runWatches(io, target, false, client);
+    await runWatches(io, target, true, client);
+
+    expect(stdout[0]).toBe('owner/name#7 closed active ignoring: cve-scan, ci/x\n');
+    expect(JSON.parse(stdout[1] ?? '')).toMatchObject({
+      watches: [{ ignoredChecks: ['cve-scan', 'ci/x'] }],
+    });
   });
 
   it('says so when there are no watches, and prints the response as JSON with --json', async () => {

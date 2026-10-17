@@ -126,10 +126,16 @@ export function placeSession(id: string, placement: Placement): Promise<OkRespon
   });
 }
 
-/** `kinds` is passed through as typed by the user; the server validates it. */
+/** `kinds` and the check names are passed through as typed by the user; the server validates them. */
 export function watch(
   sessionId: string,
-  body: { pr: number; repo?: string; kinds?: readonly string[] },
+  body: {
+    pr: number;
+    repo?: string;
+    kinds?: readonly string[];
+    ignoreChecks?: readonly string[];
+    unignoreChecks?: readonly string[];
+  },
 ): Promise<WatchResponse> {
   return request(`/sessions/${encodeURIComponent(sessionId)}/watches`, {
     method: 'POST',

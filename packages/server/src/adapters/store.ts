@@ -131,6 +131,7 @@ function isWatch(value: unknown): value is Watch {
     Number.isInteger(value['pr']) &&
     Array.isArray(value['kinds']) &&
     value['kinds'].every(isWatchKind) &&
+    (value['ignoredChecks'] === undefined || isStringArray(value['ignoredChecks'])) &&
     typeof value['createdAt'] === 'number' &&
     'cursor' in value &&
     (value['pendingDigest'] === null || isPendingDigest(value['pendingDigest'])) &&

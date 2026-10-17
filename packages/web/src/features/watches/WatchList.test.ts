@@ -9,6 +9,7 @@ const watch: WatchSummary = {
   pr: 7,
   kinds: ['review'],
   pendingDigest: false,
+  ignoredChecks: [],
   status: 'active',
 };
 

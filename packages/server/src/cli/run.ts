@@ -234,6 +234,8 @@ export async function runCli(
       effort: { type: 'string' },
       repo: { type: 'string' },
       on: { type: 'string' },
+      'ignore-check': { type: 'string', multiple: true },
+      'unignore-check': { type: 'string', multiple: true },
       session: { type: 'string' },
       follow: { type: 'boolean', default: false },
     },
@@ -278,12 +280,20 @@ export async function runCli(
         : runAdopt(io, positionals[0], json, client);
     case 'watch': {
       const pr = parsePr(positionals[0]);
-      const form = `garden watch <pr> [--repo <owner/name>] [--on <kinds>] ${SESSION_FLAG_USAGE}`;
+      const form = `garden watch <pr> [--repo <owner/name>] [--on <kinds>] [--ignore-check <name>]... [--unignore-check <name>]... ${SESSION_FLAG_USAGE}`;
       if (pr === undefined) return usage(io, form);
       const kinds = values.on === undefined ? undefined : values.on.split(',');
       return runWatch(
         io,
-        { env, session: values.session, pr, repo: values.repo, kinds },
+        {
+          env,
+          session: values.session,
+          pr,
+          repo: values.repo,
+          kinds,
+          ignoreChecks: values['ignore-check'],
+          unignoreChecks: values['unignore-check'],
+        },
         json,
         client,
       );
