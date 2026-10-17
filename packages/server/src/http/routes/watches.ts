@@ -14,13 +14,18 @@ import type { WatchesDeps } from '../../app/watches.js';
 const isPrNumber = (value: unknown): value is number =>
   Number.isSafeInteger(value) && (value as number) > 0;
 
+const isCheckNames = (value: unknown): boolean =>
+  Array.isArray(value) && value.every((name) => typeof name === 'string' && name !== '');
+
 function isAddWatchRequest(body: unknown): body is AddWatchRequest {
   if (typeof body !== 'object' || body === null) return false;
-  const { pr, repo, kinds } = body as Record<string, unknown>;
+  const { pr, repo, kinds, ignoreChecks, unignoreChecks } = body as Record<string, unknown>;
   return (
     isPrNumber(pr) &&
     (repo === undefined || (typeof repo === 'string' && normalizeRepo(repo) !== null)) &&
-    (kinds === undefined || (Array.isArray(kinds) && kinds.every(isWatchKind)))
+    (kinds === undefined || (Array.isArray(kinds) && kinds.every(isWatchKind))) &&
+    (ignoreChecks === undefined || isCheckNames(ignoreChecks)) &&
+    (unignoreChecks === undefined || isCheckNames(unignoreChecks))
   );
 }
 
@@ -33,12 +38,14 @@ export function watchRoutes(app: FastifyInstance, deps: WatchesDeps) {
   app.post<{ Params: { id: string } }>('/sessions/:id/watches', async (request, reply) => {
     if (!isAddWatchRequest(request.body))
       return reply.code(400).send({ error: 'invalid add-watch request' } satisfies ErrorResponse);
-    const { pr, repo, kinds } = request.body;
+    const { pr, repo, kinds, ignoreChecks, unignoreChecks } = request.body;
     const watch = await addWatch(deps, {
       sessionId: request.params.id,
       pr,
       ...(repo === undefined ? {} : { repo }),
       ...(kinds === undefined ? {} : { kinds }),
+      ...(ignoreChecks === undefined ? {} : { ignoreChecks }),
+      ...(unignoreChecks === undefined ? {} : { unignoreChecks }),
     });
     return reply.send({ watch } satisfies WatchResponse);
   });

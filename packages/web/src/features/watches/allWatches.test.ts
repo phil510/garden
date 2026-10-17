@@ -8,6 +8,7 @@ const watch = (overrides: Partial<Watch> = {}): Watch => ({
   pr: 1,
   kinds: ['review', 'closed'],
   pendingDigest: false,
+  ignoredChecks: [],
   status: 'active',
   ...overrides,
 });

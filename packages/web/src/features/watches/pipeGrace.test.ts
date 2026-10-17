@@ -9,6 +9,7 @@ const watch: WatchSummary = {
   pr: 1,
   kinds: ['closed'],
   pendingDigest: false,
+  ignoredChecks: [],
   status: 'active',
 };
 const disconnected = (id: string, overrides = {}) =>

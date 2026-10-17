@@ -200,6 +200,22 @@ describe('readOverlayState watches', () => {
     });
   });
 
+  it('keeps a watch with ignored checks and drops one whose ignoredChecks is malformed', () => {
+    withTempAppDir((appDir) => {
+      mkdirSync(appDir, { recursive: true });
+      const ignoring = { ...watch, id: 'i', ignoredChecks: ['cve-scan'] };
+      const bad = { ...watch, id: 'bad', ignoredChecks: 'cve-scan' };
+      writeFileSync(join(appDir, 'state.json'), JSON.stringify(file([watch, ignoring, bad])));
+
+      const state = readOverlayState(appDir, collectingLogger());
+
+      expect(state.watches.map((w) => [w.id, w.ignoredChecks])).toEqual([
+        ['w1', undefined],
+        ['i', ['cve-scan']],
+      ]);
+    });
+  });
+
   it('drops one malformed watch with a warning while keeping the valid ones and the tmux names', () => {
     withTempAppDir((appDir) => {
       mkdirSync(appDir, { recursive: true });

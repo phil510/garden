@@ -45,7 +45,16 @@ describe('diff', () => {
       tmuxName: 'other',
       lastActivity: before.lastActivity + 1,
       claudeSessionName: 'garden-7a',
-      watches: [{ repo: 'o/n', pr: 1, kinds: ['closed'], pendingDigest: false, status: 'active' }],
+      watches: [
+        {
+          repo: 'o/n',
+          pr: 1,
+          kinds: ['closed'],
+          pendingDigest: false,
+          status: 'active',
+          ignoredChecks: [],
+        },
+      ],
       pipeConnected: true,
       pipeLastConnectedAt: 1_000,
     };

@@ -15,6 +15,7 @@ const aWatch = (overrides: Partial<WatchSummary> = {}): WatchSummary => ({
   pr: 1,
   kinds: ['review', 'closed'],
   pendingDigest: false,
+  ignoredChecks: [],
   status: 'active',
   ...overrides,
 });

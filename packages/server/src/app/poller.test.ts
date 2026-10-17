@@ -443,6 +443,70 @@ describe('createPoller', () => {
     expect(t.stored()[0]?.pendingDigest?.line).toBe('#7 acme/widgets: [digest digest-1] 1 comment');
   });
 
+  describe('ignored checks', () => {
+    const run = (name: string, id: number, at: number, conclusion = 'failure') => ({
+      id,
+      name,
+      status: 'completed',
+      conclusion,
+      completed_at: iso(at),
+    });
+    const runsFor = (sha: string) => page(`repos/acme/widgets/commits/${sha}/check-runs`, 1);
+    const ignoring: Watch = { ...watch, ignoredChecks: ['cve-scan'] };
+
+    it('mints nothing for an ignored check failing again on a new head sha, but still reports others', async () => {
+      const t = setupPoller([ignoring]);
+      t.github.set(runsFor('sha1'), { check_runs: [run('cve-scan', 1, T0 + 1000)] });
+      t.at(T0 + MIN);
+      await t.poller.tick();
+      t.at(T0 + 5 * MIN);
+      await t.poller.tick();
+
+      t.github.set(PR, pr({ head: { sha: 'sha2' } }));
+      t.github.set('repos/acme/widgets/commits/sha2/status?per_page=100', { statuses: [] });
+      t.github.set(runsFor('sha2'), { check_runs: [run('cve-scan', 2, T0 + 6 * MIN)] });
+      t.at(T0 + 7 * MIN);
+      await t.poller.tick();
+      t.at(T0 + 11 * MIN);
+      await t.poller.tick();
+      expect(t.stored()[0]?.pendingDigest).toBeNull();
+
+      t.github.set(runsFor('sha2'), {
+        check_runs: [run('cve-scan', 2, T0 + 6 * MIN), run('build', 3, T0 + 12 * MIN)],
+      });
+      t.at(T0 + 13 * MIN);
+      await t.poller.tick();
+      t.at(T0 + 17 * MIN);
+      await t.poller.tick();
+      expect(t.stored()[0]?.pendingDigest?.line).toBe(
+        '#7 acme/widgets: [digest digest-1] checks failed: build',
+      );
+    });
+
+    it('does not replay a muted failure once the check is unignored', async () => {
+      const t = setupPoller([ignoring]);
+      t.github.set(runsFor('sha1'), { check_runs: [run('cve-scan', 1, T0 + 1000)] });
+      t.at(T0 + MIN);
+      await t.poller.tick();
+
+      updateWatches(
+        t.watchDeps,
+        (ws) => ws.map((w) => ({ ...w, ignoredChecks: [] })),
+        T0 + 2 * MIN,
+      );
+      // A changed list makes GitHub answer 200, so the muted run is seen again, not 304'd.
+      t.github.set(runsFor('sha1'), {
+        check_runs: [run('cve-scan', 1, T0 + 1000), run('docs', 2, T0 + 3 * MIN, 'skipped')],
+      });
+      t.at(T0 + 6 * MIN);
+      await t.poller.tick();
+      t.at(T0 + 10 * MIN);
+      await t.poller.tick();
+
+      expect(t.stored()[0]?.pendingDigest).toBeNull();
+    });
+  });
+
   it('writes nothing when every call is a 304', async () => {
     const t = setupPoller();
     t.at(T0 + MIN);

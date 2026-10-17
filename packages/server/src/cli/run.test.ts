@@ -44,7 +44,14 @@ function spawnSuffix(options: SpawnOptions | undefined): string {
 }
 
 function aWatch(pr: number): WatchSummary {
-  return { repo: 'owner/name', pr, kinds: ['review'], pendingDigest: false, status: 'active' };
+  return {
+    repo: 'owner/name',
+    pr,
+    kinds: ['review'],
+    pendingDigest: false,
+    status: 'active',
+    ignoredChecks: [],
+  };
 }
 
 function recordingClient(
@@ -592,6 +599,22 @@ describe('runCli watch verbs', () => {
     expect(calls).toEqual([
       'watch:env-session:{"pr":5,"repo":"o/n","kinds":["review","bogus"]}',
       'unwatch:env-session:{"pr":5,"repo":"o/n"}',
+    ]);
+  });
+
+  it('passes repeated --ignore-check and --unignore-check as arrays, and omits them otherwise', async () => {
+    const { client, calls } = recordingClient();
+
+    await run(
+      'watch',
+      ['5', '--ignore-check', 'a', '--ignore-check', 'b c', '--unignore-check', 'd'],
+      client,
+    );
+    await run('watch', ['5'], client);
+
+    expect(calls).toEqual([
+      'watch:env-session:{"pr":5,"ignoreChecks":["a","b c"],"unignoreChecks":["d"]}',
+      'watch:env-session:{"pr":5}',
     ]);
   });
 

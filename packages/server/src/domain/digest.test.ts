@@ -47,6 +47,14 @@ const checkRun = (name: string, outcome: 'failed' | 'passed', at: number) => ({
   at,
   headSha: 'sha1',
 });
+const status = (name: string, outcome: 'failed' | 'passed', at: number) => ({
+  kind: 'status' as const,
+  name,
+  state: outcome === 'failed' ? 'failure' : 'success',
+  outcome,
+  at,
+  headSha: 'sha1',
+});
 
 let counter = 0;
 beforeEach(() => {
@@ -96,6 +104,74 @@ describe('kinds and filters', () => {
     );
 
     expect(next.pendingDigest?.line).toBe('#7 acme/widgets: [digest d1] 1 comment');
+  });
+
+  describe('ignored checks', () => {
+    const all = (ignoredChecks: string[]) =>
+      watch({ kinds: ['checks', 'checks:all', 'closed'], ignoredChecks });
+
+    it('mints nothing for an ignored failing check run', () => {
+      const w = watch({ ignoredChecks: ['cve-scan'] });
+      const next = apply(w, { checks: [checkRun('cve-scan', 'failed', T0 - 10 * MIN)] }, T0);
+      expect(next.pendingDigest).toBeNull();
+    });
+
+    it('mints nothing for an ignored passing check under checks:all', () => {
+      const next = apply(
+        all(['lint']),
+        { checks: [checkRun('lint', 'passed', T0 - 10 * MIN)] },
+        T0,
+      );
+      expect(next.pendingDigest).toBeNull();
+    });
+
+    it('mints nothing for an ignored commit status context', () => {
+      const next = apply(
+        watch({ ignoredChecks: ['ci/x'] }),
+        { checks: [status('ci/x', 'failed', T0 - 10 * MIN)] },
+        T0,
+      );
+      expect(next.pendingDigest).toBeNull();
+    });
+
+    it('still reports other checks and leaves the ignored one out of line and items', () => {
+      const next = apply(
+        watch({ ignoredChecks: ['cve-scan', 'ci/x'] }),
+        {
+          checks: [
+            checkRun('cve-scan', 'failed', T0 - 10 * MIN),
+            status('ci/x', 'failed', T0 - 10 * MIN),
+            checkRun('build', 'failed', T0 - 10 * MIN),
+          ],
+        },
+        T0,
+      );
+      expect(next.pendingDigest?.line).toBe('#7 acme/widgets: [digest d1] checks failed: build');
+      const items = next.pendingDigest?.detail?.items;
+      expect(items?.checkRuns.map((c) => c.name)).toEqual(['build']);
+      expect(items?.statuses).toEqual([]);
+    });
+
+    it('matches names case-sensitively', () => {
+      const next = apply(
+        watch({ ignoredChecks: ['Build'] }),
+        { checks: [checkRun('build', 'failed', T0 - 10 * MIN)] },
+        T0,
+      );
+      expect(next.pendingDigest?.line).toContain('checks failed: build');
+    });
+
+    it('does not move the quiet window of earlier activity', () => {
+      const held = apply(watch(), { issueComments: [comment('a', T0 - 2 * MIN)] }, T0 - MIN);
+      expect(held.pendingDigest).toBeNull();
+      const muted = { ...held, ignoredChecks: ['cve-scan'] };
+      const next = apply(
+        muted,
+        { checks: [checkRun('cve-scan', 'failed', T0 + MIN)] },
+        T0 + 2 * MIN,
+      );
+      expect(next.pendingDigest?.line).toBe('#7 acme/widgets: [digest d1] 1 comment');
+    });
   });
 });
 

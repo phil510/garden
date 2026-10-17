@@ -81,11 +81,24 @@ describe('POST /sessions/:id/watches', () => {
     ['a malformed repo', { pr: 7, repo: 'nope' }],
     ['kinds that are not an array', { pr: 7, kinds: 'review' }],
     ['an unknown kind', { pr: 7, kinds: ['review', 'bogus'] }],
+    ['ignoreChecks that is not an array', { pr: 7, ignoreChecks: 'build' }],
+    ['an empty ignoreChecks name', { pr: 7, ignoreChecks: [''] }],
+    ['unignoreChecks with a non-string', { pr: 7, unignoreChecks: [1] }],
   ])('rejects %s with 400 before reaching the use case', async (_name, payload) => {
     const response = await buildApp(() => {
       throw new Error('git must not be asked');
     }).inject({ method: 'POST', url: '/sessions/s1/watches', payload });
     expect(response.statusCode).toBe(400);
+  });
+
+  it('forwards ignoreChecks to the watch', async () => {
+    const response = await buildApp(origin).inject({
+      method: 'POST',
+      url: '/sessions/s1/watches',
+      payload: { pr: 7, ignoreChecks: ['cve-scan'] },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ watch: { ignoredChecks: ['cve-scan'] } });
   });
 
   it('maps an unresolvable repo to 400', async () => {

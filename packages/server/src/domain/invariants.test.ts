@@ -46,7 +46,14 @@ const watchesChanged: GardenEvent = {
   type: 'watches-changed',
   sessionId: 'sid-1',
   watches: [
-    { repo: 'acme/widgets', pr: 7, kinds: ['closed'], pendingDigest: true, status: 'active' },
+    {
+      repo: 'acme/widgets',
+      pr: 7,
+      kinds: ['closed'],
+      pendingDigest: true,
+      status: 'active',
+      ignoredChecks: [],
+    },
   ],
 };
 

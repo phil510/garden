@@ -36,12 +36,13 @@ const addTallies = (a: Tally, b: Tally): Tally => ({
 const iso = (ms: number) => new Date(ms).toISOString();
 
 /** The part of `activity` this watch wants: its kinds decide what counts, `ignoreAuthors` drops
- *  people. Each item is recorded in the same branch that counts it, so the detail and the line
+ *  people, `ignoredChecks` drops checks by exact name. Each item is recorded in the same branch that counts it, so the detail and the line
  *  cannot disagree. */
 function tallyActivity(
   activity: Activity,
   kinds: readonly WatchKind[],
   ignoreAuthors: readonly string[],
+  ignoredChecks: readonly string[],
   now: number,
 ): Tally {
   const ignored = new Set(ignoreAuthors.map((author) => author.toLowerCase()));
@@ -83,7 +84,9 @@ function tallyActivity(
       tally = { ...tally, comments: tally.comments + 1, lastActivityAt: at(comment.at) };
     }
   }
+  const mutedChecks = new Set(ignoredChecks);
   for (const check of activity.checks) {
+    if (mutedChecks.has(check.name)) continue;
     const reported =
       (check.outcome === 'failed' && kinds.includes('checks')) ||
       (check.outcome === 'passed' && kinds.includes('checks:all'));
@@ -195,7 +198,13 @@ export function applyObservation(
   let written = pending === null ? emptyTally() : previous.written;
   let fresh = addTallies(
     previous.fresh,
-    tallyActivity(observation.activity, watch.kinds, settings.ignoreAuthors, now),
+    tallyActivity(
+      observation.activity,
+      watch.kinds,
+      settings.ignoreAuthors,
+      watch.ignoredChecks ?? [],
+      now,
+    ),
   );
   let pendingDigest = pending;
   let status: WatchStatus = watch.status === 'error' ? 'active' : watch.status;

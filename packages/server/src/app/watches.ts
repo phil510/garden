@@ -79,8 +79,8 @@ async function resolveRepo(
   return repo;
 }
 
-/** Adds a watch on `request.pr`, or replaces the kinds of the session's existing watch on the
- *  same repo and PR. The repo defaults to the session cwd's `origin`. */
+/** Adds a watch on `request.pr`, or updates the session's existing watch on the same repo and
+ *  PR: kinds are replaced only when given, ignored checks are added and removed. The repo defaults to the session cwd's `origin`. */
 export async function addWatch(
   deps: WatchesDeps,
   request: AddWatchRequest & { sessionId: string },
@@ -93,7 +93,14 @@ export async function addWatch(
     (watches) => {
       const result = upsertWatch(
         watches,
-        { sessionId: request.sessionId, repo, pr: request.pr, kinds: request.kinds },
+        {
+          sessionId: request.sessionId,
+          repo,
+          pr: request.pr,
+          kinds: request.kinds,
+          ignoreChecks: request.ignoreChecks,
+          unignoreChecks: request.unignoreChecks,
+        },
         Date.now(),
         randomUUID,
       );

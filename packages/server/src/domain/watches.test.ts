@@ -116,6 +116,7 @@ describe('upsertWatch', () => {
       repo: 'acme/widgets',
       pr: 7,
       kinds: ['review', 'comment', 'checks', 'conflict', 'closed'],
+      ignoredChecks: [],
       createdAt: NOW,
       cursor: null,
       pendingDigest: null,
@@ -144,7 +145,7 @@ describe('upsertWatch', () => {
       () => 'unused',
     );
     expect(watches).toHaveLength(1);
-    expect(watch).toEqual({ ...existing, kinds: ['review', 'closed'] });
+    expect(watch).toEqual({ ...existing, kinds: ['review', 'closed'], ignoredChecks: [] });
   });
 
   it('returns the input array when a re-add leaves the kinds unchanged', () => {
@@ -152,6 +153,91 @@ describe('upsertWatch', () => {
     const { watches, watch } = upsertWatch(existing, input, NOW, () => 'unused');
     expect(watches).toBe(existing);
     expect(watch).toBe(existing[0]);
+  });
+
+  it('keeps the existing kinds when a re-add gives none', () => {
+    const existing = aWatch({ kinds: ['review', 'comment', 'checks', 'checks:all', 'closed'] });
+    const { watches, watch } = upsertWatch([existing], input, NOW, () => 'unused');
+    expect(watch.kinds).toEqual(existing.kinds);
+    expect(watches).toEqual([existing]);
+  });
+
+  describe('ignored checks', () => {
+    it('adds names on a re-add, deduped and in order, keeping the kinds', () => {
+      const existing = aWatch({
+        kinds: ['review', 'checks', 'checks:all', 'closed'],
+        ignoredChecks: ['cve-scan'],
+      });
+      const { watch } = upsertWatch(
+        [existing],
+        { ...input, ignoreChecks: ['lint', 'cve-scan', 'lint'] },
+        NOW,
+        () => 'unused',
+      );
+      expect(watch.ignoredChecks).toEqual(['cve-scan', 'lint']);
+      expect(watch.kinds).toEqual(existing.kinds);
+    });
+
+    it('creates a new watch with the given ignores', () => {
+      const { watch } = upsertWatch([], { ...input, ignoreChecks: ['a'] }, NOW, () => 'id');
+      expect(watch.ignoredChecks).toEqual(['a']);
+    });
+
+    it('removes names on unignore', () => {
+      const existing = aWatch({ ignoredChecks: ['a', 'b'] });
+      const { watch } = upsertWatch(
+        [existing],
+        { ...input, unignoreChecks: ['a'] },
+        NOW,
+        () => 'x',
+      );
+      expect(watch.ignoredChecks).toEqual(['b']);
+    });
+
+    it('lets unignore win when a name is in both lists', () => {
+      const { watch } = upsertWatch(
+        [aWatch({ ignoredChecks: ['a'] })],
+        { ...input, ignoreChecks: ['a'], unignoreChecks: ['a'] },
+        NOW,
+        () => 'x',
+      );
+      expect(watch.ignoredChecks).toEqual([]);
+    });
+
+    it('matches names exactly, case-sensitively', () => {
+      const existing = aWatch({ ignoredChecks: ['Build'] });
+      const { watch } = upsertWatch(
+        [existing],
+        { ...input, unignoreChecks: ['build'] },
+        NOW,
+        () => 'x',
+      );
+      expect(watch.ignoredChecks).toEqual(['Build']);
+    });
+
+    it('returns the input array when unignoring a name that is not ignored', () => {
+      const existing = [aWatch({ ignoredChecks: ['a'] })];
+      const { watches } = upsertWatch(
+        existing,
+        { ...input, unignoreChecks: ['z'] },
+        NOW,
+        () => 'x',
+      );
+      expect(watches).toBe(existing);
+    });
+
+    it('returns the input array on a bare re-add, with or without the field stored', () => {
+      for (const existing of [[aWatch({ ignoredChecks: ['a'] })], [aWatch()]]) {
+        const { watches } = upsertWatch(existing, input, NOW, () => 'x');
+        expect(watches).toBe(existing);
+      }
+    });
+
+    it('keeps the ignores when a re-add changes only the kinds', () => {
+      const existing = aWatch({ ignoredChecks: ['a'] });
+      const { watch } = upsertWatch([existing], { ...input, kinds: ['review'] }, NOW, () => 'x');
+      expect(watch.ignoredChecks).toEqual(['a']);
+    });
   });
 
   it('keeps a closed watch closed when it is re-added', () => {
@@ -235,10 +321,19 @@ describe('summarizeWatches', () => {
       repo: 'acme/gadgets',
       pr: 20,
       kinds: ['review', 'comment', 'checks', 'conflict', 'closed'],
+      ignoredChecks: [],
       pendingDigest: true,
       status: 'active',
     });
     expect(summaries['s1']?.[1]?.pendingDigest).toBe(false);
+  });
+
+  it('lists ignored checks, empty for a watch stored without the field', () => {
+    const summaries = summarizeWatches([
+      aWatch({ id: 'a', pr: 1, ignoredChecks: ['cve-scan'] }),
+      aWatch({ id: 'b', pr: 2 }),
+    ]);
+    expect(summaries['s1']?.map((s) => s.ignoredChecks)).toEqual([['cve-scan'], []]);
   });
 
   it('carries the error reason through to the summary', () => {

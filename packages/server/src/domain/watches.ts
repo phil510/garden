@@ -28,6 +28,9 @@ export interface Watch {
   readonly repo: string;
   readonly pr: number;
   readonly kinds: readonly WatchKind[];
+  /** Check run names and status contexts that never contribute to a digest. Exact,
+   *  case-sensitive. Absent in files written before it existed. */
+  readonly ignoredChecks?: readonly string[];
   /** Epoch ms the watch was created; the baseline for new activity. Never changed by a re-add. */
   readonly createdAt: number;
   /** Poller-owned progress marker. Opaque here: persisted untouched. */
@@ -81,8 +84,23 @@ export function parseGitHubRepo(url: string): string | null {
 const sameKinds = (a: readonly WatchKind[], b: readonly WatchKind[]) =>
   a.length === b.length && a.every((kind, i) => kind === b[i]);
 
-/** Adds a watch, or replaces the kinds of the one with the same session, repo and PR. A re-add
- *  touches nothing else, and returns the input array itself when the kinds are unchanged. */
+/** The ignore list after adding `add` and removing `remove`: existing order kept, new names
+ *  appended, duplicates dropped. A name in both ends up removed. */
+const mergeIgnored = (
+  existing: readonly string[],
+  add: readonly string[] | undefined,
+  remove: readonly string[] | undefined,
+): readonly string[] => {
+  const removed = new Set(remove);
+  return [...new Set([...existing, ...(add ?? [])])].filter((name) => !removed.has(name));
+};
+
+const sameNames = (a: readonly string[], b: readonly string[]) =>
+  a.length === b.length && a.every((name, i) => name === b[i]);
+
+/** Adds a watch, or updates the one with the same session, repo and PR. A re-add replaces the
+ *  kinds only when `kinds` is given, and adds and removes ignored checks; without those it
+ *  touches nothing. Returns the input array itself when nothing changes. */
 export function upsertWatch(
   watches: readonly Watch[],
   input: {
@@ -90,11 +108,12 @@ export function upsertWatch(
     readonly repo: string;
     readonly pr: number;
     readonly kinds?: readonly WatchKind[] | undefined;
+    readonly ignoreChecks?: readonly string[] | undefined;
+    readonly unignoreChecks?: readonly string[] | undefined;
   },
   now: number,
   mintId: () => string,
 ): { watches: readonly Watch[]; watch: Watch } {
-  const kinds = normalizeKinds(input.kinds);
   const index = watches.findIndex(
     (w) => w.sessionId === input.sessionId && w.repo === input.repo && w.pr === input.pr,
   );
@@ -105,7 +124,8 @@ export function upsertWatch(
       sessionId: input.sessionId,
       repo: input.repo,
       pr: input.pr,
-      kinds,
+      kinds: normalizeKinds(input.kinds),
+      ignoredChecks: mergeIgnored([], input.ignoreChecks, input.unignoreChecks),
       createdAt: now,
       cursor: null,
       pendingDigest: null,
@@ -113,8 +133,13 @@ export function upsertWatch(
     };
     return { watches: [...watches, watch], watch };
   }
-  if (sameKinds(existing.kinds, kinds)) return { watches, watch: existing };
-  const watch: Watch = { ...existing, kinds };
+  const kinds = input.kinds === undefined ? existing.kinds : normalizeKinds(input.kinds);
+  const before = existing.ignoredChecks ?? [];
+  const ignoredChecks = mergeIgnored(before, input.ignoreChecks, input.unignoreChecks);
+  if (sameKinds(existing.kinds, kinds) && sameNames(before, ignoredChecks)) {
+    return { watches, watch: existing };
+  }
+  const watch: Watch = { ...existing, kinds, ignoredChecks };
   return { watches: watches.map((w, i) => (i === index ? watch : w)), watch };
 }
 
@@ -208,6 +233,7 @@ export function summarizeWatches(watches: readonly Watch[]): Record<string, Watc
         repo: w.repo,
         pr: w.pr,
         kinds: [...w.kinds],
+        ignoredChecks: [...(w.ignoredChecks ?? [])],
         pendingDigest: w.pendingDigest !== null,
         status: w.status,
         ...(w.errorReason === undefined ? {} : { errorReason: w.errorReason }),

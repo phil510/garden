@@ -37,7 +37,13 @@ export interface CliClient {
   placeSession(id: string, placement: Placement): Promise<OkResponse>;
   watch(
     sessionId: string,
-    request: { pr: number; repo?: string; kinds?: readonly string[] },
+    request: {
+      pr: number;
+      repo?: string;
+      kinds?: readonly string[];
+      ignoreChecks?: readonly string[];
+      unignoreChecks?: readonly string[];
+    },
   ): Promise<WatchResponse>;
   unwatch(sessionId: string, target: { pr: number; repo?: string }): Promise<OkResponse>;
   watches(sessionId: string): Promise<WatchesResponse>;
@@ -164,9 +170,11 @@ function watchSession(env: NodeJS.ProcessEnv, explicit: string | undefined): str
 }
 
 function watchLine(watch: WatchSummary): string {
+  const ignoring =
+    watch.ignoredChecks.length === 0 ? '' : ` ignoring: ${watch.ignoredChecks.join(', ')}`;
   return `${watch.repo}#${String(watch.pr)} ${watch.kinds.join(',')} ${watch.status}${
     watch.pendingDigest ? ' pending' : ''
-  }`;
+  }${ignoring}`;
 }
 
 export interface WatchTarget {
@@ -178,7 +186,11 @@ export interface WatchTarget {
 
 export function runWatch(
   io: Io,
-  target: WatchTarget & { readonly kinds: readonly string[] | undefined },
+  target: WatchTarget & {
+    readonly kinds: readonly string[] | undefined;
+    readonly ignoreChecks?: readonly string[] | undefined;
+    readonly unignoreChecks?: readonly string[] | undefined;
+  },
   json: boolean,
   client: CliClient = defaultClient,
 ): Promise<0 | 1> {
@@ -190,6 +202,8 @@ export function runWatch(
         pr: target.pr,
         ...(target.repo === undefined ? {} : { repo: target.repo }),
         ...(target.kinds === undefined ? {} : { kinds: target.kinds }),
+        ...(target.ignoreChecks === undefined ? {} : { ignoreChecks: target.ignoreChecks }),
+        ...(target.unignoreChecks === undefined ? {} : { unignoreChecks: target.unignoreChecks }),
       }),
     (result) => watchLine(result.watch),
   );
