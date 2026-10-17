@@ -68,6 +68,14 @@ it under you after the fact. Brief it the same way you would a fresh spawn (run 
 member-file name, report contract) — tell the peer its member file is `<its own $GARDEN_SESSION_ID>.md`,
 the same id you just adopted it with; adoption changes who placed the session, not what it owes the run.
 
+**Decide where new work goes when you assign it.** Reuse a session when the next task shares its
+files and decisions and its current work has reached a stopping point (PR ready or merged); it
+already holds the context a fresh peer would have to rebuild. Start a fresh one when the task needs
+its own plan, or when it would leave the session running two pipelines at once, because two
+pipelines in one session collide. A peer paused at a finish gate (PR ready, merge waiting on
+approval) is still mid-pipeline, so the next task waits or goes elsewhere. Serial reuse is fine; this
+is not one peer per PR. Reusing a peer means updating the task line that opens its member file.
+
 **Ask for a report in the brief.** Tell the peer to message `<your session name>` when it
 finishes, and immediately if blocked, with a pointer to the result, its state, and what it needs
 from you. Spell your own name out; the peer cannot derive it. Without that contract a peer goes
@@ -228,6 +236,16 @@ You are not the reviewer. Don't add code-shape requirements to a "go" or reopen 
 its stop condition; review from here only for a reason you can state, and keep it targeted. The
 gate you hold is merge.
 
+The exception is a follow-up edit you relay on an existing PR, which does reopen the pipeline, so
+say whether it is small or large. **Small** means the outcome is settled, the code location is
+known, and it changes no contract, security boundary or data invariant: the peer makes it with no
+review round, because reviewing a decided, located change can only re-litigate the decision. Line
+count isn't the test. The label is your read without the code, so a peer that finds the edit does
+touch a contract or invariant says so and runs rounds; its review stays the control here.
+**Large** edits run the normal pipeline rounds. When several PRs update together, such as syncing a
+stack, tell each peer to batch: say when the batch ends and review the final heads once, since each
+intermediate head is superseded before anyone merges it.
+
 ## Wait on reports, never by polling
 
 The brief's report contract is how you wait: a peer messages you when it finishes or blocks, and
@@ -293,23 +311,40 @@ that it is healthier. Right after a compaction it exits non-zero with `no assist
 until the session's first reply; that means "just compacted", not a low number or a broken script.
 
 Report a high number to your user with the session's name and what it is working on, and let them
-decide; compacting in place, or starting a fresh session to pick up from the run folder, is their
-call. There is no threshold that means "act" —
+decide; compacting in place, or starting a fresh session to pick up from the run folder, is the response
+to a high number, and it is theirs to choose. There is no threshold that means "act" —
 the right number depends on the model behind that session, on whether subagents carry most of the work, and on how
 close the task is to done.
 
-## Relay findings between peers
+## Relay findings and decisions between peers
 
 Sessions running the same kind of work hit the same obstacles, and each one rediscovering a stale
 path or a broken assumption costs a full debugging round. When one peer finds something the others
 will hit, send them three lines about it.
+
+**Stacked PRs.** Relay an upstream decision to the downstream peers promptly, but don't have them
+merge it down until the upstream head is settled and validated; then sync in dependency order and
+review once. Each premature sync triggers a review of code the next upstream change replaces. While
+an upstream is on hold, tell its downstream peers so their conflict handling doesn't merge it down,
+and have each record it in its brief.
+
+**Pivots**, where the user replaces a requirement rather than adjusting it, are rare. Hold peers at
+their next worker boundary and settle the replacement fully before dispatching, because anything
+relayed piecemeal builds code the next piece deletes. Rewrite the superseded briefs, and say whether
+the old code is deleted or kept after checking what still calls it.
+
+**Deferred checks.** When the user defers a known-failing check, tell every affected peer once, so
+none re-reports or escalates it. The relay records the user's decision about the work; merge still
+needs the user directly (see "Dispatch"). Where the installed garden has the flag
+(`garden watch --help`), `garden watch <pr> --ignore-check <name>` stops that watch's wakes for it.
 
 ## Winding down
 
 The asymmetry decides it. A session is resumable, so killing one early costs a `garden resume`
 plus the turn it was mid-way through, and it comes back at a new address — re-resolve after every
 resume. An unanswered gate stalls indefinitely and nothing will tell you. So kill on evidence,
-not on ceremony: a peer that reported done is evidence, and so is your user saying kill it. Only
+not on ceremony: a peer that reported done is evidence, once you've decided not to reuse it, and so is your user
+saying kill it. Only
 when nothing has reported and the status is ambiguous do you read `recap` or ask.
 
 Winding down a peer leaves the run folder in place: other members still need their files, and a
