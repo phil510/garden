@@ -82,7 +82,7 @@ restart, reinstall — which clears every plugin on the machine, not just this o
 field is a standing commitment to bump it on every skill change, and forgetting is silent.
 
 The plugin reference recommends the no-version form for plugins under active development:
-https://code.claude.com/docs/en/plugins-reference#version-management
+https://code.claude.com/docs/en/plugins/loading#versions-and-updates
 
 ## The description lives in one place
 
