@@ -23,6 +23,12 @@ export const CONTEXT_TOKENS_SH = join(
   'context_tokens.sh',
 );
 
+const SHIP_IT_SCRIPTS_DIR = join(REPO_ROOT, 'plugins', 'garden', 'skills', 'ship-it', 'scripts');
+
+export const PIPELINE_INIT_SH = join(SHIP_IT_SCRIPTS_DIR, 'pipeline-init.sh');
+export const PIPELINE_STATUS_SH = join(SHIP_IT_SCRIPTS_DIR, 'pipeline-status.sh');
+export const PIPELINE_FINISH_SH = join(SHIP_IT_SCRIPTS_DIR, 'pipeline-finish.sh');
+
 /** Tracks every temp dir a test created, so a single `cleanupTempDirs()` in `afterEach` tears
  * them all down whether the test passed or not — never left for the next run to inherit. */
 const tempDirs: string[] = [];

@@ -1,9 +1,13 @@
 # garden plugin
 
-The Claude Code plugin for garden. Three skills: `orchestrate-sessions` drives the session lifecycle
-through garden's CLI, `message-session` resolves a session's messaging address, and `watch-pr`
-tells an agent when to start, react to and stop a PR watch. Installed from
-the marketplace manifest at the repo root, `.claude-plugin/marketplace.json`.
+The Claude Code plugin for garden. Four skills: `orchestrate-sessions` drives the session lifecycle
+through garden's CLI, `message-session` resolves a session's messaging address, `watch-pr` tells an
+agent when to start, react to and stop a PR watch, and `ship-it` runs a scoped change end-to-end as
+a background pipeline (plan, develop, draft PR, internal review, optional review-bot loop, ready
+flip, watch through merge), invoked as `/garden:ship-it`. Its four workers ship as agents,
+`garden:ship-it-planner`, `garden:ship-it-developer`, `garden:ship-it-reviewer` and
+`garden:ship-it-review-loop`, which only the `ship-it` orchestrator spawns. Installed from the
+marketplace manifest at the repo root, `.claude-plugin/marketplace.json`.
 
 It also ships two hooks (`hooks/hooks.json`), active as soon as the plugin is enabled — no
 configuration needed. `warn.sh` runs after every tool call, on each prompt submission and at the
@@ -47,6 +51,22 @@ the session from garden does not show it. Nothing in a plugin's monitor config a
 non-ambient monitor), and the options that would, such as starting the monitor on skill invoke, lose
 the stream from session start.
 
+## Upgrading and resuming
+
+An installed plugin runs from a copy in `~/.claude/plugins/cache/`, keyed by commit SHA, not from
+this checkout. A running session keeps the plugin set it loaded at startup. `claude plugin update`
+fetches the new copy and ends with "Restart to apply changes": it takes effect in the next session,
+or in a running one after `/reload-plugins` (monitors need a restart).
+
+A `ship-it` pipeline is long-lived, so expect to upgrade mid-flight. Its state lives in the
+pipeline worktree's `.ship-it/` directory, not in the plugin or the session. After updating, start a new
+session and run `/garden:ship-it resume`: it picks up the new copy of the skill and agents against
+the existing state. Nothing live carries over from the old session, so the orchestrator starts with
+no workers running.
+
+While a personal `ship-it` skill or agent of the same name exists under `~/.claude`, invoke the
+plugin's as `/garden:ship-it` so the right copy runs.
+
 ## There is no `version` field, on purpose
 
 Neither `.claude-plugin/plugin.json` nor the marketplace entry declares a `version`. Claude Code
@@ -62,7 +82,7 @@ restart, reinstall — which clears every plugin on the machine, not just this o
 field is a standing commitment to bump it on every skill change, and forgetting is silent.
 
 The plugin reference recommends the no-version form for plugins under active development:
-https://code.claude.com/docs/en/plugins-reference#version-management
+https://code.claude.com/docs/en/plugins/loading#versions-and-updates
 
 ## The description lives in one place
 
