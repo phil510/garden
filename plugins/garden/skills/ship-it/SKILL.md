@@ -259,8 +259,8 @@ Eligible when all of these hold at `headRefOid`:
   Where protection requires approval, `CLEAN` already reflects it; approval is not a separate
   condition. On an unprotected repo `CLEAN` proves nothing about review or CI, which is why the
   next two conditions exist.
-- **Nothing open for the pipeline.** No open escalation, no unclassified event and no `fix` finding
-  without a developer round (`pipeline-status.sh`), no worker mid-round (the ledger), and no
+- **Nothing open for the pipeline.** No open escalation, no unclassified `activity` event (escalation
+  files are never classified) and no `fix` finding without a developer round (`pipeline-status.sh`), no worker mid-round (the ledger), and no
   unresolved review thread:
   `gh api graphql -F o=<owner> -F r=<repo> -F n=<pr> -f query='query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequest(number:$n){reviewThreads(first:100){nodes{isResolved}}}}}' --jq '[.data.repository.pullRequest.reviewThreads.nodes[]|select(.isResolved|not)]|length'`.
   A thread the reviewer declined stays unresolved on purpose — the commenter decides — so it blocks
@@ -383,7 +383,7 @@ escalation's `**Artifact:**`). Then re-enter from the status JSON:
 | then `review_loop.outcome` `pending`       | Spawn `review-loop` as in step 4.                                                                                                                                                                                                                                                                                                                                                      |
 | `running`                                  | Re-spawn `review-loop`; it rebuilds from its state file and the loop skill's own files. If `phase` is `awaiting-rereview`, also start a backstop for the saved `bot` and `trigger_ts`.                                                                                                                                                                                                 |
 | `skipped`, `passed` or `blocked`, PR draft | Append the outcome NOTE if missing (the external reviewer reads it as the loop's boundary), then step 5 — or, on `blocked`, the user page.                                                                                                                                                                                                                                             |
-| any outcome, PR ready                      | Finish the event work left behind: an `events[]` entry with `classified: false` → external reviewer with it as `${EVENT_FILE}`; `fix_findings > 0` with no developer round → a developer fix round. Then, in a new session, one external reviewer with `${DIGEST}` `none` — activity while nobody watched reached no digest — and a checks wait.                                       |
+| any outcome, PR ready                      | Finish the event work left behind: an `events[]` entry of kind `activity` with `classified: false` → external reviewer with it as `${EVENT_FILE}`; `fix_findings > 0` with no developer round → a developer fix round. Then, in a new session, one external reviewer with `${DIGEST}` `none` — activity while nobody watched reached no digest — and a checks wait.                    |
 
 Route each report as usual before starting the next item.
 
