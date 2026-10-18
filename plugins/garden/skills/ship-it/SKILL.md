@@ -216,8 +216,11 @@ the moment humans and full CI start reading the PR.
    section holding every entry (replacing that section if one exists). Write it to a file, check
    `test -s <file>`, then `gh pr edit <url> --body-file <file>` — an empty file silently blanks the
    PR — and read it back with `gh pr view <url> --json body`.
-2. `gh pr ready <url>`, then append `> NOTE <iso> — orchestrator: PR flipped to ready`.
-3. Start a checks wait (`event-routing.md` § Checks wait).
+2. `gh pr ready <url>`, then append `> NOTE <iso> — orchestrator: PR flipped to ready`. That
+   `<iso>` is the flip time the next step needs.
+3. Start a checks wait with the flip time as its `since` (`event-routing.md` § Checks wait): checks
+   that already finished while the PR was draft can pass before the runs ready triggers have
+   registered.
 
 ### 6. Watch
 
@@ -241,8 +244,8 @@ developer's mergeability line never reports `CONFLICTING` — it merges the base
 ### 7. Merge eligibility
 
 You alone decide this and you alone merge, because merge is the one irreversible act in the
-pipeline. Run it when a checks wait ends with rc 0 or "no checks reported", or a reviewer reports
-`clean <head-sha>` — once per head sha. Take every reading at one head:
+pipeline. Run it on each trigger — a checks wait or re-check wait ending, or a reviewer reporting
+`clean <head-sha>` — since the PR may have moved between them. Take every reading at one head:
 
 ```bash
 gh pr view <url> --json state,isDraft,mergeable,mergeStateStatus,headRefOid
@@ -262,19 +265,27 @@ Eligible when all of these hold at `headRefOid`:
   `gh api graphql -F o=<owner> -F r=<repo> -F n=<pr> -f query='query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequest(number:$n){reviewThreads(first:100){nodes{isResolved}}}}}' --jq '[.data.repository.pullRequest.reviewThreads.nodes[]|select(.isResolved|not)]|length'`.
   A thread the reviewer declined stays unresolved on purpose — the commenter decides — so it blocks
   eligibility until a human resolves it or tells you to merge anyway.
-- **Checks have reported**, and none failed: `gh pr checks <url> --json name,bucket` is non-empty
-  and every bucket is `pass` or `skipping`. An empty list means either "this repo has no CI" or
-  "nothing has reported yet", and guessing wrong either merges untested code or waits forever. If
-  `gh api repos/<owner>/<repo>/actions/workflows --jq .total_count` is 0 and the list is still
-  empty ten minutes after the head was pushed, the repo has no CI. Otherwise wait, bounded the same
-  way as a checks wait; still empty at the deadline → ask the user rather than assume either.
+- **Checks have reported**, and none failed: `gh pr checks <url> --json name,bucket` lists every
+  bucket as `pass` or `skipping`. With nothing reported it prints no list: it exits 1 with
+  `no checks reported on the '<branch>' branch`. Once mergeability is confirmed (a conflicting head
+  gets no CI and prints the same), that message is not a failure — it means either "this repo has
+  no CI" or "nothing has reported yet", and guessing wrong either merges untested code or waits
+  forever. If `gh api repos/<owner>/<repo>/actions/workflows --jq .total_count` is 0 and the message
+  persists ten minutes after the head was pushed, the repo has no CI. Otherwise it is still
+  settling (below); unreported at the deadline → ask the user rather than assume either.
 
-Not eligible → act on whichever condition failed (a fix round, a wait, a page), and re-run this step
-when its trigger fires again. Eligible → act on §7 Merge policy:
+Not eligible → act on whichever condition failed: a fix round for a conflict, a page for what only
+the user can settle, and for a condition still settling — `UNKNOWN`, checks not reported yet,
+`BLOCKED` on a pending approval or required check — a **re-check wait**: the checks wait's
+bounded background loop (`event-routing.md` § Checks wait) polling these readings instead,
+superseded by a newer one. When it exits, re-run this step; a digest meanwhile (an approval
+arrives as one) re-runs it through the reviewer's `clean`. At the deadline, tell the user what it is
+still waiting on — nothing in this step waits without a wake-up. Eligible → act on §7 Merge policy:
 
 - **`ask`** → page the user (`communication.md` § #5, Merge page) with the head sha and what
-  eligibility rested on, then wait. On a go-ahead, re-run this step first — the PR may have moved
-  while you waited.
+  eligibility rested on, then wait — once per head sha, so a second trigger at the same head
+  doesn't page twice. On a go-ahead, re-run this step first — the PR may have moved while you
+  waited.
 - **`auto`** → merge, except on a repo with no CI: confirm with the user first, since nothing but
   the pipeline's own review stands behind the change.
 
@@ -349,10 +360,13 @@ fully-ticked checklist.
 
 ## Resume
 
-`/garden:ship-it resume` takes no branch: `pipeline-status.sh --worktree <abs>` resolves it from the
-`active` lock. Exit 2 is a generic state error — also a bad `--worktree` path, or a lock naming a
-branch with no `workflow.md` — so report the script's own error text rather than concluding there's
-nothing to resume. Never run `pipeline-init.sh` on a resume; its exit 3 or 2 is the sign you should
+`/garden:ship-it resume [<branch | worktree path>]`. The pipeline lives in its worktree, so find
+that first: a path is the worktree; a branch is the worktree `git worktree list --porcelain` shows
+it checked out in; with neither, take the entries of that list holding a `.ship-it/active` lock —
+resume the only one, ask the user which when there are several, and say so when there are none.
+`pipeline-status.sh --worktree <abs>` then resolves the branch from the lock. Exit 2 is a generic
+state error — also a bad `--worktree` path, or a lock naming a branch with no `workflow.md` — so
+report the script's own error text rather than concluding there's nothing to resume. Never run `pipeline-init.sh` on a resume; its exit 3 or 2 is the sign you should
 have resumed.
 
 Nothing from the old session is live: the ledger starts empty and every counter restarts at 1.
@@ -360,16 +374,16 @@ Before advancing, close each `open_escalations[]` entry as in § Escalations —
 gone, so this is the fresh-spawn fallback (for an external reviewer, `${EVENT_FILE}` is the
 escalation's `**Artifact:**`). Then re-enter from the status JSON:
 
-| State                                      | Re-entry                                                                                                                                                                                                                                                                                                                                         |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `status` `completed` or `aborted`          | Nothing to resume; say so.                                                                                                                                                                                                                                                                                                                       |
-| `current_stage` 1–3                        | Fresh-spawn that stage's worker. After a `review_cap` fix round, the developer comes first and the reviewer follows.                                                                                                                                                                                                                             |
-| `current_stage` 4, PR `MERGED` / `CLOSED`  | § Finish / § Abort — both safe to repeat.                                                                                                                                                                                                                                                                                                        |
-| `current_stage` 4, otherwise — first       | Re-run `garden watch` as in step 4 unless the `opted out` note exists (it's idempotent; a new session has no watch). Record any limitation in the last clean round's `## Summary` that `decisions.md` lacks — the old session may have died first.                                                                                               |
-| then `review_loop.outcome` `pending`       | Spawn `review-loop` as in step 4.                                                                                                                                                                                                                                                                                                                |
-| `running`                                  | Re-spawn `review-loop`; it rebuilds from its state file and the loop skill's own files. If `phase` is `awaiting-rereview`, also start a backstop for the saved `bot` and `trigger_ts`.                                                                                                                                                           |
-| `skipped`, `passed` or `blocked`, PR draft | Append the outcome NOTE if missing (the external reviewer reads it as the loop's boundary), then step 5 — or, on `blocked`, the user page.                                                                                                                                                                                                       |
-| any outcome, PR ready                      | Finish the event work left behind: an `events[]` entry with `classified: false` → external reviewer with it as `${EVENT_FILE}`; `fix_findings > 0` with no developer round → a developer fix round. Then, in a new session, one external reviewer with `${DIGEST}` `none` — activity while nobody watched reached no digest — and a checks wait. |
+| State                                      | Re-entry                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `status` `completed` or `aborted`          | Nothing to resume; say so.                                                                                                                                                                                                                                                                                                                                                             |
+| `current_stage` 1–3                        | Fresh-spawn that stage's worker. After a `review_cap` fix round, the developer comes first and the reviewer follows.                                                                                                                                                                                                                                                                   |
+| `current_stage` 4, PR `MERGED` / `CLOSED`  | § Finish / § Abort — both safe to repeat.                                                                                                                                                                                                                                                                                                                                              |
+| `current_stage` 4, otherwise — first       | Re-run `garden watch` as in step 4 unless the `opted out` note exists (it's idempotent; a new session has no watch), adding `--ignore-check <name>` for each `PR watch ignores check` note in `workflow.md` not followed by a matching `unignores` note. Record any limitation in the last clean round's `## Summary` that `decisions.md` lacks — the old session may have died first. |
+| then `review_loop.outcome` `pending`       | Spawn `review-loop` as in step 4.                                                                                                                                                                                                                                                                                                                                                      |
+| `running`                                  | Re-spawn `review-loop`; it rebuilds from its state file and the loop skill's own files. If `phase` is `awaiting-rereview`, also start a backstop for the saved `bot` and `trigger_ts`.                                                                                                                                                                                                 |
+| `skipped`, `passed` or `blocked`, PR draft | Append the outcome NOTE if missing (the external reviewer reads it as the loop's boundary), then step 5 — or, on `blocked`, the user page.                                                                                                                                                                                                                                             |
+| any outcome, PR ready                      | Finish the event work left behind: an `events[]` entry with `classified: false` → external reviewer with it as `${EVENT_FILE}`; `fix_findings > 0` with no developer round → a developer fix round. Then, in a new session, one external reviewer with `${DIGEST}` `none` — activity while nobody watched reached no digest — and a checks wait.                                       |
 
 Route each report as usual before starting the next item.
 
@@ -435,12 +449,12 @@ the worker substitutes them mentally wherever its instructions say `${VAR}`.
 
 | Role                  | Vars in the opener                                                                                               |
 | --------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| planner               | `SKILLDIR`, `BRANCH`, `SHIPITDIR`, `WORKFLOW`                                                                    |
+| planner               | `SKILLDIR`, `BRANCH`, `WORKTREE`, `SHIPITDIR`, `WORKFLOW`                                                        |
 | developer (initial)   | + `MODE`                                                                                                         |
 | developer (fix-round) | + `PR_URL`, `MODE`, `ROUND`, and `REVIEW_FILE` or `EVENT_FILE`                                                   |
 | reviewer (internal)   | + `PR_URL`, `MODE`, `ROUND`                                                                                      |
 | reviewer (external)   | + `PR_URL`, `MODE`, and `DIGEST` (`none` when no digest prompted the spawn) — or `EVENT_FILE` to finish an event |
-| review-loop           | + `PR_URL`, `WORKTREE`, `REVIEW_LOOP`                                                                            |
+| review-loop           | + `PR_URL`, `REVIEW_LOOP`                                                                                        |
 
 `REVIEW_LOOP` is the skill name from the brief's `Review loop` field; the review-loop worker is
 spawned only when that field is not `none`.

@@ -91,6 +91,7 @@ Example (developer fix-round on an internal review file):
 ```
 You are the developer for feat/foo, in fix-round mode, round 2.
 ${SKILLDIR}    = /abs/path/to/plugin/skills/ship-it
+${WORKTREE}    = /abs/path/to/worktree
 ${SHIPITDIR}   = /abs/path/to/worktree/.ship-it/feat/foo
 ${WORKFLOW}    = /abs/path/to/worktree/.ship-it/feat/foo/workflow.md
 ${REVIEW_FILE} = /abs/path/to/worktree/.ship-it/feat/foo/review-round-2.md

@@ -8,9 +8,9 @@ model: sonnet
 ---
 
 Read `${SKILLDIR}/references/worker-protocol.md` before anything else, then this file. Your opener
-carries `${SKILLDIR}`, `${BRANCH}`, `${SHIPITDIR}`, `${WORKFLOW}`, `${MODE}`, and `${PR_URL}` once
-known, plus `${ROUND}` in fix-round mode and one of `${REVIEW_FILE}` (internal round) or
-`${EVENT_FILE}` (external round). Derived paths: `${SHIPITDIR}/plan.md`,
+carries `${SKILLDIR}`, `${BRANCH}`, `${WORKTREE}`, `${SHIPITDIR}`, `${WORKFLOW}`, `${MODE}`, and
+`${PR_URL}` once known, plus `${ROUND}` in fix-round mode and one of `${REVIEW_FILE}` (internal
+round) or `${EVENT_FILE}` (external round). Derived paths: `${SHIPITDIR}/plan.md`,
 `${SHIPITDIR}/decisions.md`, `${SHIPITDIR}/events/`.
 
 Your output is commits, the PR, PR-thread replies, resolved conversations, and append-only
@@ -124,9 +124,11 @@ Implement the work, commit incrementally, open the draft PR, and make the verify
    `edsger-dijkstra` for correctness, `kent-beck` for tests, `ralph-kimball` for data models,
    `socrates` as a default — else `general-purpose` with the same brief. Address its findings
    before opening the PR. This is your one mandatory pre-PR review.
-7. **Open the draft PR** with `gh pr create --draft`. Title, body and any template follow the
-   injected conventions and the repo's PR template if it has one; failing both, a descriptive
-   title and a body with a summary and a test plan. Either way, link the brief's `Tracker` ref in
+7. **Push and open the draft PR.** `git -C "${WORKTREE}" push -u origin "${BRANCH}"`, then
+   `cd "${WORKTREE}" && gh pr create --draft --head "${BRANCH}" …` — without the push there is no
+   remote branch to open from. Title, body and any template follow the injected conventions and
+   the repo's PR template if it has one; failing both, a descriptive title and a body with a
+   summary and a test plan. Either way, link the brief's `Tracker` ref in
    the form the tracker recognises, per the default in `brief.md` (a closing keyword for a GitHub issue);
    with `Tracker: none` there is nothing to link. Capture the PR URL.
 8. **Check mergeability** per § Mergeability before reporting.
@@ -185,7 +187,8 @@ it — only a clean internal review flips it.
    describes — not by a code change.
 
 6. **Run the full verify command.** It must pass before you push.
-7. **Push** all commits to `${BRANCH}`. The PR updates automatically.
+7. **Push** all commits: `git -C "${WORKTREE}" push origin "${BRANCH}"`. The PR updates
+   automatically.
 8. **Reply to the commenter** for each fixed finding that came from a PR comment. A reply closes the
    loop with the person who raised it, so it applies where there is a person and a thread: internal
    `${REVIEW_FILE}` findings have neither, and neither do `check-failure` or `conflict` findings —
@@ -324,8 +327,9 @@ The full ladder — what's decide-and-log versus a hard stop, and why — is in
 
 ## Base-branch conflicts
 
-Merge the PR's base into `${BRANCH}`: `git fetch origin`, `git merge origin/<base>`, resolve the
-conflicts, re-run the verify command, commit the merge, and push.
+Merge the PR's base into `${BRANCH}`: `git -C "${WORKTREE}" fetch origin`, then
+`git -C "${WORKTREE}" merge origin/<base>`, resolve the conflicts, re-run the verify command, commit
+the merge, and push.
 
 Merge rather than rebase. A merge commit is additive, so it keeps the no-history-rewrite guardrail;
 a rebase rewrites pushed history and needs a force-push, and the branch is integrated whole at merge

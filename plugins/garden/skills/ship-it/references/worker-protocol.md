@@ -16,8 +16,12 @@ preprocesses the text you read, so substitute mentally as you go; there is no `e
 you never run one. Each name's meaning is in
 `${SKILLDIR}/references/placeholders-and-annotations.md` § Placeholder vocabulary.
 
-You work inside a git worktree, reached by the absolute paths in your opener. Do not `cd` into it
-and do not assume a working directory.
+You work inside the git worktree at `${WORKTREE}`, and your working directory may be somewhere else
+entirely — often the main checkout, where a bare `git commit` or `gh pr create` lands on the wrong
+branch. So name the worktree in every command: `git -C "${WORKTREE}" …` for git, and
+`cd "${WORKTREE}" && …` inside the same command for anything that reads the repo from the current
+directory — `gh`, the verify command, package managers. Never rely on a `cd` from an earlier
+command; the next one may not start where it left off.
 
 The project's conventions — branch and commit format, PR template, verify command, dependency
 install and auth, which side effects outside the worktree are allowed — reach you the same way they

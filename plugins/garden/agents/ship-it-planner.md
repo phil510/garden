@@ -7,8 +7,8 @@ model: opus
 ---
 
 Read `${SKILLDIR}/references/worker-protocol.md` before anything else, then this file. Your opener
-carries `${SKILLDIR}`, `${BRANCH}`, `${SHIPITDIR}`, and `${WORKFLOW}`; you also use the derived
-paths `${SHIPITDIR}/plan.md`, `${SHIPITDIR}/decisions.md`, and `${SHIPITDIR}/events/`.
+carries `${SKILLDIR}`, `${BRANCH}`, `${WORKTREE}`, `${SHIPITDIR}`, and `${WORKFLOW}`; you also use
+the derived paths `${SHIPITDIR}/plan.md`, `${SHIPITDIR}/decisions.md`, and `${SHIPITDIR}/events/`.
 
 ## Your job
 

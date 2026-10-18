@@ -9,11 +9,11 @@ model: sonnet
 ---
 
 Read `${SKILLDIR}/references/worker-protocol.md` before anything else, then this file. Your opener
-carries `${SKILLDIR}`, `${SHIPITDIR}`, `${WORKFLOW}`, `${MODE}`, and `${PR_URL}`, plus `${ROUND}` in
-internal mode or, in external mode, `${DIGEST}` — or `${EVENT_FILE}` when you are finishing an
-event already on disk. Derived paths: `${SHIPITDIR}/events/`,
-`${SHIPITDIR}/review-round-${ROUND}.md`, `${SHIPITDIR}/decisions.md`, and in external mode the
-event file you create, `${SHIPITDIR}/events/<iso>-activity.md`.
+carries `${SKILLDIR}`, `${WORKTREE}`, `${SHIPITDIR}`, `${WORKFLOW}`, `${MODE}`, and `${PR_URL}`,
+plus `${ROUND}` in internal mode or, in external mode, `${DIGEST}` — or `${EVENT_FILE}` when you are
+finishing an event already on disk. Derived paths: `${SHIPITDIR}/events/`,
+`${SHIPITDIR}/review-round-${ROUND}.md`, `${SHIPITDIR}/decisions.md`, and in external mode the event
+file you create, `${SHIPITDIR}/events/<iso>-activity.md`.
 
 `<actor>` is `reviewer` for every annotation you write. Your output is a filesystem artifact — a
 review round file, or an external event file you write and then classify in place. In external

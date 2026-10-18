@@ -78,7 +78,9 @@ fi
 # A repeat run with the status already set writes nothing, so the finish step is safe to rerun.
 if [ "$(workflow_field "$WORKFLOW" 'Status')" != "$NEW_STATUS" ]; then
   TMP="$WORKFLOW.tmp.$$"
-  sed "s/^\*\*Status:\*\*.*/**Status:** ${NEW_STATUS}/" "$WORKFLOW" > "$TMP"
+  # First match only: the header's Status line precedes the brief, whose prose may hold another.
+  awk -v s="$NEW_STATUS" '!done && /^\*\*Status:\*\*/ { print "**Status:** " s; done = 1; next } { print }' \
+    "$WORKFLOW" > "$TMP"
   if [ -n "$NOTE" ]; then
     printf '> NOTE %s — orchestrator: pipeline %s; %s\n' "$ENDED" "$NEW_STATUS" "$NOTE" >> "$TMP"
   else

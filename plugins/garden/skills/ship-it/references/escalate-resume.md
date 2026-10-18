@@ -73,7 +73,9 @@ it.
 
 ## Escalation event shape
 
-Workers write the whole file — there is no orchestrator-populated metadata.
+Workers write everything above the Resolution block, and never the block or its heading: the
+scripts read any `## Resolution` heading as "closed", so a worker that writes one hides its own
+escalation.
 
 ```markdown
 # Event: escalation — <iso>
@@ -98,12 +100,15 @@ Workers write the whole file — there is no orchestrator-populated metadata.
 conflict has no thread to ack.)
 
 - Ack reply: <reply_id>
+```
 
+The orchestrator appends the Resolution block once decided — by auto-resolve or by the user:
+
+```markdown
 ---
 
 ## Resolution
 
-(Appended by the orchestrator once decided — by auto-resolve or by the user)
 **Resolved at:** <iso>
 **Decision:** <option / free text>
 **Rationale:** <optional note; on an orchestrator-accepted review_cap, the accepted findings>

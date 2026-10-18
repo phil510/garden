@@ -160,7 +160,7 @@ may not render the surrounding context.
 - **Escalation pages.** Render the escalation event's one-liner, options and artifact pointer; wait;
   translate the answer into a decision block (`escalate-resume.md`).
 - **Review loop blocked.** Say what the loop couldn't clear (the state file's `reason`) and ask
-  whether to flip the PR to ready anyway, run another loop, or stop.
+  whether to flip the PR to ready anyway or stop.
 - **Merge page** (`Merge policy: ask`, or `auto` on a repo with no CI). Once the PR is
   merge-eligible, say so with the head sha and what eligibility rested on, and ask to merge.
   Re-check eligibility after the answer — the PR may have moved while you waited.

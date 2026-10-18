@@ -22,11 +22,11 @@ usage_die() {
 iso_now() { date -u '+%Y-%m-%dT%H:%M:%SZ'; }
 
 # Escape a string as the body of a JSON string literal.
-# Drops control characters, escapes backslash + quote, joins lines with \n.
+# Escapes backslash, quote, tab and CR; drops other control characters; joins lines with \n.
 jesc() {
   printf '%s' "${1-}" \
     | tr -d '\000-\010\013\014\016-\037' \
-    | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' \
+    | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e "s/$(printf '\t')/\\\\t/g" -e "s/$(printf '\r')/\\\\r/g" \
     | awk 'BEGIN { ORS = "" } NR > 1 { print "\\n" } { print }'
 }
 
@@ -50,10 +50,10 @@ human_duration() {
   printf '%dh%02dm' "$((s / 3600))" "$(((s % 3600) / 60))"
 }
 
-# Read a `**Field:** value` line out of workflow.md.
+# Read a `**Field:** value` line out of workflow.md, trimmed of surrounding whitespace.
 workflow_field() {
   local file="$1" field="$2"
-  sed -n "s/^\*\*${field}:\*\*[[:space:]]*//p" "$file" | head -n 1
+  sed -n "s/^\*\*${field}:\*\*[[:space:]]*//p" "$file" | head -n 1 | sed 's/[[:space:]]*$//'
 }
 
 # Resolve WORKTREE/BRANCH into SHIPITROOT, LOCK, SHIPITDIR, WORKFLOW.

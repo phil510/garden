@@ -75,10 +75,22 @@ GitHub is still computing; re-query under a bound.
 Then wait in a **background** Bash call — `run_in_background`, so the harness notifies you when it
 exits and you stay responsive to messages and digests meanwhile. `gh pr checks` has no timeout flag
 and `timeout` isn't on stock macOS, so the deadline is a loop of its own. `gh pr checks` exits 8
-while checks are pending:
+while checks are pending.
+
+After the ready flip, set `since` to the flip time. The head hasn't moved, so `gh pr checks` still
+shows the runs that finished while the PR was draft — often all passing or skipped — and would exit
+0 before the runs that ready triggers have registered. The first loop waits, up to three minutes,
+for a check started after the flip; if none appears, the draft-time results are the CI this head
+gets. After a push, leave `since` empty: a new head has no earlier results.
 
 ```bash
-end=$(( $(date +%s) + 1800 ))
+since=''   # the flip time after the ready flip; empty after a push
+end=$(( $(date +%s) + 1800 )); grace=$(( $(date +%s) + 180 ))
+while [ -n "$since" ] && [ "$(date +%s)" -lt "$grace" ]; do
+  gh pr checks <url> --json startedAt --jq "any(.[]; .startedAt >= \"$since\")" 2>/dev/null \
+    | grep -q true && break
+  sleep 15
+done
 while :; do
   gh pr checks <url> > /dev/null 2>&1; rc=$?
   [ "$rc" -ne 8 ] && break
@@ -94,12 +106,17 @@ When it exits, read the result:
 - **rc 1 with failing checks** — a digest reporting the failure will reach a reviewer anyway; don't
   dispatch from the wait as well. A check §5 records as deferred by the user is already decided and
   needs no fix round.
-- **rc 1 with "no checks reported"** — either the repo has no CI or nothing has reported yet. The
-  merge-eligibility step tells those apart; don't conclude either here.
+- **rc 1 with `no checks reported on the '<branch>' branch`** — not a failure: either the repo has
+  no CI or nothing has reported yet. The merge-eligibility step tells those apart; don't conclude
+  either here.
 - **`timeout`** — checks still pending at the deadline. Tell the user which are still pending rather
   than waiting silently.
 
 A new push supersedes a running wait: start a fresh one and ignore the old one's result.
+
+The merge-eligibility step's **re-check wait** is this loop with a different probe: re-read
+`gh pr view <url> --json mergeStateStatus` and `gh pr checks` each pass, and exit once neither is
+still settling (`UNKNOWN`, `BLOCKED`, or no checks reported) or at the deadline.
 
 ## Dispositions
 
@@ -122,7 +139,10 @@ wait for the hold to lift.
 `fix | escalate` is for undecided failures. A check the brief records as deferred by the user is
 already decided: a digest whose only failure is that check needs no reviewer, and a reviewer that
 meets it alongside other activity records it as deferred without escalating again. To stop the
-wakes themselves, add `--ignore-check <name>` to the watch (`watch-pr` covers it).
+wakes themselves, add `--ignore-check <name>` to the watch (`watch-pr` covers it) and append
+`> NOTE <iso> — orchestrator: PR watch ignores check <name>` — a watch re-created on resume starts
+with no ignores, and that note is the only record of them. An `--unignore-check` gets a matching
+`PR watch unignores check <name>` note.
 
 **Appeal.** If a new comment follows up on a thread previously classified `decline`, the reviewer
 escalates `ambiguity` rather than re-classifying. Human push-back gets human attention, not a

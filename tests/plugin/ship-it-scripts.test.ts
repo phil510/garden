@@ -148,6 +148,13 @@ describe('ship-it pipeline-status.sh review_loop.outcome', () => {
     expect(status(repo, 'feat/x').review_loop).toMatchObject({ outcome: 'skipped', phase: null });
   });
 
+  it('is skipped when the brief field carries trailing whitespace', () => {
+    const repo = tempRepo();
+    init(repo, 'feat/x', 'none \t');
+
+    expect(status(repo, 'feat/x').review_loop.outcome).toBe('skipped');
+  });
+
   it('is pending when a loop is named and no state file exists', () => {
     const repo = tempRepo();
     init(repo, 'feat/x', 'pr-review-bot-loop');
@@ -175,6 +182,24 @@ describe('ship-it pipeline-status.sh review_loop.outcome', () => {
   });
 });
 
+describe('ship-it pipeline-status.sh JSON', () => {
+  afterEach(() => {
+    cleanupTempDirs();
+  });
+
+  it('stays valid JSON when an annotation holds a tab or carriage return', () => {
+    const repo = tempRepo();
+    init(repo, 'feat/x');
+    const workflow = join(stateDir(repo, 'feat/x'), 'workflow.md');
+    writeFileSync(workflow, readFileSync(workflow, 'utf8') + '> NOTE a\tb\rc\n');
+
+    const result = run(PIPELINE_STATUS_SH, ['--worktree', repo, '--branch', 'feat/x']);
+    const parsed = JSON.parse(result.stdout) as { annotations: string[] };
+
+    expect(parsed.annotations.at(-1)).toBe('> NOTE a\tb\rc');
+  });
+});
+
 describe('ship-it pipeline-finish.sh', () => {
   afterEach(() => {
     cleanupTempDirs();
@@ -199,6 +224,21 @@ describe('ship-it pipeline-finish.sh', () => {
     expect(readFileSync(join(stateDir(repo, 'feat/x'), 'workflow.md'), 'utf8')).toBe(
       workflowAfterFirst,
     );
+  });
+
+  it('rewrites only the header Status line, not one in the brief body', () => {
+    const repo = tempRepo();
+    run(
+      PIPELINE_INIT_SH,
+      ['--worktree', repo, '--branch', 'feat/x', '--repo', 'o/r'],
+      `${brief('none')}**Status:** quoted in the brief\n`,
+    );
+
+    finish(repo, 'feat/x');
+
+    const workflow = readFileSync(join(stateDir(repo, 'feat/x'), 'workflow.md'), 'utf8');
+    expect(workflow).toMatch(/^\*\*Status:\*\* completed$/m);
+    expect(workflow).toContain('**Status:** quoted in the brief');
   });
 
   it('releases the lock only when it names this branch', () => {
