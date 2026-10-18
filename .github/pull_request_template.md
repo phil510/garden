@@ -10,6 +10,13 @@ Closes #
 
 <!-- How you verified the change. Bullet list. -->
 
+## Visual evidence
+
+<!--
+UI-visible change: before/after screenshots for each state the change affects, not only the
+default view. If a capture can't be made, say why here. "N/A — no UI change" is a valid answer.
+-->
+
 ## Spec and architecture deviations
 
 <!--
