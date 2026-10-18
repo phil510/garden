@@ -44,44 +44,20 @@ orchestrator reads it to find the skill's backstop.
 
 Everything the skill says about triage, implementing fixes, waiting, the ledger, and terminal
 conditions applies, **with the adaptations below**. Where this file and the skill disagree, the
-skill wins on _loop logic_; this file wins on _which bot_, _who you talk to_, _who waits on
+skill wins on _loop logic_; this file wins on _who you talk to_, _who waits on
 GitHub_, and _how state survives a restart_.
 
 ## Picking the bot
 
-A loop skill typically picks its bot by looking at who already reviewed the PR. That never works
-here — nothing has reviewed a fresh draft — so pick it this way instead:
+The skill owns the choice of bot. If the brief or the injected instructions name a review trigger
+command, pass it to the skill as its override; otherwise name nothing. Record whatever bot and
+trigger the skill picks in your state file; every later round and every restart uses them rather
+than re-deciding. Where the skill says to ask the user which bot, that is an escalation to the
+orchestrator.
 
-1. **The injected instructions name a review trigger command** for this repo → post it verbatim
-   as the trigger — the one you post first, and the one each fix round posts after its push. The
-   bot is whichever of the skill's bots that command belongs to.
-2. **The repo has Extend's comment-triggered AI review workflow** → `extend-ai-review`, trigger
-   `/ai-pr-review` with no arguments. Check the _default branch_, not the PR branch:
-   comment-triggered workflows run only from the default branch's copy, so one this PR adds can't
-   fire yet.
-
-   ```bash
-   default=$(gh repo view <owner/repo> --json defaultBranchRef -q .defaultBranchRef.name)
-   git -C "${WORKTREE}" fetch -q origin "$default"
-   git -C "${WORKTREE}" grep -lE '^[[:space:]]*uses:.*ai-pr-review-on-comment\.yml@' "origin/$default" -- .github/workflows
-   ```
-
-   A push-based review that fires only once the PR leaves draft doesn't count — it can't run
-   during this gate.
-
-3. **Otherwise** → `coderabbit`.
-
-The key you land on must be one the loaded skill drives — its bot list says which. If it isn't, or
-a trigger command from step 1 belongs to none of the skill's bots, there is no bot this skill can
-drive on this repo: end `blocked` the same way as an unloadable skill, with that as the `reason`
-and `"bot": null`.
-
-Record the bot and trigger in your state file; every later round and every restart uses them
-rather than re-deciding.
-
-Since the bot hasn't reviewed yet, start the way the skill says to for an unreviewed PR: post the
-trigger yourself, wait, and triage what lands as round 1. That initial trigger is the one PR write
-you make directly; every other PR write belongs to the subagents the skill has you spawn.
+Since nothing has reviewed a fresh draft, the skill's pick will usually be a trigger to post. Post
+it yourself, wait, and triage what lands as round 1. That initial trigger is the one PR write you
+make directly; every other PR write belongs to the subagents the skill has you spawn.
 
 ## You have no user channel
 
