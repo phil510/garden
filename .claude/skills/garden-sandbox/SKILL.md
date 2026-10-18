@@ -1,35 +1,70 @@
 ---
-name: garden-screenshot
-description: Capture a real screenshot of garden's running UI via headless Chrome DevTools Protocol, so an agent can look at its own visual changes instead of guessing from source. Use for "screenshot the app", "show me how this looks", "verify this UI change", "review a visual change", or any time a garden UI diff needs visual confirmation before or after implementing it.
+name: garden-sandbox
+description: Run an isolated garden sandbox and test a change in the real app, including capturing screenshots of the running UI via headless Chrome DevTools Protocol. Use for "run a sandbox", "test this in garden", "try it in the app", "run the app", "screenshot the app", "show me how this looks", "verify this UI change", "review a visual change", or any time a garden change needs checking in the running app, or a UI diff needs visual confirmation before or after implementing it.
 ---
 
-# garden screenshot
+# garden sandbox
 
-You cannot see CSS, layout, or rendering by reading source — you can only see it by looking at a
-screenshot. This tool renders garden's actual browser UI and saves a PNG so you can inspect it
-the same way a human reviewer would, and iterate before handing off a visual change.
+Reading source tells you what the code says, not what garden does. To check a change you run it:
+boot a sandbox of your own, drive it, and look at the result. You cannot see CSS, layout, or
+rendering by reading source, so screenshots are how you look at it the way a human reviewer would.
 
-## Prerequisite
+## The sandbox
 
 A garden server must be running against real tmux. Start a sandbox yourself rather than asking
 the user for one. `docs/testing.md` ("Running a sandbox") has the start and stop sequence, and
 explains why the port, socket and app dir must be your own. Target the user's real `garden` only
 when the real instance is specifically what's under test, and then point at it; don't run it.
 
-This tool never boots a server. If it reports the server unreachable, the sandbox isn't up yet or
-has died, so check the sandbox's output.
+`pnpm screenshot` never boots a server. If it reports the server unreachable, the sandbox isn't up
+yet or has died, so check the sandbox's output.
 
 Put `GARDEN_PORT=<sandbox port>` on every `pnpm screenshot` call. Shell state doesn't carry
 between calls, and inside a garden session `GARDEN_PORT` already names the real instance, so a
 call without it captures the user's real garden. A drag there writes to their state (see the
-warning at the end).
+risk tiers below).
 
 `GARDEN_PORT` is also the proxy target of the vite each run starts. A `"port"` override in
 `~/.garden/config.json` is a separate mechanism this tool does not read — on a config-only custom
 port it reports the server as unreachable when it is in fact running fine. Check the user's
 config before believing that message.
 
-## Taking a screenshot
+### Blank terminals mean the panes are attached elsewhere
+
+A session accepts one attach at a time, so if another client has the same session open, this
+tool's attach is refused and those panes screenshot as empty black rectangles. Everything
+outside the terminals — sidebar, file panel, pane headers, borders, empty slots, layout — is
+still accurate, so that is only a problem when the change you are checking is about terminal
+content itself. Against the sandbox this rarely comes up, since nothing else is normally attached
+to it; against a real instance, ask the user to close their garden window for a moment — the
+server and the tmux sessions keep running, and the attach frees up. A garden window left open in
+the 9222 Chrome (older versions of this tool launched one) holds an attach too; quit that Chrome
+to free it.
+
+### Driving a real instance is live, not contained
+
+This only applies when `GARDEN_PORT` points at the user's real instance rather than the
+sandbox. The Chrome window this tool controls talks to the same garden server the user's own
+browser does, so nothing you do in it is contained. This tool can drag but never types, so against
+a real instance the blast radius is the second tier below; the three tiers are:
+
+- **Typing into an attached pane is the dangerous one.** Keystrokes go straight through to the
+  real pty, which is the user's actual running Claude Code session or shell. There is no
+  sandbox and no undo — you would be typing into their session.
+- **Dragging stage or sidebar chrome persists server-side.** Preset, slots, layout,
+  group order, pins, collapsed repos and the dead-session filter are written to disk and shared,
+  so they change what the user sees in their own window. Run such drags against the sandbox.
+- **Panel resizes, scrolling and expanding file-tree nodes are client-local** and harmless — they never leave
+  this browser.
+
+None of this applies against the sandbox. Its panes run the fake Claude, not a real Claude Code
+session or shell, so there is no real pty to type into; and its chrome-persistence writes land in
+the sandbox's own state (`~/.garden-sandbox/config.json` by default), not the user's real config,
+so there is no real user state to disturb.
+
+## Screenshotting
+
+### Taking a screenshot
 
 ```
 pnpm screenshot [--path <url path>] [--out <name>] [--width <n>] [--height <n>] [--wait <ms>]
@@ -50,7 +85,7 @@ The last line of stdout is the absolute path to the saved PNG under `.screenshot
 tool on that path** to actually look at the image — running the command alone tells you nothing
 about how it looks.
 
-## Driving a drag
+### Driving a drag
 
 `--drag <selector> --drag-by <dx>,<dy>` presses the left button on the centre of the first element
 matching the selector, moves in ten steps, and releases, as real `Input.dispatchMouseEvent` input.
@@ -70,7 +105,7 @@ The drag happens in the run's own tab and that tab is closed afterwards. Panel w
 in-memory, so the drag shows only in that run's PNG and the next plain screenshot is back to the
 default. A change a screenshot has to show after a drag therefore has to be driven in the same run.
 
-## Iterating on a visual change
+### Iterating on a visual change
 
 The client code in the frame is always this checkout's working tree, because the vite serving it
 was started from this checkout for this run alone. Branch-specific content visible in the frame
@@ -81,36 +116,3 @@ between the base and your change.
 Screenshot before you touch anything to see the current state, make the change, screenshot again,
 and compare. For a ticket about a visual bug, a before/after screenshot pair is what you attach as
 evidence in the PR — not just a description of the CSS you changed.
-
-## Blank terminals mean the panes are attached elsewhere
-
-A session accepts one attach at a time, so if another client has the same session open, this
-tool's attach is refused and those panes screenshot as empty black rectangles. Everything
-outside the terminals — sidebar, file panel, pane headers, borders, empty slots, layout — is
-still accurate, so that is only a problem when the change you are checking is about terminal
-content itself. Against the sandbox this rarely comes up, since nothing else is normally attached
-to it; against a real instance, ask the user to close their garden window for a moment — the
-server and the tmux sessions keep running, and the attach frees up. A garden window left open in
-the 9222 Chrome (older versions of this tool launched one) holds an attach too; quit that Chrome
-to free it.
-
-## Warning: driving a real instance is live, not contained
-
-This only applies when `GARDEN_PORT` points at the user's real instance rather than the
-sandbox. The Chrome window this tool controls talks to the same garden server the user's own
-browser does, so nothing you do in it is contained. This tool can drag but never types, so against
-a real instance the blast radius is the second tier below; the three tiers are:
-
-- **Typing into an attached pane is the dangerous one.** Keystrokes go straight through to the
-  real pty, which is the user's actual running Claude Code session or shell. There is no
-  sandbox and no undo — you would be typing into their session.
-- **Dragging stage or sidebar chrome persists server-side.** Preset, slots, layout,
-  group order, pins, collapsed repos and the dead-session filter are written to disk and shared,
-  so they change what the user sees in their own window. Run such drags against the sandbox.
-- **Panel resizes, scrolling and expanding file-tree nodes are client-local** and harmless — they never leave
-  this browser.
-
-None of this applies against the sandbox. Its panes run the fake Claude, not a real Claude Code
-session or shell, so there is no real pty to type into; and its chrome-persistence writes land in
-the sandbox's own state (`~/.garden-sandbox/config.json` by default), not the user's real config,
-so there is no real user state to disturb.
