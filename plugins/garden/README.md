@@ -59,7 +59,7 @@ fetches the new copy and ends with "Restart to apply changes": it takes effect i
 or in a running one after `/reload-plugins` (monitors need a restart).
 
 A `ship-it` pipeline is long-lived, so expect to upgrade mid-flight. Its state lives in the
-repository's `.ship-it/` directory, not in the plugin or the session. After updating, start a new
+pipeline worktree's `.ship-it/` directory, not in the plugin or the session. After updating, start a new
 session and run `/garden:ship-it resume`: it picks up the new copy of the skill and agents against
 the existing state. Nothing live carries over from the old session, so the orchestrator starts with
 no workers running.
