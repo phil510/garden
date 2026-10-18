@@ -285,9 +285,10 @@ still waiting on — nothing in this step waits without a wake-up. Eligible → 
 - **`ask`** → page the user (`communication.md` § #5, Merge page) with the head sha and what
   eligibility rested on, then wait — once per head sha, so a second trigger at the same head
   doesn't page twice. On a go-ahead, re-run this step first — the PR may have moved while you
-  waited.
+  waited. If it is still eligible at the head the user approved, merge without paging again; a
+  different head is a new page.
 - **`auto`** → merge, except on a repo with no CI: confirm with the user first, since nothing but
-  the pipeline's own review stands behind the change.
+  the pipeline's own review stands behind the change. A go-ahead at an unchanged head merges.
 
 To merge: if `decisions.md` has entries the PR body doesn't, re-copy it as in step 5. Pick the
 method from injected instructions; else the one method the repo allows
