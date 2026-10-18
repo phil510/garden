@@ -28,6 +28,10 @@ A concurrent sandbox needs its own port, tmux socket and app dir — see `docs/t
 - The Claude Code plugin lives in `plugins/garden/`. Its manifest deliberately declares no
   `version`, and the marketplace entry no `description` — `plugins/garden/README.md` says why, and
   adding either back is what makes plugin updates silently stop landing.
+- A diff that reads fine can still render wrong, so a UI-visible change (anything that alters what
+  the browser renders) carries before/after screenshots, captured with the `garden-sandbox` skill
+  and listed in the PR's `## Visual evidence` section. A capture that can't be made is reported in
+  the PR, not skipped.
 - Stay inside the scope of the issue. Work you find outside it gets surfaced, not silently
   absorbed — but surfacing is not the same as deferring. When what you found is in the code you
   are already changing, the default is to fix it now: you have the context loaded and the reviewer
