@@ -25,27 +25,27 @@ call without it captures the user's real garden. A drag there writes to their st
 risk tiers below).
 
 `GARDEN_PORT` is also the proxy target of the vite each run starts. A `"port"` override in
-`~/.garden/config.json` is a separate mechanism this tool does not read — on a config-only custom
+`~/.garden/config.json` is a separate mechanism `pnpm screenshot` does not read — on a config-only custom
 port it reports the server as unreachable when it is in fact running fine. Check the user's
 config before believing that message.
 
 ### Blank terminals mean the panes are attached elsewhere
 
-A session accepts one attach at a time, so if another client has the same session open, this
-tool's attach is refused and those panes screenshot as empty black rectangles. Everything
+A session accepts one attach at a time, so if another client has the same session open, `pnpm screenshot`'s
+attach is refused and those panes screenshot as empty black rectangles. Everything
 outside the terminals — sidebar, file panel, pane headers, borders, empty slots, layout — is
 still accurate, so that is only a problem when the change you are checking is about terminal
 content itself. Against the sandbox this rarely comes up, since nothing else is normally attached
 to it; against a real instance, ask the user to close their garden window for a moment — the
 server and the tmux sessions keep running, and the attach frees up. A garden window left open in
-the 9222 Chrome (older versions of this tool launched one) holds an attach too; quit that Chrome
+the 9222 Chrome (older versions of `pnpm screenshot` launched one) holds an attach too; quit that Chrome
 to free it.
 
 ### Driving a real instance is live, not contained
 
 This only applies when `GARDEN_PORT` points at the user's real instance rather than the
-sandbox. The Chrome window this tool controls talks to the same garden server the user's own
-browser does, so nothing you do in it is contained. This tool can drag but never types, so against
+sandbox. The Chrome window `pnpm screenshot` controls talks to the same garden server the user's own
+browser does, so nothing you do in it is contained. It can drag but never types, so against
 a real instance the blast radius is the second tier below; the three tiers are:
 
 - **Typing into an attached pane is the dangerous one.** Keystrokes go straight through to the
