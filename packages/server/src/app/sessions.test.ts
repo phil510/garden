@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import type { GardenEvent } from '../domain/types.js';
 import type { OverlayState, StorePort, TmuxNewSessionRequest, TmuxPort } from './ports.js';
 import { createProjection, type Projection } from './projection.js';
+import { raiseSessionAlert } from './alerts.js';
 import { createSession, killSession, resumeSession } from './sessions.js';
 
 const baseUiState: UiState = {
@@ -858,6 +859,60 @@ describe('killSession', () => {
 
     expect(written().tmuxNames).toEqual({ 'sid-2': 'other' });
     expect(projection.sessions().find((s) => s.id === 'sid-1')?.tmuxName).toBeNull();
+  });
+
+  it('clears the alert from the overlay and the session', async () => {
+    const { store, written } = fakeStore();
+    const projection = createProjection(store);
+    projection.dispatch({
+      type: 'session-registered',
+      id: 'sid-1',
+      tmuxName: 'garden',
+      cwd: '/Users/dev/garden',
+    });
+    raiseSessionAlert({ projection }, 'sid-1', 'stuck', 100);
+
+    await killSession(
+      {
+        tmux: fakeTmux({ killSession: () => Promise.resolve() }),
+        projection,
+        serverPort: 4310,
+        settingsPath: '/x',
+        readClaudeCommand: () => ['claude'],
+      },
+      { id: 'sid-1' },
+    );
+
+    expect(written().alerts).toEqual([]);
+    expect(projection.sessions().find((s) => s.id === 'sid-1')?.alert).toBeNull();
+  });
+
+  it('keeps the alert when tmux fails to kill the session', async () => {
+    const { store, written } = fakeStore();
+    const projection = createProjection(store);
+    projection.dispatch({
+      type: 'session-registered',
+      id: 'sid-1',
+      tmuxName: 'garden',
+      cwd: '/Users/dev/garden',
+    });
+    const alert = raiseSessionAlert({ projection }, 'sid-1', 'stuck', 100);
+
+    await expect(
+      killSession(
+        {
+          tmux: fakeTmux({ killSession: () => Promise.reject(new Error('tmux down')) }),
+          projection,
+          serverPort: 4310,
+          settingsPath: '/x',
+          readClaudeCommand: () => ['claude'],
+        },
+        { id: 'sid-1' },
+      ),
+    ).rejects.toThrow('tmux down');
+
+    expect(written().alerts).toHaveLength(1);
+    expect(projection.sessions().find((s) => s.id === 'sid-1')?.alert).toEqual(alert);
   });
 
   it('does not call tmux when the session already has no tmux name', async () => {

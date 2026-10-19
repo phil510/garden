@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { EffortLevel, SessionState } from '@garden/shared';
 import type { PermissionMode } from '../config.js';
+import { withoutAlert } from '../domain/alerts.js';
 import { deriveTmuxName } from '../domain/tmuxName.js';
 import { SessionNotFoundError } from './errors.js';
 import type { TmuxPaneFact, TmuxPort } from './ports.js';
@@ -214,11 +215,16 @@ export async function resumeSession(
 
 /**
  * Kills the tmux session and unregisters its name, so the session reads `dead` with no tmux
- * name straight away rather than after the next tmux snapshot.
+ * name straight away rather than after the next tmux snapshot. A deliberate kill also clears
+ * the session's alert; a session that dies on its own keeps it.
  */
 export async function killSession(deps: SessionsDeps, request: KillSessionRequest): Promise<void> {
   const { tmux, projection } = deps;
   const session = findSession(projection, request.id);
   if (session.tmuxName !== null) await tmux.killSession(session.tmuxName);
   projection.dispatch({ type: 'session-unregistered', id: request.id });
+  if (session.alert !== null) {
+    projection.updateOverlay((base) => withoutAlert(base, request.id));
+    projection.dispatch({ type: 'alert-changed', sessionId: request.id, alert: null });
+  }
 }

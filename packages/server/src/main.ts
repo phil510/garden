@@ -45,6 +45,7 @@ import { createRootWatches } from './app/rootWatch.js';
 import { watchRepoRoots } from './app/repoRoots.js';
 import { pruneKnownSessions } from './app/swarms.js';
 import { replayWatches } from './app/watches.js';
+import { replayAlerts } from './app/alerts.js';
 import { writeClaudeSettings, writeTmuxConf } from './appdir.js';
 import {
   appDirPath,
@@ -184,6 +185,11 @@ async function replay(
     replayWatches({ projection, git }, Date.now());
   } catch (error) {
     logger.error(`watch replay failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  try {
+    replayAlerts({ projection });
+  } catch (error) {
+    logger.error(`alert replay failed: ${error instanceof Error ? error.message : String(error)}`);
   }
   try {
     pipes.replay();
