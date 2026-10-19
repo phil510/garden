@@ -28,11 +28,16 @@ function AlertEntry({ session, context, selected, now, onSelect }: AlertEntryPro
   const [expanded, setExpanded] = useState(false);
   const [overflows, setOverflows] = useState(false);
 
-  // Measured while clamped, so the link appears only when the text is cut off.
+  // Measured while clamped, so the link appears only when the text is cut off. The panel stays
+  // mounted under `display: none`, where both sizes read 0, so re-measure whenever the box resizes.
   useLayoutEffect(() => {
     const el = textRef.current;
     if (el === null || expanded) return;
-    setOverflows(el.scrollHeight > el.clientHeight + 1);
+    const measure = () => setOverflows(el.scrollHeight > el.clientHeight + 1);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
   }, [alert?.text, expanded]);
 
   if (alert === null) return null;
