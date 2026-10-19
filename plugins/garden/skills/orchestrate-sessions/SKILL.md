@@ -101,9 +101,9 @@ For the first kind the user may answer in either channel, the peer's pane or thr
 peer to report back an answer it got in its pane.
 
 You rarely raise your own alert (`alert` skill). When a peer reports a decision only the human can
-make, don't relay it up or promise to tell the human: tell the peer to raise its own alert once the
-ask has gone unanswered, or confirm it has. Relaying the human's answer back down stays fine; only the question surfaces
-through the peer's alert.
+make, surface it to the user as you normally would; that is the preferred path. If the peer's ask
+is still going unanswered, tell it to raise its own alert, since the question lives in its pane.
+Relaying the human's answer back down stays fine.
 
 **Merge and create-issue are two separate autonomy switches**, each `auto` or `ask-human`, not one
 combined setting — they differ in timing and in reversibility. Never dispatch a peer with either
