@@ -47,13 +47,6 @@
 .repo-count.live {
   color: var(--accent);
 }
-.attn-badge {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--st-needs-approval);
-  flex: 0 0 auto;
-}
 .repo-rows.collapsed {
   display: none;
 }
