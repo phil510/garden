@@ -2,7 +2,7 @@ import { aHookEvent } from '@garden/shared/fixtures';
 import type { HookPayload } from '@garden/shared';
 import Fastify from 'fastify';
 import { describe, expect, it } from 'vitest';
-import type { GardenEvent } from '../../domain/types.js';
+import type { GardenEvent } from '../../app/ports.js';
 import type { Projection } from '../../app/projection.js';
 import type { OverlayState } from '../../app/ports.js';
 import { hookRoutes } from './hooks.js';

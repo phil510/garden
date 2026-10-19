@@ -231,6 +231,15 @@ describe('removeWatch', () => {
 
     expect(() => removeWatch(deps, { sessionId: 'nope', pr: 7 })).toThrow(SessionNotFoundError);
   });
+
+  it('rejects an explicit repo that is not owner/name', () => {
+    const { deps, writes } = setup({ watches: [aWatch()] });
+
+    expect(() => removeWatch(deps, { sessionId: 's1', pr: 7, repo: 'x' })).toThrow(
+      RepoUnresolvedError,
+    );
+    expect(writes()).toBe(0);
+  });
 });
 
 describe('watch summaries on SessionState', () => {

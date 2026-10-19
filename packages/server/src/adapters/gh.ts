@@ -1,7 +1,52 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { parseGhInclude, rateLimitResumeAt } from '../domain/github.js';
 import type { GhResult } from '../domain/github.js';
+
+/** What `gh api --include` printed: the status line, the headers (names lower-cased) and the body. */
+export interface GhResponse {
+  readonly status: number;
+  readonly headers: Readonly<Record<string, string>>;
+  readonly body: string;
+}
+
+const STATUS_LINE = /^HTTP\/\S+\s+(\d{3})/;
+
+/** Splits `gh api --include` output; null when it does not start with an HTTP status line. A
+ *  304 has no body, so a missing blank line is not an error. */
+export function parseGhInclude(stdout: string): GhResponse | null {
+  const separator = /\r?\n\r?\n/.exec(stdout);
+  const head = separator === null ? stdout : stdout.slice(0, separator.index);
+  const body = separator === null ? '' : stdout.slice(separator.index + separator[0].length);
+  const [statusLine = '', ...headerLines] = head.split(/\r?\n/);
+  const match = STATUS_LINE.exec(statusLine);
+  if (match === null) return null;
+  const headers: Record<string, string> = {};
+  for (const headerLine of headerLines) {
+    const colon = headerLine.indexOf(':');
+    if (colon > 0)
+      headers[headerLine.slice(0, colon).trim().toLowerCase()] = headerLine.slice(colon + 1).trim();
+  }
+  return { status: Number(match[1]), headers, body };
+}
+
+const SECONDARY_LIMIT_FALLBACK_MS = 60_000;
+
+/** Epoch ms to resume at when the response is a rate limit, else null. A primary limit is a
+ *  403/429 with no calls remaining and waits for the reset time; a secondary limit waits for
+ *  `Retry-After`, or a minute when GitHub names the limit in the body without saying how long. */
+export function rateLimitResumeAt(response: GhResponse, now: number): number | null {
+  if (response.status !== 403 && response.status !== 429) return null;
+  const { headers } = response;
+  const retryAfter = Number(headers['retry-after']);
+  if (headers['retry-after'] !== undefined && Number.isFinite(retryAfter))
+    return now + retryAfter * 1000;
+  if (headers['x-ratelimit-remaining'] === '0') {
+    const reset = Number(headers['x-ratelimit-reset']);
+    if (Number.isFinite(reset)) return reset * 1000;
+  }
+  if (/secondary rate limit/i.test(response.body)) return now + SECONDARY_LIMIT_FALLBACK_MS;
+  return null;
+}
 
 const execFileAsync = promisify(execFile);
 

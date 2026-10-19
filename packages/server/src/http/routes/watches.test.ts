@@ -78,7 +78,6 @@ describe('POST /sessions/:id/watches', () => {
     ['a non-integer pr', { pr: 1.5 }],
     ['a zero pr', { pr: 0 }],
     ['a pr that is a string', { pr: '7' }],
-    ['a malformed repo', { pr: 7, repo: 'nope' }],
     ['kinds that are not an array', { pr: 7, kinds: 'review' }],
     ['an unknown kind', { pr: 7, kinds: ['review', 'bogus'] }],
     ['ignoreChecks that is not an array', { pr: 7, ignoreChecks: 'build' }],
@@ -99,6 +98,15 @@ describe('POST /sessions/:id/watches', () => {
     });
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({ watch: { ignoredChecks: ['cve-scan'] } });
+  });
+
+  it('maps a malformed repo to 400', async () => {
+    const response = await buildApp(origin).inject({
+      method: 'POST',
+      url: '/sessions/s1/watches',
+      payload: { pr: 7, repo: 'nope' },
+    });
+    expect(response.statusCode).toBe(400);
   });
 
   it('maps an unresolvable repo to 400', async () => {

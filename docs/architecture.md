@@ -150,7 +150,7 @@ packages/server/src/
     stage.ts       slot arithmetic across preset changes
     watches.ts     watch rules: kind normalisation, upsert/remove, 7-day digest pruning, summaries
     pipes.ts       ack a digest, end watches with no pipe for 7 days, prune stale pipe times
-    github.ts      gh api --include parsing, rate-limit resume time, REST JSON -> PR facts
+    github.ts      REST JSON -> PR facts, and the gh port's result type
     pollCursor.ts  the poller's cursor (ids, ETags, counts; no PR content) and the diffs over it
     digest.ts      fold observed activity into a watch: kinds, quiet window, digest line and detail
     paths.ts       filesystem scoping
@@ -158,7 +158,7 @@ packages/server/src/
   adapters/        one external system each
     tmux.ts        execFile wrapper: list, new-session, respawn-pane, kill, version check
     git.ts         git-common-dir, branch (read from HEAD, no spawn), status --porcelain, worktree prefix, origin URL
-    gh.ts          one conditional `gh api` GET: ETag in, classified result out
+    gh.ts          one conditional `gh api` GET: ETag in, `--include` output parsed, rate-limit resume time, classified result out
     transcripts.ts chokidar watch + read
     fsWatch.ts     native recursive fs.watch on one root, debounced, .git/ filtered
     pty.ts         node-pty attach
@@ -425,15 +425,15 @@ escape hatch without a reason as strong as this one.
 
 ## 6. Dependency rules
 
-| Layer          | May import                                                                                               | Never                                                                                        |
-| -------------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `domain/`      | `shared`, other `domain/`                                                                                | node builtins, libraries, `adapters/`, `app/`, `http/`                                       |
-| `adapters/`    | `shared`, `domain/` types, its own library                                                               | other adapters, `app/`, `http/`                                                              |
-| `app/`         | `domain/`, `app/ports.ts`, `node:fs/promises` for one-shot reads (`readdir`, `stat`, `realpath`, `open`) | `http/`, `adapters/`, watchers and other long-lived fs resources (those live in `adapters/`) |
-| `http/`        | `app/`, `shared`                                                                                         | `adapters/`, any business logic                                                              |
-| `cli/`         | `shared`, an HTTP client                                                                                 | `app/`, `adapters/`, `domain/` logic                                                         |
-| `main.ts`      | everything                                                                                               | —                                                                                            |
-| `packages/web` | `shared`                                                                                                 | node builtins, tmux, the filesystem                                                          |
+| Layer          | May import                                                                                                                           | Never                                                                                        |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| `domain/`      | `shared`, other `domain/`                                                                                                            | node builtins, libraries, `adapters/`, `app/`, `http/`                                       |
+| `adapters/`    | `shared`, `domain/` types, its own library                                                                                           | other adapters, `app/`, `http/`                                                              |
+| `app/`         | `domain/`, `app/ports.ts`, `node:crypto`, `node:path`, `node:fs/promises` for one-shot reads (`readdir`, `stat`, `realpath`, `open`) | `http/`, `adapters/`, watchers and other long-lived fs resources (those live in `adapters/`) |
+| `http/`        | `app/`, `shared`                                                                                                                     | `adapters/`, any business logic                                                              |
+| `cli/`         | `shared`, an HTTP client                                                                                                             | `app/`, `adapters/`, `domain/` logic                                                         |
+| `main.ts`      | everything                                                                                                                           | —                                                                                            |
+| `packages/web` | `shared`                                                                                                                             | node builtins, tmux, the filesystem                                                          |
 
 These are enforced by scoped `no-restricted-imports` rules in `eslint.config.js`, so a
 violation fails `pnpm lint` with a message naming the rule. They are not honour-system
