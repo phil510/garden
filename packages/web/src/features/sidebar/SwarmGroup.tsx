@@ -1,10 +1,9 @@
 import type { SessionMap, SessionPlacement } from '@garden/shared';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { hideDeadLabel } from './hideDeadLabel';
 import type { ActiveSwarmOption, SwarmGroup as SwarmGroupData } from './groupSwarms';
+import { SwarmBucketRows } from './SwarmBucketRows';
 import { SwarmHeader } from './SwarmHeader';
-import { SwarmTree } from './SwarmTree';
 
 interface SwarmGroupProps {
   swarm: SwarmGroupData;
@@ -54,27 +53,18 @@ export function SwarmGroup({
         dragListeners={listeners}
       />
       <div className={`swarm-rows${swarm.collapsed ? ' collapsed' : ''}`}>
-        {swarm.roots.length === 0 ? (
-          <div className="empty-groups-note">Nothing to show.</div>
-        ) : (
-          <SwarmTree
-            nodes={swarm.roots}
-            sessions={sessions}
-            placements={placements}
-            activeSwarms={activeSwarms}
-            now={now}
-            onStageIds={onStageIds}
-            focusedSessionId={focusedSessionId}
-            onSelectSession={onSelectSession}
-          />
-        )}
-        <div
-          className="hide-dead-row"
-          title={`${hideDeadLabel(swarm.hideDead)} sessions`}
-          onClick={() => onToggleHideDead(swarm.swarmId)}
-        >
-          {hideDeadLabel(swarm.hideDead)}
-        </div>
+        <SwarmBucketRows
+          roots={swarm.roots}
+          hideDead={swarm.hideDead}
+          onToggleHideDead={() => onToggleHideDead(swarm.swarmId)}
+          sessions={sessions}
+          placements={placements}
+          activeSwarms={activeSwarms}
+          now={now}
+          onStageIds={onStageIds}
+          focusedSessionId={focusedSessionId}
+          onSelectSession={onSelectSession}
+        />
       </div>
     </div>
   );
