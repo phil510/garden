@@ -290,6 +290,10 @@ still waiting on — nothing in this step waits without a wake-up. Eligible → 
 - **`auto`** → merge, except on a repo with no CI: confirm with the user first, since nothing but
   the pipeline's own review stands behind the change. A go-ahead at an unchanged head merges.
 
+Whenever you page the merge, also raise `garden alert` right away (`alert` skill): "ready to merge"
+is the only case that alerts immediately. A new head sha is a new page, so rewrite the alert then.
+Clear it once the user answers, the PR merges or closes, or the pipeline stops.
+
 To merge: if `decisions.md` has entries the PR body doesn't, re-copy it as in step 5. Pick the
 method from injected instructions; else the one method the repo allows
 (`gh repo view <owner>/<repo> --json squashMergeAllowed,mergeCommitAllowed,rebaseMergeAllowed`);
