@@ -3,8 +3,8 @@ name: alert
 description: >-
   Use when this session is blocked on something only the human can provide — a scope or judgment
   call, an approval reserved for the human, a manual step such as a login — and it has already
-  asked for it more than once without an answer. Not for the first ask, and not for the next
-  question in a live conversation. Also use for the events a workflow skill names as major on their
+  asked for it three times — the original and two repeats — without an answer. Not for the first
+  ask, and not for the next question in a live conversation. Also use for the events a workflow skill names as major on their
   own (ship-it's "ready to merge"), and whenever an alert is already up and what is open has
   changed or nothing waits on the human any more. Covers raising, rewriting and clearing the
   session's alert with `garden alert`.
@@ -21,9 +21,9 @@ miss something that is stuck on them, not to report that you are working.
 
 - **Blocked on the human, and the ask has gone unanswered.** You need something only the human can
   give: a scope or judgment call, an approval reserved for the human, a manual step like a login.
-  You have asked for it at least twice and still have no answer. The first ask is just a question;
-  the human may be reading the pane right now. The next question in a live conversation never
-  warrants an alert.
+  You have asked for it three times — the original and two repeats — and still have no answer. The
+  first ask is just a question; the human may be reading the pane right now. The next question in a
+  live conversation never warrants an alert.
 - **A few events are major on their own.** The workflow skills name them; today that is `ship-it`'s
   "ready to merge". These alert immediately, without waiting for a repeat.
 
@@ -34,7 +34,7 @@ never appends, so write the full current ask each time, in enough words that the
 without opening the session. Multi-line text is fine.
 
 ```
-garden alert "Need a decision: ship the migration behind a flag or all at once? Asked twice."
+garden alert "Need a decision: ship the migration behind a flag or all at once? Asked three times."
 garden alert clear
 ```
 
