@@ -290,6 +290,40 @@ li.tree-node:not(:last-child)::after {
   -webkit-line-clamp: 4;
   overflow: hidden;
 }
+.hc-alert {
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.hc-alert .upper {
+  font-size: 10px;
+  color: var(--st-alert);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.hc-alert .upper .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--st-alert);
+}
+.hc-alert .alert-text {
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
+}
+.hc-alert .when {
+  font-size: 10.5px;
+  color: var(--text-faint);
+}
 
 .show-older-row {
   padding: 6px 10px 6px 22px;
