@@ -147,6 +147,10 @@ export function addWatch(sessionId: string, body: AddWatchRequest): Promise<Watc
   });
 }
 
+export function dismissAlert(sessionId: string): Promise<OkResponse> {
+  return request(`/sessions/${encodeURIComponent(sessionId)}/alert`, { method: 'DELETE' });
+}
+
 export function removeWatch(sessionId: string, pr: number, repo: string): Promise<OkResponse> {
   const query = new URLSearchParams({ pr: String(pr), repo });
   return request(`/sessions/${encodeURIComponent(sessionId)}/watches?${query.toString()}`, {

@@ -20,6 +20,7 @@ export function aSession(overrides: Partial<SessionState> = {}): SessionState {
     lastActivity: 1_000_000,
     claudeSessionName: null,
     watches: NO_WATCHES,
+    alert: null,
     pipeConnected: false,
     pipeLastConnectedAt: null,
     ...overrides,

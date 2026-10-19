@@ -18,6 +18,8 @@ import {
   runNew,
   runResume,
   runUnwatch,
+  runAlert,
+  runAlertClear,
   runWatch,
   runWatches,
 } from './commands.js';
@@ -59,6 +61,7 @@ function aSession(overrides: Partial<SessionState> = {}): SessionState {
     lastActivity: 0,
     claudeSessionName: null,
     watches: [],
+    alert: null,
     pipeConnected: false,
     pipeLastConnectedAt: null,
     ...overrides,
@@ -75,6 +78,8 @@ function throwingClient(error: Error): CliClient {
     watch: () => Promise.reject(error),
     unwatch: () => Promise.reject(error),
     watches: () => Promise.reject(error),
+    raiseAlert: () => Promise.reject(error),
+    clearAlert: () => Promise.reject(error),
     digest: () => Promise.reject(error),
   };
 }
@@ -452,6 +457,67 @@ describe('runWatches', () => {
 
     expect(exitCode).toBe(1);
     expect(stderr).toEqual(['garden: GARDEN_SESSION_ID is not set\n']);
+  });
+});
+
+describe('runAlert', () => {
+  it('raises the alert on the caller session, passing multi-line text through unchanged', async () => {
+    const { io, stdout } = collectingIo();
+    const raised: Array<[string, string]> = [];
+    const client: CliClient = {
+      ...throwingClient(new Error('unused')),
+      raiseAlert: (sessionId, text) => {
+        raised.push([sessionId, text]);
+        return Promise.resolve({ alert: { text, raisedAt: 1, updatedAt: 1 } });
+      },
+    };
+
+    const exitCode = await runAlert(
+      io,
+      { env: { GARDEN_SESSION_ID: 's1' }, text: 'stuck\n  on CI' },
+      false,
+      client,
+    );
+
+    expect(exitCode).toBe(0);
+    expect(raised).toEqual([['s1', 'stuck\n  on CI']]);
+    expect(stdout).toEqual(['alert raised\n']);
+  });
+
+  it('fails without calling the client when GARDEN_SESSION_ID is unset or empty', async () => {
+    for (const env of [{}, { GARDEN_SESSION_ID: '' }]) {
+      const { io, stderr } = collectingIo();
+
+      const exitCode = await runAlert(
+        io,
+        { env, text: 'x' },
+        false,
+        throwingClient(new Error('called')),
+      );
+
+      expect(exitCode).toBe(1);
+      expect(stderr).toEqual(['garden: GARDEN_SESSION_ID is not set\n']);
+    }
+  });
+});
+
+describe('runAlertClear', () => {
+  it('clears the alert on the caller session', async () => {
+    const { io, stdout } = collectingIo();
+    const cleared: string[] = [];
+    const client: CliClient = {
+      ...throwingClient(new Error('unused')),
+      clearAlert: (sessionId) => {
+        cleared.push(sessionId);
+        return Promise.resolve({ ok: true });
+      },
+    };
+
+    const exitCode = await runAlertClear(io, { env: { GARDEN_SESSION_ID: 's1' } }, false, client);
+
+    expect(exitCode).toBe(0);
+    expect(cleared).toEqual(['s1']);
+    expect(stdout).toEqual(['alert cleared\n']);
   });
 });
 

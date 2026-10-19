@@ -1,5 +1,5 @@
 import { aHookEvent } from '@garden/shared/fixtures';
-import type { HookPayload, WatchSummary } from '@garden/shared';
+import type { Alert, HookPayload, WatchSummary } from '@garden/shared';
 import { describe, expect, it } from 'vitest';
 import { initialState, reduce } from './reduce.js';
 import type { GardenEvent, TranscriptRecord } from './types.js';
@@ -68,6 +68,19 @@ const watchesChanged = (watches: WatchSummary[], sessionId = 'sid-1'): GardenEve
   type: 'watches-changed',
   sessionId,
   watches,
+});
+
+const anAlert = (overrides: Partial<Alert> = {}): Alert => ({
+  text: 'needs a look',
+  raisedAt: now,
+  updatedAt: now,
+  ...overrides,
+});
+
+const alertChanged = (alert: Alert | null, sessionId = 'sid-1'): GardenEvent => ({
+  type: 'alert-changed',
+  sessionId,
+  alert,
 });
 
 describe('reduce', () => {
@@ -494,6 +507,59 @@ describe('reduce', () => {
         watchesChanged([aWatchSummary({ pr: 9 })]),
       ]);
       expect(state.sessions['sid-2']?.watches).toEqual([summary]);
+    });
+  });
+
+  describe('alerts', () => {
+    const registered: GardenEvent = {
+      type: 'session-registered',
+      id: 'sid-1',
+      tmuxName: 'repo',
+      cwd: '/Users/dev/repo',
+    };
+
+    it('shows a session its alert and clears it on null', () => {
+      const alert = anAlert();
+      const raised = fold([mapped, transcript(), alertChanged(alert)]);
+      expect(raised.sessions['sid-1']?.alert).toEqual(alert);
+      expect(reduce(raised, alertChanged(null)).sessions['sid-1']?.alert).toBeNull();
+    });
+
+    it('leaves status untouched by raising and clearing', () => {
+      const before = fold([mapped, transcript(), hook('UserPromptSubmit'), snapshot(false)]);
+      const raised = reduce(before, alertChanged(anAlert()));
+      const cleared = reduce(raised, alertChanged(null));
+      expect(raised.sessions['sid-1']?.status).toBe('working');
+      expect(cleared.sessions['sid-1']?.status).toBe('working');
+    });
+
+    it('applies an alert that arrived before its session existed once the session appears', () => {
+      const alert = anAlert();
+      const early = fold([alertChanged(alert)]);
+      expect(early.sessions['sid-1']).toBeUndefined();
+      expect(reduce(early, transcript()).sessions['sid-1']?.alert).toEqual(alert);
+    });
+
+    it('keeps the alert when the session ends, its pane dies, and it is resumed', () => {
+      const alert = anAlert();
+      const live = fold([mapped, transcript(), hook('UserPromptSubmit'), snapshot(false)]);
+      const raised = reduce(live, alertChanged(alert));
+      const ended = reduce(raised, hook('SessionEnd'));
+      expect(ended.sessions['sid-1']).toMatchObject({ liveness: 'dead', alert });
+      const dead = reduce(ended, snapshot(true));
+      expect(dead.sessions['sid-1']).toMatchObject({ liveness: 'dead', alert });
+      const resumed = [registered, snapshot(false)].reduce(reduce, dead);
+      expect(resumed.sessions['sid-1']).toMatchObject({ liveness: 'live', alert });
+    });
+
+    it("leaves other sessions' alerts alone", () => {
+      const state = fold([
+        transcript(),
+        transcript({ sessionId: 'sid-2' }),
+        alertChanged(anAlert(), 'sid-2'),
+      ]);
+      expect(state.sessions['sid-1']?.alert).toBeNull();
+      expect(state.sessions['sid-2']?.alert).toEqual(anAlert());
     });
   });
 

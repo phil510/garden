@@ -17,11 +17,13 @@
   --st-needs-approval: #d7ba7d;
   --st-waiting: #569cd6;
   --st-unknown: #6a6a6a;
+  --st-alert: var(--danger);
 
   --st-working-border: color-mix(in srgb, var(--st-working) 40%, transparent);
   --st-needs-approval-border: color-mix(in srgb, var(--st-needs-approval) 40%, transparent);
   --st-waiting-border: color-mix(in srgb, var(--st-waiting) 40%, transparent);
   --st-unknown-border: color-mix(in srgb, var(--st-unknown) 40%, transparent);
+  --st-alert-border: color-mix(in srgb, var(--st-alert) 40%, transparent);
 
   --syn-keyword: #569cd6;
   --syn-string: #ce9178;

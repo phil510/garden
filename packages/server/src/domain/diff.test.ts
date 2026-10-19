@@ -55,6 +55,7 @@ describe('diff', () => {
           ignoredChecks: [],
         },
       ],
+      alert: { text: 'stuck', raisedAt: 1, updatedAt: 2 },
       pipeConnected: true,
       pipeLastConnectedAt: 1_000,
     };

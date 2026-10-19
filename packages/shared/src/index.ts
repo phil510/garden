@@ -41,6 +41,14 @@ export function presetCapacity(preset: StagePreset): number {
   return PRESET_ARRANGEMENTS[preset].tracks.reduce((sum, track) => sum + track.slots, 0);
 }
 
+/** What a session's agent asked a human to look at. One per session; raising again replaces
+ *  the text and keeps `raisedAt`. Epoch ms. */
+export interface Alert {
+  text: string;
+  raisedAt: number;
+  updatedAt: number;
+}
+
 export interface SessionState {
   id: string;
   cwd: string;
@@ -63,6 +71,9 @@ export interface SessionState {
   /** The session's PR watches, derived from the overlay by `reduce` so a change reaches clients
    *  as an ordinary session delta. Empty when the session has none. */
   watches: WatchSummary[];
+  /** The session's open alert, derived from the overlay by `reduce`. Independent of `status`;
+   *  it survives the session's death and a resume. Null when none is open. */
+  alert: Alert | null;
   /** Whether a `garden events --follow` pipe is connected for this session. */
   pipeConnected: boolean;
   /** The last moment a pipe was known connected, as persisted; refreshed hourly while one is
@@ -324,6 +335,13 @@ export interface AddWatchRequest {
   kinds?: WatchKind[];
   ignoreChecks?: string[];
   unignoreChecks?: string[];
+}
+/** Body of `POST /sessions/:id/alert`. */
+export interface RaiseAlertRequest {
+  text: string;
+}
+export interface AlertResponse {
+  alert: Alert;
 }
 export interface WatchResponse {
   watch: WatchSummary;

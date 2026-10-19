@@ -1,0 +1,107 @@
+/* Alerts panel entries; the panel shell reuses .awp / .aw-* from the watches panel. */
+.al-item {
+  padding: 8px 12px 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: pointer;
+  border-left: 2px solid transparent;
+}
+.al-item + .al-item {
+  border-top: 1px solid var(--border);
+}
+.al-item:hover {
+  background: var(--raised);
+}
+.al-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.al-item.selected {
+  border-left-color: var(--accent);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+}
+.al-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.al-top .t {
+  flex: 1;
+  min-width: 0;
+  font-weight: 500;
+  font-size: 12.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.al-top .deadtag {
+  font-size: 10.5px;
+  color: var(--text-faint);
+  border: 1px solid var(--border-strong);
+  border-radius: 99px;
+  padding: 0 6px;
+}
+.al-ctx {
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.al-item .alert-text {
+  font-size: 12px;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+.al-item .alert-text.open {
+  display: block;
+  -webkit-line-clamp: unset;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.link-btn {
+  all: unset;
+  cursor: pointer;
+  font-size: 10.5px;
+  color: var(--text-muted);
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  align-self: flex-start;
+}
+.link-btn:hover {
+  color: var(--accent);
+  text-decoration-style: solid;
+}
+.link-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+.al-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10.5px;
+  color: var(--text-faint);
+}
+.al-foot .when {
+  flex: 1;
+  min-width: 0;
+}
+.al-foot .small {
+  padding: 2px 8px;
+  font-size: 11px;
+}
+
+#alerts-open svg {
+  width: 15px;
+  height: 15px;
+}

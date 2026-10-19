@@ -1,6 +1,7 @@
 import type { SessionState } from '@garden/shared';
 import { useLayoutEffect, useRef, useState } from 'react';
 import { usePipeGraceStore } from '../../state/pipeGraceStore';
+import { alertAgesLine } from '../alerts/allAlerts';
 import { PipeFaultBlock, WatchList } from '../watches/WatchList';
 import { computeHoverCardPosition } from './hoverCardPosition';
 import { formatRelativeTime } from './relativeTime';
@@ -55,6 +56,16 @@ export function HoverCard({ title, session, anchor, now }: HoverCardProps) {
         <span className="hc-k">activity</span>
         <span className="hc-v">{formatRelativeTime(session.lastActivity, now)}</span>
       </div>
+      {session.alert !== null && (
+        <div className="hc-alert">
+          <span className="upper">
+            <span className="dot" />
+            Alert
+          </span>
+          <div className="alert-text">{session.alert.text}</div>
+          <span className="when">{alertAgesLine(session.alert, now)}</span>
+        </div>
+      )}
       <div className="hc-watches">
         {session.watches.length === 0 ? (
           <div className="hc-hint">No PR watches. Right-click to start one.</div>

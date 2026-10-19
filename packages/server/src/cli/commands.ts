@@ -1,4 +1,5 @@
 import type {
+  AlertResponse,
   CreateSessionResponse,
   DigestResponse,
   OkResponse,
@@ -47,6 +48,8 @@ export interface CliClient {
   ): Promise<WatchResponse>;
   unwatch(sessionId: string, target: { pr: number; repo?: string }): Promise<OkResponse>;
   watches(sessionId: string): Promise<WatchesResponse>;
+  raiseAlert(sessionId: string, text: string): Promise<AlertResponse>;
+  clearAlert(sessionId: string): Promise<OkResponse>;
   digest(id: string): Promise<DigestResponse>;
 }
 
@@ -251,6 +254,41 @@ export function runWatches(
     json,
     () => client.watches(watchSession(target.env, target.session)),
     ({ watches }) => (watches.length === 0 ? 'no watches' : watches.map(watchLine).join('\n')),
+  );
+}
+
+/** An alert is always the caller's own: there is no flag to raise one on another session. */
+function callerSession(env: NodeJS.ProcessEnv): string {
+  const session = env.GARDEN_SESSION_ID;
+  if (session === undefined || session === '') throw new Error(NO_CALLER_SESSION);
+  return session;
+}
+
+export function runAlert(
+  io: Io,
+  target: { readonly env: NodeJS.ProcessEnv; readonly text: string },
+  json: boolean,
+  client: CliClient = defaultClient,
+): Promise<0 | 1> {
+  return runCommand(
+    io,
+    json,
+    () => client.raiseAlert(callerSession(target.env), target.text),
+    () => 'alert raised',
+  );
+}
+
+export function runAlertClear(
+  io: Io,
+  target: { readonly env: NodeJS.ProcessEnv },
+  json: boolean,
+  client: CliClient = defaultClient,
+): Promise<0 | 1> {
+  return runCommand(
+    io,
+    json,
+    () => client.clearAlert(callerSession(target.env)),
+    () => 'alert cleared',
   );
 }
 

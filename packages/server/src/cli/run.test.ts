@@ -98,6 +98,14 @@ function recordingClient(
       calls.push(`watches:${sessionId}`);
       return Promise.resolve({ watches: listedWatches });
     },
+    raiseAlert: (sessionId, text) => {
+      calls.push(`alert:${sessionId}:${JSON.stringify(text)}`);
+      return Promise.resolve({ alert: { text, raisedAt: 1, updatedAt: 1 } });
+    },
+    clearAlert: (sessionId) => {
+      calls.push(`alert-clear:${sessionId}`);
+      return Promise.resolve(ok);
+    },
     digest: (id) => {
       calls.push(`digest:${id}`);
       return Promise.reject(new Error('not used by this test'));
@@ -107,7 +115,7 @@ function recordingClient(
 }
 
 describe('isCliCommand', () => {
-  it('recognises the twelve subcommands and nothing else', () => {
+  it('recognises the thirteen subcommands and nothing else', () => {
     expect(isCliCommand('new')).toBe(true);
     expect(isCliCommand('ls')).toBe(true);
     expect(isCliCommand('kill')).toBe(true);
@@ -116,6 +124,7 @@ describe('isCliCommand', () => {
     expect(isCliCommand('watch')).toBe(true);
     expect(isCliCommand('unwatch')).toBe(true);
     expect(isCliCommand('watches')).toBe(true);
+    expect(isCliCommand('alert')).toBe(true);
     expect(isCliCommand('digest')).toBe(true);
     expect(isCliCommand('events')).toBe(true);
     expect(isCliCommand('stop')).toBe(true);
@@ -659,5 +668,64 @@ describe('runCli watch verbs', () => {
 
     expect(calls).toEqual([]);
     expect(stderr).toEqual(['garden: GARDEN_SESSION_ID is not set\n']);
+  });
+});
+
+describe('alert', () => {
+  const env = { GARDEN_SESSION_ID: 's1' };
+
+  it('raises the text as given on the caller session', async () => {
+    const { io } = collectingIo();
+    const { client, calls } = recordingClient();
+
+    expect(await runCli('alert', ['stuck\non CI'], io, client, undefined, env)).toBe(0);
+
+    expect(calls).toEqual(['alert:s1:"stuck\\non CI"']);
+  });
+
+  it('treats the single positional clear as the clear verb', async () => {
+    const { io } = collectingIo();
+    const { client, calls } = recordingClient();
+
+    expect(await runCli('alert', ['clear'], io, client, undefined, env)).toBe(0);
+
+    expect(calls).toEqual(['alert-clear:s1']);
+  });
+
+  it.each([[[]], [['']], [['   ']], [['two', 'words']]])(
+    'prints usage for %j and makes no call',
+    async (args) => {
+      const { io, stderr } = collectingIo();
+      const { client, calls } = recordingClient();
+
+      expect(await runCli('alert', args, io, client, undefined, env)).toBe(1);
+
+      expect(calls).toEqual([]);
+      expect(stderr).toEqual([expect.stringContaining('garden: usage: garden alert')]);
+    },
+  );
+
+  it('rejects --session rather than alerting a different session than the caller named', async () => {
+    const { io, stderr } = collectingIo();
+    const { client, calls } = recordingClient();
+
+    expect(await runCli('alert', ['x', '--session', 's2'], io, client, undefined, env)).toBe(1);
+
+    expect(calls).toEqual([]);
+    expect(stderr).toEqual([expect.stringContaining('garden: usage: garden alert')]);
+  });
+
+  it('fails with no caller session when the environment names none', async () => {
+    const { io, stderr } = collectingIo();
+    const { client, calls } = recordingClient();
+
+    expect(await runCli('alert', ['x'], io, client, undefined, {})).toBe(1);
+    expect(await runCli('alert', ['clear'], io, client, undefined, {})).toBe(1);
+
+    expect(calls).toEqual([]);
+    expect(stderr).toEqual([
+      'garden: GARDEN_SESSION_ID is not set\n',
+      'garden: GARDEN_SESSION_ID is not set\n',
+    ]);
   });
 });

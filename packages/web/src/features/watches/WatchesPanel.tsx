@@ -1,5 +1,6 @@
 import { removeWatch, updateUiState } from '../../api/client';
 import { reportCommandFailure } from '../../api/reportCommandFailure';
+import { displayStatus } from '../../components/displayStatus';
 import { StatusPill } from '../../components/StatusPill';
 import { usePipeGraceStore } from '../../state/pipeGraceStore';
 import { useSessionStore } from '../../state/sessionStore';
@@ -63,7 +64,9 @@ export function WatchesPanel() {
                   {dead ? (
                     <span className="deadtag">dead</span>
                   ) : (
-                    session.status !== null && <StatusPill status={session.status} />
+                    session.status !== null && (
+                      <StatusPill status={displayStatus(session.status, session.alert)} />
+                    )
                   )}
                   <span className="r">{lastPathSegment(session.repoRoot ?? session.cwd)}</span>
                 </button>

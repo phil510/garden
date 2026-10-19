@@ -1,5 +1,6 @@
 import { homedir } from 'node:os';
 import type {
+  AlertResponse,
   CreateSessionRequest,
   CreateSessionResponse,
   DigestResponse,
@@ -7,6 +8,7 @@ import type {
   OkResponse,
   Placement,
   PlacementRequest,
+  RaiseAlertRequest,
   ResumeSessionRequest,
   SessionsFilter,
   SessionsResponse,
@@ -157,6 +159,19 @@ export function unwatch(
 
 export function watches(sessionId: string): Promise<WatchesResponse> {
   return request(`/sessions/${encodeURIComponent(sessionId)}/watches`);
+}
+
+export function raiseAlert(sessionId: string, text: string): Promise<AlertResponse> {
+  const body: RaiseAlertRequest = { text };
+  return request(`/sessions/${encodeURIComponent(sessionId)}/alert`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export function clearAlert(sessionId: string): Promise<OkResponse> {
+  return request(`/sessions/${encodeURIComponent(sessionId)}/alert`, { method: 'DELETE' });
 }
 
 export function digest(id: string): Promise<DigestResponse> {

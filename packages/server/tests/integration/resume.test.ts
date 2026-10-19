@@ -12,6 +12,7 @@ import {
   type TmuxTarget,
 } from '../../src/adapters/tmux.js';
 import type { OverlayState, StorePort, TmuxPort } from '../../src/app/ports.js';
+import { raiseSessionAlert } from '../../src/app/alerts.js';
 import { createProjection } from '../../src/app/projection.js';
 import { resumeSession } from '../../src/app/sessions.js';
 import { until } from './support/poll.js';
@@ -124,6 +125,52 @@ describe('resuming a session against real tmux', () => {
       // The fallback path is a full tmux.newSession call, not a respawn-pane, so it needs
       // its own proof the -e flag was passed rather than inheriting the in-place case above.
       expect(await sessionEnv(target, result.tmuxName, 'GARDEN_SESSION_ID')).toBe(id);
+    });
+  });
+
+  it('keeps the session alert across the pane dying on its own and the resume', async () => {
+    await withTmuxServer(async (target) => {
+      const cwd = mkdtempSync(join(tmpdir(), 'garden-resume-'));
+      dirs.push(cwd);
+      const tmuxName = basename(cwd);
+      const id = randomUUID();
+
+      await newSession(target, {
+        name: tmuxName,
+        cwd,
+        port: 4310,
+        sessionId: id,
+        command: ['sh', '-c', 'exit 4'],
+      });
+      const [pane] = await until(
+        'the seeded pane to be reported dead',
+        () => listPanes(target),
+        (list) => list[0]?.dead === true,
+      );
+
+      const projection = createProjection(fakeStore());
+      projection.dispatch({ type: 'session-registered', id, tmuxName, cwd });
+      const alert = raiseSessionAlert({ projection }, id, 'needs a look', Date.now());
+      projection.dispatch({
+        type: 'tmux-snapshot',
+        sessions: [{ name: tmuxName, paneDead: true, exitCode: pane?.exitCode ?? null }],
+      });
+      const alertOf = () => projection.sessions().find((s) => s.id === id)?.alert;
+      expect(projection.sessions().find((s) => s.id === id)?.liveness).toBe('dead');
+      expect(alertOf()).toEqual(alert);
+
+      await resumeSession(
+        {
+          tmux: tmuxPort(target),
+          projection,
+          serverPort: 4310,
+          settingsPath: '/nonexistent/claude-settings.json',
+          readClaudeCommand: () => ['claude'],
+        },
+        { id },
+      );
+
+      expect(alertOf()).toEqual(alert);
     });
   });
 });

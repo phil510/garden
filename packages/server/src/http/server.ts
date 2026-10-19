@@ -21,6 +21,7 @@ import type { SettingsDeps } from './routes/settings.js';
 import { swarmRoutes } from './routes/swarms.js';
 import { uiStateRoutes } from './routes/ui-state.js';
 import { watchRoutes } from './routes/watches.js';
+import { alertRoutes } from './routes/alerts.js';
 import { registerStaticRoutes, resolveClientDir } from './static.js';
 import { registerAttachSocket } from './ws/attach.js';
 import { registerEventsSocket, type EventsDeps } from './ws/events.js';
@@ -57,6 +58,7 @@ export function createServer(deps: ServerDeps, logger: Logger = noopLogger): Fas
   app.register((instance) => uiStateRoutes(instance, deps));
   app.register((instance) => swarmRoutes(instance, deps));
   app.register((instance) => watchRoutes(instance, deps));
+  app.register((instance) => alertRoutes(instance, deps));
   app.register((instance) => digestRoutes(instance, deps));
   app.register((instance) => fsRoutes(instance, deps));
 

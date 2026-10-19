@@ -1,5 +1,7 @@
-import type { SessionPlacement, StagePreset, SwarmRecord } from '@garden/shared';
+import type { Alert, SessionPlacement, StagePreset, SwarmRecord } from '@garden/shared';
 import type { DigestRecord, Watch } from './watches.js';
+
+export type PersistedAlert = Alert & { readonly sessionId: string };
 
 export interface OverlayGroup {
   readonly pinned: boolean;
@@ -32,6 +34,8 @@ export interface OverlayState {
   readonly collapsedSwarms: readonly string[];
   readonly hideDeadSwarms: readonly string[];
   readonly watches: readonly Watch[];
+  /** At most one entry per session id. */
+  readonly alerts: readonly PersistedAlert[];
   /** Every minted digest's detail, kept after delivery and bounded by `archiveDigests`. */
   readonly digests: readonly DigestRecord[];
   /** Per session id, the last moment a pipe was known connected (epoch ms). */

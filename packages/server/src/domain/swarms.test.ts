@@ -20,6 +20,7 @@ function anOverlay(overrides: Partial<OverlayState> = {}): OverlayState {
     collapsedSwarms: [],
     hideDeadSwarms: [],
     watches: [],
+    alerts: [],
     digests: [],
     pipes: {},
     ...overrides,

@@ -17,6 +17,7 @@ import {
 } from '../../api/client';
 import { reportCommandFailure } from '../../api/reportCommandFailure';
 import { ContextMenu, type ContextMenuItem } from '../../components/ContextMenu';
+import { displayStatus } from '../../components/displayStatus';
 import { StatusPill } from '../../components/StatusPill';
 import { usePipeGraceStore } from '../../state/pipeGraceStore';
 import { WatchPopover } from '../watches/WatchPopover';
@@ -259,7 +260,7 @@ export function SessionRow({
           </span>
         )}
         {session.liveness === 'live' && session.status !== null && (
-          <StatusPill status={session.status} />
+          <StatusPill status={displayStatus(session.status, session.alert)} />
         )}
       </div>
       <div className="row-meta">

@@ -70,6 +70,7 @@ merges them; nothing else computes a session fact.
 | repo root                            | `git rev-parse --git-common-dir` on the cwd (`app/repoRoots.ts`), so worktrees fold into their main repo    |
 | Claude-side name                     | Claude Code's session registry, `~/.claude/sessions` (read only)                                            |
 | watches                              | the watch records in `state.json`, projected onto the session by a `watches-changed` event                  |
+| alert                                | `garden alert` or the web Dismiss, persisted in `state.json` and projected by an `alert-changed` event      |
 | pipe connected                       | the registry in `app/pipes.ts` (open pipe streams), projected onto the session by a `pipe-changed` event    |
 | last pipe connection                 | `pipes` in `state.json`: session id to the last time a pipe was connected, replayed at boot                 |
 | shown                                | garden's stage state in `state.json`, not a session fact at all                                             |
@@ -236,7 +237,7 @@ mapping. It does not optimistically mutate state and hope tmux agrees.
 `<appDir>/state.json` holds **overlay facts only** — things garden itself decided and cannot
 recompute: the session id to tmux name map, group order, and per-project pins, collapsed state
 and hide-dead toggle, plus stage preset and slot assignments and focused slot, plus swarm
-records and per-session parent/swarmId placements, plus the PR watches and the last time each
+records and per-session parent/swarmId placements, plus the PR watches, each session's open alert and the last time each
 session had a pipe connected. It does **not** hold a
 `SessionState` snapshot. Every session fact is derived on every boot — liveness and exit code
 from tmux, cwd, title and recap from the transcripts, branch from a live git lookup
@@ -261,8 +262,9 @@ So the startup sequence is a replay, not a restore:
    UI preferences, and nothing else. Then replay the persisted watches: `replayWatches` runs the
    watch writer once, which prunes expired digests and closed watches (and persists that), and
    dispatches a `watches-changed` for every session holding watches. A failure here is logged,
-   not fatal to boot. Then `pipes.replay()` dispatches a `pipe-changed` (not connected) for every
-   persisted pipe time, likewise logged on failure.
+   not fatal to boot. Then `replayAlerts` dispatches an `alert-changed` for every persisted alert,
+   likewise logged on failure, and `pipes.replay()` dispatches a `pipe-changed` (not connected)
+   for every persisted pipe time, likewise logged on failure.
 4. Dispatch a full `tmux-snapshot`.
 5. Scan `<transcriptsDir>/**`, reading files with bounded concurrency, and dispatch one
    `transcripts-replayed` holding every record in listing order. Its fold equals one
@@ -339,7 +341,8 @@ is its only writer.
   so the card keeps its identity either way, and the UI offers one Resume action for both.
 - **Kill** kills the tmux session and dispatches `session-unregistered`, which drops the
   id-to-name mapping. The session is `dead` with no tmux name at once, through the reducer. The
-  transcript remains, so the session stays listed and resumable.
+  transcript remains, so the session stays listed and resumable. A deliberate kill also clears the
+  session's alert; a session that dies on its own keeps it.
 
 ### 4.6 PR watches: store, poller, stream
 

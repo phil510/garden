@@ -13,6 +13,7 @@ export const initialState: GardenState = {
   reported: {},
   claudeSessionNames: {},
   watches: {},
+  alerts: {},
   pipes: {},
 };
 
@@ -36,6 +37,7 @@ function blank(id: string): SessionState {
     lastActivity: 0,
     claudeSessionName: null,
     watches: NO_WATCHES,
+    alert: null,
     pipeConnected: false,
     pipeLastConnectedAt: null,
   };
@@ -61,6 +63,7 @@ function rederive(state: GardenState): GardenState {
       branch: state.branches[session.cwd] ?? null,
       claudeSessionName: state.claudeSessionNames[id] ?? null,
       watches: state.watches[id] ?? NO_WATCHES,
+      alert: state.alerts[id] ?? null,
       pipeConnected: state.pipes[id]?.connected ?? false,
       pipeLastConnectedAt: state.pipes[id]?.lastConnectedAt ?? null,
       liveness,
@@ -170,6 +173,12 @@ export function reduce(state: GardenState, event: GardenEvent): GardenState {
       if (event.watches.length === 0) delete watches[event.sessionId];
       else watches[event.sessionId] = event.watches;
       return rederive({ ...state, watches });
+    }
+    case 'alert-changed': {
+      const alerts = { ...state.alerts };
+      if (event.alert === null) delete alerts[event.sessionId];
+      else alerts[event.sessionId] = event.alert;
+      return rederive({ ...state, alerts });
     }
     case 'pipe-changed':
       return rederive({

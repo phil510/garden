@@ -57,6 +57,12 @@ const watchesChanged: GardenEvent = {
   ],
 };
 
+const alertChanged: GardenEvent = {
+  type: 'alert-changed',
+  sessionId: 'sid-1',
+  alert: { text: 'needs a look', raisedAt: now, updatedAt: now },
+};
+
 const pipeChanged: GardenEvent = {
   type: 'pipe-changed',
   sessionId: 'sid-1',
@@ -94,6 +100,9 @@ const sequences: GardenEvent[][] = [
   ],
   [transcript({}, now), watchesChanged],
   [watchesChanged, transcript({}, now)],
+  [transcript({}, now), alertChanged],
+  [alertChanged, transcript({}, now)],
+  [transcript({}, now), alertChanged, { ...alertChanged, alert: null }],
   [transcript({}, now), pipeChanged],
   [pipeChanged, transcript({}, now)],
   [
@@ -127,6 +136,7 @@ const boot: GardenEvent[] = [
   rootResolved,
   branchResolved,
   watchesChanged,
+  alertChanged,
   pipeChanged,
 ];
 
@@ -160,6 +170,19 @@ describe('boot replay equals steady state', () => {
     );
     expect(watchesFirst).toEqual(transcriptFirst);
     expect(watchesFirst.sessions['sid-1']?.watches).toHaveLength(1);
+  });
+
+  it('does not depend on whether the alert or the transcript arrives first', () => {
+    const alertFirst = [storeLoaded, alertChanged, transcript({}, now)].reduce(
+      reduce,
+      initialState,
+    );
+    const transcriptFirst = [storeLoaded, transcript({}, now), alertChanged].reduce(
+      reduce,
+      initialState,
+    );
+    expect(alertFirst).toEqual(transcriptFirst);
+    expect(alertFirst.sessions['sid-1']?.alert).not.toBeNull();
   });
 
   it('folds a batched transcript replay to the same state as one transcript-changed per file', () => {
@@ -205,6 +228,7 @@ const everyVariant: Record<GardenEvent['type'], GardenEvent> = {
   hook: { type: 'hook', payload: aHookEvent({ session_id: 'sid-1' }) },
   'tmux-snapshot': snapshot(false),
   'watches-changed': watchesChanged,
+  'alert-changed': alertChanged,
   'pipe-changed': pipeChanged,
   'claude-session-names-loaded': {
     type: 'claude-session-names-loaded',

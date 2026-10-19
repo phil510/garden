@@ -3,6 +3,7 @@ import type { IDockviewPanelProps } from 'dockview-react';
 import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react';
 import { killSession, resumeSession, updateUiState } from '../../api/client';
 import { reportCommandFailure } from '../../api/reportCommandFailure';
+import { displayStatus } from '../../components/displayStatus';
 import { StatusPill } from '../../components/StatusPill';
 import { useLocalStore } from '../../state/localStore';
 import { useSessionStore } from '../../state/sessionStore';
@@ -196,7 +197,9 @@ export function StagePane(props: IDockviewPanelProps) {
             }
           />
         </div>
-        {live && session.status !== null && <StatusPill status={session.status} />}
+        {live && session.status !== null && (
+          <StatusPill status={displayStatus(session.status, session.alert)} />
+        )}
         <div className="pane-header-actions">
           {live &&
             (confirmingKill ? (

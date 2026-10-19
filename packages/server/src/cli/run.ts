@@ -12,6 +12,8 @@ import type { CliClient, Io } from './commands.js';
 import {
   defaultClient,
   runAdopt,
+  runAlert,
+  runAlertClear,
   runDigest,
   runKill,
   runLs,
@@ -37,6 +39,7 @@ const CLI_COMMANDS = [
   'watch',
   'unwatch',
   'watches',
+  'alert',
   'digest',
   'events',
   'stop',
@@ -51,7 +54,7 @@ export function isCliCommand(command: string | undefined): command is CliCommand
 export function usageLines(): string {
   return (
     'usage: garden [new <dir> | ls | kill <id> | resume <id> | adopt <id> | ' +
-    'watch <pr> | unwatch <pr> | unwatch --all | watches | digest <id> | events --follow | ' +
+    'watch <pr> | unwatch <pr> | unwatch --all | watches | alert <text> | alert clear | digest <id> | events --follow | ' +
     'stop [--all] | uninstall]\n'
   );
 }
@@ -306,6 +309,21 @@ export async function runCli(
     }
     case 'watches':
       return runWatches(io, { env, session: values.session }, json, client);
+    case 'alert': {
+      const [text, ...extra] = positionals;
+      // `--session` is parsed for every command; honouring or ignoring it here would let a
+      // caller think it alerted another session.
+      if (
+        values.session !== undefined ||
+        text === undefined ||
+        text.trim() === '' ||
+        extra.length > 0
+      )
+        return usage(io, 'garden alert <text> | garden alert clear');
+      return text === 'clear'
+        ? runAlertClear(io, { env }, json, client)
+        : runAlert(io, { env, text }, json, client);
+    }
     case 'digest':
       return positionals[0] === undefined
         ? usage(io, 'garden digest <id> [--json]')

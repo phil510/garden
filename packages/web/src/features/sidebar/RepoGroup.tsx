@@ -82,7 +82,6 @@ export function RepoGroup({
           <path d="M6 9l6 6 6-6" />
         </svg>
         <span className="repo-name">{group.repoName}</span>
-        {group.attention && <span className="attn-badge" title="Needs attention" />}
         <span className={`repo-count mono${group.liveCount > 0 ? ' live' : ''}`}>
           {group.liveCount} live
         </span>
