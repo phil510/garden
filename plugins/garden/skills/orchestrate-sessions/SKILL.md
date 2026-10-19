@@ -83,7 +83,14 @@ silent on completion or returns the whole story. Include the run folder's absolu
 tell the peer its member file is `<its own $GARDEN_SESSION_ID>.md` — the id `garden new --json`
 just returned. It opens with a line naming the peer's task and stays maintained at milestones
 (see "Write the run down" below for why the id, not a label). `message-session` covers the rest
-of the brief.
+of the brief. Decide when you send the brief, and again on every follow-up send, whether to subscribe to the
+peer: only when its next idle or exit is the finish (single-turn work, a peer expected to exit),
+not when it runs a pipeline whose reports are the wait (see "Wait on reports, never by polling").
+
+**Name shared rate-limited services in the brief.** When parallel peers share a rate-limited
+external service (a review bot's quota, an API limit), give each peer its budget (one trigger per
+round, say) and tell it that hitting the limit means reporting, not retrying. Peers retrying in
+parallel spend each other's quota, and none of them can see the others doing it.
 
 **Settle merge/approval policy in the brief.** Naming the approver and the merge policy before
 the peer starts is what keeps an `ask`-style gate from stalling later. So is saying which
@@ -100,9 +107,12 @@ decisions a relayed answer can close:
 For the first kind the user may answer in either channel, the peer's pane or through you. Tell the
 peer to report back an answer it got in its pane.
 
-**Merge and create-issue are two separate autonomy switches**, each `auto` or `ask-human`, not one
-combined setting — they differ in timing and in reversibility. Never dispatch a peer with either
-switch more autonomous than your own: an orchestrator under a human gate that dispatches a peer
+**Merge, create-issue and notifications are three separate autonomy switches**, each `auto` or
+`ask-human` (notifications may also be `off`), not one combined setting — each covers a different
+kind of action, so granting one says nothing about the others. Notifications covers chat posts, a
+pipeline's monitor stage, and anything else a pipeline announces outside the repo; an announcement
+can't be recalled. Never dispatch a peer with any switch more autonomous than your own (`off` <
+`ask-human` < `auto`): an orchestrator under a human gate that dispatches a peer
 able to merge on its own hasn't delegated that decision, it has deleted it, and nothing in the
 system reports that it's gone. Merging a peer's PR yourself, under your own policy, and then
 telling the peer closes its gate — the same rule as above, not an exception: a relayed merge approval
@@ -161,7 +171,7 @@ sections:
 ```markdown
 # settings-ui — started 2026-09-21
 
-merge: ask-human (approver: <name>) · create-issue: auto · swarm: 6f1c9e2a-3b7d-4c58-9a0e-2d4f8b1c7e35
+merge: ask-human (approver: <name>) · create-issue: auto · notifications: off · swarm: 6f1c9e2a-3b7d-4c58-9a0e-2d4f8b1c7e35
 
 ## Blocked
 
@@ -292,7 +302,10 @@ stalled on a question it asked an hour ago are both `waiting`, and `status` alon
 them. `statusReason` carries the notification's text, `lastActivity` its age, and `recap` the last
 thing the session said — read those first; usually they settle it. When they don't, ask: a message
 costs one turn and gets an answer written for you rather than inferred, so ask for a couple of
-lines, not a write-up.
+lines, not a write-up. A recap that blames the idle on a background job (CI, a watch, a long
+build) doesn't settle it either: the wait itself is the thing that can hang. Set one timed check
+sized to how long that job should take (a single background sleep, not a polling loop), and ask
+the peer if `status`, `lastActivity` and `recap` are unchanged when it fires.
 
 `needs-approval` is narrower than it sounds too — a permission prompt specifically, not any kind
 of being-stuck — and it waits on a **person**. Surface it to your user with what it asks for.
@@ -320,7 +333,10 @@ close the task is to done.
 
 Sessions running the same kind of work hit the same obstacles, and each one rediscovering a stale
 path or a broken assumption costs a full debugging round. When one peer finds something the others
-will hit, send them three lines about it.
+will hit, send them three lines about it. A finding is an obstacle or broken assumption a peer
+reported, not a recap of a step working as designed: a peer saying it triggered the review bot
+(`@coderabbitai full review`, say) is its pipeline running, and relaying it sends the others to
+repeat it.
 
 **Stacked PRs.** Relay an upstream decision to the downstream peers promptly, but don't have them
 merge it down until the upstream head is settled and validated; then sync in dependency order and
