@@ -65,7 +65,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 8px 0 10px;
+  padding: 0 8px;
   background: var(--raised);
   border-bottom: 1px solid var(--border);
   min-width: 0;
@@ -183,6 +183,13 @@
 .pane-term .xterm {
   height: 100%;
   width: 100%;
+}
+
+/* The fit addon floors rows to whole cells, so up to one cell height is left below the last
+   row, and there xterm's own `#000` viewport (it fills the whole box) shows through as a black
+   band. Paint it the terminal background so the band disappears. */
+.pane-term .xterm .xterm-viewport {
+  background-color: var(--ground);
 }
 
 .dead-pane-body {
