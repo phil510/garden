@@ -37,3 +37,9 @@ docs/plans/
 
 # Dev screenshot tool output
 .screenshots/
+
+# Ship-it pipeline state (prettier reads only this file, not the global ignore)
+.ship-it/
+
+# Git worktrees
+.worktrees/
