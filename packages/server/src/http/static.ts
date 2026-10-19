@@ -12,6 +12,8 @@ const API_PATH_PREFIXES = [
   '/ui-state',
   '/fs',
   '/events',
+  '/digests',
+  '/settings',
   '/attach',
 ];
 
