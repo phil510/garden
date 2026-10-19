@@ -1,4 +1,5 @@
 import type { SessionState } from '@garden/shared';
+import type { SwarmTreeNode } from './groupSwarms';
 
 const OLD_DEAD_THRESHOLD_MS = 14 * 24 * 60 * 60 * 1000;
 
@@ -39,24 +40,47 @@ export function hiddenOldDeadCount(
 }
 
 /**
- * Caps dead sessions at `cap`, keeping their existing order, unless `expanded`
- * reveals the rest. Live sessions are never counted against the cap or dropped.
+ * Walks the forest in display order (a node before its children), counting every dead node at any
+ * depth toward `cap`. A dead node past the cap is hidden unless a descendant survives, in which
+ * case it stays as that descendant's ancestor; live nodes are never counted or dropped.
  */
-export function capDeadSessions(
-  sessions: readonly SessionState[],
-  expanded: boolean,
+export function capDeadForest(
+  nodes: readonly SwarmTreeNode[],
+  isDead: (sessionId: string) => boolean,
   cap: number,
-): SessionState[] {
-  if (expanded) return [...sessions];
-  let deadKept = 0;
-  return sessions.filter((session) => {
-    if (session.liveness !== 'dead') return true;
-    deadKept += 1;
-    return deadKept <= cap;
-  });
+): { nodes: SwarmTreeNode[]; hiddenDeadCount: number } {
+  let deadSeen = 0;
+  let hiddenDeadCount = 0;
+
+  function visit(node: SwarmTreeNode): SwarmTreeNode | null {
+    const dead = isDead(node.sessionId);
+    if (dead) deadSeen += 1;
+    const overCap = dead && deadSeen > cap;
+    const children = node.children.flatMap((child) => visit(child) ?? []);
+    if (overCap && children.length === 0) {
+      hiddenDeadCount += 1;
+      return null;
+    }
+    return { ...node, children };
+  }
+
+  return { nodes: nodes.flatMap((node) => visit(node) ?? []), hiddenDeadCount };
 }
 
-export function hiddenCappedDeadCount(sessions: readonly SessionState[], cap: number): number {
-  const deadCount = sessions.filter((session) => session.liveness === 'dead').length;
-  return Math.max(0, deadCount - cap);
+/** The flat form of `capDeadForest`: each session is a leaf, so the first `cap` dead ones stay. */
+export function capDeadSessions(
+  sessions: readonly SessionState[],
+  cap: number,
+): { sessions: SessionState[]; hiddenDeadCount: number } {
+  const deadIds = new Set(sessions.filter((s) => s.liveness === 'dead').map((s) => s.id));
+  const capped = capDeadForest(
+    sessions.map((session) => ({ sessionId: session.id, children: [] })),
+    (id) => deadIds.has(id),
+    cap,
+  );
+  const kept = new Set(capped.nodes.map((node) => node.sessionId));
+  return {
+    sessions: sessions.filter((session) => kept.has(session.id)),
+    hiddenDeadCount: capped.hiddenDeadCount,
+  };
 }

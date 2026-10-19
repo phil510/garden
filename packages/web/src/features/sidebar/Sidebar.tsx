@@ -19,7 +19,6 @@ import { useUiStore } from '../../state/uiStore';
 import { groupSessions } from './groupSessions';
 import { activeSwarmsByRecency, groupSwarms, SOLO_BUCKET_ID } from './groupSwarms';
 import type { ActiveSwarmOption } from './groupSwarms';
-import { hideDeadLabel } from './hideDeadLabel';
 import { NewSessionModal } from './NewSessionModal';
 import { placeOnStage } from './placeOnStage';
 import { reorderGroups } from './reorderGroups';
@@ -29,7 +28,7 @@ import { resolveSidebarDrop } from './resolveSidebarDrop';
 import { focusedSessionId } from './stageFocus';
 import { SwarmGroup } from './SwarmGroup';
 import { SwarmHeader } from './SwarmHeader';
-import { SwarmTree } from './SwarmTree';
+import { SwarmBucketRows } from './SwarmBucketRows';
 import { resolveSwarmScrollAction } from './swarmScrollTarget';
 import { toggleHideDeadRepo } from './toggleHideDeadRepo';
 import { toggleHideDeadSwarm } from './toggleHideDeadSwarm';
@@ -357,27 +356,18 @@ function SwarmSidebar({
           <span className="repo-count mono">{soloTotal}</span>
         </div>
         <div className="solo-rows">
-          {solo.length === 0 ? (
-            <div className="empty-groups-note">Nothing to show.</div>
-          ) : (
-            <SwarmTree
-              nodes={solo}
-              sessions={sessions}
-              placements={uiState.placements}
-              activeSwarms={activeSwarms}
-              now={now}
-              onStageIds={onStageIds}
-              focusedSessionId={focusedId}
-              onSelectSession={onSelectSession}
-            />
-          )}
-          <div
-            className="hide-dead-row"
-            title={`${hideDeadLabel(soloHideDead)} sessions`}
-            onClick={() => toggleHideDead(SOLO_BUCKET_ID)}
-          >
-            {hideDeadLabel(soloHideDead)}
-          </div>
+          <SwarmBucketRows
+            roots={solo}
+            hideDead={soloHideDead}
+            onToggleHideDead={() => toggleHideDead(SOLO_BUCKET_ID)}
+            sessions={sessions}
+            placements={uiState.placements}
+            activeSwarms={activeSwarms}
+            now={now}
+            onStageIds={onStageIds}
+            focusedSessionId={focusedId}
+            onSelectSession={onSelectSession}
+          />
         </div>
       </div>
       {finished.length > 0 && (
@@ -404,27 +394,18 @@ function SwarmSidebar({
                 <div className="swarm-group finished" key={swarm.swarmId}>
                   <SwarmHeader swarm={swarm} onToggle={() => toggleCollapse(swarm.swarmId)} />
                   <div className={`swarm-rows${swarm.collapsed ? ' collapsed' : ''}`}>
-                    {swarm.roots.length === 0 ? (
-                      <div className="empty-groups-note">Nothing to show.</div>
-                    ) : (
-                      <SwarmTree
-                        nodes={swarm.roots}
-                        sessions={sessions}
-                        placements={uiState.placements}
-                        activeSwarms={activeSwarms}
-                        now={now}
-                        onStageIds={onStageIds}
-                        focusedSessionId={focusedId}
-                        onSelectSession={onSelectSession}
-                      />
-                    )}
-                    <div
-                      className="hide-dead-row"
-                      title={`${hideDeadLabel(swarm.hideDead)} sessions`}
-                      onClick={() => toggleHideDead(swarm.swarmId)}
-                    >
-                      {hideDeadLabel(swarm.hideDead)}
-                    </div>
+                    <SwarmBucketRows
+                      roots={swarm.roots}
+                      hideDead={swarm.hideDead}
+                      onToggleHideDead={() => toggleHideDead(swarm.swarmId)}
+                      sessions={sessions}
+                      placements={uiState.placements}
+                      activeSwarms={activeSwarms}
+                      now={now}
+                      onStageIds={onStageIds}
+                      focusedSessionId={focusedId}
+                      onSelectSession={onSelectSession}
+                    />
                   </div>
                 </div>
               ))}
