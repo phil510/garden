@@ -261,6 +261,9 @@ li.tree-node:not(:last-child)::after {
   font-size: 12.5px;
   margin-bottom: 4px;
   color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .hover-card .hc-row {
   display: flex;
@@ -282,6 +285,10 @@ li.tree-node:not(:last-child)::after {
 .hover-card .hc-recap {
   color: var(--text-muted);
   margin-bottom: 2px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
 }
 
 .show-older-row {
