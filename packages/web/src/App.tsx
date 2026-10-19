@@ -9,7 +9,8 @@ import { Sidebar } from './features/sidebar/Sidebar';
 import { SettingsModal } from './features/settings/SettingsModal';
 import { ShutdownOverlay } from './features/shutdown/ShutdownOverlay';
 import { anyFault, collectWatchGroups, summarizeWatchGroups } from './features/watches/allWatches';
-import { EyeIcon } from './features/watches/WatchIcons';
+import { AlertsPanel } from './features/alerts/AlertsPanel';
+import { BellIcon, EyeIcon } from './features/watches/WatchIcons';
 import { WatchesPanel } from './features/watches/WatchesPanel';
 import { usePipeGrace } from './features/watches/usePipeGrace';
 import { PresetSwitcher } from './features/stage/PresetSwitcher';
@@ -19,13 +20,13 @@ import { usePipeGraceStore } from './state/pipeGraceStore';
 import { useSessionStore } from './state/sessionStore';
 import { useUiStore } from './state/uiStore';
 
-type RightPanel = 'files' | 'watches' | null;
+type RightPanel = 'files' | 'watches' | 'alerts' | null;
 
 export function App() {
   const [rightPanel, setRightPanel] = useState<RightPanel>('files');
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  // What the eye button returns to when it closes the watches view.
-  const beforeWatches = useRef<RightPanel>('files');
+  // What the eye and bell buttons return to when they close their view.
+  const beforeOverlay = useRef<RightPanel>('files');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [stopped, setStopped] = useState(false);
   const sidebarWidth = useLocalStore((state) => state.sidebarWidth);
@@ -77,12 +78,13 @@ export function App() {
     };
   }, []);
 
-  function toggleWatches() {
-    if (rightPanel === 'watches') {
-      setRightPanel(beforeWatches.current);
+  function toggleOverlay(panel: 'watches' | 'alerts') {
+    if (rightPanel === panel) {
+      setRightPanel(beforeOverlay.current);
     } else {
-      beforeWatches.current = rightPanel;
-      setRightPanel('watches');
+      // Switching straight between watches and alerts keeps the panel they both return to.
+      if (rightPanel !== 'watches' && rightPanel !== 'alerts') beforeOverlay.current = rightPanel;
+      setRightPanel(panel);
     }
   }
 
@@ -135,9 +137,18 @@ export function App() {
                 : 'All watches'
             }
             aria-pressed={rightPanel === 'watches'}
-            onClick={toggleWatches}
+            onClick={() => toggleOverlay('watches')}
           >
             <EyeIcon />
+          </button>
+          <button
+            id="alerts-open"
+            className={rightPanel === 'alerts' ? 'ghost icon-btn active-btn' : 'ghost icon-btn'}
+            title="All alerts"
+            aria-pressed={rightPanel === 'alerts'}
+            onClick={() => toggleOverlay('alerts')}
+          >
+            <BellIcon />
           </button>
           <button
             className={rightPanel === 'files' ? 'ghost icon-btn active-btn' : 'ghost icon-btn'}
@@ -190,6 +201,9 @@ export function App() {
             </div>
             <div className="filepanel-pane" hidden={rightPanel !== 'watches'}>
               <WatchesPanel />
+            </div>
+            <div className="filepanel-pane" hidden={rightPanel !== 'alerts'}>
+              <AlertsPanel />
             </div>
           </div>
         </div>
