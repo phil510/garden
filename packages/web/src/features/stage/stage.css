@@ -65,7 +65,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 8px 0 10px;
+  padding: 0 8px;
   background: var(--raised);
   border-bottom: 1px solid var(--border);
   min-width: 0;
@@ -225,7 +225,7 @@
   gap: 3px;
   align-items: center;
   height: 100%;
-  padding: 0 8px 0 10px;
+  padding: 0 8px;
 }
 
 .preset-btn {
