@@ -132,6 +132,19 @@ session's own environment — unset, this fails with exit 1 and `garden: GARDEN_
 set` on stderr, and moves nothing. An adopt that would create a cycle is rejected the same way
 every other failure is: exit 1, `garden: <message>` on stderr. Output: `{ "ok": true }`.
 
+## Raise an alert
+
+```
+garden alert "<text>"
+garden alert clear
+```
+
+Raises the calling session's single alert, shown to the human in garden. The text is free-form and
+may span lines. A second call replaces the alert rather than appending, so pass the full current
+ask each time. `clear` removes it. Both act only on the caller, identified by `GARDEN_SESSION_ID`;
+there is no `--session`. Outside a garden session they exit 1 with an error on stderr. See the
+`alert` skill for when to raise one.
+
 ## Watch a PR
 
 ```
