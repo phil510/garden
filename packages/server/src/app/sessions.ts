@@ -223,7 +223,8 @@ export async function killSession(deps: SessionsDeps, request: KillSessionReques
   const session = findSession(projection, request.id);
   if (session.tmuxName !== null) await tmux.killSession(session.tmuxName);
   projection.dispatch({ type: 'session-unregistered', id: request.id });
-  if (session.alert !== null) {
+  // Re-read: the dying agent may have raised an alert while the tmux kill was in flight.
+  if (findSession(projection, request.id).alert !== null) {
     projection.updateOverlay((base) => withoutAlert(base, request.id));
     projection.dispatch({ type: 'alert-changed', sessionId: request.id, alert: null });
   }
