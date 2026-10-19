@@ -56,16 +56,18 @@ export function updateWatches(
   return next.watches;
 }
 
+function normalizeExplicitRepo(explicit: string): string {
+  const repo = normalizeRepo(explicit);
+  if (repo === null) throw new RepoUnresolvedError(`not an owner/name repo: ${explicit}`);
+  return repo;
+}
+
 async function resolveRepo(
   deps: WatchesDeps,
   cwd: string,
   explicit: string | undefined,
 ): Promise<string> {
-  if (explicit !== undefined) {
-    const repo = normalizeRepo(explicit);
-    if (repo === null) throw new RepoUnresolvedError(`not an owner/name repo: ${explicit}`);
-    return repo;
-  }
+  if (explicit !== undefined) return normalizeExplicitRepo(explicit);
   let url: string | null;
   try {
     url = await deps.git.remoteUrl(cwd);
@@ -119,9 +121,8 @@ export function removeWatch(
   deps: WatchesDeps,
   request: { sessionId: string; pr: number; repo?: string },
 ): void {
+  const repo = request.repo === undefined ? undefined : normalizeExplicitRepo(request.repo);
   findSession(deps.projection, request.sessionId);
-  const repo =
-    request.repo === undefined ? undefined : (normalizeRepo(request.repo) ?? request.repo);
   updateWatches(
     deps,
     (watches) => {

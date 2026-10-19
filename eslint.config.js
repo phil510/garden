@@ -220,7 +220,7 @@ export default tseslint.config(
         {
           patterns: [
             {
-              group: ['**/adapters/**'],
+              group: ['**/adapters/**', '**/domain/**'],
               message:
                 'http/ may import app/ and shared only. Parse the request, call one use case, serialise the result.',
             },
