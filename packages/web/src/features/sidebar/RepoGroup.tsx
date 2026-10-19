@@ -7,13 +7,9 @@ import { resolveTopLevelSwarmId } from './groupSwarms';
 import type { SidebarGroup } from './groupSessions';
 import { useSettingsStore } from '../../state/settingsStore';
 import { hideDeadLabel } from './hideDeadLabel';
+import { ShowMoreDeadRow } from './ShowMoreDeadRow';
 import { SessionRow } from './SessionRow';
-import {
-  capDeadSessions,
-  hiddenCappedDeadCount,
-  hiddenOldDeadCount,
-  visibleSessions,
-} from './visibility';
+import { capDeadSessions, hiddenOldDeadCount, visibleSessions } from './visibility';
 
 interface RepoGroupProps {
   group: SidebarGroup;
@@ -65,8 +61,8 @@ export function RepoGroup({
     .filter((s): s is NonNullable<typeof s> => s !== undefined);
   const visible = visibleSessions(members, { hideDead: group.hideDead, showOlder }, now);
   const hiddenCount = hiddenOldDeadCount(members, group.hideDead, now);
-  const capped = capDeadSessions(visible, expanded, deadSessionCap);
-  const hiddenCappedCount = hiddenCappedDeadCount(visible, deadSessionCap);
+  const capped = capDeadSessions(visible, deadSessionCap);
+  const shown = expanded ? visible : capped.sessions;
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -92,8 +88,8 @@ export function RepoGroup({
         </span>
       </div>
       <div className={`repo-rows${group.collapsed ? ' collapsed' : ''}`}>
-        {capped.length === 0 && <div className="empty-groups-note">Nothing to show.</div>}
-        {capped.map((session) => (
+        {shown.length === 0 && <div className="empty-groups-note">Nothing to show.</div>}
+        {shown.map((session) => (
           <SessionRow
             key={session.id}
             session={session}
@@ -105,11 +101,11 @@ export function RepoGroup({
             activeSwarms={activeSwarms}
           />
         ))}
-        {hiddenCappedCount > 0 && (
-          <div className="show-older-row" onClick={() => setExpanded(!expanded)}>
-            {expanded ? 'Show less' : `Show ${hiddenCappedCount} more…`}
-          </div>
-        )}
+        <ShowMoreDeadRow
+          hiddenCount={capped.hiddenDeadCount}
+          expanded={expanded}
+          onToggle={() => setExpanded(!expanded)}
+        />
         {!showOlder && hiddenCount > 0 && (
           <div className="show-older-row" onClick={() => setShowOlder(true)}>
             Show {hiddenCount} older dead session{hiddenCount === 1 ? '' : 's'}…
