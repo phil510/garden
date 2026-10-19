@@ -95,6 +95,7 @@ describe('readOverlayState', () => {
         collapsedSwarms: [],
         hideDeadSwarms: [],
         watches: [],
+        alerts: [],
         digests: [],
         pipes: {},
       });
@@ -241,6 +242,54 @@ describe('readOverlayState watches', () => {
       expect(readOverlayState(appDir, logger)).toEqual(DEFAULT_OVERLAY_STATE);
       expect(logger.warnings).toHaveLength(1);
     });
+  });
+});
+
+describe('readOverlayState alerts', () => {
+  const alert = { sessionId: 'session-1', text: 'stuck', raisedAt: 100, updatedAt: 200 };
+  const file = (alerts?: unknown) => ({
+    version: 1,
+    tmuxNames: { 'session-1': 'garden-project' },
+    groups: {},
+    stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
+    ...(alerts === undefined ? {} : { alerts }),
+  });
+  const read = (contents: unknown) => {
+    const logger = collectingLogger();
+    let state = DEFAULT_OVERLAY_STATE;
+    withTempAppDir((appDir) => {
+      mkdirSync(appDir, { recursive: true });
+      writeFileSync(join(appDir, 'state.json'), JSON.stringify(contents));
+      state = readOverlayState(appDir, logger);
+    });
+    return { state, logger };
+  };
+
+  it('keeps tmux names and loads no alerts from a file written before alerts existed', () => {
+    const { state, logger } = read(file());
+    expect(state.alerts).toEqual([]);
+    expect(state.tmuxNames).toEqual({ 'session-1': 'garden-project' });
+    expect(logger.warnings).toEqual([]);
+  });
+
+  it('drops a malformed alert with a warning while keeping the valid ones', () => {
+    const { state, logger } = read(
+      file([
+        alert,
+        { ...alert, sessionId: 's2', raisedAt: 'soon' },
+        'junk',
+        { ...alert, sessionId: 's3' },
+      ]),
+    );
+    expect(state.alerts.map((a) => a.sessionId)).toEqual(['session-1', 's3']);
+    expect(state.tmuxNames).toEqual({ 'session-1': 'garden-project' });
+    expect(logger.warnings).toHaveLength(2);
+  });
+
+  it('warns and returns the defaults when alerts is present but not an array', () => {
+    const { state, logger } = read(file({ s1: alert }));
+    expect(state).toEqual(DEFAULT_OVERLAY_STATE);
+    expect(logger.warnings).toHaveLength(1);
   });
 });
 
@@ -434,6 +483,7 @@ describe('writeOverlayState', () => {
             status: 'closed',
           },
         ],
+        alerts: [{ sessionId: 'session-1', text: 'stuck\non CI', raisedAt: 400, updatedAt: 500 }],
         digests: [],
         pipes: { 'session-1': 300 },
       };

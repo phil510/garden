@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { STAGE_PRESETS, isWatchKind } from '@garden/shared';
 import type { SessionPlacement, SwarmRecord } from '@garden/shared';
-import type { OverlayStage, OverlayState } from '../domain/overlay.js';
+import type { OverlayStage, OverlayState, PersistedAlert } from '../domain/overlay.js';
 import type { DigestRecord, Watch } from '../domain/watches.js';
 
 export const DEFAULT_OVERLAY_STATE: OverlayState = {
@@ -16,6 +16,7 @@ export const DEFAULT_OVERLAY_STATE: OverlayState = {
   collapsedSwarms: [],
   hideDeadSwarms: [],
   watches: [],
+  alerts: [],
   digests: [],
   pipes: {},
 };
@@ -150,7 +151,7 @@ function isStringArray(value: unknown): value is string[] {
  *  absent is valid (a pre-#170/#187 `state.json` simply predates them, and losing its
  *  `tmuxNames`/`groups`/`stage` over fields it never had would be the actual loss), but
  *  present-and-malformed still fails the whole file, same as every other field here.
- *  `watches` follows that rule for the array itself; its entries are filtered one by one in
+ *  `watches` and `alerts` follow that rule for the array itself; its entries are filtered one by one in
  *  `readOverlayState`. */
 function isOverlayState(
   value: unknown,
@@ -168,6 +169,7 @@ function isOverlayState(
     (value['collapsedSwarms'] === undefined || isStringArray(value['collapsedSwarms'])) &&
     (value['hideDeadSwarms'] === undefined || isStringArray(value['hideDeadSwarms'])) &&
     (value['watches'] === undefined || Array.isArray(value['watches'])) &&
+    (value['alerts'] === undefined || Array.isArray(value['alerts'])) &&
     (value['digests'] === undefined || Array.isArray(value['digests']))
   );
 }
@@ -196,6 +198,27 @@ function readWatches(value: unknown, path: string, logger: StoreLogger): readonl
     else logger.warn(`dropping malformed watch in ${path}`);
   }
   return watches;
+}
+
+function isPersistedAlert(value: unknown): value is PersistedAlert {
+  return (
+    isRecord(value) &&
+    typeof value['sessionId'] === 'string' &&
+    typeof value['text'] === 'string' &&
+    typeof value['raisedAt'] === 'number' &&
+    typeof value['updatedAt'] === 'number'
+  );
+}
+
+/** Like watches, a bad entry is dropped on its own rather than failing the file. */
+function readAlerts(value: unknown, path: string, logger: StoreLogger): readonly PersistedAlert[] {
+  if (!Array.isArray(value)) return [];
+  const alerts: PersistedAlert[] = [];
+  for (const entry of value) {
+    if (isPersistedAlert(entry)) alerts.push(entry);
+    else logger.warn(`dropping malformed alert in ${path}`);
+  }
+  return alerts;
 }
 
 /** Like watches, a bad entry is dropped on its own rather than failing the file. */
@@ -258,6 +281,7 @@ export function readOverlayState(appDir: string, logger: StoreLogger): OverlaySt
     collapsedSwarms: isStringArray(parsed['collapsedSwarms']) ? parsed['collapsedSwarms'] : [],
     hideDeadSwarms: isStringArray(parsed['hideDeadSwarms']) ? parsed['hideDeadSwarms'] : [],
     watches: readWatches(parsed['watches'], path, logger),
+    alerts: readAlerts(parsed['alerts'], path, logger),
     digests: readDigests(parsed['digests'], path, logger),
     pipes: readPipes(parsed['pipes'], path, logger),
   };

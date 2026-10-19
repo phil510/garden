@@ -16,6 +16,7 @@ const emptyOverlay: OverlayState = {
   collapsedSwarms: [],
   hideDeadSwarms: [],
   watches: [],
+  alerts: [],
   digests: [],
   pipes: {},
 };
@@ -175,6 +176,7 @@ describe('ui state', () => {
     collapsedSwarms: [],
     hideDeadSwarms: [],
     watches: [],
+    alerts: [],
     digests: [],
     pipes: {},
   };
