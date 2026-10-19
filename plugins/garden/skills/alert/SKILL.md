@@ -21,11 +21,11 @@ miss something that is stuck on them, not to report that you are working.
 
 - **Blocked on the human, and the ask has gone unanswered.** You need something only the human can
   give: a scope or judgment call, an approval reserved for the human, a manual step like a login.
-  You have asked for it more than once and still have no answer. The first ask is just a question;
+  You have asked for it at least twice and still have no answer. The first ask is just a question;
   the human may be reading the pane right now. The next question in a live conversation never
   warrants an alert.
-- **A few events are major on their own.** The workflow skills name them (`ship-it` names "ready to
-  merge"). These alert immediately, without waiting for a repeat.
+- **A few events are major on their own.** The workflow skills name them; today that is `ship-it`'s
+  "ready to merge". These alert immediately, without waiting for a repeat.
 
 ## Keeping it current
 
@@ -59,4 +59,5 @@ How readily to alert depends on who is already watching:
 - **Solo and orchestrator sessions** rarely alert. The human watches those panes directly, so a
   question there is already in front of them.
 - **Child sessions of an orchestrator** may alert more readily. They report to both the
-  orchestrator and the human, and the human is not watching the pane.
+  orchestrator and the human, and the human may be watching a different pane. The repeat rule still
+  applies; a child just meets it sooner, since an unanswered ask there is more likely to go unseen.

@@ -163,9 +163,9 @@ may not render the surrounding context.
   whether to flip the PR to ready anyway or stop.
 - **Merge page** (`Merge policy: ask`, or `auto` on a repo with no CI). Once the PR is
   merge-eligible, say so with the head sha and what eligibility rested on, and ask to merge.
+  Re-check eligibility after the answer — the PR may have moved while you waited.
 - **Every other page** (escalations, review loop blocked, reviewer comments needing the user's call,
   breakage only the user can fix) follows the general repeat rule in the `alert` skill.
-  Re-check eligibility after the answer — the PR may have moved while you waited.
 - **Mid-pipeline questions.** Run `${SKILLDIR}/scripts/pipeline-status.sh` and render a digest from
   its JSON. Never pull raw worker output into your context.
 - **Completion summary.** Duration, round count, escalation counts, `decisions_entries`, PR URL, and
