@@ -1,8 +1,9 @@
 # garden plugin
 
-The Claude Code plugin for garden. Four skills: `orchestrate-sessions` drives the session lifecycle
-through garden's CLI, `message-session` resolves a session's messaging address, `watch-pr` tells an
-agent when to start, react to and stop a PR watch, and `ship-it` runs a scoped change end-to-end as
+The Claude Code plugin for garden. Five skills: `orchestrate-sessions` drives the session lifecycle
+through garden's CLI, `alert` tells an agent when to raise `garden alert` for the human,
+`message-session` resolves a session's messaging address, `watch-pr` tells an agent when to start,
+react to and stop a PR watch, and `ship-it` runs a scoped change end-to-end as
 a background pipeline (plan, develop, draft PR, internal review, optional review-bot loop, ready
 flip, watch through merge), invoked as `/garden:ship-it`. Its four workers ship as agents,
 `garden:ship-it-planner`, `garden:ship-it-developer`, `garden:ship-it-reviewer` and
