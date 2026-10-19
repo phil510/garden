@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent, type MouseEvent } from 'react';
 import { getSettings, updateSettings } from '../../api/client';
 import { reportCommandFailure } from '../../api/reportCommandFailure';
+import { saveSettings } from './saveSettings';
 import {
   fieldsFromSettings,
   settingsProblem,
@@ -27,7 +28,6 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
-  const [saveFailed, setSaveFailed] = useState(false);
 
   // Always fetches on mount rather than trusting a value carried over from a prior open —
   // config.json may have changed on disk since then.
@@ -70,28 +70,12 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     if (event.target === event.currentTarget) onClose();
   }
 
-  // No optimistic update: the server is the writer, so the input is reset from a fresh
-  // getSettings() call rather than trusting the value just typed to have stuck. The
-  // re-read's failure is caught separately from the write's: a failed PUT means the save
-  // failed, but a PUT that succeeds followed by a GET that fails is a stale display, not a
-  // failed save, and must not tell the user their change didn't land when it did.
   function save() {
     if (request === null) return;
     setSaving(true);
-    setSaveFailed(false);
-    updateSettings(request)
-      .then(() =>
-        getSettings()
-          .then((settings) => {
-            if (mountedRef.current) setFields(fieldsFromSettings(settings));
-          })
-          .catch((err: unknown) => {
-            reportCommandFailure(err);
-          }),
-      )
-      .catch((err: unknown) => {
-        reportCommandFailure(err);
-        if (mountedRef.current) setSaveFailed(true);
+    void saveSettings(request, { update: updateSettings, reread: getSettings })
+      .then((settings) => {
+        if (settings !== null && mountedRef.current) setFields(fieldsFromSettings(settings));
       })
       .finally(() => {
         if (mountedRef.current) setSaving(false);
@@ -170,7 +154,6 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           <div className="settings-note settings-error">{problem}</div>
         )}
         {loadFailed && <div className="settings-note settings-error">Could not load settings.</div>}
-        {saveFailed && <div className="settings-note settings-error">Could not save settings.</div>}
         <div className="settings-actions">
           <button className="ghost" onClick={onClose}>
             Close

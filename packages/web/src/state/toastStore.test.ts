@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { useToastStore } from './toastStore';
 
 beforeEach(() => {
-  useToastStore.setState({ message: null, token: 0 });
+  useToastStore.setState({ message: null, kind: 'error', token: 0 });
 });
 
 describe('toastStore', () => {
@@ -13,6 +13,11 @@ describe('toastStore', () => {
   it('shows a toast with the given message', () => {
     useToastStore.getState().showToast('create failed: duplicate session');
     expect(useToastStore.getState().message).toBe('create failed: duplicate session');
+  });
+
+  it('shows a toast as an error when no kind is given', () => {
+    useToastStore.getState().showToast('create failed');
+    expect(useToastStore.getState().kind).toBe('error');
   });
 
   it('replaces a shown toast with the latest one', () => {
