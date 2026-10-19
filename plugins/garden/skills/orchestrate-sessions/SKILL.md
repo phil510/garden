@@ -258,11 +258,11 @@ A subscription buys one notice, delivered when that session next ends a turn wit
 delivering anything; include one to do both at once. Properties that decide when to use it:
 
 - **It is one-shot, and fires on the next idle or exit, whichever comes first.** A peer that ends
-  a turn at every internal handoff — any pipeline, plant included — fires it within minutes with
-  nothing to say, and its exit never gets caught because an idle comes first. Don't subscribe to
-  that peer; its reports are the wait. Subscribe when the next idle or exit _is_ the finish: work
-  that fits a single turn, or a peer expected to end by exiting. There the notice backs up a
-  report the peer might forget, and its exit case is the one signal a dead peer can't send.
+  a turn at every internal handoff — any pipeline — fires it within minutes with nothing to say,
+  and its exit never gets caught because an idle comes first. Don't subscribe to that peer; its
+  reports are the wait. Subscribe when the next idle or exit _is_ the finish: work that fits a
+  single turn, or a peer expected to end by exiting. There the notice backs up a report the peer
+  might forget, and its exit case is the one signal a dead peer can't send.
 - **It carries no content.** The notice says _when_ to look, never _what_ happened. Subscribe
   while the peer is still `working`: a peer already `waiting` is one you read, not one you wait on.
 - **It can expire**, and says so when it does. That means "no news", not "still working" —

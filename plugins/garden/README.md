@@ -64,9 +64,6 @@ session and run `/garden:ship-it resume`: it picks up the new copy of the skill 
 the existing state. Nothing live carries over from the old session, so the orchestrator starts with
 no workers running.
 
-While a personal `ship-it` skill or agent of the same name exists under `~/.claude`, invoke the
-plugin's as `/garden:ship-it` so the right copy runs.
-
 ## There is no `version` field, on purpose
 
 Neither `.claude-plugin/plugin.json` nor the marketplace entry declares a `version`. Claude Code
