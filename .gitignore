@@ -26,9 +26,6 @@ pnpm-debug.log*
 # Autonomous loop scratch
 .autonomous/
 
-# Pipeline state for /plant runs
-.plant/
-
 # Run state for multi-session orchestration
 .orchestration/
 

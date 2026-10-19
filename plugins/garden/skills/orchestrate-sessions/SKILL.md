@@ -258,7 +258,7 @@ A subscription buys one notice, delivered when that session next ends a turn wit
 delivering anything; include one to do both at once. Properties that decide when to use it:
 
 - **It is one-shot, and fires on the next idle or exit, whichever comes first.** A peer that ends
-  a turn at every internal handoff — any pipeline, plant included — fires it within minutes with
+  a turn at every internal handoff — any pipeline, `/garden:ship-it` included — fires it within minutes with
   nothing to say, and its exit never gets caught because an idle comes first. Don't subscribe to
   that peer; its reports are the wait. Subscribe when the next idle or exit _is_ the finish: work
   that fits a single turn, or a peer expected to end by exiting. There the notice backs up a
