@@ -9,12 +9,20 @@
   max-width: 480px;
   padding: 9px 12px;
   background: var(--raised);
-  border: 1px solid var(--danger);
+  border: 1px solid transparent;
   border-radius: 6px;
   color: var(--text);
   font-size: 12.5px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
   z-index: 100;
+}
+
+.toast-error {
+  border-color: var(--danger);
+}
+
+.toast-success {
+  border-color: var(--accent);
 }
 
 .toast-message {
