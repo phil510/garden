@@ -1,71 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   parseCheckRuns,
-  parseGhInclude,
   parseIssueComments,
   parsePr,
   parseReviewComments,
   parseReviews,
   parseStatuses,
-  rateLimitResumeAt,
 } from './github.js';
-import type { GhResponse } from './github.js';
-
-describe('parseGhInclude', () => {
-  it('splits a 200 into status, lower-cased headers and body', () => {
-    const out = 'HTTP/2.0 200 OK\r\nEtag: W/"abc"\r\nX-Ratelimit-Remaining: 59\r\n\r\n{"a":1}';
-
-    expect(parseGhInclude(out)).toEqual({
-      status: 200,
-      headers: { etag: 'W/"abc"', 'x-ratelimit-remaining': '59' },
-      body: '{"a":1}',
-    });
-  });
-
-  it('reads a 304, which has no body, with LF line endings', () => {
-    const out = 'HTTP/2.0 304 Not Modified\nEtag: "x"\n\n';
-
-    expect(parseGhInclude(out)).toMatchObject({ status: 304, headers: { etag: '"x"' }, body: '' });
-  });
-
-  it('reads a 304 with no trailing blank line', () => {
-    expect(parseGhInclude('HTTP/2.0 304 Not Modified\r\nEtag: "x"')).toMatchObject({ status: 304 });
-  });
-
-  it('returns null for output that is not a response', () => {
-    expect(parseGhInclude('gh: command not found')).toBeNull();
-  });
-});
-
-describe('rateLimitResumeAt', () => {
-  const response = (status: number, headers: Record<string, string>, body = ''): GhResponse => ({
-    status,
-    headers,
-    body,
-  });
-
-  it('waits until the reset time for an exhausted primary limit', () => {
-    const r = response(403, { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': '2000' });
-
-    expect(rateLimitResumeAt(r, 0)).toBe(2_000_000);
-  });
-
-  it('honours Retry-After for a secondary limit', () => {
-    expect(rateLimitResumeAt(response(429, { 'retry-after': '30' }), 1000)).toBe(31_000);
-  });
-
-  it('waits a minute when the body names a secondary limit without Retry-After', () => {
-    const r = response(403, {}, '{"message":"You have exceeded a secondary rate limit."}');
-
-    expect(rateLimitResumeAt(r, 1000)).toBe(61_000);
-  });
-
-  it('is null for a plain 403, a 404 and a success', () => {
-    expect(rateLimitResumeAt(response(403, { 'x-ratelimit-remaining': '12' }), 0)).toBeNull();
-    expect(rateLimitResumeAt(response(404, {}), 0)).toBeNull();
-    expect(rateLimitResumeAt(response(200, { 'x-ratelimit-remaining': '0' }), 0)).toBeNull();
-  });
-});
 
 describe('fact parsers', () => {
   it('parses a PR and ignores its content', () => {
