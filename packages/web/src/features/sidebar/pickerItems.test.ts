@@ -29,6 +29,16 @@ describe('buildPickerGroups', () => {
     ]);
   });
 
+  it('groups a worktree checked out beside a bare clone under its repo', () => {
+    const beside = worktree({ path: '/roots/garden/feat/x', name: 'x', branch: 'feat/x' });
+    const groups = buildPickerGroups([repo(), beside], '');
+    expect(groups).toHaveLength(1);
+    expect(groups[0]?.items.map((item) => item.path)).toEqual([
+      '/roots/garden',
+      '/roots/garden/feat/x',
+    ]);
+  });
+
   it('labels a repo entry by its name and a worktree entry by its branch', () => {
     const groups = buildPickerGroups([repo(), worktree()], '');
     expect(groups[0]?.items[0]).toMatchObject({ label: 'garden', isWorktree: false });
