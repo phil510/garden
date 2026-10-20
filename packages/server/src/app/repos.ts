@@ -4,7 +4,7 @@ import { basename, isAbsolute, join, relative, sep } from 'node:path';
 import type { RepoEntry } from '@garden/shared';
 import type { GitPort } from './ports.js';
 
-type ReposGit = Pick<GitPort, 'repoRoot' | 'branch'>;
+type ReposGit = Pick<GitPort, 'repoRoot' | 'isBareRepository' | 'branch'>;
 
 export interface ReposDeps {
   readonly git: ReposGit;
@@ -23,7 +23,7 @@ interface Limiter {
 /** A counting semaphore, not a queue of work: callers hand it a thunk to run once a slot is
  *  free rather than enqueuing the work itself, so a rejection propagates to the caller exactly
  *  as if the limiter weren't there. One instance is created per `listRepos` call and threaded
- *  through every recursive `findWorktrees` call as a parameter — a fresh limiter per recursion
+ *  through every recursive `walk` call as a parameter — a fresh limiter per recursion
  *  level would multiply the effective bound by the tree's branching factor instead of capping
  *  it globally. */
 function createLimiter(maxConcurrent: number): Limiter {
@@ -73,20 +73,19 @@ async function subdirectories(dir: string): Promise<string[]> {
 }
 
 /**
- * Whether `dir` is itself a git working tree root (a repo or a linked worktree), rather than
- * an ordinary directory that merely sits inside one. A repo has `.git` as a directory; a
- * linked worktree has it as a file (a gitlink to the repo's `.git/worktrees/<name>`) — either
- * shape means `dir` carries its own git identity. This can't be answered by running a git
- * command in `dir` instead: git searches upward through ancestor directories for `.git`, so a
- * plain subdirectory nested inside a repo's working tree (`.worktrees/feat` before its leaf
- * worktree exists) resolves successfully against that ancestor and looks like a hit.
+ * What `dir`'s own `.git` is, if it has one — whether `dir` carries its own git identity rather
+ * than merely sitting inside a repo. A repo has `.git` as a directory; a linked worktree has it
+ * as a file (a gitlink to the repo's `.git/worktrees/<name>`), and so does the directory holding
+ * a bare clone (`gitdir: ./.bare`). This can't be answered by running a git command in `dir`
+ * instead: git searches upward through ancestor directories for `.git`, so a plain subdirectory
+ * nested inside a repo's working tree (`.worktrees/feat` before its leaf worktree exists)
+ * resolves successfully against that ancestor and looks like a hit.
  */
-async function isGitWorkingTree(dir: string): Promise<boolean> {
+async function gitEntry(dir: string): Promise<'directory' | 'file' | null> {
   try {
-    await stat(join(dir, '.git'));
-    return true;
+    return (await stat(join(dir, '.git'))).isDirectory() ? 'directory' : 'file';
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -120,8 +119,8 @@ async function isRepo(git: ReposGit, limiter: Limiter, dir: string): Promise<boo
 const WORKTREES = '.worktrees';
 
 /** Where a directory sits relative to a configured root: a child of the root, a child of a repo,
- *  or a descendant of a repo's `.worktrees/`. */
-type Position = 'root' | 'repo' | 'worktrees';
+ *  a child of a bare clone's directory, or a descendant of a repo's `.worktrees/`. */
+type Position = 'root' | 'repo' | 'bare-repo' | 'worktrees';
 
 interface Step {
   /** Set when the directory is itself a listed entry. */
@@ -134,19 +133,35 @@ interface Step {
  * The one rule for what `listRepos` lists, applied to a single directory at `pos`. A root's
  * child qualifies as a repo, a repo's only interesting child is `.worktrees`, and below that
  * the first directory with its own `.git` is a worktree (nothing inside one is another).
+ * A bare clone's directory (`.bare/` beside a `.git` gitlink to it) has no working tree of its
+ * own; its worktrees are checked out directly beside the clone, so every visible child is
+ * searched the way `.worktrees` is.
  * `listRepos` walks this step over directory listings; `isListedPath` folds it over one path.
  */
 async function step(git: ReposGit, limiter: Limiter, pos: Position, dir: string): Promise<Step> {
   switch (pos) {
-    case 'root':
-      if (!(await isGitWorkingTree(dir))) return {};
+    case 'root': {
+      const entry = await gitEntry(dir);
       // a worktree stray under a root has a `.git` too, but is not a repo
-      return (await isRepo(git, limiter, dir)) ? { listed: 'repo', next: 'repo' } : {};
+      if (entry === null || !(await isRepo(git, limiter, dir))) return {};
+      // Asked of git rather than inferred from the gitlink: `--separate-git-dir` also leaves a
+      // `.git` file in a repo's own directory, and that directory is a working tree to stay out of.
+      const bare =
+        entry === 'file' && (await limiter.run(() => git.isBareRepository(dir)).catch(() => false));
+      return { listed: 'repo', next: bare ? 'bare-repo' : 'repo' };
+    }
     case 'repo':
       return basename(dir) === WORKTREES ? { next: 'worktrees' } : {};
+    case 'bare-repo':
+      // `.bare/` itself, and anything else hidden, is not where worktrees are checked out
+      return basename(dir).startsWith('.') ? {} : worktreesStep(dir);
     case 'worktrees':
-      return (await isGitWorkingTree(dir)) ? { listed: 'worktree' } : { next: 'worktrees' };
+      return worktreesStep(dir);
   }
+}
+
+async function worktreesStep(dir: string): Promise<Step> {
+  return (await gitEntry(dir)) !== null ? { listed: 'worktree' } : { next: 'worktrees' };
 }
 
 /**

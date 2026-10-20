@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { watchFsRoot } from '../../src/adapters/fsWatch.js';
 import {
   createBranchReader,
+  isBareRepository,
   remoteUrl,
   repoRoot,
   status,
@@ -219,7 +220,14 @@ describe('WS /events root watches against a real watcher', () => {
   }
 
   it('sends fs-changed in the watcher spelling to the watching connection only', async () => {
-    const git = { repoRoot, branch: createBranchReader(), remoteUrl, status, workTreePrefix };
+    const git = {
+      repoRoot,
+      isBareRepository,
+      branch: createBranchReader(),
+      remoteUrl,
+      status,
+      workTreePrefix,
+    };
     const repos = createRepoCatalog({ git, roots: [dir] });
     const logger = { warn: () => undefined, error: () => undefined };
     app = createServer({

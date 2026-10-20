@@ -58,6 +58,13 @@ export async function repoRoot(cwd: string): Promise<string> {
   return dirname(stdout.trim());
 }
 
+/** Whether `cwd` resolves to a bare repository: true at the root of a bare-clone layout, whose
+ *  `.git` file points at the bare clone inside it, and false in any working tree. */
+export async function isBareRepository(cwd: string): Promise<boolean> {
+  const stdout = await run(cwd, ['rev-parse', '--is-bare-repository']);
+  return stdout.trim() === 'true';
+}
+
 /**
  * Where `cwd` sits inside its working tree, spelled the way `status` reports paths: a
  * slash-terminated relative path, empty at the working tree root itself. This is the working
