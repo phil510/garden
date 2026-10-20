@@ -33,6 +33,7 @@
     "test:scripts": "vitest run",
     "test:integration": "pnpm --filter @garden/server test:integration",
     "build": "pnpm -r build",
+    "cli:install": "pnpm build && tsx scripts/cli-install.ts",
     "validate": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test"
   }
 }
