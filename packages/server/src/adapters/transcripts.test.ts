@@ -82,6 +82,22 @@ describe('listTranscriptFiles', () => {
       expect(files).toEqual([join(dir, 'session-a.jsonl')]);
     });
   });
+
+  it('skips an in-scope entry that is a dangling symlink or a symlink to a file', async () => {
+    await withTempHome(async (home) => {
+      const root = '/Users/phil/Desktop/Extend/garden';
+      const path = writeProjectFile(home, root, 'session-a', '{}\n');
+      const projects = transcriptsDirFor(home);
+      symlinkSync(
+        join(projects, 'missing'),
+        projectDirFor(home, '/Users/phil/Desktop/Extend/gone'),
+      );
+      symlinkSync(path, projectDirFor(home, '/Users/phil/Desktop/Extend/file'));
+
+      const files = await listTranscriptFiles(projects, ['/Users/phil/Desktop/Extend']);
+      expect(files).toEqual([path]);
+    });
+  });
 });
 
 const HEAD_LINE = (sessionId: string) =>
