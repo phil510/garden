@@ -2,12 +2,14 @@ import type { FileResponse } from '@garden/shared';
 import type { ThemedToken } from 'shiki';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { getFile } from '../../api/client';
-import { isUnresolvablePath } from '../../api/unresolvablePath';
 import { commandFailureMessage } from '../../api/reportCommandFailure';
 import { useLocalStore, type OpenFileRequest } from '../../state/localStore';
+import { useSessionStore } from '../../state/sessionStore';
+import { useToastStore } from '../../state/toastStore';
 import { tokenizeFile } from './highlighter';
 import { isMarkdownFile } from './markdown';
 import { MarkdownBody } from './MarkdownBody';
+import { displayPath, openFailureMessage } from './pathLineErrors';
 import { tokenStyle } from './tokenStyle';
 import { resetModeForOpenedFile, shouldResetMode, type ViewMode } from './viewMode';
 import {
@@ -143,8 +145,15 @@ export function Viewer({
         if (!cancelled) show({ kind: 'file', file: response }, line);
       })
       .catch((error: unknown) => {
-        // A `path:line` the server can't resolve is a false-positive match in terminal output.
-        if (cancelled || isUnresolvablePath(error)) return;
+        if (cancelled) return;
+        // A `path:line` the server can't resolve may be a false-positive match in terminal
+        // output, so say so in a toast rather than opening an error view for it.
+        const cwd = useSessionStore.getState().sessions[requested.sessionId]?.cwd;
+        const message = openFailureMessage(error, displayPath(cwd, path));
+        if (message !== null) {
+          useToastStore.getState().showToast(message, 'error');
+          return;
+        }
         show({ kind: 'error', message: commandFailureMessage(error) }, null);
       });
     return () => {

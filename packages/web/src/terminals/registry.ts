@@ -4,11 +4,16 @@ import { Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 import { getFile } from '../api/client.js';
 import { connectPaneSocket, type PaneSize } from '../api/paneSocket.js';
-import { isUnresolvablePath } from '../api/unresolvablePath.js';
-import { resolvePathLineTarget } from '../features/filetree/projectPaths.js';
+import {
+  noSessionDirectoryMessage,
+  openFailureMessage,
+  outsideProjectsMessage,
+} from '../features/filetree/pathLineErrors.js';
+import { resolveAgainst, resolvePathLineTarget } from '../features/filetree/projectPaths.js';
 import { refreshRepoList } from '../features/sidebar/repoListCache.js';
 import { useLocalStore } from '../state/localStore.js';
 import { useSessionStore } from '../state/sessionStore.js';
+import { useToastStore } from '../state/toastStore.js';
 import { openExternalLink } from './hyperlinks.js';
 import { findMarkdownLinks } from './markdownLinks.js';
 import { findPathLineLinks } from './pathLineLinks.js';
@@ -51,9 +56,16 @@ function hasSize(element: HTMLElement): boolean {
  *  project containing the file, or showing it through the session when no listed project does. */
 async function openPathLine(sessionId: string, path: string, line: number | null): Promise<void> {
   const cwd = useSessionStore.getState().sessions[sessionId]?.cwd;
-  if (cwd === undefined) return;
+  const { showToast } = useToastStore.getState();
+  if (cwd === undefined) {
+    showToast(noSessionDirectoryMessage(path), 'error');
+    return;
+  }
   const target = resolvePathLineTarget((await refreshRepoList()) ?? [], cwd, sessionId, path, line);
-  if (target === null) return;
+  if (target === null) {
+    showToast(outsideProjectsMessage(resolveAgainst(cwd, path)), 'error');
+    return;
+  }
   const store = useLocalStore.getState();
   if (target.kind === 'session') {
     store.requestOpenFile({ kind: 'session', sessionId }, target.path, target.line);
@@ -64,7 +76,11 @@ async function openPathLine(sessionId: string, path: string, line: number | null
   try {
     await getFile({ root: target.root }, target.path);
   } catch (error) {
-    if (isUnresolvablePath(error)) return;
+    const message = openFailureMessage(error, resolveAgainst(cwd, path));
+    if (message !== null) {
+      showToast(message, 'error');
+      return;
+    }
   }
   store.setPanelRoot(target.root);
   store.setOpenFile(target.root, target.path);
