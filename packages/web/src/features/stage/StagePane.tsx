@@ -6,6 +6,7 @@ import { reportCommandFailure } from '../../api/reportCommandFailure';
 import { displayStatus } from '../../components/displayStatus';
 import { StatusPill } from '../../components/StatusPill';
 import { useLocalStore } from '../../state/localStore';
+import { useRefusedAttachStore } from '../../state/refusedAttachStore';
 import { useSessionStore } from '../../state/sessionStore';
 import { useUiStore } from '../../state/uiStore';
 import { attachPane, detachPane } from '../../terminals/registry';
@@ -26,6 +27,20 @@ const DEAD_ICON = (
   >
     <circle cx="12" cy="12" r="9" />
     <path d="M8 12h8" />
+  </svg>
+);
+
+const REFUSED_ICON = (
+  <svg
+    width="26"
+    height="26"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.6}
+  >
+    <rect x="3" y="4" width="18" height="14" rx="2" />
+    <path d="M8 21h8M12 18v3" />
   </svg>
 );
 
@@ -53,6 +68,8 @@ export function StagePane(props: IDockviewPanelProps) {
   const slot = uiState.slots.indexOf(props.api.id);
   const focused = slot !== -1 && slot === uiState.focusedSlot;
   const live = session?.liveness === 'live';
+  const refused = useRefusedAttachStore((state) => state.refused.has(props.api.id));
+  const clearRefused = useRefusedAttachStore((state) => state.clearRefused);
   const connectionEpoch = useLocalStore((state) => state.connectionEpoch);
   const setSidebarMode = useLocalStore((state) => state.setSidebarMode);
   const setSelectedSwarmId = useLocalStore((state) => state.setSelectedSwarmId);
@@ -83,13 +100,14 @@ export function StagePane(props: IDockviewPanelProps) {
   // Mounts the session's terminal into this pane's container while it is live. Disposal is
   // deliberately not this cleanup: dockview reuses a panel across a layout change, remounting
   // React around a terminal that kept its socket, so the layout and liveness own a pane's
-  // lifetime — Stage's `onDidRemovePanel` and the effect below.
+  // lifetime — Stage's `onDidRemovePanel` and the effect below. A refused pane has no container
+  // to mount into; clearing the refusal re-runs this effect and attaches again.
   useEffect(() => {
-    if (!live) return;
+    if (!live || refused) return;
     const container = terminalRef.current;
     if (container === null) return;
     attachPane(props.api.id, container, connectionEpoch);
-  }, [props.api.id, live, connectionEpoch]);
+  }, [props.api.id, live, refused, connectionEpoch]);
 
   // Nothing renders a dead session's bytes, so its pane goes rather than staying warm behind
   // the placeholder. Fires on the render that stopped being live, not on unmount.
@@ -141,6 +159,11 @@ export function StagePane(props: IDockviewPanelProps) {
   function resume(event: MouseEvent) {
     event.stopPropagation();
     resumeSession(props.api.id).catch(reportCommandFailure);
+  }
+
+  function tryAgain(event: MouseEvent) {
+    event.stopPropagation();
+    clearRefused(props.api.id);
   }
 
   function handleKill(event: MouseEvent) {
@@ -253,8 +276,19 @@ export function StagePane(props: IDockviewPanelProps) {
           </button>
         </div>
       </div>
-      {live ? (
+      {live && !refused ? (
         <div className="pane-term" ref={terminalRef} />
+      ) : live ? (
+        <div className="refused-pane-body">
+          <div className="dp-icon">{REFUSED_ICON}</div>
+          <div className="dp-line1">Attached in another garden window</div>
+          <div className="dp-line2">
+            garden shows a session in one window at a time. Close it there, then try again.
+          </div>
+          <button className="primary" onClick={tryAgain}>
+            Try again
+          </button>
+        </div>
       ) : (
         <div className="dead-pane-body">
           <div className="dp-icon">{DEAD_ICON}</div>
