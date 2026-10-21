@@ -31,6 +31,7 @@ describe('/fs routes against a real temp repo', () => {
     const projection = createProjection(fakeStore());
     projection.dispatch({ type: 'session-registered', id: 'sid', tmuxName: 'x', cwd });
     const app = createServer({
+      liveTranscripts: { track: () => undefined },
       projection,
       pipes: noPipes,
       rootWatches: noRootWatches,

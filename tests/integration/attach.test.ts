@@ -125,6 +125,7 @@ describe('WS /attach/:id against a real tmux pane and a real pty', () => {
       projection.dispatch({ type: 'session-registered', id, tmuxName, cwd });
 
       const app = createServer({
+        liveTranscripts: { track: () => undefined },
         pipes: noPipes,
         rootWatches: noRootWatches,
         tmux: tmuxPort(target),
@@ -214,6 +215,7 @@ describe('WS /attach/:id against a real tmux pane and a real pty', () => {
       projection.dispatch({ type: 'session-registered', id, tmuxName, cwd });
 
       const app = createServer({
+        liveTranscripts: { track: () => undefined },
         pipes: noPipes,
         rootWatches: noRootWatches,
         tmux: tmuxPort(target),

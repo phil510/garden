@@ -1,5 +1,3 @@
-import { watch } from 'chokidar';
-import { EventEmitter } from 'node:events';
 import {
   appendFileSync,
   mkdirSync,
@@ -15,35 +13,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { slugify } from '../domain/slug.js';
 import type { GardenEvent } from '../domain/types.js';
 import {
-  DEBOUNCE_MS,
-  createCoalescer,
+  createTranscripts,
   listTranscriptFiles,
   readTranscriptRecord,
   reconcileTranscripts,
-  watchTranscripts,
 } from './transcripts.js';
 import type { TranscriptLogger, TranscriptSignature } from './transcripts.js';
-
-// The unit tier fakes chokidar to test garden's own logic — the debounce coalescing, the
-// warn-once bookkeeping, the ignore predicate, the reconciliation interval — deterministically
-// and without real fs watch timing. tests/integration/fake-claude.test.ts covers real chokidar
-// delivery end to end.
-vi.mock('chokidar', () => ({ watch: vi.fn() }));
-
-class FakeWatcher extends EventEmitter {
-  close(): Promise<void> {
-    return Promise.resolve();
-  }
-}
-
-/** Makes the next `watchTranscripts()` call receive this fake in place of a real chokidar
- *  watcher. Each call to `watchTranscripts` consumes one `mockImplementationOnce`, so a test
- *  driving two watchers in sequence would call this twice. */
-function useFakeChokidar(): FakeWatcher {
-  const fake = new FakeWatcher();
-  vi.mocked(watch).mockImplementationOnce(() => fake as unknown as ReturnType<typeof watch>);
-  return fake;
-}
 
 function silentLogger(): TranscriptLogger {
   return { warn: () => {}, error: () => {} };
@@ -196,182 +171,269 @@ describe('readTranscriptRecord', () => {
 
 type TranscriptChangedEvent = Extract<GardenEvent, { type: 'transcript-changed' }>;
 
-describe('watchTranscripts', () => {
-  it('registers an ignore predicate matching isWatchedPath, checked directly rather than via a write', async () => {
-    // Captures the ignore predicate chokidar was configured with, off the mocked `watch`
-    // call, and asserts its in/out-of-scope behavior with no filesystem writes or timing.
-    await withTempHome(async (home) => {
-      const root = '/Users/phil/Desktop/Extend/garden';
-      useFakeChokidar();
-      const watcher = watchTranscripts(transcriptsDirFor(home), [root], () => {}, silentLogger());
-      try {
-        const options = vi.mocked(watch).mock.calls.at(-1)?.[1];
-        const ignored = options?.ignored as (path: string) => boolean;
-        const dir = projectDirFor(home, root);
+const ROOT = '/Users/phil/Desktop/Extend/garden';
+const POLL_MS = 100;
+const RECONCILE_MS = 1_000;
+const LIVE_IDLE_MS = 5_000;
 
-        expect(ignored(transcriptsDirFor(home))).toBe(false);
-        expect(ignored(dir)).toBe(false);
-        expect(ignored(join(dir, 'session-a.jsonl'))).toBe(false);
+/** Lets the real fs work a tick kicked off finish, for asserting that nothing happened. */
+const settle = () => new Promise((resolve) => setTimeout(resolve, 30));
 
-        expect(ignored(join(home, '.claude', 'projects', 'some-out-of-scope-slug'))).toBe(true);
-        expect(ignored(join(dir, 'session-a', 'subagents'))).toBe(true);
-        expect(ignored(join(dir, 'session-a', 'subagents', 'agent-1.jsonl'))).toBe(true);
-      } finally {
-        await watcher.close();
-      }
-    });
-  });
+/** Runs `fn` with only the intervals and the clock faked: the ticks do real fs reads, which need
+ *  the real event loop (and real `setTimeout`) to complete. */
+async function withFakeIntervals(fn: () => Promise<void>): Promise<void> {
+  vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] });
+  try {
+    await fn();
+  } finally {
+    vi.useRealTimers();
+  }
+}
 
-  it('logs an unparseable line once per file across repeated re-reads', async () => {
-    await withTempHome(async (home) => {
-      const root = '/Users/phil/Desktop/Extend/garden';
-      const fake = useFakeChokidar();
+function startWatching(home: string) {
+  const events: TranscriptChangedEvent[] = [];
+  const warnings: string[] = [];
+  const errors: string[] = [];
+  const transcripts = createTranscripts(
+    transcriptsDirFor(home),
+    [ROOT],
+    { warn: (m) => warnings.push(m), error: (m) => errors.push(m) },
+    { pollMs: POLL_MS, reconcileMs: RECONCILE_MS, liveIdleMs: LIVE_IDLE_MS },
+  );
+  const watcher = transcripts.watch((event) => events.push(event));
+  return { transcripts, watcher, events, warnings, errors };
+}
 
-      const events: TranscriptChangedEvent[] = [];
-      const warnings: string[] = [];
-      const logger: TranscriptLogger = { warn: (m) => warnings.push(m), error: () => {} };
-      const watcher = watchTranscripts(
-        transcriptsDirFor(home),
-        [root],
-        (event) => events.push(event),
-        logger,
-        5,
-      );
-      try {
-        const path = writeProjectFile(
-          home,
-          root,
-          'session-a',
-          `not json\n${HEAD_LINE('session-a')}\n`,
-        );
-        fake.emit('add', path);
-        await vi.waitFor(() => expect(events[0]).toBeDefined());
+describe('createTranscripts watch', () => {
+  it('dispatches a tracked file on the next poll, then once more per change', async () => {
+    await withTempHome((home) =>
+      withFakeIntervals(async () => {
+        const path = writeProjectFile(home, ROOT, 'session-a', HEAD_LINE('session-a') + '\n');
+        const { watcher, events } = startWatching(home);
+        watcher.track(path);
 
-        appendFileSync(path, `${TITLE_LINE}\n`, 'utf8');
-        fake.emit('change', path);
-        await vi.waitFor(() => expect(events[1]).toBeDefined());
-
-        expect(warnings).toHaveLength(1);
-      } finally {
-        await watcher.close();
-      }
-    });
-  });
-
-  it('runs a reconciliation pass on its own configured interval and dispatches what it finds', async () => {
-    await withTempHome(async (home) => {
-      const root = '/Users/phil/Desktop/Extend/garden';
-      // This test is about the setInterval -> reconcileTranscripts -> dispatch wiring inside
-      // watchTranscripts, not chokidar's own delivery, so the fake watcher never emits and
-      // fake timers drive the interval deterministically.
-      useFakeChokidar();
-
-      // Written before the watcher even exists, so nothing but a reconciliation tick could
-      // ever find it — the fake watcher has no 'add'/'change' to emit.
-      writeProjectFile(home, root, 'session-a', HEAD_LINE('session-a') + '\n');
-
-      // Fakes only setInterval/clearInterval, not setTimeout or Node's own I/O machinery — the
-      // reconciliation pass this drives does real fs reads, which need the real event loop to
-      // actually complete them.
-      vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
-      try {
-        const events: TranscriptChangedEvent[] = [];
-        const watcher = watchTranscripts(
-          transcriptsDirFor(home),
-          [root],
-          (event) => events.push(event),
-          silentLogger(),
-          DEBOUNCE_MS,
-          50,
-        );
-        try {
-          await vi.advanceTimersByTimeAsync(50);
-          // The fake-timer advance fires the interval's callback, but the real fs reads it
-          // kicks off still need a real event-loop turn to complete — setTimeout is real here
-          // (only setInterval/clearInterval are faked above), so this actually waits.
-          await vi.waitFor(() => expect(events[0]?.record.sessionId).toBe('session-a'));
-        } finally {
-          await watcher.close();
-        }
-      } finally {
-        vi.useRealTimers();
-      }
-    });
-  });
-
-  it("dispatches a transcript-changed event when the native watcher emits 'add' or 'change'", async () => {
-    await withTempHome(async (home) => {
-      const root = '/Users/phil/Desktop/Extend/garden';
-      // Drives watcher.on('add'|'change', ...) directly, which no other test reaches.
-      const fake = useFakeChokidar();
-
-      const events: TranscriptChangedEvent[] = [];
-      const watcher = watchTranscripts(
-        transcriptsDirFor(home),
-        [root],
-        (event) => events.push(event),
-        silentLogger(),
-        5,
-      );
-      try {
-        const path = writeProjectFile(home, root, 'session-a', HEAD_LINE('session-a') + '\n');
-        fake.emit('add', path);
+        await vi.advanceTimersByTimeAsync(POLL_MS);
         await vi.waitFor(() => expect(events[0]?.record.sessionId).toBe('session-a'));
 
         appendFileSync(path, TITLE_LINE + '\n', 'utf8');
-        fake.emit('change', path);
+        await vi.advanceTimersByTimeAsync(POLL_MS);
         await vi.waitFor(() => expect(events[1]?.record.title).toBe('Bounded read title'));
-      } finally {
+
+        // A third tick with nothing written must not dispatch: it only holds if the signature
+        // was recorded after the second read.
+        await vi.advanceTimersByTimeAsync(POLL_MS);
         await watcher.close();
-      }
-    });
+        expect(events).toHaveLength(2);
+      }),
+    );
   });
 
-  it('collapses two native events for the same path fired before the debounce settles into a single re-read', async () => {
-    await withTempHome(async (home) => {
-      const root = '/Users/phil/Desktop/Extend/garden';
-      const fake = useFakeChokidar();
+  it('does not reread an unchanged tracked file on later polls', async () => {
+    await withTempHome((home) =>
+      withFakeIntervals(async () => {
+        const path = writeProjectFile(home, ROOT, 'session-a', HEAD_LINE('session-a') + '\n');
+        const { watcher, events } = startWatching(home);
+        watcher.track(path);
 
-      const events: TranscriptChangedEvent[] = [];
-      const watcher = watchTranscripts(
-        transcriptsDirFor(home),
-        [root],
-        (event) => events.push(event),
-        silentLogger(),
-        20,
-      );
-      try {
-        const path = writeProjectFile(home, root, 'session-a', HEAD_LINE('session-a') + '\n');
-        // Both fire in the same tick, before the first schedule()'s timer has a chance to run —
-        // if watcher.on bypassed the coalescer and called reread() directly, this would produce
-        // two dispatches instead of one.
-        fake.emit('add', path);
-        fake.emit('change', path);
-
+        await vi.advanceTimersByTimeAsync(POLL_MS);
         await vi.waitFor(() => expect(events).toHaveLength(1));
-        await new Promise((resolve) => setTimeout(resolve, 20));
-        expect(events).toHaveLength(1);
-      } finally {
+        await vi.advanceTimersByTimeAsync(POLL_MS * 3);
         await watcher.close();
-      }
-    });
+
+        expect(events).toHaveLength(1);
+      }),
+    );
   });
 
-  it("logs the watcher's error events instead of swallowing them", async () => {
-    await withTempHome(async (home) => {
-      const root = '/Users/phil/Desktop/Extend/garden';
-      const fake = useFakeChokidar();
+  it('tolerates a tracked path whose file does not exist yet and picks it up once it appears', async () => {
+    await withTempHome((home) =>
+      withFakeIntervals(async () => {
+        const path = join(projectDirFor(home, ROOT), 'session-a.jsonl');
+        const { watcher, events, warnings, errors } = startWatching(home);
+        watcher.track(path);
 
-      const errors: string[] = [];
-      const logger: TranscriptLogger = { warn: () => {}, error: (m) => errors.push(m) };
-      const watcher = watchTranscripts(transcriptsDirFor(home), [root], () => {}, logger);
-      try {
-        fake.emit('error', new Error('EMFILE, too many open files'));
-        expect(errors).toEqual([expect.stringContaining('EMFILE')]);
-      } finally {
+        await vi.advanceTimersByTimeAsync(POLL_MS);
+        await settle();
+        expect(events).toEqual([]);
+
+        writeProjectFile(home, ROOT, 'session-a', HEAD_LINE('session-a') + '\n');
+        await vi.advanceTimersByTimeAsync(POLL_MS);
+        await vi.waitFor(() => expect(events[0]?.record.sessionId).toBe('session-a'));
         await watcher.close();
-      }
-    });
+
+        expect([warnings, errors]).toEqual([[], []]);
+      }),
+    );
+  });
+
+  it('logs an unparseable line once per file across repeated rereads', async () => {
+    await withTempHome((home) =>
+      withFakeIntervals(async () => {
+        const path = writeProjectFile(
+          home,
+          ROOT,
+          'session-a',
+          `not json\n${HEAD_LINE('session-a')}\n`,
+        );
+        const { watcher, events, warnings } = startWatching(home);
+        watcher.track(path);
+
+        await vi.advanceTimersByTimeAsync(POLL_MS);
+        await vi.waitFor(() => expect(events).toHaveLength(1));
+        appendFileSync(path, `${TITLE_LINE}\n`, 'utf8');
+        await vi.advanceTimersByTimeAsync(POLL_MS);
+        await vi.waitFor(() => expect(events).toHaveLength(2));
+        await watcher.close();
+
+        expect(warnings).toHaveLength(1);
+      }),
+    );
+  });
+
+  it('logs a stat failure on a tracked path that is not a missing file', async () => {
+    await withTempHome((home) =>
+      withFakeIntervals(async () => {
+        const dir = projectDirFor(home, ROOT);
+        mkdirSync(dir, { recursive: true });
+        // A symlink pointing at itself: stat() rejects with ELOOP, not ENOENT.
+        const path = join(dir, 'broken.jsonl');
+        symlinkSync(path, path);
+        const { watcher, errors } = startWatching(home);
+        watcher.track(path);
+
+        await vi.advanceTimersByTimeAsync(POLL_MS);
+        await vi.waitFor(() => expect(errors).toEqual([expect.stringContaining(path)]));
+        await watcher.close();
+      }),
+    );
+  });
+
+  it('discovers a file nobody tracked on the reconciliation tick', async () => {
+    await withTempHome((home) =>
+      withFakeIntervals(async () => {
+        writeProjectFile(home, ROOT, 'session-a', HEAD_LINE('session-a') + '\n');
+        const { watcher, events } = startWatching(home);
+
+        await vi.advanceTimersByTimeAsync(RECONCILE_MS);
+        await vi.waitFor(() => expect(events[0]?.record.sessionId).toBe('session-a'));
+        await watcher.close();
+      }),
+    );
+  });
+
+  it('skips files already read through readRecord on the first reconciliation tick', async () => {
+    await withTempHome((home) =>
+      withFakeIntervals(async () => {
+        const replayed = writeProjectFile(home, ROOT, 'replayed', HEAD_LINE('replayed') + '\n');
+        const fresh = writeProjectFile(home, ROOT, 'fresh', HEAD_LINE('fresh') + '\n');
+        const { transcripts, watcher, events } = startWatching(home);
+        await transcripts.readRecord(replayed);
+
+        await vi.advanceTimersByTimeAsync(RECONCILE_MS);
+        await vi.waitFor(() => expect(events).toHaveLength(1));
+        await watcher.close();
+
+        expect(events.map((e) => e.path)).toEqual([fresh]);
+      }),
+    );
+  });
+
+  it('polls a file the reconciliation tick found changed between reconciliation ticks', async () => {
+    await withTempHome((home) =>
+      withFakeIntervals(async () => {
+        const path = writeProjectFile(home, ROOT, 'session-a', HEAD_LINE('session-a') + '\n');
+        const { watcher, events } = startWatching(home);
+
+        await vi.advanceTimersByTimeAsync(RECONCILE_MS);
+        await vi.waitFor(() => expect(events).toHaveLength(1));
+
+        appendFileSync(path, TITLE_LINE + '\n', 'utf8');
+        await vi.advanceTimersByTimeAsync(POLL_MS);
+        await vi.waitFor(() => expect(events[1]?.record.title).toBe('Bounded read title'));
+        await watcher.close();
+      }),
+    );
+  });
+
+  it('stops polling a path left idle, and the reconciliation tick still finds its next change', async () => {
+    await withTempHome((home) =>
+      withFakeIntervals(async () => {
+        const path = writeProjectFile(home, ROOT, 'session-a', HEAD_LINE('session-a') + '\n');
+        const { watcher, events } = startWatching(home);
+        watcher.track(path);
+        await vi.advanceTimersByTimeAsync(POLL_MS);
+        await vi.waitFor(() => expect(events).toHaveLength(1));
+
+        // Jumps the clock rather than advancing through it: ticks that fire while an earlier
+        // one is still reading are skipped, which would make the eviction tick's time arbitrary.
+        vi.setSystemTime(Date.now() + LIVE_IDLE_MS + 1);
+        await vi.advanceTimersByTimeAsync(POLL_MS);
+        await settle();
+        appendFileSync(path, TITLE_LINE + '\n', 'utf8');
+        await vi.advanceTimersByTimeAsync(POLL_MS);
+        await settle();
+        expect(events).toHaveLength(1);
+
+        await vi.advanceTimersByTimeAsync(RECONCILE_MS);
+        await vi.waitFor(() => expect(events).toHaveLength(2));
+        await watcher.close();
+      }),
+    );
+  });
+
+  it('ignores a tracked path in an out-of-scope directory or nested deeper, and warns once for one outside the transcripts directory', async () => {
+    await withTempHome((home) =>
+      withFakeIntervals(async () => {
+        const outOfScope = writeProjectFile(home, '/Users/phil/Downloads/scratch', 's', '{}\n');
+        const nestedDir = join(projectDirFor(home, ROOT), 'session-a', 'subagents');
+        mkdirSync(nestedDir, { recursive: true });
+        const nested = join(nestedDir, 'agent-1.jsonl');
+        writeFileSync(nested, HEAD_LINE('session-a') + '\n', 'utf8');
+        const { watcher, events, warnings } = startWatching(home);
+
+        watcher.track(outOfScope);
+        watcher.track(nested);
+        watcher.track('/elsewhere/projects/slug/a.jsonl');
+        watcher.track('/elsewhere/projects/slug/b.jsonl');
+        await vi.advanceTimersByTimeAsync(POLL_MS * 5);
+        await settle();
+        await watcher.close();
+
+        expect(events).toEqual([]);
+        expect(warnings).toEqual([expect.stringContaining('/elsewhere/projects/slug/a.jsonl')]);
+      }),
+    );
+  });
+
+  it('stops both ticks on close', async () => {
+    await withTempHome((home) =>
+      withFakeIntervals(async () => {
+        const path = writeProjectFile(home, ROOT, 'session-a', HEAD_LINE('session-a') + '\n');
+        const { watcher, events } = startWatching(home);
+        watcher.track(path);
+        await watcher.close();
+
+        await vi.advanceTimersByTimeAsync(RECONCILE_MS * 2);
+        await settle();
+
+        expect(events).toEqual([]);
+      }),
+    );
+  });
+
+  it('lets a tick already reading finish its dispatch before close resolves', async () => {
+    await withTempHome((home) =>
+      withFakeIntervals(async () => {
+        const path = writeProjectFile(home, ROOT, 'session-a', HEAD_LINE('session-a') + '\n');
+        const { watcher, events } = startWatching(home);
+        watcher.track(path);
+
+        await vi.advanceTimersByTimeAsync(POLL_MS);
+        await watcher.close();
+
+        expect(events).toHaveLength(1);
+      }),
+    );
   });
 });
 
@@ -466,80 +528,5 @@ describe('reconcileTranscripts', () => {
 
       expect(errors).toEqual([expect.stringContaining(path)]);
     });
-  });
-});
-
-describe('createCoalescer', () => {
-  it('collapses repeated schedules for one key into a single run after debounceMs of quiet', () => {
-    vi.useFakeTimers();
-    try {
-      const runs: string[] = [];
-      const coalescer = createCoalescer((key) => runs.push(key), 100);
-
-      coalescer.schedule('a');
-      vi.advanceTimersByTime(50);
-      coalescer.schedule('a'); // restarts the wait
-      vi.advanceTimersByTime(99);
-      expect(runs).toEqual([]);
-
-      vi.advanceTimersByTime(1);
-      expect(runs).toEqual(['a']);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('tracks each key independently', () => {
-    vi.useFakeTimers();
-    try {
-      const runs: string[] = [];
-      const coalescer = createCoalescer((key) => runs.push(key), 100);
-
-      coalescer.schedule('a');
-      vi.advanceTimersByTime(50);
-      coalescer.schedule('b');
-      vi.advanceTimersByTime(50);
-      expect(runs).toEqual(['a']);
-
-      vi.advanceTimersByTime(50);
-      expect(runs).toEqual(['a', 'b']);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('schedules a fresh run for a key whose previous run already fired', () => {
-    vi.useFakeTimers();
-    try {
-      const runs: string[] = [];
-      const coalescer = createCoalescer((key) => runs.push(key), 100);
-
-      coalescer.schedule('a');
-      vi.advanceTimersByTime(100);
-      expect(runs).toEqual(['a']);
-
-      coalescer.schedule('a');
-      vi.advanceTimersByTime(100);
-      expect(runs).toEqual(['a', 'a']);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('clear() cancels every pending run', () => {
-    vi.useFakeTimers();
-    try {
-      const runs: string[] = [];
-      const coalescer = createCoalescer((key) => runs.push(key), 100);
-
-      coalescer.schedule('a');
-      coalescer.schedule('b');
-      coalescer.clear();
-      vi.advanceTimersByTime(200);
-
-      expect(runs).toEqual([]);
-    } finally {
-      vi.useRealTimers();
-    }
   });
 });

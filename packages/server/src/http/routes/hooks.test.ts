@@ -49,7 +49,9 @@ function fakeProjection() {
 
 function buildApp(projection: Projection) {
   const app = Fastify();
-  app.register((instance) => hookRoutes(instance, { projection }));
+  app.register((instance) =>
+    hookRoutes(instance, { projection, liveTranscripts: { track: () => undefined } }),
+  );
   return app;
 }
 

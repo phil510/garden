@@ -16,7 +16,7 @@ import { promisify } from 'node:util';
 import type { SessionState } from '@garden/shared';
 import { describe, expect, it } from 'vitest';
 import { listPanes, type TmuxTarget } from '../../packages/server/src/adapters/tmux.js';
-import { watchTranscripts } from '../../packages/server/src/adapters/transcripts.js';
+import { createTranscripts } from '../../packages/server/src/adapters/transcripts.js';
 import { createProjection, type Projection } from '../../packages/server/src/app/projection.js';
 import { createSession } from '../../packages/server/src/app/sessions.js';
 import { slugify } from '../../packages/server/src/domain/slug.js';
@@ -130,7 +130,17 @@ async function withFakeClaudeSession(
 
   const projection = createProjection(fakeStore());
   const claudeCommand = fakeClaudeCommand(transcriptsDir);
+  const complain = (message: string) => watcherComplaints.push(message);
+  // The discovery scan is pushed out of the test's reach, so a transcript can only reach the
+  // projection through the path under test: the hook's `transcript_path` marking it live.
+  const watcher = createTranscripts(
+    transcriptsDir,
+    roots,
+    { warn: complain, error: complain },
+    { reconcileMs: 10 * 60_000 },
+  ).watch((event) => projection.dispatch(event));
   const app = createGardenServer({
+    liveTranscripts: watcher,
     projection,
     pipes: noPipes,
     rootWatches: noRootWatches,
@@ -143,10 +153,6 @@ async function withFakeClaudeSession(
     settingsPath: SETTINGS_PATH,
     readClaudeCommand: () => claudeCommand,
     deadSessionCap: 10,
-  });
-  const watcher = watchTranscripts(transcriptsDir, roots, (event) => projection.dispatch(event), {
-    warn: (message) => watcherComplaints.push(message),
-    error: (message) => watcherComplaints.push(message),
   });
 
   try {
@@ -268,8 +274,8 @@ describe('a real fake-claude process spawned into a tmux pane', () => {
         const { read, send, cwd } = session;
         const written = transcriptOnDisk(session);
 
-        // Production debounces a re-read by 200ms and chokidar's own notice is not
-        // instantaneous either, so the facts arrive after READY rather than with it.
+        // The poll picks the transcript up within a second of the hook that announced it, so
+        // the facts arrive after READY rather than with it.
         const withFacts = await until(
           "the watcher to project the fake's transcript",
           read,
@@ -319,53 +325,44 @@ function headLine(sessionId: string, cwd: string): string {
   );
 }
 
-/**
- * Boot's own watch has no `ready` to await (#218 removed it), so a write meant to land
- * "after the watch started" instead retries until an event for it arrives — a dropped native
- * event (docs/testing.md § Flake policy) gets a fresh write on the next attempt rather than
- * hanging.
- */
 function writeTranscript(path: string, sessionId: string, cwd: string): void {
   writeFileSync(path, headLine(sessionId, cwd), 'utf8');
 }
 
-describe('watchTranscripts against a real chokidar watch', () => {
-  it('emits no event for a transcript that already existed before the watch started', async () => {
+const POLLING = { pollMs: 20, reconcileMs: 50 };
+
+describe('transcript polling against real files', () => {
+  it('emits no event for a transcript boot replay already read', async () => {
     const cwd = realpathSync(mkdtempSync(join(tmpdir(), 'garden-watch-cwd-')));
     const transcriptsDir = realpathSync(mkdtempSync(join(tmpdir(), 'garden-watch-transcripts-')));
     const projectDir = join(transcriptsDir, slugify(cwd));
     mkdirSync(projectDir, { recursive: true });
     const existingPath = join(projectDir, 'session-existing.jsonl');
     writeTranscript(existingPath, 'session-existing', cwd);
-    // macOS FSEvents can replay a write from the same instant a watch attaches as a native
-    // 'change', bypassing ignoreInitial (which only suppresses the readdir-based scan's own
-    // 'add's) — see decisions.md 2026-09-27T23:45Z. Production transcripts already exist well
-    // before boot's watch starts, so this settle wait matches that real-world timing.
-    await new Promise((resolve) => setTimeout(resolve, 250));
 
     const events: TranscriptChangedEvent[] = [];
     const complaints: string[] = [];
-    const watcher = watchTranscripts(
+    const transcripts = createTranscripts(
       transcriptsDir,
       [cwd],
-      (event) => events.push(event),
       { warn: (m) => complaints.push(m), error: (m) => complaints.push(m) },
-      50,
+      POLLING,
     );
+    await transcripts.readRecord(existingPath);
+    const watcher = transcripts.watch((event) => events.push(event));
     try {
+      // Found by the reconciliation scan alone — nothing tracks it.
       const newPath = join(projectDir, 'session-new.jsonl');
+      writeTranscript(newPath, 'session-new', cwd);
       await until(
-        'a transcript created after the watch started to reach the projection',
-        () => {
-          writeTranscript(newPath, 'session-new', cwd);
-          return Promise.resolve(events.some((event) => event.path === newPath));
-        },
+        'the reconciliation scan to find the new transcript',
+        () => Promise.resolve(events.some((event) => event.path === newPath)),
         (arrived) => arrived,
       );
 
-      // Covers a reread of the pre-existing file still in flight when the new one's event
-      // landed — its own dispatch, if any, would arrive within one more debounce window.
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      // close() lets the scan pass that found the new file finish, so the pre-existing one
+      // has been judged by the time this asserts.
+      await watcher.close();
       expect(events.some((event) => event.path === existingPath)).toBe(false);
       expect(complaints).toEqual([]);
     } finally {
@@ -375,7 +372,7 @@ describe('watchTranscripts against a real chokidar watch', () => {
     }
   });
 
-  it('dispatches for a write to a pre-existing transcript and for a brand-new one, both landing after the watch starts', async () => {
+  it('dispatches for an append to a tracked transcript and for a tracked one that appears later', async () => {
     const cwd = realpathSync(mkdtempSync(join(tmpdir(), 'garden-watch-cwd-')));
     const transcriptsDir = realpathSync(mkdtempSync(join(tmpdir(), 'garden-watch-transcripts-')));
     const projectDir = join(transcriptsDir, slugify(cwd));
@@ -385,23 +382,30 @@ describe('watchTranscripts against a real chokidar watch', () => {
     const newPath = join(projectDir, 'session-new.jsonl');
 
     const events: TranscriptChangedEvent[] = [];
-    const watcher = watchTranscripts(
+    // Scan pushed out of reach: only the poll of tracked paths can deliver these events.
+    const watcher = createTranscripts(
       transcriptsDir,
       [cwd],
-      (event) => events.push(event),
       { warn: () => {}, error: () => {} },
-      50,
-    );
+      { pollMs: POLLING.pollMs, reconcileMs: 10 * 60_000 },
+    ).watch((event) => events.push(event));
     try {
+      watcher.track(existingPath);
+      watcher.track(newPath);
       await until(
-        'a write to the pre-existing transcript and a brand-new one to both reach the projection',
-        () => {
-          appendFileSync(existingPath, JSON.stringify({ type: 'last-prompt' }) + '\n', 'utf8');
-          writeTranscript(newPath, 'session-new', cwd);
-          const sawExisting = events.some((event) => event.path === existingPath);
-          const sawNew = events.some((event) => event.path === newPath);
-          return Promise.resolve(sawExisting && sawNew);
-        },
+        'the existing transcript, then an append to it, to reach the projection',
+        () => Promise.resolve(events.filter((event) => event.path === existingPath).length),
+        (count) => count >= 1,
+      );
+      appendFileSync(existingPath, JSON.stringify({ type: 'last-prompt' }) + '\n', 'utf8');
+      writeTranscript(newPath, 'session-new', cwd);
+      await until(
+        'the append and the brand-new transcript to both reach the projection',
+        () =>
+          Promise.resolve(
+            events.filter((event) => event.path === existingPath).length >= 2 &&
+              events.some((event) => event.path === newPath),
+          ),
         (arrived) => arrived,
       );
     } finally {

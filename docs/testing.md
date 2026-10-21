@@ -154,13 +154,11 @@ deterministic enough to assert on.
   to test orchestration without spawning anything. Adapter tests always drive the real binary
   on an isolated socket. `domain/` needs no tmux fake — tmux facts are plain data by the time
   derivation sees them.
-- **Transcripts** use real files in a temp directory for the parser and the reconciliation
-  backstop, which both do plain fs reads. The unit tier fakes chokidar itself (`vi.fn()` in
-  place of `watch`, driven by hand-fired `add`/`change` events) to test debounce collapsing,
-  the ignore predicate, and the reconciliation interval deterministically. Chokidar's own
-  delivery — a read landing mid-append, an atomic replace — is real filesystem timing an
-  in-memory fake can't reproduce, so only `tests/integration/fake-claude.test.ts` drives it,
-  against a real watch.
+- **Transcripts** use real files in a temp directory throughout: the parser, the reconciliation
+  scan, and the live poll all do plain fs reads. The poll tests fake only `setInterval`,
+  `clearInterval` and the clock, so the ticks are driven by hand while the reads still complete on
+  the real event loop. `tests/integration/fake-claude.test.ts` runs the same adapter against real
+  files with short intervals, and drives it end to end through the hook route.
 - **Hook payloads** are the cheap case: plain JSON over HTTP. Use a builder, not a fake.
 - If a unit test reaches for `vi.mock`, treat it as a signal rather than a tool — either the
   code under test imported an adapter it should not have, or the test belongs in the other
@@ -259,7 +257,7 @@ it down whether the test passed or not.
 **The fake-Claude composition.** `tests/integration/fake-claude.test.ts` stacks a fourth real
 thing on top of the socket fixture above: a long-lived spawned `tsx` process
 (`scripts/fake-claude.ts`) running inside a pane on that socket, a live HTTP server, and a real
-`watchTranscripts` watch over a temp directory, all at once. Nothing else in the suite composes
+transcript watcher over a temp directory, all at once. Nothing else in the suite composes
 a real pane, a real long-lived process and a live server together — every other adapter test
 drives one real resource at a time, which is why this one took iteration to get stable. The fake
 prints a `READY` marker the instant its read loop actually attaches to stdin; the test polls for
@@ -275,7 +273,7 @@ sleep is either too short (flaky) or too long (slow), and it encodes a guess abo
 else's timing. Poll the condition until a deadline and fail with what the last observation
 actually was, so a timeout tells you what state it was stuck in.
 
-The same rule applies to the watch path: assert that a change was picked up by waiting for it,
+The same rule applies to the transcript poll: assert that a change was picked up by waiting for it,
 not by sleeping past it.
 
 ## What is deliberately not tested

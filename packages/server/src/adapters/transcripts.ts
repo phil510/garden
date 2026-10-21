@@ -1,5 +1,3 @@
-import { watch } from 'chokidar';
-import { mkdirSync } from 'node:fs';
 import { open, readdir, readFile, stat } from 'node:fs/promises';
 import { join, relative, sep } from 'node:path';
 import { inScopeDirs } from '../domain/slug.js';
@@ -80,11 +78,15 @@ export async function readTranscriptRecord(
   return { ...parseTranscript([...headLines, ...tailLines].join('\n')), signature };
 }
 
-/** Coalesces the run of writes one turn produces on disk into a single re-read. */
-export const DEBOUNCE_MS = 200;
+/** How often the live transcript paths are polled for a changed signature. */
+export const POLL_MS = 1_000;
 
-/** How often the reconciliation backstop rescans for files the native watch missed. */
+/** How often the reconciliation scan looks for files garden doesn't know are live. */
 export const RECONCILE_MS = 10_000;
+
+/** How long a live path may go unchanged before the poll stops stat-ing it. The reconciliation
+ *  scan promotes it back the next time it finds the file changed. */
+export const LIVE_IDLE_MS = 5 * 60_000;
 
 export interface TranscriptSignature {
   size: number;
@@ -92,38 +94,10 @@ export interface TranscriptSignature {
 }
 
 /**
- * Collapses repeated `schedule(key)` calls into a single `run(key)` once `debounceMs` has
- * passed with no further call for that key. Pure `setTimeout` bookkeeping, decoupled from
- * chokidar, so the debounce math is provable with fake timers rather than real fs timing.
- */
-export function createCoalescer(run: (key: string) => void, debounceMs: number) {
-  const timers = new Map<string, NodeJS.Timeout>();
-  return {
-    schedule(key: string): void {
-      const existing = timers.get(key);
-      if (existing !== undefined) clearTimeout(existing);
-      timers.set(
-        key,
-        setTimeout(() => {
-          timers.delete(key);
-          run(key);
-        }, debounceMs),
-      );
-    },
-    clear(): void {
-      for (const timer of timers.values()) clearTimeout(timer);
-      timers.clear();
-    },
-  };
-}
-
-/**
  * Diffs a fresh listing of in-scope transcript files against `signatures` and invokes
- * `onStale` for any path that's new or changed. Backstops chokidar's native watch, which can
- * miss a write landing before a newly created directory's own watch handle is registered
- * (docs/architecture.md §4.2). `onStale` owns recording its own success in `signatures`,
- * shared with the native watch path, so the cache reflects whichever path last read a file.
- * A vanished-file stat (`ENOENT`) is silent; any other stat failure is logged.
+ * `onStale` for any path that's new or changed. `onStale` owns recording its own success in
+ * `signatures`, shared with the live-path poll, so the cache reflects whichever path last read
+ * a file. A vanished-file stat (`ENOENT`) is silent; any other stat failure is logged.
  */
 export async function reconcileTranscripts(
   transcriptsDir: string,
@@ -152,119 +126,167 @@ export async function reconcileTranscripts(
 }
 
 export interface TranscriptWatcher {
+  /** Marks a transcript path live, or refreshes its idle clock. Synchronous and I/O-free: it
+   *  runs on every hook. A path outside `<transcriptsDir>/<in-scope slug>/<name>.jsonl` is
+   *  ignored. */
+  track(path: string): void;
   close(): Promise<void>;
 }
 
-/**
- * A path is watched when it is the transcripts directory itself, an in-scope slug directory,
- * or a `.jsonl` file directly inside one. Everything else — a slug directory out of scope,
- * or a session's own subdirectory holding `subagents/` two levels deeper — is ignored, which
- * also stops chokidar recursing into it: a subagent file carries its parent session's id, so
- * reading one would corrupt the parent's record.
- */
-function isWatchedPath(transcriptsDir: string, roots: readonly string[], path: string): boolean {
-  const rel = relative(transcriptsDir, path);
-  if (rel === '') return true;
-  const segments = rel.split(sep);
-  if (segments.length === 1) return inScopeDirs([segments[0]!], roots).length > 0;
-  if (segments.length === 2)
-    return segments[1]!.endsWith('.jsonl') && inScopeDirs([segments[0]!], roots).length > 0;
-  return false;
+export interface TranscriptTiming {
+  pollMs?: number;
+  reconcileMs?: number;
+  liveIdleMs?: number;
+}
+
+export interface Transcripts {
+  listFiles(): Promise<string[]>;
+  readRecord(path: string): Promise<TranscriptParse>;
+  watch(
+    onEvent: (event: Extract<GardenEvent, { type: 'transcript-changed' }>) => void,
+  ): TranscriptWatcher;
 }
 
 /**
- * Watches every in-scope `<slug>/*.jsonl` file and emits a debounced `transcript-changed`
- * event per file, re-reading it with `readTranscriptRecord`. An unparseable line is logged
- * once per file — the first time it is seen, not on every subsequent re-read.
+ * Reads transcripts and keeps their records current without native file watching, whose
+ * cost grows with the corpus. `watch` polls the live set — paths `track` was told about —
+ * every `pollMs`, rereading a file only when its `(size, mtimeMs)` changes, and runs the
+ * reconciliation scan every `reconcileMs` to discover files nobody announced. A file the scan
+ * finds changed joins the live set; a live path unchanged for `liveIdleMs` leaves it.
  *
- * The initial scan (`ignoreInitial`) dispatches nothing for files that already exist when the
- * watch starts — boot replay reads those. `signatures` therefore starts empty, so the first
- * reconciliation pass reads every in-scope file once to populate it; later passes are
- * incremental as usual.
+ * `readRecord` and the watcher share one signature map, so boot replay's reads are what make
+ * the first reconciliation tick incremental. An unparseable line is logged once per file.
  */
-export function watchTranscripts(
+export function createTranscripts(
   transcriptsDir: string,
   roots: readonly string[],
-  onEvent: (event: Extract<GardenEvent, { type: 'transcript-changed' }>) => void,
   logger: TranscriptLogger,
-  debounceMs = DEBOUNCE_MS,
-  reconcileMs = RECONCILE_MS,
-): TranscriptWatcher {
-  // fs.watch needs the directory to already exist; Claude Code creates it on first
-  // use, but a garden started before that has nothing to attach a watch to otherwise.
-  mkdirSync(transcriptsDir, { recursive: true });
-  const warnedFiles = new Set<string>();
+  timing: TranscriptTiming = {},
+): Transcripts {
+  const { pollMs = POLL_MS, reconcileMs = RECONCILE_MS, liveIdleMs = LIVE_IDLE_MS } = timing;
   const signatures = new Map<string, TranscriptSignature>();
 
-  // Records its own signature regardless of which path (native watch or reconciliation)
-  // triggered the read, so both share one accurate cache. The signature is the one
-  // readTranscriptRecord stamped the read with, taken before the read — never a stat taken
-  // after — so a failed read caches nothing and is retried on the next reconciliation pass.
-  async function reread(path: string): Promise<void> {
-    let parsed: TranscriptParse & { signature: TranscriptSignature };
-    try {
-      parsed = await readTranscriptRecord(path);
-    } catch (error) {
-      logger.error(`failed to read transcript ${path}: ${(error as Error).message}`);
-      return;
-    }
-    const { record, skipped, signature } = parsed;
-    if (skipped > 0 && !warnedFiles.has(path)) {
-      warnedFiles.add(path);
-      logger.warn(`skipped ${skipped} unparseable line(s) in ${path}`);
-    }
-    onEvent({ type: 'transcript-changed', path, record });
-    signatures.set(path, signature);
-  }
-
-  const coalescer = createCoalescer((path) => void reread(path), debounceMs);
-
-  const watcher = watch(transcriptsDir, {
-    ignored: (path) => !isWatchedPath(transcriptsDir, roots, path),
-    // Files that already exist when the watch starts are boot replay's job, not the
-    // watcher's — without this, chokidar's initial scan emits 'add' for every one of them
-    // and schedules a reread of the whole corpus a few hundred ms into boot.
-    ignoreInitial: true,
-  });
-  watcher.on('add', (path) => coalescer.schedule(path));
-  watcher.on('change', (path) => coalescer.schedule(path));
-  // Otherwise silent: an EMFILE under fd pressure produces the same "ready, then no more
-  // events" signature as the missed-directory-watch gap the backstop below covers.
-  watcher.on('error', (error) => {
-    logger.error(`transcript watcher error: ${(error as Error).message}`);
-  });
-
-  // Holds the in-flight tick's promise, not just a boolean: close() awaits it below, so a
-  // reconciliation already running when close() is called finishes its dispatches before
-  // close() resolves, rather than racing a dispatch against a closed watcher.
-  let reconciling: Promise<void> | undefined;
-  function runReconciliationTick(): Promise<void> {
-    // Skips this tick rather than queuing — a slow reconciliation pass (many files, a
-    // contended disk) should never stack a second one behind it.
-    if (reconciling) return reconciling;
-    reconciling = reconcileTranscripts(transcriptsDir, roots, signatures, reread, logger)
-      .catch((error: unknown) => {
-        logger.error(
-          `transcript reconciliation failed: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      })
-      .finally(() => {
-        reconciling = undefined;
-      });
-    return reconciling;
-  }
-  const reconcileTimer = setInterval(() => void runReconciliationTick(), reconcileMs);
-
   return {
-    close: async () => {
-      clearInterval(reconcileTimer);
-      // Closing the watcher first removes its listeners synchronously (chokidar's own
-      // close() calls removeAllListeners() before doing anything async), so an event that
-      // arrives during the awaits below can't schedule a fresh coalescer timer that would
-      // otherwise fire — and dispatch — after this function has already resolved.
-      await watcher.close();
-      coalescer.clear();
-      await reconciling;
+    listFiles: () => listTranscriptFiles(transcriptsDir, roots),
+    async readRecord(path) {
+      const { signature, ...parsed } = await readTranscriptRecord(path);
+      signatures.set(path, signature);
+      return parsed;
+    },
+    watch(onEvent) {
+      const warnedFiles = new Set<string>();
+      let warnedOutside = false;
+      /** Live path → last time it was tracked or seen changed. */
+      const live = new Map<string, number>();
+
+      // The signature is the one readTranscriptRecord stamped the read with, taken before the
+      // read, and it is recorded before dispatching: a write landing mid-read only makes it stale,
+      // and a throwing `onEvent` can't skip it. A failed read records nothing, so a later tick
+      // retries.
+      async function reread(path: string): Promise<void> {
+        let parsed: TranscriptParse & { signature: TranscriptSignature };
+        try {
+          parsed = await readTranscriptRecord(path);
+        } catch (error) {
+          logger.error(`failed to read transcript ${path}: ${(error as Error).message}`);
+          return;
+        }
+        const { record, skipped, signature } = parsed;
+        signatures.set(path, signature);
+        if (skipped > 0 && !warnedFiles.has(path)) {
+          warnedFiles.add(path);
+          logger.warn(`skipped ${skipped} unparseable line(s) in ${path}`);
+        }
+        onEvent({ type: 'transcript-changed', path, record });
+      }
+
+      async function pollLive(): Promise<void> {
+        for (const path of [...live.keys()]) {
+          const now = Date.now();
+          if (now - live.get(path)! >= liveIdleMs) {
+            live.delete(path);
+            continue;
+          }
+          let size: number;
+          let mtimeMs: number;
+          try {
+            ({ size, mtimeMs } = await stat(path));
+          } catch (error) {
+            // A session reports its transcript path before the file exists.
+            if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+              logger.error(`failed to stat transcript ${path}: ${(error as Error).message}`);
+            }
+            continue;
+          }
+          const known = signatures.get(path);
+          if (known && known.size === size && known.mtimeMs === mtimeMs) continue;
+          live.set(path, now);
+          await reread(path);
+        }
+      }
+
+      async function reconcile(): Promise<void> {
+        await reconcileTranscripts(
+          transcriptsDir,
+          roots,
+          signatures,
+          async (path) => {
+            live.set(path, Date.now());
+            await reread(path);
+          },
+          logger,
+        );
+      }
+
+      // Holds the in-flight tick's promise, not just a boolean: close() awaits it, so a tick
+      // already running when close() is called finishes its dispatches before close() resolves.
+      // A tick still running when the next is due is skipped rather than queued.
+      function singleFlight(name: string, tick: () => Promise<void>) {
+        let running: Promise<void> | undefined;
+        const start = () => {
+          running ??= tick()
+            .catch((error: unknown) => {
+              logger.error(
+                `transcript ${name} failed: ${error instanceof Error ? error.message : String(error)}`,
+              );
+            })
+            .finally(() => {
+              running = undefined;
+            });
+        };
+        return { start, settled: () => running };
+      }
+
+      const pollTick = singleFlight('poll', pollLive);
+      const reconcileTick = singleFlight('reconciliation', reconcile);
+      const pollTimer = setInterval(pollTick.start, pollMs);
+      const reconcileTimer = setInterval(reconcileTick.start, reconcileMs);
+
+      return {
+        track(path) {
+          const segments = relative(transcriptsDir, path).split(sep);
+          if (segments[0] === '..' || segments[0] === '') {
+            if (!warnedOutside) {
+              warnedOutside = true;
+              logger.warn(`ignoring transcript path outside ${transcriptsDir}: ${path}`);
+            }
+            return;
+          }
+          const [dir, name] = segments;
+          if (
+            segments.length !== 2 ||
+            !name!.endsWith('.jsonl') ||
+            inScopeDirs([dir!], roots).length === 0
+          )
+            return;
+          live.set(join(transcriptsDir, dir!, name!), Date.now());
+        },
+        async close() {
+          clearInterval(pollTimer);
+          clearInterval(reconcileTimer);
+          await Promise.all([pollTick.settled(), reconcileTick.settled()]);
+        },
+      };
     },
   };
 }

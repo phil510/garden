@@ -31,6 +31,7 @@ function fakeProjection(): Projection {
 function fakeDeps(): ServerDeps {
   return {
     projection: fakeProjection(),
+    liveTranscripts: { track: () => undefined },
     pipes: {
       connect: () => ({ ack: () => undefined, close: () => undefined }),
       sweep: () => undefined,

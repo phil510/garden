@@ -70,6 +70,7 @@ function receiveOne(socket: WebSocket): Promise<ServerMessage> {
 
 function serverWithProjection() {
   return createServer({
+    liveTranscripts: { track: () => undefined },
     projection: createProjection(fakeStore()),
     repos: {
       list: () => Promise.resolve([]),
@@ -97,6 +98,7 @@ describe('WS /events against the real server', () => {
   it('sends a snapshot on connect, then a delta for a dispatch that follows', async () => {
     const projection = createProjection(fakeStore());
     app = createServer({
+      liveTranscripts: { track: () => undefined },
       projection,
       repos: {
         list: () => Promise.resolve([]),
@@ -214,6 +216,7 @@ describe('WS /events root watches against a real watcher', () => {
     const repos = createRepoCatalog({ git, roots: [dir] });
     const logger = { warn: () => undefined, error: () => undefined };
     app = createServer({
+      liveTranscripts: { track: () => undefined },
       projection: createProjection(fakeStore()),
       repos,
       serverPort: 4310,

@@ -50,7 +50,13 @@ export interface ConfigPort {
   write(patch: Partial<ConfigFile>): void;
 }
 
-export interface TranscriptWatcher {
+/** Tells the transcript watcher which files are being written right now, so they are polled
+ *  every second instead of waiting for the slower discovery scan. */
+export interface LiveTranscripts {
+  track(path: string): void;
+}
+
+export interface TranscriptWatcher extends LiveTranscripts {
   close(): Promise<void>;
 }
 
