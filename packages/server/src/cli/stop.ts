@@ -59,8 +59,6 @@ export async function runStop(io: Io, deps: StopDeps = defaultStopDeps): Promise
     return 1;
   }
 
-  // classifyRecordedPid only returns 'garden' for a non-null pid.
-  if (pid === null) return 1;
   deps.kill(pid, 'SIGTERM');
   const deadline = Date.now() + deps.stopTimeoutMs;
   while (deps.isProcessRunning(pid)) {
