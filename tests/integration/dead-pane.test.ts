@@ -1,6 +1,6 @@
 import { tmpdir } from 'node:os';
 import { describe, expect, it } from 'vitest';
-import { listPanes, newSession } from '../../src/adapters/tmux.js';
+import { listPanes, newSession } from '../../packages/server/src/adapters/tmux.js';
 import { until } from './support/poll.js';
 import { withTmuxServer } from './support/tmux-server.js';
 

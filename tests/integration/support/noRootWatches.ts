@@ -1,4 +1,4 @@
-import type { RootWatches } from '../../../src/app/rootWatch.js';
+import type { RootWatches } from '../../../packages/server/src/app/rootWatch.js';
 
 /** For servers under test that never receive a `watch`. */
 export const noRootWatches: RootWatches = {

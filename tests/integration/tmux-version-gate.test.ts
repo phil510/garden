@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { checkTmuxVersion } from '../../src/adapters/tmux.js';
+import { checkTmuxVersion } from '../../packages/server/src/adapters/tmux.js';
 
 // The pure threshold logic (assertTmuxVersion) is unit-tested beside its source. This
 // proves the `tmux -V` process boundary itself: the real binary on this machine, and

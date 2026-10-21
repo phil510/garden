@@ -9,7 +9,9 @@
   },
   "devDependencies": {
     "@eslint/js": "catalog:",
+    "@garden/shared": "workspace:*",
     "@types/node": "catalog:",
+    "@types/ws": "catalog:",
     "eslint": "catalog:",
     "eslint-config-prettier": "catalog:",
     "eslint-plugin-react-hooks": "catalog:",
@@ -18,7 +20,8 @@
     "tsx": "catalog:",
     "typescript": "catalog:",
     "typescript-eslint": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "ws": "catalog:"
   },
   "scripts": {
     "dev:sandbox:server": "pnpm --filter @garden/server dev:sandbox",
@@ -31,7 +34,7 @@
     "format:check": "prettier --check .",
     "test": "pnpm -r test && pnpm test:scripts",
     "test:scripts": "vitest run",
-    "test:integration": "pnpm --filter @garden/server test:integration",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "build": "pnpm -r build",
     "validate": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test"
   }

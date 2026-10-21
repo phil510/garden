@@ -12,7 +12,7 @@ import { describe, expect, it } from 'vitest';
 
 const execFileAsync = promisify(execFile);
 
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const TSX = join(repoRoot, 'node_modules', '.bin', 'tsx');
 const FAKE_CLAUDE = join(repoRoot, 'scripts', 'fake-claude.ts');
 

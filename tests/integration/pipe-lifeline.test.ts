@@ -10,7 +10,7 @@ import type { WebSocket } from 'ws';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { until } from './support/poll.js';
 
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const GARDEN_BIN = join(repoRoot, 'packages', 'server', 'bin', 'garden.ts');
 // A bare `tsx` specifier resolves against the process's own cwd, and the `tsx` CLI is a wrapper
 // process that would hide the pipe's own pid, so the loader goes in by absolute path.
