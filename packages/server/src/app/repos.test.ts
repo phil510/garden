@@ -18,10 +18,10 @@ import { isListedPath, listRepos } from './repos.js';
 /**
  * Fakes `GitPort` by directory: a path with no entry in `roots` fails `repoRoot` exactly as a
  * non-git directory would, a path with no entry in `branches` fails `branch` exactly as a
- * repo with no commits yet would, and only the paths in `bare` are bare repositories. `roots`' values must already be resolved (`realpathSync`),
- * the way the real adapter's `git rev-parse` output always is — the tests build them that way
- * so the fake matches real behaviour on a filesystem where the temp directory itself sits
- * behind a symlink (macOS's `/var` for one).
+ * repo with no commits yet would, and only the paths in `bare` are bare repositories. `roots`'
+ * values must already be resolved (`realpathSync`), the way the real adapter's `git rev-parse`
+ * output always is — the tests build them that way so the fake matches real behaviour on a
+ * filesystem where the temp directory itself sits behind a symlink (macOS's `/var` for one).
  */
 function fakeGit(
   roots: Record<string, string>,
@@ -323,9 +323,8 @@ describe('listRepos with a bare clone', () => {
   });
 });
 
-const BARE_GITLINK = 'gitdir: ./.bare\n';
-
 describe('isListedPath', () => {
+  const BARE_GITLINK = 'gitdir: ./.bare\n';
   let dir: string | undefined;
 
   afterEach(() => {

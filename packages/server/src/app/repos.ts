@@ -153,31 +153,25 @@ async function step(git: ReposGit, limiter: Limiter, pos: Position, dir: string)
     }
     case 'repo':
       return basename(dir) === WORKTREES ? { next: 'worktrees' } : {};
-    case 'bare-repo':
+    case 'bare-repo': {
       // `.bare/` itself, and anything else hidden, is not where worktrees are checked out
       if (basename(dir).startsWith('.')) return {};
-      return bareRepoStep(await gitEntry(dir));
+      const entry = await gitEntry(dir);
+      if (entry === 'file') return { listed: 'worktree' };
+      return entry === 'directory' ? {} : { next: 'bare-repo' };
+    }
     case 'worktrees':
-      return worktreesStep(dir);
+      return (await gitEntry(dir)) !== null ? { listed: 'worktree' } : { next: 'worktrees' };
   }
 }
 
-function bareRepoStep(entry: 'directory' | 'file' | null): Step {
-  if (entry === 'file') return { listed: 'worktree' };
-  return entry === 'directory' ? {} : { next: 'bare-repo' };
-}
-
-async function worktreesStep(dir: string): Promise<Step> {
-  return (await gitEntry(dir)) !== null ? { listed: 'worktree' } : { next: 'worktrees' };
-}
-
 /**
- * `.worktrees/` nests one directory per branch-name path segment (`.worktrees/feat/x` for
- * branch `feat/x`), so a worktree can sit several levels deep. Each directory's children are
- * explored concurrently (`Promise.all`, which preserves input order regardless of settle
- * order), but the recursive call itself never goes through `limiter` — only the leaf git calls
- * do. A parent holding a slot while it awaits children that need slots from the same pool would
- * deadlock once the tree is deeper than the limiter's bound.
+ * Worktrees nest one directory per branch-name path segment (`.worktrees/feat/x` for branch
+ * `feat/x`, or `feat/x` beside a bare clone), so a worktree can sit several levels deep. Each
+ * directory's children are explored concurrently (`Promise.all`, which preserves input order
+ * regardless of settle order), but the recursive call itself never goes through `limiter` — only
+ * the leaf git calls do. A parent holding a slot while it awaits children that need slots from
+ * the same pool would deadlock once the tree is deeper than the limiter's bound.
  */
 async function walk(
   git: ReposGit,
@@ -215,7 +209,7 @@ export async function listRepos(deps: ReposDeps): Promise<RepoEntry[]> {
 /** Whether `real` (an absolute realpath) is an entry `listRepos` would list, checked by running
  *  `step` down the path from each configured root rather than scanning the roots. */
 export async function isListedPath(deps: ReposDeps, real: string): Promise<boolean> {
-  // One git spawn per root at most, so there is nothing for a limiter to bound.
+  // A couple of git spawns per root at most, so there is nothing for a limiter to bound.
   const limiter: Limiter = { run: (fn) => fn() };
   for (const root of deps.roots) {
     const rootReal = await realpath(root).catch(() => undefined);
