@@ -4,11 +4,7 @@ import { Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 import { getFile } from '../api/client.js';
 import { connectPaneSocket, type PaneSize } from '../api/paneSocket.js';
-import {
-  noSessionDirectoryMessage,
-  openFailureMessage,
-  outsideProjectsMessage,
-} from '../features/filetree/pathLineErrors.js';
+import { openFailureMessage } from '../features/filetree/pathLineErrors.js';
 import { resolveAgainst, resolvePathLineTarget } from '../features/filetree/projectPaths.js';
 import { refreshRepoList } from '../features/sidebar/repoListCache.js';
 import { useLocalStore } from '../state/localStore.js';
@@ -58,12 +54,12 @@ async function openPathLine(sessionId: string, path: string, line: number | null
   const cwd = useSessionStore.getState().sessions[sessionId]?.cwd;
   const { showToast } = useToastStore.getState();
   if (cwd === undefined) {
-    showToast(noSessionDirectoryMessage(path), 'error');
+    showToast(`Can't open ${path}: session directory unknown`, 'error');
     return;
   }
   const target = resolvePathLineTarget((await refreshRepoList()) ?? [], cwd, sessionId, path, line);
   if (target === null) {
-    showToast(outsideProjectsMessage(resolveAgainst(cwd, path)), 'error');
+    showToast(`${resolveAgainst(cwd, path)} isn't in any known project`, 'error');
     return;
   }
   const store = useLocalStore.getState();

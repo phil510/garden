@@ -15,11 +15,3 @@ export function openFailureMessage(error: unknown, abs: string): string | null {
 export function displayPath(cwd: string | undefined, clicked: string): string {
   return cwd === undefined ? clicked : resolveAgainst(cwd, clicked);
 }
-
-export function noSessionDirectoryMessage(clicked: string): string {
-  return `Can't open ${clicked}: session directory unknown`;
-}
-
-export function outsideProjectsMessage(abs: string): string {
-  return `${abs} isn't in any known project`;
-}
