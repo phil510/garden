@@ -1,6 +1,8 @@
 /** Body of the server's `GET /health` response. */
 export interface HealthStatus {
   status: 'ok';
+  /** The serving process's pid, so the CLI can tell this garden from an unrelated process. */
+  pid: number;
 }
 
 export type Liveness = 'live' | 'dead';

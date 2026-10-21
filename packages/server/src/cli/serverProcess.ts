@@ -11,12 +11,26 @@ const POLL_INTERVAL_MS = 50;
  *  this same value in its timed-out message, so the two never drift apart. */
 export const DEFAULT_HEALTH_TIMEOUT_MS = 30_000;
 
-async function probeHealth(url: string): Promise<boolean> {
+/** What `/health` told us about the process behind a port: the pid it reported, that nothing is
+ *  listening (`refused`), or that something is but did not answer usefully (`no-answer`). */
+export type HealthPidResult = number | 'refused' | 'no-answer';
+
+/** The server's main thread can block during session spawns, so too short a timeout misreads a
+ *  busy healthy garden as hung; with none at all, a hung garden would hang `garden stop`. */
+const HEALTH_PID_TIMEOUT_MS = 2500;
+
+export async function fetchHealthPid(
+  healthUrl: string,
+  timeoutMs = HEALTH_PID_TIMEOUT_MS,
+): Promise<HealthPidResult> {
   try {
-    const response = await fetch(url);
-    return response.ok;
-  } catch {
-    return false;
+    const response = await fetch(healthUrl, { signal: AbortSignal.timeout(timeoutMs) });
+    if (!response.ok) return 'no-answer';
+    const body = (await response.json()) as { pid?: unknown };
+    return typeof body.pid === 'number' ? body.pid : 'no-answer';
+  } catch (error) {
+    const cause = (error as { cause?: { code?: string } }).cause;
+    return cause?.code === 'ECONNREFUSED' ? 'refused' : 'no-answer';
   }
 }
 
@@ -24,7 +38,7 @@ async function probeHealth(url: string): Promise<boolean> {
  * Spawns `scriptPath` as a detached background process — this is how `garden` daemonises
  * itself, re-invoking its own entry point with `env` carrying the marker that routes it to
  * `main()` instead of back through the CLI dispatch, plus `args` (e.g. `SERVER_DETACHED_FLAG`)
- * appended to its argv — and polls `healthUrl` until it answers or `timeoutMs` passes. The
+ * appended to its argv — and polls `healthUrl` until it reports the child's pid or `timeoutMs` passes. The
  * child is left running only in the "ready" case; every other outcome kills it rather than
  * leaking an unmanaged process.
  */
@@ -58,17 +72,12 @@ export async function spawnServer(
   const deadline = Date.now() + timeoutMs;
   for (;;) {
     if (exitCode !== undefined) return { kind: 'exited', code: exitCode, stderr };
-    if (await probeHealth(healthUrl)) {
+    // Ready means the health url reports the child's own pid: an orphaned garden already
+    // holding the port would otherwise pass for the server this child is about to fail to start.
+    const reported = await fetchHealthPid(healthUrl);
+    if (typeof reported === 'number' && reported === child.pid) {
       child.unref();
-      const pid = child.pid;
-      if (pid === undefined) {
-        return {
-          kind: 'timed-out',
-          stderr: 'server became healthy but reported no pid',
-          pid: undefined,
-        };
-      }
-      return { kind: 'ready', pid };
+      return { kind: 'ready', pid: reported };
     }
     if (Date.now() >= deadline) {
       child.kill('SIGTERM');
