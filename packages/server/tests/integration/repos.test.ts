@@ -1,13 +1,17 @@
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { listRepos } from '../../src/app/repos.js';
 import type { GitPort } from '../../src/app/ports.js';
-import { createBranchReader, repoRoot } from '../../src/adapters/git.js';
+import { createBranchReader, isBareRepository, repoRoot } from '../../src/adapters/git.js';
 import { initRepo, runGit } from './support/git.js';
 
-const git: Pick<GitPort, 'repoRoot' | 'branch'> = { repoRoot, branch: createBranchReader() };
+const git: Pick<GitPort, 'repoRoot' | 'isBareRepository' | 'branch'> = {
+  repoRoot,
+  isBareRepository,
+  branch: createBranchReader(),
+};
 
 describe('listRepos against real git repos and a real worktree', () => {
   let dir: string | undefined;
@@ -35,6 +39,41 @@ describe('listRepos against real git repos and a real worktree', () => {
       { path: repo, name: 'repo', branch: 'main', isWorktree: false },
       { path: worktree, name: 'x', branch: 'feat/x', isWorktree: true },
     ]);
+  });
+
+  it('lists the worktrees checked out beside a bare clone', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'garden-repos-'));
+    const source = join(dir, 'source');
+    mkdirSync(source);
+    initRepo(source);
+    const root = join(dir, 'root');
+    const repo = join(root, 'repo');
+    mkdirSync(repo, { recursive: true });
+    runGit(repo, ['clone', '--bare', source, '.bare']);
+    writeFileSync(join(repo, '.git'), 'gitdir: ./.bare\n');
+    runGit(repo, ['worktree', 'add', 'main', 'main']);
+    runGit(repo, ['worktree', 'add', '-b', 'feat/x', 'feat/x']);
+
+    const repos = await listRepos({ git, roots: [root] });
+
+    expect(repos.toSorted((a, b) => a.path.localeCompare(b.path))).toEqual([
+      { path: repo, name: 'repo', branch: 'main', isWorktree: false },
+      { path: join(repo, 'feat', 'x'), name: 'x', branch: 'feat/x', isWorktree: true },
+      { path: join(repo, 'main'), name: 'main', branch: 'main', isWorktree: true },
+    ]);
+  });
+
+  it('does not walk the working tree of a repo made with --separate-git-dir', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'garden-repos-'));
+    const repo = join(dir, 'repo');
+    mkdirSync(repo);
+    runGit(repo, ['init', '--initial-branch=main', '--separate-git-dir=.gitdir']);
+    mkdirSync(join(repo, 'vendor', 'lib'), { recursive: true });
+    writeFileSync(join(repo, 'vendor', 'lib', '.git'), 'gitdir: /elsewhere\n');
+
+    const repos = await listRepos({ git, roots: [dir] });
+
+    expect(repos.map((entry) => entry.path)).toEqual([repo]);
   });
 
   it('does not list a bare non-repo directory under a root', async () => {
