@@ -252,7 +252,7 @@ export async function main(detached: boolean): Promise<void> {
   });
 
   // Subscribed before the replay so boot's own dispatches are what drive the first resolutions.
-  const stopRepoRoots = watchRepoRoots({ git, projection });
+  const stopRepoRoots = watchRepoRoots({ git, projection, roots: config.roots });
   const branches = createBranchSweeper({ git, projection });
 
   // Started before replay() rather than after — including before its store-loaded and

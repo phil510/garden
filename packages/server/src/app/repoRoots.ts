@@ -1,9 +1,13 @@
+// One-shot node:fs reads are allowed in app/; see the dependency rules in docs/architecture.md.
+import { realpath } from 'node:fs/promises';
 import type { GitPort } from './ports.js';
 import type { Projection } from './projection.js';
 
 export interface RepoRootsDeps {
   readonly git: Pick<GitPort, 'repoRoot'>;
   readonly projection: Projection;
+  /** The configured roots, absolute. */
+  readonly roots: readonly string[];
 }
 
 /**
@@ -19,16 +23,28 @@ export interface RepoRootsDeps {
  *
  * Each cwd is asked about once. A directory in no repo makes git fail, and that failure is
  * the answer rather than something to retry: no fact is dispatched, so the session keeps the
- * null root it started with and works without a sidebar group.
+ * null root it started with and works without a sidebar group. The one exception is a cwd that
+ * is itself a configured root (a coordinator started in `~/src`, say): it is its own root, so
+ * it gets a group of its own rather than none.
  */
 export function watchRepoRoots(deps: RepoRootsDeps): () => void {
   const asked = new Set<string>();
+
+  /** Compared by realpath, as git reports a root, so a trailing slash or a symlink in the
+   *  configured root does not hide the match. */
+  async function asConfiguredRoot(cwd: string): Promise<string> {
+    const real = await realpath(cwd);
+    const roots = await Promise.all(deps.roots.map((root) => realpath(root).catch(() => root)));
+    if (!roots.includes(real)) throw new Error(`not a configured root: ${cwd}`);
+    return real;
+  }
 
   function resolve(cwd: string): void {
     if (cwd === '' || asked.has(cwd)) return;
     asked.add(cwd);
     void deps.git
       .repoRoot(cwd)
+      .catch(() => asConfiguredRoot(cwd))
       .then((repoRoot) => {
         deps.projection.dispatch({ type: 'repo-root-resolved', cwd, repoRoot });
       })

@@ -1,3 +1,6 @@
+import { mkdirSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { DEFAULT_UI_STATE } from '@garden/shared';
 import { describe, expect, it, vi } from 'vitest';
 import type { GardenEvent } from '../domain/types.js';
@@ -20,7 +23,7 @@ const emptyOverlay: OverlayState = {
  * seeds a session state: every session starts from a dispatched event, which is the only way
  * to catch a field the fold never fills in.
  */
-function harness(repoRoot: (cwd: string) => Promise<string>) {
+function harness(repoRoot: (cwd: string) => Promise<string>, roots: readonly string[] = []) {
   const store: StorePort = {
     read: () => emptyOverlay,
     write: () => undefined,
@@ -33,7 +36,7 @@ function harness(repoRoot: (cwd: string) => Promise<string>) {
     },
   };
   const projection = createProjection(store);
-  return { projection, git, asked, stop: watchRepoRoots({ git, projection }) };
+  return { projection, git, asked, stop: watchRepoRoots({ git, projection, roots }) };
 }
 
 const transcript = (cwd: string, sessionId = 'sid-1'): GardenEvent => ({
@@ -100,6 +103,44 @@ describe('watchRepoRoots', () => {
       });
     } finally {
       stop();
+    }
+  });
+
+  it('gives a session whose cwd is a configured root that root, though git finds no repo there', async () => {
+    const dir = realpathSync(mkdtempSync(join(tmpdir(), 'garden-roots-')));
+    const { projection, stop } = harness(
+      () => Promise.reject(new Error('not a repository')),
+      [`${dir}/`],
+    );
+    try {
+      projection.dispatch(transcript(dir));
+      await vi.waitFor(() => {
+        expect(sessionOf(projection, 'sid-1')?.repoRoot).toBe(dir);
+      });
+    } finally {
+      stop();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('leaves a session in a plain directory below a configured root with no root', async () => {
+    const dir = realpathSync(mkdtempSync(join(tmpdir(), 'garden-roots-')));
+    const scratch = join(dir, 'scratch');
+    mkdirSync(scratch);
+    const { projection, asked, stop } = harness(
+      () => Promise.reject(new Error('not a repository')),
+      [dir],
+    );
+    try {
+      projection.dispatch(transcript(scratch));
+      await vi.waitFor(() => {
+        expect(asked).toEqual([scratch]);
+      });
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(sessionOf(projection, 'sid-1')?.repoRoot).toBeNull();
+    } finally {
+      stop();
+      rmSync(dir, { recursive: true, force: true });
     }
   });
 
