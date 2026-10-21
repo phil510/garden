@@ -4,15 +4,14 @@ import { ensureConfigFile, loadConfig } from '../config.js';
 import { chromeInstalled, openChromeWindow } from './browser.js';
 import type { Io } from './commands.js';
 import { writeAll } from './io.js';
-import { isProcessRunning, readPidFile, writePidFile } from './pid.js';
-import { DEFAULT_HEALTH_TIMEOUT_MS, spawnServer, type SpawnResult } from './serverProcess.js';
-
-export type PidStatus = 'running' | 'not-running';
-
-/** Whether to reuse the server a recorded pid names, or start a fresh one. */
-export function decideStartupAction(pid: PidStatus): 'attach' | 'start' {
-  return pid === 'running' ? 'attach' : 'start';
-}
+import { classifyRecordedPid, isProcessRunning, readPidFile, writePidFile } from './pid.js';
+import {
+  DEFAULT_HEALTH_TIMEOUT_MS,
+  fetchHealthPid,
+  spawnServer,
+  type HealthPidResult,
+  type SpawnResult,
+} from './serverProcess.js';
 
 /**
  * The one startup failure with a known shape: the port is already held by something else.
@@ -56,6 +55,7 @@ export interface StartDeps {
   readonly readPid: (path: string) => number | null;
   readonly writePid: (path: string, pid: number) => void;
   readonly isProcessRunning: (pid: number) => boolean;
+  readonly healthPid: (healthUrl: string) => Promise<HealthPidResult>;
   readonly spawnServer: (
     scriptPath: string,
     args: readonly string[],
@@ -72,6 +72,7 @@ export const defaultStartDeps: StartDeps = {
   readPid: readPidFile,
   writePid: writePidFile,
   isProcessRunning,
+  healthPid: fetchHealthPid,
   spawnServer,
   chromeInstalled: () => chromeInstalled(),
   openChromeWindow,
@@ -84,11 +85,11 @@ export async function runStart(io: Io, deps: StartDeps = defaultStartDeps): Prom
   const config = loadConfig(process.env, ensureConfigFile(deps.home), deps.home);
   const pidPath = join(config.appDir, 'server.pid');
   const existingPid = deps.readPid(pidPath);
-  const status: PidStatus =
-    existingPid !== null && deps.isProcessRunning(existingPid) ? 'running' : 'not-running';
+  const healthUrl = `http://${config.host}:${String(config.port)}/health`;
 
-  if (decideStartupAction(status) === 'start') {
-    const healthUrl = `http://${config.host}:${String(config.port)}/health`;
+  // Attach only to a confirmed garden. A live pid that isn't one (reused after an unclean
+  // shutdown) or that doesn't answer leads to a fresh start, which overwrites the pid file.
+  if ((await classifyRecordedPid(existingPid, deps, healthUrl)) !== 'garden') {
     const result = await deps.spawnServer(
       deps.scriptPath,
       [SERVER_DETACHED_FLAG],

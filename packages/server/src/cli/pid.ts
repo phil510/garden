@@ -1,4 +1,5 @@
 import { readFileSync, unlinkSync, writeFileSync } from 'node:fs';
+import type { HealthPidResult } from './serverProcess.js';
 
 export function parsePid(text: string): number | null {
   const pid = Number(text.trim());
@@ -35,4 +36,25 @@ export function isProcessRunning(pid: number): boolean {
   } catch (error) {
     return (error as NodeJS.ErrnoException).code === 'EPERM';
   }
+}
+
+/** `garden`: the recorded pid is confirmed to be the server. `stale`: nothing at that pid is
+ *  garden (no pid, dead, reused, or nothing listening). `unresponsive`: the process is alive but
+ *  `/health` did not answer, which may be a hung garden. */
+export type RecordedPidStatus = 'garden' | 'stale' | 'unresponsive';
+
+/** The one check `garden` and `garden stop` share before acting on `server.pid`: a live pid alone
+ *  proves nothing, because an unclean shutdown leaves a pid another process can reuse. */
+export async function classifyRecordedPid(
+  pid: number | null,
+  deps: {
+    readonly isProcessRunning: (pid: number) => boolean;
+    readonly healthPid: (healthUrl: string) => Promise<HealthPidResult>;
+  },
+  healthUrl: string,
+): Promise<RecordedPidStatus> {
+  if (pid === null || !deps.isProcessRunning(pid)) return 'stale';
+  const reported = await deps.healthPid(healthUrl);
+  if (reported === 'no-answer') return 'unresponsive';
+  return reported === pid ? 'garden' : 'stale';
 }

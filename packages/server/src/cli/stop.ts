@@ -6,13 +6,15 @@ import type { CliClient, Io } from './commands.js';
 import { defaultClient } from './commands.js';
 import { CliHttpError } from './http.js';
 import { writeAll } from './io.js';
-import { isProcessRunning, readPidFile, removePidFile } from './pid.js';
+import { classifyRecordedPid, isProcessRunning, readPidFile, removePidFile } from './pid.js';
+import { fetchHealthPid, type HealthPidResult } from './serverProcess.js';
 import { killTmuxServer } from './tmux.js';
 
 export interface StopDeps {
   readonly readPid: (path: string) => number | null;
   readonly removePid: (path: string) => void;
   readonly isProcessRunning: (pid: number) => boolean;
+  readonly healthPid: (healthUrl: string) => Promise<HealthPidResult>;
   readonly kill: (pid: number, signal: NodeJS.Signals) => void;
   readonly home: string;
   readonly stopTimeoutMs: number;
@@ -23,6 +25,7 @@ export const defaultStopDeps: StopDeps = {
   readPid: readPidFile,
   removePid: removePidFile,
   isProcessRunning,
+  healthPid: fetchHealthPid,
   kill: (pid, signal) => {
     process.kill(pid, signal);
   },
@@ -37,13 +40,27 @@ export async function runStop(io: Io, deps: StopDeps = defaultStopDeps): Promise
   const pidPath = join(config.appDir, 'server.pid');
   const pid = deps.readPid(pidPath);
 
-  if (pid === null || !deps.isProcessRunning(pid)) {
-    // A recorded pid that is no longer running is stale bookkeeping, not a running server.
+  const healthUrl = `http://${config.host}:${String(config.port)}/health`;
+  const status = await classifyRecordedPid(pid, deps, healthUrl);
+
+  if (pid === null || status === 'stale') {
+    // A recorded pid that is dead, or that /health says is some other process, is stale
+    // bookkeeping, not a running server — and must never be signalled.
     deps.removePid(pidPath);
     await writeAll(io.stdout, 'garden is not running\n');
     return 0;
   }
 
+  if (status === 'unresponsive') {
+    await writeAll(
+      io.stderr,
+      `garden: process ${String(pid)} is alive but its /health did not answer, so it can't be confirmed as garden and was not signalled. If it is a hung garden, stop it with: kill ${String(pid)}\n`,
+    );
+    return 1;
+  }
+
+  // classifyRecordedPid only returns 'garden' for a non-null pid.
+  if (pid === null) return 1;
   deps.kill(pid, 'SIGTERM');
   const deadline = Date.now() + deps.stopTimeoutMs;
   while (deps.isProcessRunning(pid)) {

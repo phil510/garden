@@ -51,6 +51,10 @@ function baseDeps(overrides: Partial<StopDeps> = {}): { deps: StopDeps; calls: s
       calls.push('isProcessRunning');
       return false;
     },
+    healthPid: () => {
+      calls.push('healthPid');
+      return Promise.resolve('refused');
+    },
     kill: (pid, signal) => {
       calls.push(`kill:${String(pid)}:${signal}`);
     },
@@ -96,6 +100,7 @@ describe('runStop', () => {
     const { deps, calls } = baseDeps({
       readPid: () => 4242,
       isProcessRunning: () => running,
+      healthPid: () => Promise.resolve(4242),
     });
 
     const exitCode = await runStop(io, deps);
@@ -111,6 +116,7 @@ describe('runStop', () => {
     const { deps, calls } = baseDeps({
       readPid: () => 4242,
       isProcessRunning: () => true,
+      healthPid: () => Promise.resolve(4242),
     });
 
     const exitCode = await runStop(io, deps);
@@ -118,6 +124,55 @@ describe('runStop', () => {
     expect(exitCode).toBe(1);
     expect(stderr[0]).toMatch(/did not stop within 200ms/);
     expect(calls).not.toContain('removePid');
+  });
+
+  it('treats a live pid that /health says is another process as stale and never signals it', async () => {
+    const { io, stdout } = collectingIo();
+    const { deps, calls } = baseDeps({
+      readPid: () => 4242,
+      isProcessRunning: () => true,
+      healthPid: () => Promise.resolve(777),
+    });
+
+    const exitCode = await runStop(io, deps);
+
+    expect(exitCode).toBe(0);
+    expect(stdout).toEqual(['garden is not running\n']);
+    expect(calls).toContain('removePid');
+    expect(calls.some((c) => c.startsWith('kill:'))).toBe(false);
+  });
+
+  it('treats a live pid with nothing listening on the port as stale and never signals it', async () => {
+    const { io, stdout } = collectingIo();
+    const { deps, calls } = baseDeps({
+      readPid: () => 4242,
+      isProcessRunning: () => true,
+      healthPid: () => Promise.resolve('refused'),
+    });
+
+    const exitCode = await runStop(io, deps);
+
+    expect(exitCode).toBe(0);
+    expect(stdout).toEqual(['garden is not running\n']);
+    expect(calls).toContain('removePid');
+    expect(calls.some((c) => c.startsWith('kill:'))).toBe(false);
+  });
+
+  it('refuses without signalling or clearing the pid file when a live pid does not answer /health', async () => {
+    const { io, stderr } = collectingIo();
+    const { deps, calls } = baseDeps({
+      readPid: () => 4242,
+      isProcessRunning: () => true,
+      healthPid: () => Promise.resolve('no-answer'),
+    });
+
+    const exitCode = await runStop(io, deps);
+
+    expect(exitCode).toBe(1);
+    expect(stderr[0]).toContain('4242');
+    expect(stderr[0]).toMatch(/hung garden/);
+    expect(calls).not.toContain('removePid');
+    expect(calls.some((c) => c.startsWith('kill:'))).toBe(false);
   });
 });
 

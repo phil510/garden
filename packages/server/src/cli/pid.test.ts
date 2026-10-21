@@ -3,7 +3,15 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { isProcessRunning, parsePid, readPidFile, removePidFile, writePidFile } from './pid.js';
+import {
+  classifyRecordedPid,
+  isProcessRunning,
+  parsePid,
+  readPidFile,
+  removePidFile,
+  writePidFile,
+} from './pid.js';
+import type { HealthPidResult } from './serverProcess.js';
 
 let dir: string;
 let path: string;
@@ -69,5 +77,49 @@ describe('isProcessRunning', () => {
       });
     });
     expect(isProcessRunning(exitedPid)).toBe(false);
+  });
+});
+
+describe('classifyRecordedPid', () => {
+  function classify(pid: number | null, alive: boolean, health: HealthPidResult) {
+    const probed: string[] = [];
+    const result = classifyRecordedPid(
+      pid,
+      {
+        isProcessRunning: () => alive,
+        healthPid: (url) => {
+          probed.push(url);
+          return Promise.resolve(health);
+        },
+      },
+      'http://h/health',
+    );
+    return { result, probed };
+  }
+
+  it('confirms garden when /health reports the recorded pid', async () => {
+    expect(await classify(4242, true, 4242).result).toBe('garden');
+  });
+
+  it('is stale when /health reports a different pid', async () => {
+    expect(await classify(4242, true, 777).result).toBe('stale');
+  });
+
+  it('is stale when nothing is listening', async () => {
+    expect(await classify(4242, true, 'refused').result).toBe('stale');
+  });
+
+  it('is unresponsive when the process is alive but /health does not answer', async () => {
+    expect(await classify(4242, true, 'no-answer').result).toBe('unresponsive');
+  });
+
+  it('is stale without probing when the pid is dead or absent', async () => {
+    const dead = classify(4242, false, 4242);
+    const none = classify(null, true, 4242);
+
+    expect(await dead.result).toBe('stale');
+    expect(await none.result).toBe('stale');
+    expect(dead.probed).toEqual([]);
+    expect(none.probed).toEqual([]);
   });
 });
