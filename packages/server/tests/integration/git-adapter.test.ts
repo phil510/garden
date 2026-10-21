@@ -19,19 +19,7 @@ import {
   status,
   workTreePrefix,
 } from '../../src/adapters/git.js';
-
-function git(cwd: string, args: readonly string[]): void {
-  execFileSync('git', args, { cwd });
-}
-
-function initRepo(dir: string): void {
-  git(dir, ['init', '--initial-branch=main']);
-  git(dir, ['config', 'user.email', 'garden-test@example.com']);
-  git(dir, ['config', 'user.name', 'garden test']);
-  writeFileSync(join(dir, 'README.md'), 'hello\n');
-  git(dir, ['add', 'README.md']);
-  git(dir, ['commit', '-m', 'initial commit']);
-}
+import { initRepo, runGit } from './support/git.js';
 
 describe('the git adapter', () => {
   let dir: string | undefined;
@@ -47,7 +35,7 @@ describe('the git adapter', () => {
     mkdirSync(repoDir);
     initRepo(repoDir);
     const worktreeDir = join(dir, 'worktree');
-    git(repoDir, ['worktree', 'add', worktreeDir, '-b', 'feat/x']);
+    runGit(repoDir, ['worktree', 'add', worktreeDir, '-b', 'feat/x']);
 
     const rootFromRepo = await repoRoot(repoDir);
     const rootFromWorktree = await repoRoot(worktreeDir);
@@ -63,7 +51,7 @@ describe('the git adapter', () => {
 
     expect(await remoteUrl(dir)).toBeNull();
 
-    git(dir, ['remote', 'add', 'origin', 'git@github.com:acme/widgets.git']);
+    runGit(dir, ['remote', 'add', 'origin', 'git@github.com:acme/widgets.git']);
     expect(await remoteUrl(dir)).toBe('git@github.com:acme/widgets.git');
   });
 
@@ -79,12 +67,12 @@ describe('the git adapter', () => {
     mkdirSync(repoDir);
     initRepo(repoDir);
     const worktreeDir = join(dir, 'worktree');
-    git(repoDir, ['worktree', 'add', worktreeDir, '-b', 'feat/x']);
+    runGit(repoDir, ['worktree', 'add', worktreeDir, '-b', 'feat/x']);
     const nested = join(worktreeDir, 'src', 'lib');
     mkdirSync(nested, { recursive: true });
     writeFileSync(join(nested, 'tracked.txt'), 'one\n');
-    git(worktreeDir, ['add', 'src/lib/tracked.txt']);
-    git(worktreeDir, ['commit', '-m', 'add a nested file']);
+    runGit(worktreeDir, ['add', 'src/lib/tracked.txt']);
+    runGit(worktreeDir, ['commit', '-m', 'add a nested file']);
     writeFileSync(join(nested, 'tracked.txt'), 'two\n');
 
     expect(await workTreePrefix(worktreeDir)).toBe('');
@@ -97,7 +85,7 @@ describe('the git adapter', () => {
     it('reports the checked-out branch of a repository, from a subdirectory too', async () => {
       dir = mkdtempSync(join(tmpdir(), 'garden-git-'));
       initRepo(dir);
-      git(dir, ['checkout', '-b', 'feat/y']);
+      runGit(dir, ['checkout', '-b', 'feat/y']);
       const nested = join(dir, 'src', 'lib');
       mkdirSync(nested, { recursive: true });
 
@@ -112,13 +100,13 @@ describe('the git adapter', () => {
       mkdirSync(repoDir);
       initRepo(repoDir);
       const worktreeDir = join(dir, 'worktree');
-      git(repoDir, ['worktree', 'add', worktreeDir, '-b', 'feat/x']);
+      runGit(repoDir, ['worktree', 'add', worktreeDir, '-b', 'feat/x']);
 
       const branch = createBranchReader();
       expect(await branch(repoDir)).toBe('main');
       expect(await branch(worktreeDir)).toBe('feat/x');
 
-      git(worktreeDir, ['checkout', '-b', 'feat/z']);
+      runGit(worktreeDir, ['checkout', '-b', 'feat/z']);
       expect(await branch(worktreeDir)).toBe('feat/z');
       expect(await branch(repoDir)).toBe('main');
     });
@@ -126,7 +114,7 @@ describe('the git adapter', () => {
     it('reports HEAD for a detached checkout', async () => {
       dir = mkdtempSync(join(tmpdir(), 'garden-git-'));
       initRepo(dir);
-      git(dir, ['checkout', '--detach']);
+      runGit(dir, ['checkout', '--detach']);
 
       expect(await createBranchReader()(dir)).toBe('HEAD');
     });
@@ -137,7 +125,7 @@ describe('the git adapter', () => {
       mkdirSync(repoDir);
       initRepo(repoDir);
       const worktreeDir = join(dir, 'worktree');
-      git(repoDir, ['worktree', 'add', worktreeDir, '-b', 'feat/x']);
+      runGit(repoDir, ['worktree', 'add', worktreeDir, '-b', 'feat/x']);
 
       const branch = createBranchReader();
       expect(await branch(worktreeDir)).toBe('feat/x');
@@ -184,7 +172,7 @@ describe('the git adapter', () => {
         expect(await branch(dir)).toBe('main');
         expect(launches()).toBe(1);
 
-        git(dir, ['checkout', '-b', 'feat/y']);
+        runGit(dir, ['checkout', '-b', 'feat/y']);
         const afterCheckout = launches();
         expect(await branch(dir)).toBe('feat/y');
         expect(await branch(dir)).toBe('feat/y');
@@ -197,8 +185,8 @@ describe('the git adapter', () => {
     it('asks git when HEAD is a symbolic ref outside refs/heads', async () => {
       dir = mkdtempSync(join(tmpdir(), 'garden-git-'));
       initRepo(dir);
-      git(dir, ['update-ref', 'refs/remotes/origin/main', 'HEAD']);
-      git(dir, ['symbolic-ref', 'HEAD', 'refs/remotes/origin/main']);
+      runGit(dir, ['update-ref', 'refs/remotes/origin/main', 'HEAD']);
+      runGit(dir, ['symbolic-ref', 'HEAD', 'refs/remotes/origin/main']);
 
       expect(await createBranchReader()(dir)).toBe('origin/main');
     });
@@ -236,7 +224,7 @@ describe('the git adapter', () => {
   it('reports a rename by its new path', async () => {
     dir = mkdtempSync(join(tmpdir(), 'garden-git-'));
     initRepo(dir);
-    git(dir, ['mv', 'README.md', 'RENAMED.md']);
+    runGit(dir, ['mv', 'README.md', 'RENAMED.md']);
 
     const entries = await status(dir);
     expect(entries).toContainEqual({ path: 'RENAMED.md', status: 'R ' });
@@ -246,8 +234,8 @@ describe('the git adapter', () => {
     dir = mkdtempSync(join(tmpdir(), 'garden-git-'));
     initRepo(dir);
     writeFileSync(join(dir, '.gitignore'), 'ignored.log\n');
-    git(dir, ['add', '.gitignore']);
-    git(dir, ['commit', '-m', 'add gitignore']);
+    runGit(dir, ['add', '.gitignore']);
+    runGit(dir, ['commit', '-m', 'add gitignore']);
     writeFileSync(join(dir, 'ignored.log'), 'x\n');
 
     const entries = await status(dir);

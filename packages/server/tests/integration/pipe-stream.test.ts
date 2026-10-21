@@ -4,15 +4,14 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { DEFAULT_OVERLAY_STATE } from '../../src/adapters/store.js';
 import { createPipes } from '../../src/app/pipes.js';
-import type { OverlayState, StorePort } from '../../src/app/ports.js';
 import { createProjection } from '../../src/app/projection.js';
 import { updateWatches } from '../../src/app/watches.js';
 import { runEventsFollow } from '../../src/cli/events.js';
 import type { WritableLike } from '../../src/cli/io.js';
 import type { Watch } from '../../src/domain/watches.js';
 import { createServer } from '../../src/http/server.js';
+import { fakeStore } from './support/fakeStore.js';
 import { noRootWatches } from './support/noRootWatches.js';
 import { until } from './support/poll.js';
 
@@ -76,13 +75,7 @@ describe('garden events --follow against the real server', () => {
   });
 
   it('prints a digest, acks it, and keeps delivering across a server restart', async () => {
-    let overlay: OverlayState = DEFAULT_OVERLAY_STATE;
-    const store: StorePort = {
-      read: () => overlay,
-      write: (state) => {
-        overlay = state;
-      },
-    };
+    const store = fakeStore();
     const port = await freePort();
     process.env.GARDEN_PORT = String(port);
 
@@ -158,7 +151,7 @@ describe('garden events --follow against the real server', () => {
 
     await until(
       'the first digest to be printed and acked',
-      () => Promise.resolve(overlay.watches[0]?.pendingDigest ?? null),
+      () => Promise.resolve(store.read().watches[0]?.pendingDigest ?? null),
       (pending) => printed.length === 1 && pending === null,
     );
 
@@ -169,7 +162,7 @@ describe('garden events --follow against the real server', () => {
 
     await until(
       'the second digest to be printed and acked after the restart',
-      () => Promise.resolve(overlay.watches[0]?.pendingDigest ?? null),
+      () => Promise.resolve(store.read().watches[0]?.pendingDigest ?? null),
       (pending) => printed.length === 2 && pending === null,
     );
 
