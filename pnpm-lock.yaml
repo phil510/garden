@@ -45,9 +45,6 @@ catalogs:
     '@xterm/xterm':
       specifier: 6.0.0
       version: 6.0.0
-    chokidar:
-      specifier: 5.0.0
-      version: 5.0.0
     dockview-core:
       specifier: 8.2.0
       version: 8.2.0
@@ -167,9 +164,6 @@ importers:
       '@garden/shared':
         specifier: workspace:*
         version: link:../shared
-      chokidar:
-        specifier: 'catalog:'
-        version: 5.0.0
       fastify:
         specifier: 'catalog:'
         version: 5.12.1
@@ -1033,10 +1027,6 @@ packages:
   character-reference-invalid@2.0.1:
     resolution: {integrity: sha512-iBZ4F4wRbyORVsu0jPV7gXkOsGYjGHPmAyv+HiHG8gi5PtC9KI2j1+v8/tlibRvjoWX027ypmG/n0HtO5t7unw==}
 
-  chokidar@5.0.0:
-    resolution: {integrity: sha512-TQMmc3w+5AxjpL8iIiwebF73dRDF4fBIieAqGn9RGCWaEVwQ6Fb2cGe31Yns0RRIzii5goJ1Y7xbMwo1TxMplw==}
-    engines: {node: '>= 20.19.0'}
-
   comma-separated-tokens@2.0.3:
     resolution: {integrity: sha512-Fu4hJdvzeylCfQPp9SGWidpzrMs7tTrlu6Vb8XGaRGck8QSNZJJp538Wrb60Lax4fPwR64ViY468OIUTbRlGZg==}
 
@@ -1810,10 +1800,6 @@ packages:
   react@19.2.8:
     resolution: {integrity: sha512-PWaYA1L/q9u2u7xYQi+Y3L3Yfnie7XyLeaJICV1MGD6LprsBxcAqGjYyr0eY3p+QdsA+x/Irkt4Qif8D63+Sbw==}
     engines: {node: '>=0.10.0'}
-
-  readdirp@5.1.1:
-    resolution: {integrity: sha512-Kko+Y5XQ6fM+Ce3dq3m9YGxnacYZYl9cA1wZjaF3Vbry2L3i1qVg8+CAgNPsXRArPMUMCaOR7oa9Nqntc43JKA==}
-    engines: {node: '>= 20.19.0'}
 
   real-require@0.2.0:
     resolution: {integrity: sha512-57frrGM/OCTLqLOAh0mhVA9VBMHd+9U7Zb2THMGdBUoZVOtGbJzjxsYGDJ3A9AYYCP4hn6y1TVbaOfzWtm5GFg==}
@@ -2871,10 +2857,6 @@ snapshots:
 
   character-reference-invalid@2.0.1: {}
 
-  chokidar@5.0.0:
-    dependencies:
-      readdirp: 5.1.1
-
   comma-separated-tokens@2.0.3: {}
 
   content-disposition@2.0.1: {}
@@ -3876,8 +3858,6 @@ snapshots:
       - supports-color
 
   react@19.2.8: {}
-
-  readdirp@5.1.1: {}
 
   real-require@0.2.0: {}
 

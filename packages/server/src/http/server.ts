@@ -5,6 +5,7 @@ import { errorHandler } from './errors.js';
 import { fastifyLogger } from './logger.js';
 import type { AttachSocketDeps } from './ws/attach.js';
 import type { FilesystemDeps } from '../app/filesystem.js';
+import type { HooksDeps } from '../app/hooks.js';
 import type { Logger } from '../app/ports.js';
 import type { RepoCatalog } from '../app/repoCatalog.js';
 import type { SessionsDeps } from '../app/sessions.js';
@@ -27,7 +28,8 @@ import { registerAttachSocket } from './ws/attach.js';
 import { registerEventsSocket, type EventsDeps } from './ws/events.js';
 import { pipeSessionId, registerPipeSocket, type PipeDeps } from './ws/pipe.js';
 
-export type ServerDeps = SessionsDeps & { readonly repos: RepoCatalog } & FilesystemDeps &
+export type ServerDeps = SessionsDeps &
+  HooksDeps & { readonly repos: RepoCatalog } & FilesystemDeps &
   AttachSocketDeps &
   EventsDeps &
   PipeDeps &

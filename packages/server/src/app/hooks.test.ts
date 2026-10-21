@@ -56,9 +56,22 @@ function setup(watches: Watch[]) {
   const projection = createProjection(store);
   for (const id of [GARDEN_ID, 'other'])
     projection.dispatch({ type: 'session-registered', id, tmuxName: id, cwd: `/work/${id}` });
-  const deps = { projection, git: { remoteUrl: () => Promise.resolve(null) } };
+  const tracked: string[] = [];
+  const liveTranscripts = {
+    track: (path: string) => {
+      tracked.push(path);
+    },
+  };
+  const deps = { projection, liveTranscripts, git: { remoteUrl: () => Promise.resolve(null) } };
   const summaries = (id: string) => projection.sessions().find((s) => s.id === id)?.watches;
-  return { projection, deps, pipes: createPipes(deps), watches: () => overlay.watches, summaries };
+  return {
+    projection,
+    deps,
+    tracked,
+    pipes: createPipes(deps),
+    watches: () => overlay.watches,
+    summaries,
+  };
 }
 
 const sessionStart = (source?: 'startup' | 'resume' | 'clear' | 'compact' | 'fork') =>
@@ -153,5 +166,19 @@ describe('handleHook keying', () => {
     const ids = t.projection.sessions().map((s) => s.id);
     expect(ids).not.toContain(NEW_CLAUDE_ID);
     expect(ids).toContain(GARDEN_ID);
+  });
+});
+
+describe('handleHook live transcripts', () => {
+  it("tracks the payload's transcript_path as live", () => {
+    const t = setup([]);
+
+    handleHook(
+      t.deps,
+      aHookEvent({ hook_event_name: 'UserPromptSubmit', transcript_path: '/t/slug/abc.jsonl' }),
+      GARDEN_ID,
+    );
+
+    expect(t.tracked).toEqual(['/t/slug/abc.jsonl']);
   });
 });

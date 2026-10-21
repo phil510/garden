@@ -17,7 +17,6 @@
   "dependencies": {
     "@garden/shared": "workspace:*",
     "@fastify/static": "catalog:",
-    "chokidar": "catalog:",
     "fastify": "catalog:",
     "node-pty": "catalog:",
     "ws": "catalog:"

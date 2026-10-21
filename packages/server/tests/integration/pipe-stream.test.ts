@@ -83,6 +83,7 @@ describe('garden events --follow against the real server', () => {
       const projection = createProjection(store);
       const deps = { projection, git: { remoteUrl: () => Promise.resolve(null) } };
       const server = createServer({
+        liveTranscripts: { track: () => undefined },
         projection,
         pipes: createPipes(deps),
         repos: { list: () => Promise.resolve([]), resolveRoot: notUsed },

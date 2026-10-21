@@ -107,6 +107,7 @@ describe('the generated hook command', () => {
 
 function realServer(projection: Projection) {
   return createGardenServer({
+    liveTranscripts: { track: () => undefined },
     projection,
     pipes: noPipes,
     rootWatches: noRootWatches,

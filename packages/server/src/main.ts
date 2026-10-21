@@ -9,11 +9,7 @@ import { createLogger, guardStderr, type Logger } from './adapters/logger.js';
 import { attachPty } from './adapters/pty.js';
 import type { PtyTarget } from './adapters/pty.js';
 import { readOverlayState, writeOverlayState } from './adapters/store.js';
-import {
-  listTranscriptFiles,
-  readTranscriptRecord,
-  watchTranscripts,
-} from './adapters/transcripts.js';
+import { createTranscripts } from './adapters/transcripts.js';
 import {
   applyConf,
   checkTmuxVersion,
@@ -55,7 +51,6 @@ import {
   patchConfigFile,
   readConfigFile,
   resolveClaudeCommand,
-  type Config,
 } from './config.js';
 import type { TmuxSessionFact } from './domain/types.js';
 import { createServer } from './http/server.js';
@@ -103,14 +98,6 @@ function configPort(home: string): ConfigPort {
  *  unlike `permissionMode`, which `main` still reads once from `config` at boot. */
 function readClaudeCommand(configPort: ConfigPort): () => readonly string[] {
   return () => resolveClaudeCommand(process.env, configPort.read());
-}
-
-function transcriptPort(config: Config, logger: Logger): TranscriptPort {
-  return {
-    listFiles: () => listTranscriptFiles(config.transcriptsDir, config.roots),
-    readRecord: (path) => readTranscriptRecord(path),
-    watch: (onEvent) => watchTranscripts(config.transcriptsDir, config.roots, onEvent, logger),
-  };
 }
 
 function fsWatchPort(logger: Logger): FsWatchPort {
@@ -237,7 +224,11 @@ export async function main(detached: boolean): Promise<void> {
   const store = storePort(config.appDir, logger);
   const configAdapter = configPort(home);
   const tmux = tmuxPort({ socket: config.tmuxSocket, confPath });
-  const transcripts = transcriptPort(config, logger);
+  const transcripts: TranscriptPort = createTranscripts(
+    config.transcriptsDir,
+    config.roots,
+    logger,
+  );
   const git = gitPort();
   const projection = createProjection(store);
   const pipes = createPipes({ projection, git });
@@ -253,8 +244,8 @@ export async function main(detached: boolean): Promise<void> {
   // Started before replay() rather than after — including before its store-loaded and
   // tmux-snapshot dispatches, not just before its transcript scan — so a write landing
   // anywhere in that window still reaches the watch instead of being lost until the next
-  // unrelated event or a restart. The watcher's own initial scan dispatches nothing
-  // (ignoreInitial), so this only affects files written during boot, not the existing corpus.
+  // unrelated event or a restart. The watcher dispatches nothing for files replay has already read,
+  // so this only affects files written during boot, not the existing corpus.
   const transcriptReplay = createTranscriptReplay({ projection, transcripts }, logger);
   const watcher = transcripts.watch((event) => {
     transcriptReplay.live(event);
@@ -330,6 +321,7 @@ export async function main(detached: boolean): Promise<void> {
   const app = createServer(
     {
       projection,
+      liveTranscripts: watcher,
       pipes,
       tmux,
       git,
