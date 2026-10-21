@@ -263,6 +263,14 @@ describe('ui state', () => {
       expect(store.written()).toBe(unfitted);
     });
 
+    it('widens from the fitted stage when a patch changes only the preset', () => {
+      const projection = createProjection(fakeStore(unfitted).port);
+
+      projection.updateUiState({ preset: 'two-across' });
+
+      expect(projection.uiState().slots).toEqual(['sid-1', null]);
+    });
+
     it('stays fitted after an overlay write that leaves the stage alone', () => {
       const projection = createProjection(fakeStore(unfitted).port);
 

@@ -94,7 +94,7 @@ export function createProjection(store: StorePort): Projection {
       // The preset decides how many slots exist, so the slot array is fitted to it here rather
       // than trusted from the client: a patch naming a smaller preset returns the panes that no
       // longer fit to the sidebar, and every other patch leaves an already-fitting stage alone.
-      const next = fitStage({ ...base.ui, ...patch });
+      const next = fitStage({ ...fitStage(base.ui), ...patch });
       store.write({ ...base, ui: next });
       ui = next;
       for (const listener of [...uiListeners]) listener(ui);
