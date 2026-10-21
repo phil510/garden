@@ -81,6 +81,9 @@ when the cwd is still empty. And a hook for an id garden has not seen creates th
 (`blank(id)`), so a session started outside garden appears on its first hook, before its
 transcript is read.
 
+A cwd git finds no repo for has no repo root, and so no sidebar group, unless the cwd is itself a
+configured root: then it is its own root, so a session started in `~/src` still gets a group.
+
 Whether a pane socket is open for a session is not session state. It is bookkeeping in
 `app/attach.ts` that refuses a second concurrent attach; the client learns a session is already
 on stage from `shown`.
