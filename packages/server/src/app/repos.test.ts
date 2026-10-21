@@ -283,6 +283,32 @@ describe('listRepos with a bare clone', () => {
     ]);
   });
 
+  it('lists neither an independent clone beside the clone nor a hidden directory below the first level', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'garden-repos-'));
+    const repo = join(dir, 'repoI');
+    const nested = join(repo, 'feat', 'y');
+    markAsGitLink(repo);
+    mkdirSync(join(repo, '.bare'), { recursive: true });
+    markAsGitLink(nested);
+    markAsGitLink(join(repo, 'feat', '.cache'));
+    // An independent clone has a `.git` directory, and nothing inside it is a worktree.
+    mkdirSync(join(repo, 'scratch-clone', '.git'), { recursive: true });
+    markAsGitLink(join(repo, 'scratch-clone', 'inner'));
+    const resolvedRepo = realpathSync(repo);
+    const git = fakeGit(
+      { [repo]: resolvedRepo, [nested]: resolvedRepo },
+      { [repo]: 'main', [nested]: 'feat/y' },
+      [repo],
+    );
+
+    const repos = await listRepos({ git, roots: [dir] });
+
+    expect(repos.toSorted((a, b) => a.path.localeCompare(b.path))).toEqual([
+      { path: repo, name: 'repoI', branch: 'main', isWorktree: false },
+      { path: nested, name: 'y', branch: 'feat/y', isWorktree: true },
+    ]);
+  });
+
   it('stays out of a repo whose .git file points at a git dir that is not bare', async () => {
     dir = mkdtempSync(join(tmpdir(), 'garden-repos-'));
     const repo = join(dir, 'repoH');
@@ -411,7 +437,9 @@ describe('isListedPath', () => {
       bareClone(join(root, 'repoC'));
       worktree(join(root, 'repoC', 'main'));
       worktree(join(root, 'repoC', '.hidden'));
-      mkdirSync(join(root, 'repoC', 'feat'));
+      worktree(join(root, 'repoC', 'feat', '.cache'));
+      repo(join(root, 'repoC', 'scratch-clone'));
+      mkdirSync(join(root, 'repoC', 'feat'), { recursive: true });
       const deps = { git: diskGit(), roots: [root] };
 
       for (const rejected of [
@@ -428,6 +456,8 @@ describe('isListedPath', () => {
         join(root, 'repoC', '.bare'),
         join(root, 'repoC', '.hidden'),
         join(root, 'repoC', 'feat'),
+        join(root, 'repoC', 'feat', '.cache'),
+        join(root, 'repoC', 'scratch-clone'),
       ]) {
         expect(await isListedPath(deps, rejected), rejected).toBe(false);
       }
@@ -456,6 +486,9 @@ describe('isListedPath', () => {
     worktree(join(root, 'repoC', 'main'));
     worktree(join(root, 'repoC', 'feat', 'x'));
     worktree(join(root, 'repoC', '.hidden'));
+    worktree(join(root, 'repoC', 'feat', '.cache'));
+    repo(join(root, 'repoC', 'scratch-clone'));
+    worktree(join(root, 'repoC', 'scratch-clone', 'inner'));
     mkdirSync(join(root, 'repoC', '.bare', 'worktrees', 'main'), { recursive: true });
     const deps = { git: diskGit(), roots: [root] };
     const listed = new Set((await listRepos(deps)).map((entry) => realpathSync(entry.path)));

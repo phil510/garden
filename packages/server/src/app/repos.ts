@@ -134,8 +134,9 @@ interface Step {
  * child qualifies as a repo, a repo's only interesting child is `.worktrees`, and below that
  * the first directory with its own `.git` is a worktree (nothing inside one is another).
  * A bare clone's directory (`.bare/` beside a `.git` gitlink to it) has no working tree of its
- * own; its worktrees are checked out directly beside the clone, so every visible child is
- * searched the way `.worktrees` is.
+ * own; its worktrees are checked out directly beside the clone, at any depth (`feat/x`). A
+ * visible child with a `.git` file is a worktree, one with a `.git` directory is an independent
+ * clone (neither listed nor searched), and one with neither is searched in the same position.
  * `listRepos` walks this step over directory listings; `isListedPath` folds it over one path.
  */
 async function step(git: ReposGit, limiter: Limiter, pos: Position, dir: string): Promise<Step> {
@@ -154,10 +155,16 @@ async function step(git: ReposGit, limiter: Limiter, pos: Position, dir: string)
       return basename(dir) === WORKTREES ? { next: 'worktrees' } : {};
     case 'bare-repo':
       // `.bare/` itself, and anything else hidden, is not where worktrees are checked out
-      return basename(dir).startsWith('.') ? {} : worktreesStep(dir);
+      if (basename(dir).startsWith('.')) return {};
+      return bareRepoStep(await gitEntry(dir));
     case 'worktrees':
       return worktreesStep(dir);
   }
+}
+
+function bareRepoStep(entry: 'directory' | 'file' | null): Step {
+  if (entry === 'file') return { listed: 'worktree' };
+  return entry === 'directory' ? {} : { next: 'bare-repo' };
 }
 
 async function worktreesStep(dir: string): Promise<Step> {
