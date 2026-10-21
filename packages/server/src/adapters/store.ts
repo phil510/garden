@@ -1,20 +1,14 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { STAGE_PRESETS, isWatchKind } from '@garden/shared';
-import type { SessionPlacement, SwarmRecord } from '@garden/shared';
-import type { OverlayStage, OverlayState, PersistedAlert } from '../domain/overlay.js';
+import { DEFAULT_UI_STATE, STAGE_PRESETS, isWatchKind } from '@garden/shared';
+import type { SessionPlacement, StagePreset, SwarmRecord, UiState } from '@garden/shared';
+import type { OverlayState, PersistedAlert } from '../domain/overlay.js';
 import type { DigestRecord, Watch } from '../domain/watches.js';
 
 export const DEFAULT_OVERLAY_STATE: OverlayState = {
-  version: 1,
+  version: 2,
   tmuxNames: {},
-  groups: {},
-  stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
-  swarms: [],
-  placements: {},
-  swarmOrder: [],
-  collapsedSwarms: [],
-  hideDeadSwarms: [],
+  ui: DEFAULT_UI_STATE,
   watches: [],
   alerts: [],
   digests: [],
@@ -37,19 +31,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-/** `layout` is deliberately absent: it is dockview's own opaque blob, and the only reader
- *  is its `fromJSON`. The rest of `stage` is spread and indexed unchecked on boot. */
-function isOverlayStage(value: unknown): value is OverlayStage {
-  if (!isRecord(value)) return false;
-  const preset = value['preset'];
-  const slots = value['slots'];
-  return (
-    typeof preset === 'string' &&
-    presets.has(preset) &&
-    Array.isArray(slots) &&
-    slots.every((slot) => slot === null || typeof slot === 'string') &&
-    typeof value['focusedSlot'] === 'number'
-  );
+function isStagePreset(value: unknown): value is StagePreset {
+  return typeof value === 'string' && presets.has(value);
+}
+
+function isSlots(value: unknown): value is (string | null)[] {
+  return Array.isArray(value) && value.every((slot) => slot === null || typeof slot === 'string');
 }
 
 function isSwarmRecord(value: unknown): value is SwarmRecord {
@@ -61,7 +48,7 @@ function isSwarmRecord(value: unknown): value is SwarmRecord {
   );
 }
 
-function isSwarms(value: unknown): value is readonly SwarmRecord[] {
+function isSwarms(value: unknown): value is SwarmRecord[] {
   return Array.isArray(value) && value.every(isSwarmRecord);
 }
 
@@ -73,7 +60,7 @@ function isSessionPlacement(value: unknown): value is SessionPlacement {
   return isRecord(value) && isOptionalString(value['parent']) && isOptionalString(value['swarmId']);
 }
 
-function isPlacements(value: unknown): value is Readonly<Record<string, SessionPlacement>> {
+function isPlacements(value: unknown): value is Record<string, SessionPlacement> {
   return isRecord(value) && Object.values(value).every(isSessionPlacement);
 }
 
@@ -145,33 +132,128 @@ function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((entry) => typeof entry === 'string');
 }
 
-/** Every field the rest of the server reads without checking. A file that parses as
- *  JSON but does not answer this shape is as unusable as one that does not parse.
- *  `swarms`/`placements`/`swarmOrder`/`collapsedSwarms`/`hideDeadSwarms` are the exception:
- *  absent is valid (a pre-#170/#187 `state.json` simply predates them, and losing its
- *  `tmuxNames`/`groups`/`stage` over fields it never had would be the actual loss), but
- *  present-and-malformed still fails the whole file, same as every other field here.
- *  `watches` and `alerts` follow that rule for the array itself; its entries are filtered one by one in
- *  `readOverlayState`. */
-function isOverlayState(
-  value: unknown,
-): value is Record<string, unknown> &
-  Pick<OverlayState, 'version' | 'tmuxNames' | 'groups' | 'stage'> {
-  if (!isRecord(value)) return false;
+/** The list fields hold entries that are filtered one by one in `readOverlayState`, so a
+ *  list that is absent reads as empty (a `state.json` that predates it loses nothing), but one
+ *  that is present and not an array fails the whole file. */
+function hasWellFormedLists(value: Record<string, unknown>): boolean {
   return (
-    value['version'] === 1 &&
-    isRecord(value['tmuxNames']) &&
-    isRecord(value['groups']) &&
-    isOverlayStage(value['stage']) &&
-    (value['swarms'] === undefined || isSwarms(value['swarms'])) &&
-    (value['placements'] === undefined || isPlacements(value['placements'])) &&
-    (value['swarmOrder'] === undefined || isStringArray(value['swarmOrder'])) &&
-    (value['collapsedSwarms'] === undefined || isStringArray(value['collapsedSwarms'])) &&
-    (value['hideDeadSwarms'] === undefined || isStringArray(value['hideDeadSwarms'])) &&
     (value['watches'] === undefined || Array.isArray(value['watches'])) &&
     (value['alerts'] === undefined || Array.isArray(value['alerts'])) &&
     (value['digests'] === undefined || Array.isArray(value['digests']))
   );
+}
+
+/** A guard per `UiState` key. Typed as a mapped type so a field added to `UiState` fails
+ *  typecheck here until it has one. `layout` accepts anything: it is dockview's own opaque
+ *  blob and the only reader is its `fromJSON`. */
+const UI_GUARDS: { readonly [K in keyof UiState]: (value: unknown) => value is UiState[K] } = {
+  groupOrder: isStringArray,
+  pinnedRepos: isStringArray,
+  collapsedRepos: isStringArray,
+  hideDeadRepos: isStringArray,
+  preset: isStagePreset,
+  slots: isSlots,
+  focusedSlot: (value): value is number => typeof value === 'number',
+  layout: (value): value is unknown => value !== undefined,
+  swarms: isSwarms,
+  placements: isPlacements,
+  swarmOrder: isStringArray,
+  collapsedSwarms: isStringArray,
+  hideDeadSwarms: isStringArray,
+};
+
+/** An absent key takes its default silently, so a field added later does not make every
+ *  existing file lose its other contents. A present key that fails its guard is reported and
+ *  takes the default too: failing the whole file would drop `tmuxNames` on the next write. */
+function readUi(value: Record<string, unknown>, path: string, logger: StoreLogger): UiState {
+  // A clone, not the shared default, so the result owns its arrays and records.
+  const ui: Record<string, unknown> = { ...structuredClone(DEFAULT_UI_STATE) };
+  for (const key of Object.keys(UI_GUARDS) as (keyof UiState)[]) {
+    const entry = value[key];
+    if (entry === undefined) continue;
+    if (UI_GUARDS[key](entry)) ui[key] = entry;
+    else logger.warn(`ignoring invalid ui.${key} in ${path}`);
+  }
+  // Every key has either passed its guard or kept its default.
+  return ui as unknown as UiState;
+}
+
+/** Version 1 flattened the UI state into a per-repo `groups` map and a `stage` record. */
+interface V1Group {
+  readonly pinned: boolean;
+  readonly order: number;
+  readonly collapsed: boolean;
+  readonly hideDead: boolean;
+}
+
+interface V1Stage {
+  readonly preset: StagePreset;
+  readonly slots: (string | null)[];
+  readonly focusedSlot: number;
+  readonly layout?: unknown;
+}
+
+function isV1Group(value: unknown): value is V1Group {
+  return (
+    isRecord(value) &&
+    typeof value['pinned'] === 'boolean' &&
+    typeof value['order'] === 'number' &&
+    typeof value['collapsed'] === 'boolean' &&
+    typeof value['hideDead'] === 'boolean'
+  );
+}
+
+function isV1Stage(value: unknown): value is V1Stage {
+  return (
+    isRecord(value) &&
+    isStagePreset(value['preset']) &&
+    isSlots(value['slots']) &&
+    typeof value['focusedSlot'] === 'number'
+  );
+}
+
+/** The v1 fields a v1 file must carry. The swarm fields are the exception: a pre-#170/#187
+ *  file predates them, and losing its `tmuxNames`/`groups`/`stage` over fields it never had
+ *  would be the actual loss. Present and malformed still fails the whole file. */
+function isV1State(value: Record<string, unknown>): value is Record<string, unknown> & {
+  groups: Record<string, V1Group>;
+  stage: V1Stage;
+} {
+  return (
+    isRecord(value['groups']) &&
+    Object.values(value['groups']).every(isV1Group) &&
+    isV1Stage(value['stage']) &&
+    (value['swarms'] === undefined || isSwarms(value['swarms'])) &&
+    (value['placements'] === undefined || isPlacements(value['placements'])) &&
+    (value['swarmOrder'] === undefined || isStringArray(value['swarmOrder'])) &&
+    (value['collapsedSwarms'] === undefined || isStringArray(value['collapsedSwarms'])) &&
+    (value['hideDeadSwarms'] === undefined || isStringArray(value['hideDeadSwarms']))
+  );
+}
+
+/** The `ui` a v2 file would hold, built from a validated v1 file: the per-repo `groups` map
+ *  becomes the three repo lists plus their order, and the stage's fields sit beside them. */
+function liftV1Ui(
+  value: Record<string, unknown> & { groups: Record<string, V1Group>; stage: V1Stage },
+): Record<string, unknown> {
+  const entries = Object.entries(value.groups).sort((a, b) => a[1].order - b[1].order);
+  const where = (flag: 'pinned' | 'collapsed' | 'hideDead') =>
+    entries.filter(([, group]) => group[flag]).map(([repo]) => repo);
+  return {
+    groupOrder: entries.map(([repo]) => repo),
+    pinnedRepos: where('pinned'),
+    collapsedRepos: where('collapsed'),
+    hideDeadRepos: where('hideDead'),
+    preset: value.stage.preset,
+    slots: value.stage.slots,
+    focusedSlot: value.stage.focusedSlot,
+    layout: value.stage.layout,
+    swarms: value['swarms'],
+    placements: value['placements'],
+    swarmOrder: value['swarmOrder'],
+    collapsedSwarms: value['collapsedSwarms'],
+    hideDeadSwarms: value['hideDeadSwarms'],
+  };
 }
 
 /** The detail is a read-path extra; the pending digest line is what gets delivered. A malformed
@@ -247,6 +329,20 @@ function readPipes(
   return pipes;
 }
 
+/** `undefined` when the file's UI part is unusable: an unknown version, a v1 file with a bad
+ *  stage or group, a v2 file with no `ui` object. */
+function readStoredUi(
+  parsed: Record<string, unknown>,
+  path: string,
+  logger: StoreLogger,
+): UiState | undefined {
+  if (parsed['version'] === 1)
+    return isV1State(parsed) ? readUi(liftV1Ui(parsed), path, logger) : undefined;
+  if (parsed['version'] === 2)
+    return isRecord(parsed['ui']) ? readUi(parsed['ui'], path, logger) : undefined;
+  return undefined;
+}
+
 /** A missing file means a fresh install. A file that is present but unreadable as an
  *  overlay is a loss worth reporting: `tmuxNames` maps session ids to the tmux names
  *  garden chose, and nothing can recompute it. */
@@ -266,20 +362,18 @@ export function readOverlayState(appDir: string, logger: StoreLogger): OverlaySt
     logger.warn(`ignoring unparseable ${path}: ${(error as Error).message}`);
     return DEFAULT_OVERLAY_STATE;
   }
-  if (!isOverlayState(parsed)) {
-    logger.warn(`ignoring ${path}: not a version 1 overlay state`);
+  const ui =
+    isRecord(parsed) && isRecord(parsed['tmuxNames']) && hasWellFormedLists(parsed)
+      ? readStoredUi(parsed, path, logger)
+      : undefined;
+  if (!isRecord(parsed) || ui === undefined) {
+    logger.warn(`ignoring ${path}: not a version 1 or 2 overlay state`);
     return DEFAULT_OVERLAY_STATE;
   }
   return {
-    version: 1,
-    tmuxNames: parsed.tmuxNames,
-    groups: parsed.groups,
-    stage: parsed.stage,
-    swarms: isSwarms(parsed['swarms']) ? parsed['swarms'] : [],
-    placements: isPlacements(parsed['placements']) ? parsed['placements'] : {},
-    swarmOrder: isStringArray(parsed['swarmOrder']) ? parsed['swarmOrder'] : [],
-    collapsedSwarms: isStringArray(parsed['collapsedSwarms']) ? parsed['collapsedSwarms'] : [],
-    hideDeadSwarms: isStringArray(parsed['hideDeadSwarms']) ? parsed['hideDeadSwarms'] : [],
+    version: 2,
+    tmuxNames: parsed['tmuxNames'] as Record<string, string>,
+    ui,
     watches: readWatches(parsed['watches'], path, logger),
     alerts: readAlerts(parsed['alerts'], path, logger),
     digests: readDigests(parsed['digests'], path, logger),

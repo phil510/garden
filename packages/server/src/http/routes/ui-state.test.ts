@@ -1,3 +1,4 @@
+import { DEFAULT_UI_STATE } from '@garden/shared';
 import type { UiState, UiStateRequest } from '@garden/shared';
 import { describe, expect, it } from 'vitest';
 import type { Projection } from '../../app/projection.js';
@@ -5,21 +6,7 @@ import { createApp } from '../server.js';
 import { uiStateRoutes } from './ui-state.js';
 import type { UiStateDeps } from './ui-state.js';
 
-const baseUiState: UiState = {
-  groupOrder: [],
-  pinnedRepos: [],
-  collapsedRepos: [],
-  hideDeadRepos: [],
-  preset: 'single',
-  slots: [null],
-  focusedSlot: 0,
-  layout: null,
-  swarms: [],
-  placements: {},
-  swarmOrder: [],
-  collapsedSwarms: [],
-  hideDeadSwarms: [],
-};
+const baseUiState: UiState = DEFAULT_UI_STATE;
 
 function fakeProjection(overrides: Partial<Projection> = {}): Projection {
   return {

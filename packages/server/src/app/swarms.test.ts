@@ -1,3 +1,4 @@
+import { DEFAULT_UI_STATE } from '@garden/shared';
 import { aSession } from '@garden/shared/fixtures';
 import type { SessionState } from '@garden/shared';
 import { describe, expect, it } from 'vitest';
@@ -18,15 +19,9 @@ import {
 } from './swarms.js';
 
 const emptyOverlay: OverlayState = {
-  version: 1,
+  version: 2,
   tmuxNames: {},
-  groups: {},
-  stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
-  swarms: [],
-  placements: {},
-  swarmOrder: [],
-  collapsedSwarms: [],
-  hideDeadSwarms: [],
+  ui: DEFAULT_UI_STATE,
   watches: [],
   alerts: [],
   digests: [],
@@ -76,7 +71,7 @@ describe('createSwarm', () => {
 
     const { id } = createSwarm({ projection }, { name: 'My swarm' });
 
-    expect(current().swarms).toEqual([{ id, name: 'My swarm', archived: false }]);
+    expect(current().ui.swarms).toEqual([{ id, name: 'My swarm', archived: false }]);
   });
 });
 
@@ -84,13 +79,13 @@ describe('renameSwarm', () => {
   it('renames an existing swarm', () => {
     const overlay: OverlayState = {
       ...emptyOverlay,
-      swarms: [{ id: 's1', name: 'Old', archived: false }],
+      ui: { ...emptyOverlay.ui, swarms: [{ id: 's1', name: 'Old', archived: false }] },
     };
     const { projection, current } = fakeProjection(overlay);
 
     renameSwarm({ projection }, { id: 's1', name: 'New' });
 
-    expect(current().swarms).toEqual([{ id: 's1', name: 'New', archived: false }]);
+    expect(current().ui.swarms).toEqual([{ id: 's1', name: 'New', archived: false }]);
   });
 
   it('throws SwarmNotFoundError and performs no write for an unknown swarm', () => {
@@ -107,15 +102,15 @@ describe('archiveSwarm / unarchiveSwarm', () => {
   it('toggles the archived flag', () => {
     const overlay: OverlayState = {
       ...emptyOverlay,
-      swarms: [{ id: 's1', name: 'A', archived: false }],
+      ui: { ...emptyOverlay.ui, swarms: [{ id: 's1', name: 'A', archived: false }] },
     };
     const { projection, current } = fakeProjection(overlay);
 
     archiveSwarm({ projection }, { id: 's1' });
-    expect(current().swarms).toEqual([{ id: 's1', name: 'A', archived: true }]);
+    expect(current().ui.swarms).toEqual([{ id: 's1', name: 'A', archived: true }]);
 
     unarchiveSwarm({ projection }, { id: 's1' });
-    expect(current().swarms).toEqual([{ id: 's1', name: 'A', archived: false }]);
+    expect(current().ui.swarms).toEqual([{ id: 's1', name: 'A', archived: false }]);
   });
 
   it('throws SwarmNotFoundError and performs no write for an unknown swarm', () => {
@@ -130,18 +125,21 @@ describe('deleteSwarm', () => {
   it('removes the swarm record and clears swarmId on its members, keeping their parent edges', () => {
     const overlay: OverlayState = {
       ...emptyOverlay,
-      swarms: [{ id: 's1', name: 'A', archived: false }],
-      placements: {
-        top: { swarmId: 's1' },
-        child: { parent: 'top' },
+      ui: {
+        ...emptyOverlay.ui,
+        swarms: [{ id: 's1', name: 'A', archived: false }],
+        placements: {
+          top: { swarmId: 's1' },
+          child: { parent: 'top' },
+        },
       },
     };
     const { projection, current } = fakeProjection(overlay);
 
     deleteSwarm({ projection }, { id: 's1' });
 
-    expect(current().swarms).toEqual([]);
-    expect(current().placements).toEqual({ top: {}, child: { parent: 'top' } });
+    expect(current().ui.swarms).toEqual([]);
+    expect(current().ui.placements).toEqual({ top: {}, child: { parent: 'top' } });
   });
 
   it('throws SwarmNotFoundError and performs no write for an unknown swarm', () => {
@@ -187,7 +185,10 @@ describe('placeSession', () => {
   });
 
   it('throws SwarmCycleError and performs no write for a parent cycle', () => {
-    const overlay: OverlayState = { ...emptyOverlay, placements: { child: { parent: 'a' } } };
+    const overlay: OverlayState = {
+      ...emptyOverlay,
+      ui: { ...emptyOverlay.ui, placements: { child: { parent: 'a' } } },
+    };
     const { projection, writes } = fakeProjection(overlay, [
       aSession({ id: 'a' }),
       aSession({ id: 'child' }),
@@ -208,14 +209,17 @@ describe('placeSession', () => {
 
     placeSession({ projection }, { sessionId: 'a', placement: { type: 'parent', parentId: 'b' } });
 
-    expect(current().placements['a']).toEqual({ parent: 'b' });
+    expect(current().ui.placements['a']).toEqual({ parent: 'b' });
   });
 
   it('sets exactly the swarm placement, replacing any prior parent', () => {
     const overlay: OverlayState = {
       ...emptyOverlay,
-      swarms: [{ id: 's1', name: 'A', archived: false }],
-      placements: { a: { parent: 'orchestrator' } },
+      ui: {
+        ...emptyOverlay.ui,
+        swarms: [{ id: 's1', name: 'A', archived: false }],
+        placements: { a: { parent: 'orchestrator' } },
+      },
     };
     const { projection, current } = fakeProjection(overlay, [
       aSession({ id: 'a' }),
@@ -224,7 +228,7 @@ describe('placeSession', () => {
 
     placeSession({ projection }, { sessionId: 'a', placement: { type: 'swarm', swarmId: 's1' } });
 
-    expect(current().placements['a']).toEqual({ swarmId: 's1' });
+    expect(current().ui.placements['a']).toEqual({ swarmId: 's1' });
   });
 });
 
@@ -232,8 +236,11 @@ describe('recordSpawn', () => {
   it('places the child under an already-swarmed caller, with one write and no new swarm', () => {
     const overlay: OverlayState = {
       ...emptyOverlay,
-      swarms: [{ id: 's1', name: 'Existing', archived: false }],
-      placements: { caller: { swarmId: 's1' } },
+      ui: {
+        ...emptyOverlay.ui,
+        swarms: [{ id: 's1', name: 'Existing', archived: false }],
+        placements: { caller: { swarmId: 's1' } },
+      },
     };
     const { projection, writes, current } = fakeProjection(overlay, [
       aSession({ id: 'caller' }),
@@ -243,8 +250,8 @@ describe('recordSpawn', () => {
     recordSpawn({ projection }, { callerId: 'caller', childId: 'child', callerTitle: 'Caller' });
 
     expect(writes).toHaveLength(1);
-    expect(current().swarms).toEqual([{ id: 's1', name: 'Existing', archived: false }]);
-    expect(current().placements).toEqual({
+    expect(current().ui.swarms).toEqual([{ id: 's1', name: 'Existing', archived: false }]);
+    expect(current().ui.placements).toEqual({
       caller: { swarmId: 's1' },
       child: { parent: 'caller' },
     });
@@ -259,11 +266,11 @@ describe('recordSpawn', () => {
     recordSpawn({ projection }, { callerId: 'caller', childId: 'child', callerTitle: 'Caller' });
 
     expect(writes).toHaveLength(1);
-    expect(current().swarms).toHaveLength(1);
-    const swarm = current().swarms[0]!;
+    expect(current().ui.swarms).toHaveLength(1);
+    const swarm = current().ui.swarms[0]!;
     expect(swarm.name).toBe('Caller');
     expect(swarm.archived).toBe(false);
-    expect(current().placements).toEqual({
+    expect(current().ui.placements).toEqual({
       caller: { swarmId: swarm.id },
       child: { parent: 'caller' },
     });
@@ -276,7 +283,7 @@ describe('recordSpawn', () => {
     // unplaced caller. Minting a swarm here would silently drop the `parent` edge.
     const overlay: OverlayState = {
       ...emptyOverlay,
-      placements: { caller: { parent: 'other-top-level' } },
+      ui: { ...emptyOverlay.ui, placements: { caller: { parent: 'other-top-level' } } },
     };
     const { projection, writes, current } = fakeProjection(overlay, [
       aSession({ id: 'caller' }),
@@ -286,8 +293,8 @@ describe('recordSpawn', () => {
     recordSpawn({ projection }, { callerId: 'caller', childId: 'child', callerTitle: 'Caller' });
 
     expect(writes).toHaveLength(1);
-    expect(current().swarms).toEqual([]);
-    expect(current().placements).toEqual({
+    expect(current().ui.swarms).toEqual([]);
+    expect(current().ui.placements).toEqual({
       caller: { parent: 'other-top-level' },
       child: { parent: 'caller' },
     });
@@ -301,7 +308,7 @@ describe('recordSpawn', () => {
 
     recordSpawn({ projection }, { callerId: 'caller', childId: 'child', callerTitle: null });
 
-    expect(current().swarms[0]?.name).toBe('Untitled swarm');
+    expect(current().ui.swarms[0]?.name).toBe('Untitled swarm');
   });
 
   it('throws SessionNotFoundError and performs no write for an unknown caller', () => {
@@ -318,18 +325,21 @@ describe('pruneKnownSessions', () => {
   it('drops placements for unknown sessions and writes the result', () => {
     const overlay: OverlayState = {
       ...emptyOverlay,
-      placements: { known: {}, gone: { swarmId: 's1' } },
+      ui: { ...emptyOverlay.ui, placements: { known: {}, gone: { swarmId: 's1' } } },
     };
     const { projection, current, writes } = fakeProjection(overlay, [aSession({ id: 'known' })]);
 
     pruneKnownSessions({ projection });
 
-    expect(current().placements).toEqual({ known: {} });
+    expect(current().ui.placements).toEqual({ known: {} });
     expect(writes).toHaveLength(1);
   });
 
   it('performs no write when nothing needs pruning', () => {
-    const overlay: OverlayState = { ...emptyOverlay, placements: { known: {} } };
+    const overlay: OverlayState = {
+      ...emptyOverlay,
+      ui: { ...emptyOverlay.ui, placements: { known: {} } },
+    };
     const { projection, writes } = fakeProjection(overlay, [aSession({ id: 'known' })]);
 
     pruneKnownSessions({ projection });
@@ -341,7 +351,7 @@ describe('pruneKnownSessions', () => {
     const overlay: OverlayState = {
       ...emptyOverlay,
       tmuxNames: { child: 'garden-child' },
-      placements: { child: {} },
+      ui: { ...emptyOverlay.ui, placements: { child: {} } },
     };
     const { projection, writes } = fakeProjection(overlay, []);
 

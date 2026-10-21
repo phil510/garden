@@ -64,12 +64,12 @@ export function validatePlacement(
   placement: Placement,
 ): DomainResult {
   if (placement.type === 'swarm') {
-    if (!overlay.swarms.some((swarm) => swarm.id === placement.swarmId))
+    if (!overlay.ui.swarms.some((swarm) => swarm.id === placement.swarmId))
       return { ok: false, reason: `no such swarm: ${placement.swarmId}` };
     return { ok: true };
   }
   if (placement.type === 'parent') {
-    if (wouldCreateParentCycle(overlay.placements, sessionId, placement.parentId))
+    if (wouldCreateParentCycle(overlay.ui.placements, sessionId, placement.parentId))
       return {
         ok: false,
         reason: `would create a cycle: ${placement.parentId} is already a descendant of ${sessionId}`,
@@ -94,7 +94,7 @@ export function pruneOverlay(
   overlay: OverlayState,
   knownSessionIds: ReadonlySet<string>,
 ): OverlayState {
-  const placements: Record<string, SessionPlacement> = { ...overlay.placements };
+  const placements: Record<string, SessionPlacement> = { ...overlay.ui.placements };
   const ownKeysToDelete = new Set(Object.keys(placements).filter((id) => !knownSessionIds.has(id)));
   let mutated = false;
 
@@ -126,12 +126,12 @@ export function pruneOverlay(
     mutated = true;
   }
 
-  const swarms = overlay.swarms.filter((swarm) =>
+  const swarms = overlay.ui.swarms.filter((swarm) =>
     Object.keys(placements).some((id) => resolveSwarmId(placements, id) === swarm.id),
   );
-  if (swarms.length !== overlay.swarms.length) mutated = true;
+  if (swarms.length !== overlay.ui.swarms.length) mutated = true;
 
   // Same reference when nothing changed, so a caller like `pruneKnownSessions` can skip
   // writing a no-op back through `updateOverlay` with a plain `===` check.
-  return mutated ? { ...overlay, placements, swarms } : overlay;
+  return mutated ? { ...overlay, ui: { ...overlay.ui, placements, swarms } } : overlay;
 }

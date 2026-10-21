@@ -2,9 +2,9 @@ import type { ConfigFile } from '../config.js';
 import type { GhResult } from '../domain/github.js';
 import type { TranscriptParse } from '../domain/transcript.js';
 import type { GardenEvent } from '../domain/types.js';
-import type { OverlayGroup, OverlayStage, OverlayState } from '../domain/overlay.js';
+import type { OverlayState } from '../domain/overlay.js';
 
-export type { GardenEvent, OverlayGroup, OverlayStage, OverlayState };
+export type { GardenEvent, OverlayState };
 
 /** app/ never sees the tmux target (socket, conf path): main.ts binds it once when it
  *  wires the adapter into this port. */

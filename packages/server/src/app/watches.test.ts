@@ -1,3 +1,4 @@
+import { DEFAULT_UI_STATE } from '@garden/shared';
 import type { Delta } from '@garden/shared';
 import { describe, expect, it } from 'vitest';
 import type { Watch } from '../domain/watches.js';
@@ -16,15 +17,9 @@ import {
 } from './watches.js';
 
 const emptyOverlay: OverlayState = {
-  version: 1,
+  version: 2,
   tmuxNames: {},
-  groups: {},
-  stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
-  swarms: [],
-  placements: {},
-  swarmOrder: [],
-  collapsedSwarms: [],
-  hideDeadSwarms: [],
+  ui: DEFAULT_UI_STATE,
   watches: [],
   alerts: [],
   digests: [],

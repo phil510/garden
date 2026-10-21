@@ -118,6 +118,27 @@ export interface UiState {
   hideDeadSwarms: string[];
 }
 
+function frozen<T extends object>(value: T): T {
+  return Object.freeze(value);
+}
+
+/** What a fresh install stores. Frozen all the way down because it is shared by reference. */
+export const DEFAULT_UI_STATE: UiState = frozen({
+  groupOrder: frozen([]),
+  pinnedRepos: frozen([]),
+  collapsedRepos: frozen([]),
+  hideDeadRepos: frozen([]),
+  preset: 'single',
+  slots: frozen([null]),
+  focusedSlot: 0,
+  layout: frozen({}),
+  swarms: frozen([]),
+  placements: frozen({}),
+  swarmOrder: frozen([]),
+  collapsedSwarms: frozen([]),
+  hideDeadSwarms: frozen([]),
+});
+
 export interface SwarmRecord {
   id: string;
   name: string;
@@ -373,7 +394,9 @@ export type FileResponse =
   | { path: string; kind: 'image'; mimeType: string; truncated: true }
   | { path: string; kind: 'image'; mimeType: string; truncated: false; data: string }
   | { path: string; kind: 'binary' };
-export type UiStateRequest = Partial<UiState>;
+/** `swarms` and `placements` are absent on purpose: they move only through the swarm and
+ *  placement use cases, never this generic patch. */
+export type UiStateRequest = Partial<Omit<UiState, 'swarms' | 'placements'>>;
 
 /** `WS /events`: a snapshot on connect, then deltas. `fs-changed` is the exception to
  *  projection-only: it goes only to the connection that sent `watch`, and `root` echoes the

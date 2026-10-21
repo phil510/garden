@@ -238,8 +238,9 @@ mapping. It does not optimistically mutate state and hope tmux agrees.
 recompute: the session id to tmux name map, group order, and per-project pins, collapsed state
 and hide-dead toggle, plus stage preset and slot assignments and focused slot, plus swarm
 records and per-session parent/swarmId placements, plus the PR watches, each session's open alert and the last time each
-session had a pipe connected. It does **not** hold a
-`SessionState` snapshot. Every session fact is derived on every boot — liveness and exit code
+session had a pipe connected. The file is versioned (currently 2): the UI state sits under `ui` as the
+client's `UiState`, next to `tmuxNames` and the non-UI records, and a version 1 file is migrated on
+read. It does **not** hold a `SessionState` snapshot. Every session fact is derived on every boot — liveness and exit code
 from tmux, cwd, title and recap from the transcripts, branch from a live git lookup
 keyed by cwd, status from hooks — because those are the sources of truth and a persisted copy
 of them can only be wrong.
