@@ -10,10 +10,10 @@ import {
   repoRoot,
   status,
   workTreePrefix,
-} from '../../src/adapters/git.js';
-import { createProjection } from '../../src/app/projection.js';
-import { createRepoCatalog } from '../../src/app/repoCatalog.js';
-import { createServer } from '../../src/http/server.js';
+} from '../../packages/server/src/adapters/git.js';
+import { createProjection } from '../../packages/server/src/app/projection.js';
+import { createRepoCatalog } from '../../packages/server/src/app/repoCatalog.js';
+import { createServer } from '../../packages/server/src/http/server.js';
 import { fakeStore } from './support/fakeStore.js';
 import { initRepo } from './support/git.js';
 import { noPipes } from './support/noPipes.js';

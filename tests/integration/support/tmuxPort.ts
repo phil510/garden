@@ -4,8 +4,8 @@ import {
   newSession,
   respawnPane,
   type TmuxTarget,
-} from '../../../src/adapters/tmux.js';
-import type { TmuxPort } from '../../../src/app/ports.js';
+} from '../../../packages/server/src/adapters/tmux.js';
+import type { TmuxPort } from '../../../packages/server/src/app/ports.js';
 
 /** The real tmux adapter bound to a test's isolated tmux server. */
 export function tmuxPort(target: TmuxTarget): TmuxPort {

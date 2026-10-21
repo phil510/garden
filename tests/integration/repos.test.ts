@@ -2,9 +2,13 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { listRepos } from '../../src/app/repos.js';
-import type { GitPort } from '../../src/app/ports.js';
-import { createBranchReader, isBareRepository, repoRoot } from '../../src/adapters/git.js';
+import { listRepos } from '../../packages/server/src/app/repos.js';
+import type { GitPort } from '../../packages/server/src/app/ports.js';
+import {
+  createBranchReader,
+  isBareRepository,
+  repoRoot,
+} from '../../packages/server/src/adapters/git.js';
 import { initRepo, runGit } from './support/git.js';
 
 const git: Pick<GitPort, 'repoRoot' | 'isBareRepository' | 'branch'> = {

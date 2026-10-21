@@ -8,12 +8,16 @@ import { promisify } from 'node:util';
 import { PANE_CLOSE_CODES } from '@garden/shared';
 import { afterEach, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
-import { attachPty, type PtyTarget } from '../../src/adapters/pty.js';
-import { killSession, newSession, type TmuxTarget } from '../../src/adapters/tmux.js';
-import { createAttachRegistry } from '../../src/app/attach.js';
-import type { ConfigPort, GitPort, PtyPort } from '../../src/app/ports.js';
-import { createProjection } from '../../src/app/projection.js';
-import { createServer } from '../../src/http/server.js';
+import { attachPty, type PtyTarget } from '../../packages/server/src/adapters/pty.js';
+import {
+  killSession,
+  newSession,
+  type TmuxTarget,
+} from '../../packages/server/src/adapters/tmux.js';
+import { createAttachRegistry } from '../../packages/server/src/app/attach.js';
+import type { ConfigPort, GitPort, PtyPort } from '../../packages/server/src/app/ports.js';
+import { createProjection } from '../../packages/server/src/app/projection.js';
+import { createServer } from '../../packages/server/src/http/server.js';
 import { fakeStore } from './support/fakeStore.js';
 import { opened } from './support/socket.js';
 import { tmuxPort } from './support/tmuxPort.js';

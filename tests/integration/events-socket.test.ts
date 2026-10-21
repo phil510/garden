@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { EVENTS_CLOSE_CODES, type Delta, type ServerMessage } from '@garden/shared';
 import { WebSocket } from 'ws';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { watchFsRoot } from '../../src/adapters/fsWatch.js';
+import { watchFsRoot } from '../../packages/server/src/adapters/fsWatch.js';
 import {
   createBranchReader,
   isBareRepository,
@@ -14,11 +14,11 @@ import {
   repoRoot,
   status,
   workTreePrefix,
-} from '../../src/adapters/git.js';
-import { createProjection } from '../../src/app/projection.js';
-import { createRepoCatalog } from '../../src/app/repoCatalog.js';
-import { createRootWatches } from '../../src/app/rootWatch.js';
-import { createServer } from '../../src/http/server.js';
+} from '../../packages/server/src/adapters/git.js';
+import { createProjection } from '../../packages/server/src/app/projection.js';
+import { createRepoCatalog } from '../../packages/server/src/app/repoCatalog.js';
+import { createRootWatches } from '../../packages/server/src/app/rootWatch.js';
+import { createServer } from '../../packages/server/src/http/server.js';
 import { fakeStore } from './support/fakeStore.js';
 import { opened } from './support/socket.js';
 import { settle, sleep, QUIET_WINDOW_MS } from './support/fsSignals.js';

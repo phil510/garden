@@ -4,7 +4,7 @@ import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:f
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { killTmuxServer, tmuxSocketPath } from '../../src/cli/tmux.js';
+import { killTmuxServer, tmuxSocketPath } from '../../packages/server/src/cli/tmux.js';
 
 const execFileAsync = promisify(execFile);
 
