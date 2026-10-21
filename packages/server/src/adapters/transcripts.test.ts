@@ -420,6 +420,21 @@ describe('createTranscripts watch', () => {
       }),
     );
   });
+
+  it('lets a tick already reading finish its dispatch before close resolves', async () => {
+    await withTempHome((home) =>
+      withFakeIntervals(async () => {
+        const path = writeProjectFile(home, ROOT, 'session-a', HEAD_LINE('session-a') + '\n');
+        const { watcher, events } = startWatching(home);
+        watcher.track(path);
+
+        await vi.advanceTimersByTimeAsync(POLL_MS);
+        await watcher.close();
+
+        expect(events).toHaveLength(1);
+      }),
+    );
+  });
 });
 
 describe('reconcileTranscripts', () => {
