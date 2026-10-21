@@ -2,6 +2,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readdirSync,
+  readFileSync,
   realpathSync,
   rmSync,
   statSync,
@@ -16,16 +17,17 @@ import { isListedPath, listRepos } from './repos.js';
 
 /**
  * Fakes `GitPort` by directory: a path with no entry in `roots` fails `repoRoot` exactly as a
- * non-git directory would, and a path with no entry in `branches` fails `branch` exactly as a
- * repo with no commits yet would. `roots`' values must already be resolved (`realpathSync`),
- * the way the real adapter's `git rev-parse` output always is — the tests build them that way
- * so the fake matches real behaviour on a filesystem where the temp directory itself sits
- * behind a symlink (macOS's `/var` for one).
+ * non-git directory would, a path with no entry in `branches` fails `branch` exactly as a
+ * repo with no commits yet would, and only the paths in `bare` are bare repositories. `roots`'
+ * values must already be resolved (`realpathSync`), the way the real adapter's `git rev-parse`
+ * output always is — the tests build them that way so the fake matches real behaviour on a
+ * filesystem where the temp directory itself sits behind a symlink (macOS's `/var` for one).
  */
 function fakeGit(
   roots: Record<string, string>,
   branches: Record<string, string> = {},
-): Pick<GitPort, 'repoRoot' | 'branch'> {
+  bare: readonly string[] = [],
+): Pick<GitPort, 'repoRoot' | 'isBareRepository' | 'branch'> {
   return {
     repoRoot: (cwd) => {
       const root = roots[cwd];
@@ -33,6 +35,7 @@ function fakeGit(
         ? Promise.reject(new Error(`not a git repository: ${cwd}`))
         : Promise.resolve(root);
     },
+    isBareRepository: (cwd) => Promise.resolve(bare.includes(cwd)),
     branch: (cwd) => {
       const branch = branches[cwd];
       return branch === undefined
@@ -47,6 +50,13 @@ function fakeGit(
  *  never read, only its presence checked. */
 function markAsGitDir(dir: string): void {
   mkdirSync(join(dir, '.git'), { recursive: true });
+}
+
+/** A `.git` file rather than a directory: the shape of a linked worktree, of a bare clone's
+ *  directory, and of a repo made with `--separate-git-dir`. */
+function markAsGitLink(dir: string): void {
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, '.git'), 'gitdir: /elsewhere\n');
 }
 
 describe('listRepos', () => {
@@ -141,7 +151,7 @@ describe('listRepos', () => {
     const repo = join(dir, 'repoF');
     const worktree = join(repo, '.worktrees', 'feat-x');
     // A `.git` two levels inside the already-found worktree — reachable only if the recursion
-    // boundary in findWorktrees failed to stop once `feat-x` itself was identified as a worktree.
+    // boundary in walk failed to stop once `feat-x` itself was identified as a worktree.
     const nestedGitDir = join(worktree, 'vendor', 'nested-repo');
     mkdirSync(nestedGitDir, { recursive: true });
     markAsGitDir(repo);
@@ -195,11 +205,12 @@ describe('listRepos', () => {
 
     const roots = Object.fromEntries(repoPaths.map((repo) => [repo, realpathSync(repo)]));
     const branches = Object.fromEntries(repoPaths.map((repo) => [repo, 'main']));
-    const git: Pick<GitPort, 'repoRoot' | 'branch'> = {
+    const git: Pick<GitPort, 'repoRoot' | 'isBareRepository' | 'branch'> = {
       repoRoot: (cwd) =>
         roots[cwd] === undefined
           ? Promise.reject(new Error(`not a git repository: ${cwd}`))
           : gated(() => roots[cwd]!),
+      isBareRepository: () => Promise.resolve(false),
       branch: (cwd) =>
         branches[cwd] === undefined
           ? Promise.reject(new Error(`no branch: ${cwd}`))
@@ -236,7 +247,7 @@ describe('listRepos', () => {
   });
 });
 
-describe('isListedPath', () => {
+describe('listRepos with a bare clone', () => {
   let dir: string | undefined;
 
   afterEach(() => {
@@ -244,21 +255,108 @@ describe('isListedPath', () => {
     dir = undefined;
   });
 
-  /** Answers `repoRoot` from what is on disk, as git does: a `.git` directory makes `cwd` its
-   *  own repo root, a `.git` file (a worktree's gitlink) points at some other repo. */
-  function diskGit(): Pick<GitPort, 'repoRoot' | 'branch'> {
+  it('lists the worktrees checked out beside the clone, nested by branch segments', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'garden-repos-'));
+    const repo = join(dir, 'repoG');
+    const main = join(repo, 'main');
+    const nested = join(repo, 'feat', 'y');
+    markAsGitLink(repo);
+    mkdirSync(join(repo, '.bare', 'worktrees', 'main'), { recursive: true });
+    markAsGitLink(main);
+    markAsGitLink(nested);
+    // Hidden directories beside the clone are never worktrees, whatever they hold.
+    markAsGitLink(join(repo, '.claude'));
+    const resolvedRepo = realpathSync(repo);
+    const git = fakeGit(
+      { [repo]: resolvedRepo, [main]: resolvedRepo, [nested]: resolvedRepo },
+      { [repo]: 'main', [main]: 'main', [nested]: 'feat/y' },
+      [repo],
+    );
+
+    const repos = await listRepos({ git, roots: [dir] });
+
+    // Siblings come back in directory-listing order, which only some filesystems sort.
+    expect(repos.toSorted((a, b) => a.path.localeCompare(b.path))).toEqual([
+      { path: repo, name: 'repoG', branch: 'main', isWorktree: false },
+      { path: nested, name: 'y', branch: 'feat/y', isWorktree: true },
+      { path: main, name: 'main', branch: 'main', isWorktree: true },
+    ]);
+  });
+
+  it('lists neither an independent clone beside the clone nor a hidden directory below the first level', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'garden-repos-'));
+    const repo = join(dir, 'repoI');
+    const nested = join(repo, 'feat', 'y');
+    markAsGitLink(repo);
+    mkdirSync(join(repo, '.bare'), { recursive: true });
+    markAsGitLink(nested);
+    markAsGitLink(join(repo, 'feat', '.cache'));
+    // An independent clone has a `.git` directory, and nothing inside it is a worktree.
+    mkdirSync(join(repo, 'scratch-clone', '.git'), { recursive: true });
+    markAsGitLink(join(repo, 'scratch-clone', 'inner'));
+    const resolvedRepo = realpathSync(repo);
+    const git = fakeGit(
+      { [repo]: resolvedRepo, [nested]: resolvedRepo },
+      { [repo]: 'main', [nested]: 'feat/y' },
+      [repo],
+    );
+
+    const repos = await listRepos({ git, roots: [dir] });
+
+    expect(repos.toSorted((a, b) => a.path.localeCompare(b.path))).toEqual([
+      { path: repo, name: 'repoI', branch: 'main', isWorktree: false },
+      { path: nested, name: 'y', branch: 'feat/y', isWorktree: true },
+    ]);
+  });
+
+  it('stays out of a repo whose .git file points at a git dir that is not bare', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'garden-repos-'));
+    const repo = join(dir, 'repoH');
+    markAsGitLink(repo);
+    // A submodule in the working tree has a `.git` file too.
+    markAsGitLink(join(repo, 'vendor', 'lib'));
+    const git = fakeGit({ [repo]: realpathSync(repo) }, { [repo]: 'main' });
+
+    const repos = await listRepos({ git, roots: [dir] });
+
+    expect(repos).toEqual([{ path: repo, name: 'repoH', branch: 'main', isWorktree: false }]);
+  });
+});
+
+describe('isListedPath', () => {
+  const BARE_GITLINK = 'gitdir: ./.bare\n';
+  let dir: string | undefined;
+
+  afterEach(() => {
+    if (dir !== undefined) rmSync(dir, { recursive: true, force: true });
+    dir = undefined;
+  });
+
+  /** Answers from what is on disk, as git does: a `.git` directory makes `cwd` its own repo
+   *  root, a gitlink to `./.bare` makes it a bare clone's directory and so its own root too, and
+   *  any other `.git` file (a worktree's gitlink) points at some other repo. */
+  function diskGit(): Pick<GitPort, 'repoRoot' | 'isBareRepository' | 'branch'> {
     return {
       repoRoot: (cwd) => {
         try {
           const real = realpathSync(cwd);
           const isDir = statSync(join(real, '.git')).isDirectory();
-          return Promise.resolve(isDir ? real : '/elsewhere');
+          return Promise.resolve(isDir || holdsBareClone(real) ? real : '/elsewhere');
         } catch {
           return Promise.reject(new Error(`not a git repository: ${cwd}`));
         }
       },
+      isBareRepository: (cwd) => Promise.resolve(holdsBareClone(cwd)),
       branch: () => Promise.resolve('main'),
     };
+  }
+
+  function holdsBareClone(path: string): boolean {
+    try {
+      return readFileSync(join(path, '.git'), 'utf8') === BARE_GITLINK;
+    } catch {
+      return false;
+    }
   }
 
   function tempRoot(): string {
@@ -275,12 +373,20 @@ describe('isListedPath', () => {
     writeFileSync(join(path, '.git'), 'gitdir: /elsewhere\n');
   }
 
+  function bareClone(path: string): void {
+    mkdirSync(join(path, '.bare'), { recursive: true });
+    writeFileSync(join(path, '.git'), BARE_GITLINK);
+  }
+
   it('accepts a repo, single-segment and nested worktrees, and a repo named like a parent ref', async () => {
     const root = tempRoot();
     repo(join(root, 'repoA'));
     worktree(join(root, 'repoA', '.worktrees', 'one'));
     worktree(join(root, 'repoA', '.worktrees', 'feat', 'x'));
     repo(join(root, '..foo'));
+    bareClone(join(root, 'repoC'));
+    worktree(join(root, 'repoC', 'main'));
+    worktree(join(root, 'repoC', 'feat', 'x'));
     const deps = { git: diskGit(), roots: [root] };
 
     for (const accepted of [
@@ -288,6 +394,9 @@ describe('isListedPath', () => {
       join(root, 'repoA', '.worktrees', 'one'),
       join(root, 'repoA', '.worktrees', 'feat', 'x'),
       join(root, '..foo'),
+      join(root, 'repoC'),
+      join(root, 'repoC', 'main'),
+      join(root, 'repoC', 'feat', 'x'),
     ]) {
       expect(await isListedPath(deps, accepted), accepted).toBe(true);
     }
@@ -324,6 +433,12 @@ describe('isListedPath', () => {
       worktree(join(root, 'plain', '.worktrees', 'x'));
       worktree(join(root, 'stray'));
       worktree(join(root, 'repoA', '.worktrees', 'one', 'inner'));
+      bareClone(join(root, 'repoC'));
+      worktree(join(root, 'repoC', 'main'));
+      worktree(join(root, 'repoC', '.hidden'));
+      worktree(join(root, 'repoC', 'feat', '.cache'));
+      repo(join(root, 'repoC', 'scratch-clone'));
+      mkdirSync(join(root, 'repoC', 'feat'), { recursive: true });
       const deps = { git: diskGit(), roots: [root] };
 
       for (const rejected of [
@@ -337,6 +452,11 @@ describe('isListedPath', () => {
         join(root, 'repoA', '.worktrees', 'one', 'inner'),
         join(root, 'plain', '.worktrees', 'x'),
         join(root, 'nonexistent'),
+        join(root, 'repoC', '.bare'),
+        join(root, 'repoC', '.hidden'),
+        join(root, 'repoC', 'feat'),
+        join(root, 'repoC', 'feat', '.cache'),
+        join(root, 'repoC', 'scratch-clone'),
       ]) {
         expect(await isListedPath(deps, rejected), rejected).toBe(false);
       }
@@ -361,6 +481,14 @@ describe('isListedPath', () => {
     worktree(join(root, 'stray'));
     repo(join(root, 'repoB'));
     repo(join(root, '..foo'));
+    bareClone(join(root, 'repoC'));
+    worktree(join(root, 'repoC', 'main'));
+    worktree(join(root, 'repoC', 'feat', 'x'));
+    worktree(join(root, 'repoC', '.hidden'));
+    worktree(join(root, 'repoC', 'feat', '.cache'));
+    repo(join(root, 'repoC', 'scratch-clone'));
+    worktree(join(root, 'repoC', 'scratch-clone', 'inner'));
+    mkdirSync(join(root, 'repoC', '.bare', 'worktrees', 'main'), { recursive: true });
     const deps = { git: diskGit(), roots: [root] };
     const listed = new Set((await listRepos(deps)).map((entry) => realpathSync(entry.path)));
 

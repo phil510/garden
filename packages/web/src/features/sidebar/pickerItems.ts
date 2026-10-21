@@ -11,12 +11,12 @@ export interface PickerGroup {
   readonly items: readonly PickerItem[];
 }
 
-/** A worktree's path is always `<repo path>/.worktrees/<branch segments>`; picking the longest
- *  such match handles a repo nested under another root without mistaking a shorter unrelated
- *  prefix for ownership. */
+/** A worktree's path is always under its repo's — `<repo path>/.worktrees/<branch segments>`,
+ *  or `<repo path>/<branch segments>` beside a bare clone; picking the longest such match handles
+ *  a repo nested under another root without mistaking a shorter unrelated prefix for ownership. */
 function ownerRepo(worktree: RepoEntry, repos: readonly RepoEntry[]): RepoEntry | undefined {
   return repos
-    .filter((repo) => !repo.isWorktree && worktree.path.startsWith(`${repo.path}/.worktrees/`))
+    .filter((repo) => !repo.isWorktree && worktree.path.startsWith(`${repo.path}/`))
     .sort((a, b) => b.path.length - a.path.length)[0];
 }
 

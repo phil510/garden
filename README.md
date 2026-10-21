@@ -35,7 +35,10 @@ there is no separate step. If the hook ever goes missing, `pnpm rebuild lefthook
 garden reads `~/.garden/config.json` on startup, writing a default one on first run. Fields:
 
 - `port` — the port the server listens on. Default `4310`.
-- `roots` — the repo roots garden scans for sessions. Default `["~/Desktop/Extend"]`.
+- `roots` — the repo roots garden scans for sessions. Default `["~/Desktop/Extend"]`. Each repo
+  directly under a root is listed with its worktrees, found under `<repo>/.worktrees/` or, for a
+  bare clone kept in `<repo>/.bare/` with a `.git` file pointing at it, beside the clone.
+  Applies after a restart.
 - `permissionMode` — `"default"` or `"bypassPermissions"`. Default `"default"`. `"bypassPermissions"`
   skips Claude Code's permission prompts for every session garden spawns or resumes.
 - `deadSessionCap` — dead sessions shown per repo group, swarm group and Solo block before "Show N more"; a whole number

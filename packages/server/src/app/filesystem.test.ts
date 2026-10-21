@@ -521,7 +521,7 @@ describe('root-keyed resolution', () => {
 
   /** Treats a directory as a repo while it has a `.git` entry on disk, and reports its
    *  realpath as the toplevel the way `git rev-parse` does. */
-  const repoGit: Pick<GitPort, 'repoRoot' | 'branch'> = {
+  const repoGit: Pick<GitPort, 'repoRoot' | 'isBareRepository' | 'branch'> = {
     repoRoot: (cwd) => {
       try {
         realpathSync(join(cwd, '.git'));
@@ -530,6 +530,7 @@ describe('root-keyed resolution', () => {
         return Promise.reject(new Error(`not a git repository: ${cwd}`));
       }
     },
+    isBareRepository: () => Promise.resolve(false),
     branch: () => Promise.resolve('main'),
   };
 

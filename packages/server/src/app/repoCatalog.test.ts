@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { GitPort } from './ports.js';
 import { REPO_CACHE_TTL_MS, RootNotListedError, createRepoCatalog } from './repoCatalog.js';
 
-interface FakeGit extends Pick<GitPort, 'repoRoot' | 'branch'> {
+interface FakeGit extends Pick<GitPort, 'repoRoot' | 'isBareRepository' | 'branch'> {
   readonly repoRootCalls: () => number;
   readonly branchCalls: () => number;
 }
@@ -27,6 +27,7 @@ function fakeGit(): FakeGit {
         return Promise.reject(new Error(`not a git repository: ${cwd}`));
       }
     },
+    isBareRepository: () => Promise.resolve(false),
     branch: () => {
       branchCalls += 1;
       return Promise.resolve('main');
