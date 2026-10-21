@@ -31,9 +31,11 @@ infrastructure rather than different `describe` blocks.
 Unit tests are colocated `*.test.ts` files beside their source — `src/**/*.test.ts` inside each
 package, plus a root `vitest.config.ts` collecting `scripts/**/*.test.ts` for the dev-tooling
 scripts, so a test for a script can sit next to the script it covers instead of borrowing a
-package's tier. Integration tests live in `packages/server/tests/integration/` under their own
-vitest config with `fileParallelism: false` and raised timeouts — real tmux servers stepping on
-each other and slow CI runners are what that config prevents.
+package's tier. Integration tests live at the repo level in `tests/integration/`, with their harness
+in `tests/integration/support/`, under the root `vitest.integration.config.ts` with
+`fileParallelism: false` and raised timeouts — real tmux servers stepping on each other and slow
+CI runners are what that config prevents. The tier is repo-level because it is the only one that
+drives real tmux and that constraint is machine-wide, so it isn't any one package's concern.
 
 A script that isn't a package and isn't dev-tooling — the garden plugin's hook scripts, say —
 still needs somewhere to be tested that isn't `packages/server`, which has no relationship to
@@ -46,8 +48,8 @@ run in the unit tier even though they spawn a real subprocess — "`execFile` is
 governs how a subprocess is exercised, not which tier gets to exercise it.
 
 Each package's `vitest.config.ts` collects only its own `src/**/*.test.ts`, and the root config
-only `scripts/**/*.test.ts` plus repo-level `tests/**/*.test.ts`, so a test under
-`packages/server/tests/integration/` can never be collected by `pnpm test`. Every config runs
+only `scripts/**/*.test.ts` plus repo-level `tests/**/*.test.ts` except `tests/integration/**`, so
+a test under `tests/integration/` can never be collected by `pnpm test`. Every config runs
 the `node` environment with `globals: false`, so every test file
 imports `describe`, `it`, `expect`, `vi` explicitly. Small cost, and it keeps a test file's
 dependencies visible at the top rather than ambient.

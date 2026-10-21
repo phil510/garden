@@ -1,6 +1,3 @@
-// Tests scripts/setup-sandbox.ts — a root-level script, not part of any package — from the
-// server package's integration tier because that is the only tier that drives real tmux; there
-// is no separate integration tier for scripts/.
 import { execFile } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
