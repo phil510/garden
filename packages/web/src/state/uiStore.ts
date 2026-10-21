@@ -1,3 +1,4 @@
+import { DEFAULT_UI_STATE } from '@garden/shared';
 import type { UiState } from '@garden/shared';
 import { create } from 'zustand';
 
@@ -11,21 +12,7 @@ interface UiStore {
   setUiState: (uiState: UiState) => void;
 }
 
-const initialUiState: UiState = {
-  groupOrder: [],
-  pinnedRepos: [],
-  collapsedRepos: [],
-  hideDeadRepos: [],
-  preset: 'single',
-  slots: [],
-  focusedSlot: 0,
-  layout: null,
-  swarms: [],
-  placements: {},
-  swarmOrder: [],
-  collapsedSwarms: [],
-  hideDeadSwarms: [],
-};
+const initialUiState: UiState = { ...DEFAULT_UI_STATE, slots: [], layout: null };
 
 export const useUiStore = create<UiStore>((set) => ({
   uiState: initialUiState,

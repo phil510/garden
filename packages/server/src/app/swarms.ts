@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { Placement, SessionPlacement, SwarmRecord } from '@garden/shared';
+import type { Placement, SessionPlacement, SwarmRecord, UiState } from '@garden/shared';
 import { pruneOverlay, resolveSwarmId, validatePlacement } from '../domain/swarms.js';
 import { SessionNotFoundError } from './errors.js';
 import type { OverlayState } from './ports.js';
@@ -24,30 +24,33 @@ function knownSessionIds(deps: SwarmsDeps, base: OverlayState): ReadonlySet<stri
   ]);
 }
 
+/** The overlay with `patch` laid over its `ui`; every swarm and placement write goes through here. */
+function withUi(base: OverlayState, patch: Partial<UiState>): OverlayState {
+  return { ...base, ui: { ...base.ui, ...patch } };
+}
+
 function findSwarm(base: OverlayState, id: string): SwarmRecord {
-  const swarm = base.swarms.find((candidate) => candidate.id === id);
+  const swarm = base.ui.swarms.find((candidate) => candidate.id === id);
   if (swarm === undefined) throw new SwarmNotFoundError(`no such swarm: ${id}`);
   return swarm;
 }
 
 export function createSwarm(deps: SwarmsDeps, request: { name: string }): { id: string } {
   const id = randomUUID();
-  deps.projection.updateOverlay((base) => ({
-    ...base,
-    swarms: [...base.swarms, { id, name: request.name, archived: false }],
-  }));
+  deps.projection.updateOverlay((base) =>
+    withUi(base, { swarms: [...base.ui.swarms, { id, name: request.name, archived: false }] }),
+  );
   return { id };
 }
 
 export function renameSwarm(deps: SwarmsDeps, request: { id: string; name: string }): void {
   deps.projection.updateOverlay((base) => {
     findSwarm(base, request.id);
-    return {
-      ...base,
-      swarms: base.swarms.map((swarm) =>
+    return withUi(base, {
+      swarms: base.ui.swarms.map((swarm) =>
         swarm.id === request.id ? { ...swarm, name: request.name } : swarm,
       ),
-    };
+    });
   });
 }
 
@@ -57,10 +60,9 @@ export function renameSwarm(deps: SwarmsDeps, request: { id: string; name: strin
 export function setArchived(deps: SwarmsDeps, id: string, archived: boolean): void {
   deps.projection.updateOverlay((base) => {
     findSwarm(base, id);
-    return {
-      ...base,
-      swarms: base.swarms.map((swarm) => (swarm.id === id ? { ...swarm, archived } : swarm)),
-    };
+    return withUi(base, {
+      swarms: base.ui.swarms.map((swarm) => (swarm.id === id ? { ...swarm, archived } : swarm)),
+    });
   });
 }
 
@@ -77,14 +79,17 @@ export function unarchiveSwarm(deps: SwarmsDeps, request: { id: string }): void 
 export function deleteSwarm(deps: SwarmsDeps, request: { id: string }): void {
   deps.projection.updateOverlay((base) => {
     findSwarm(base, request.id);
-    const placements: Record<string, SessionPlacement> = { ...base.placements };
+    const placements: Record<string, SessionPlacement> = { ...base.ui.placements };
     for (const [sessionId, entry] of Object.entries(placements)) {
       if (entry.swarmId !== request.id) continue;
       const next = { ...entry };
       delete next.swarmId;
       placements[sessionId] = next;
     }
-    return { ...base, swarms: base.swarms.filter((swarm) => swarm.id !== request.id), placements };
+    return withUi(base, {
+      swarms: base.ui.swarms.filter((swarm) => swarm.id !== request.id),
+      placements,
+    });
   });
 }
 
@@ -118,7 +123,7 @@ export function placeSession(
           ? { parent: request.placement.parentId }
           : {};
 
-    return { ...base, placements: { ...base.placements, [request.sessionId]: entry } };
+    return withUi(base, { placements: { ...base.ui.placements, [request.sessionId]: entry } });
   });
 }
 
@@ -131,7 +136,8 @@ export function placeSession(
 // spawned).
 function isUnplaced(base: OverlayState, id: string): boolean {
   return (
-    resolveSwarmId(base.placements, id) === undefined && base.placements[id]?.parent === undefined
+    resolveSwarmId(base.ui.placements, id) === undefined &&
+    base.ui.placements[id]?.parent === undefined
   );
 }
 
@@ -141,11 +147,10 @@ function isUnplaced(base: OverlayState, id: string): boolean {
  */
 function mintSwarmFor(base: OverlayState, id: string, title: string | null): OverlayState {
   const swarmId = randomUUID();
-  return {
-    ...base,
-    swarms: [...base.swarms, { id: swarmId, name: title ?? 'Untitled swarm', archived: false }],
-    placements: { ...base.placements, [id]: { swarmId } },
-  };
+  return withUi(base, {
+    swarms: [...base.ui.swarms, { id: swarmId, name: title ?? 'Untitled swarm', archived: false }],
+    placements: { ...base.ui.placements, [id]: { swarmId } },
+  });
 }
 
 /**
@@ -167,10 +172,12 @@ export function recordSpawn(
       ? mintSwarmFor(base, request.callerId, request.callerTitle)
       : base;
 
-    return {
-      ...withSwarm,
-      placements: { ...withSwarm.placements, [request.childId]: { parent: request.callerId } },
-    };
+    return withUi(withSwarm, {
+      placements: {
+        ...withSwarm.ui.placements,
+        [request.childId]: { parent: request.callerId },
+      },
+    });
   });
 }
 

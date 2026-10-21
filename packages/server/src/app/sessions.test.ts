@@ -1,3 +1,4 @@
+import { DEFAULT_UI_STATE } from '@garden/shared';
 import { aSession } from '@garden/shared/fixtures';
 import type { SessionState, UiState } from '@garden/shared';
 import { describe, expect, it } from 'vitest';
@@ -7,32 +8,12 @@ import { createProjection, type Projection } from './projection.js';
 import { raiseSessionAlert } from './alerts.js';
 import { createSession, killSession, resumeSession } from './sessions.js';
 
-const baseUiState: UiState = {
-  groupOrder: [],
-  pinnedRepos: [],
-  collapsedRepos: [],
-  hideDeadRepos: [],
-  preset: 'single',
-  slots: [null],
-  focusedSlot: 0,
-  layout: null,
-  swarms: [],
-  placements: {},
-  swarmOrder: [],
-  collapsedSwarms: [],
-  hideDeadSwarms: [],
-};
+const baseUiState: UiState = DEFAULT_UI_STATE;
 
 const emptyOverlay: OverlayState = {
-  version: 1,
+  version: 2,
   tmuxNames: {},
-  groups: {},
-  stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
-  swarms: [],
-  placements: {},
-  swarmOrder: [],
-  collapsedSwarms: [],
-  hideDeadSwarms: [],
+  ui: DEFAULT_UI_STATE,
   watches: [],
   alerts: [],
   digests: [],
@@ -371,8 +352,8 @@ describe('createSession', () => {
     );
 
     expect(result.unknownCaller).toBeUndefined();
-    expect(current().placements[result.id]).toEqual({ parent: 'caller' });
-    expect(current().swarms[0]?.name).toBe('Caller');
+    expect(current().ui.placements[result.id]).toEqual({ parent: 'caller' });
+    expect(current().ui.swarms[0]?.name).toBe('Caller');
   });
 
   it('sets unknownCaller instead of throwing when callerSessionId does not resolve', async () => {
@@ -394,7 +375,7 @@ describe('createSession', () => {
     expect(dispatched).toEqual([
       { type: 'session-registered', id: result.id, tmuxName: 'garden', cwd: '/Users/dev/garden' },
     ]);
-    expect(current().placements).toEqual({});
+    expect(current().ui.placements).toEqual({});
   });
 });
 
@@ -713,10 +694,10 @@ describe('resumeSession', () => {
     });
     let overlay: OverlayState = {
       ...emptyOverlay,
-      swarms: [{ id: 'swarm-1', name: 'A swarm', archived: true }],
+      ui: { ...emptyOverlay.ui, swarms: [{ id: 'swarm-1', name: 'A swarm', archived: true }] },
     };
     const { projection } = fakeProjection([deadSession], {
-      uiState: () => ({ ...baseUiState, swarms: [...overlay.swarms] }),
+      uiState: () => ({ ...baseUiState, swarms: [...overlay.ui.swarms] }),
       placementOf: () => ({ swarmId: 'swarm-1', topLevelSwarmId: 'swarm-1' }),
       updateOverlay: (mutate) => {
         overlay = mutate(overlay);
@@ -735,7 +716,7 @@ describe('resumeSession', () => {
       { id: 'sid-1' },
     );
 
-    expect(overlay.swarms).toEqual([{ id: 'swarm-1', name: 'A swarm', archived: false }]);
+    expect(overlay.ui.swarms).toEqual([{ id: 'swarm-1', name: 'A swarm', archived: false }]);
   });
 
   it('leaves archived untouched when resuming a session with no swarm, or in a non-archived swarm', async () => {
@@ -760,11 +741,11 @@ describe('resumeSession', () => {
 
     let overlay: OverlayState = {
       ...emptyOverlay,
-      swarms: [{ id: 'swarm-1', name: 'A swarm', archived: false }],
+      ui: { ...emptyOverlay.ui, swarms: [{ id: 'swarm-1', name: 'A swarm', archived: false }] },
     };
     const overlayWrites: OverlayState[] = [];
     const { projection: memberProjection } = fakeProjection([deadSession], {
-      uiState: () => ({ ...baseUiState, swarms: [...overlay.swarms] }),
+      uiState: () => ({ ...baseUiState, swarms: [...overlay.ui.swarms] }),
       placementOf: () => ({ swarmId: 'swarm-1', topLevelSwarmId: 'swarm-1' }),
       updateOverlay: (mutate) => {
         const next = mutate(overlay);
@@ -786,7 +767,7 @@ describe('resumeSession', () => {
     );
 
     expect(overlayWrites).toEqual([]);
-    expect(overlay.swarms).toEqual([{ id: 'swarm-1', name: 'A swarm', archived: false }]);
+    expect(overlay.ui.swarms).toEqual([{ id: 'swarm-1', name: 'A swarm', archived: false }]);
   });
 
   it('throws for an id the projection does not know', async () => {

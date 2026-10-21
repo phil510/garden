@@ -6,7 +6,7 @@ import { filterSessions } from '../domain/sessionsFilter.js';
 import { resolveSwarmId } from '../domain/swarms.js';
 import { switchPreset } from '../domain/stage.js';
 import type { GardenEvent } from '../domain/types.js';
-import type { OverlayGroup, OverlayState, StorePort } from './ports.js';
+import type { OverlayState, StorePort } from './ports.js';
 
 /** A resolved single-session placement lookup for server-internal, non-UI callers (e.g. the
  *  CLI) that want the swarm walk already done rather than re-implementing `resolveSwarmId`
@@ -42,71 +42,15 @@ export interface Projection {
   placementOf(sessionId: string): ResolvedPlacement | undefined;
 }
 
-/** The store keys groups by repo root; the client works in three flat lists. The stage is fitted
- *  to its preset on the way out, so every read of it is consistent even when the stored copy is
- *  not — the store isn't rewritten to match. */
-function toUiState(overlay: OverlayState): UiState {
-  const { slots, focusedSlot } = switchPreset(
-    overlay.stage.slots,
-    overlay.stage.focusedSlot,
-    overlay.stage.preset,
-  );
-  const entries = Object.entries(overlay.groups).sort((a, b) => a[1].order - b[1].order);
-  return {
-    groupOrder: entries.map(([path]) => path),
-    pinnedRepos: entries.filter(([, group]) => group.pinned).map(([path]) => path),
-    collapsedRepos: entries.filter(([, group]) => group.collapsed).map(([path]) => path),
-    hideDeadRepos: entries.filter(([, group]) => group.hideDead).map(([path]) => path),
-    preset: overlay.stage.preset,
-    slots,
-    focusedSlot,
-    layout: overlay.stage.layout,
-    swarms: [...overlay.swarms],
-    placements: { ...overlay.placements },
-    swarmOrder: [...overlay.swarmOrder],
-    collapsedSwarms: [...overlay.collapsedSwarms],
-    hideDeadSwarms: [...overlay.hideDeadSwarms],
-  };
-}
-
-/** Folds the UI slice back onto an overlay read moments earlier, so fields the client
- *  never sees — the tmux name map — survive the write. */
-function toOverlay(base: OverlayState, ui: UiState): OverlayState {
-  const named = new Set([
-    ...ui.groupOrder,
-    ...ui.pinnedRepos,
-    ...ui.collapsedRepos,
-    ...ui.hideDeadRepos,
-  ]);
-  const ordered = [...ui.groupOrder, ...[...named].filter((p) => !ui.groupOrder.includes(p))];
-  const groups: Record<string, OverlayGroup> = {};
-  ordered.forEach((path, order) => {
-    groups[path] = {
-      pinned: ui.pinnedRepos.includes(path),
-      order,
-      collapsed: ui.collapsedRepos.includes(path),
-      hideDead: ui.hideDeadRepos.includes(path),
-    };
-  });
-  return {
-    ...base,
-    groups,
-    stage: {
-      ...base.stage,
-      preset: ui.preset,
-      slots: [...ui.slots],
-      focusedSlot: ui.focusedSlot,
-      layout: ui.layout,
-    },
-    swarmOrder: [...ui.swarmOrder],
-    collapsedSwarms: [...ui.collapsedSwarms],
-    hideDeadSwarms: [...ui.hideDeadSwarms],
-  };
+/** The stage is fitted to its preset on the way out, so every read of it is consistent even
+ *  when the stored copy is not — the store isn't rewritten to match. */
+function fitStage(ui: UiState): UiState {
+  return { ...ui, ...switchPreset(ui.slots, ui.focusedSlot, ui.preset) };
 }
 
 export function createProjection(store: StorePort): Projection {
   let state = initialState;
-  let ui = toUiState(store.read());
+  let ui = fitStage(store.read().ui);
   const listeners = new Set<(deltas: Delta[]) => void>();
   const uiListeners = new Set<(uiState: UiState) => void>();
   const overlayListeners = new Set<(next: OverlayState) => void>();
@@ -147,12 +91,11 @@ export function createProjection(store: StorePort): Projection {
       // The store write is what makes the change real, so it lands before the
       // in-memory slice moves: a failed write leaves nothing claiming to have applied.
       const base = store.read();
-      const merged = { ...toUiState(base), ...patch };
       // The preset decides how many slots exist, so the slot array is fitted to it here rather
       // than trusted from the client: a patch naming a smaller preset returns the panes that no
       // longer fit to the sidebar, and every other patch leaves an already-fitting stage alone.
-      const next = { ...merged, ...switchPreset(merged.slots, merged.focusedSlot, merged.preset) };
-      store.write(toOverlay(base, next));
+      const next = fitStage({ ...base.ui, ...patch });
+      store.write({ ...base, ui: next });
       ui = next;
       for (const listener of [...uiListeners]) listener(ui);
     },
@@ -177,7 +120,7 @@ export function createProjection(store: StorePort): Projection {
       const next = mutate(base);
       if (next === base) return next;
       store.write(next);
-      ui = toUiState(next);
+      ui = fitStage(next.ui);
       for (const listener of [...uiListeners]) listener(ui);
       for (const listener of [...overlayListeners]) listener(next);
       return next;
@@ -191,7 +134,7 @@ export function createProjection(store: StorePort): Projection {
     },
 
     placementOf(sessionId) {
-      const { placements } = store.read();
+      const { placements } = store.read().ui;
       const entry = placements[sessionId];
       if (entry === undefined) return undefined;
       const topLevelSwarmId = resolveSwarmId(placements, sessionId);

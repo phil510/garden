@@ -1,4 +1,5 @@
-import type { SwarmRecord } from '@garden/shared';
+import { DEFAULT_UI_STATE } from '@garden/shared';
+import type { SwarmRecord, UiState } from '@garden/shared';
 import { describe, expect, it } from 'vitest';
 import type { OverlayState } from './overlay.js';
 import {
@@ -8,22 +9,15 @@ import {
   wouldCreateParentCycle,
 } from './swarms.js';
 
-function anOverlay(overrides: Partial<OverlayState> = {}): OverlayState {
+function anOverlay(ui: Partial<UiState> = {}): OverlayState {
   return {
-    version: 1,
+    version: 2,
     tmuxNames: {},
-    groups: {},
-    stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
-    swarms: [],
-    placements: {},
-    swarmOrder: [],
-    collapsedSwarms: [],
-    hideDeadSwarms: [],
+    ui: { ...DEFAULT_UI_STATE, ...ui },
     watches: [],
     alerts: [],
     digests: [],
     pipes: {},
-    ...overrides,
   };
 }
 
@@ -131,7 +125,7 @@ describe('pruneOverlay', () => {
 
     const result = pruneOverlay(overlay, new Set(['known']));
 
-    expect(result.placements).toEqual({ known: {} });
+    expect(result.ui.placements).toEqual({ known: {} });
   });
 
   it('splices around a pruned ancestor so its surviving descendant keeps its swarm', () => {
@@ -145,8 +139,8 @@ describe('pruneOverlay', () => {
 
     const result = pruneOverlay(overlay, new Set(['child']));
 
-    expect(result.placements).toEqual({ child: { swarmId: 'swarm-1' } });
-    expect(result.swarms).toEqual([swarm()]);
+    expect(result.ui.placements).toEqual({ child: { swarmId: 'swarm-1' } });
+    expect(result.ui.swarms).toEqual([swarm()]);
   });
 
   it('splices through a chain of several dropped ancestors', () => {
@@ -161,7 +155,7 @@ describe('pruneOverlay', () => {
 
     const result = pruneOverlay(overlay, new Set(['survivor']));
 
-    expect(result.placements).toEqual({ survivor: { swarmId: 'swarm-1' } });
+    expect(result.ui.placements).toEqual({ survivor: { swarmId: 'swarm-1' } });
   });
 
   it('deletes a swarm left with zero resolving members', () => {
@@ -175,7 +169,7 @@ describe('pruneOverlay', () => {
 
     const result = pruneOverlay(overlay, new Set(['stays']));
 
-    expect(result.swarms).toEqual([swarm({ id: 'swarm-2', name: 'Still has members' })]);
+    expect(result.ui.swarms).toEqual([swarm({ id: 'swarm-2', name: 'Still has members' })]);
   });
 
   it('clears a parent reference once the parent stops being known, even though it never had its own entry', () => {
@@ -186,7 +180,7 @@ describe('pruneOverlay', () => {
 
     const result = pruneOverlay(overlay, new Set(['a']));
 
-    expect(result.placements).toEqual({ a: {} });
+    expect(result.ui.placements).toEqual({ a: {} });
   });
 
   it('does not hang on a hand-corrupted cyclic parent reference between two unknown ids', () => {
@@ -201,7 +195,7 @@ describe('pruneOverlay', () => {
     const result = pruneOverlay(overlay, new Set(['k']));
 
     // Whatever it resolves to, it must terminate and drop the unknown x/y entries.
-    expect(Object.keys(result.placements)).toEqual(['k']);
+    expect(Object.keys(result.ui.placements)).toEqual(['k']);
   });
 
   it('returns the same overlay reference when nothing needs dropping', () => {
@@ -214,6 +208,6 @@ describe('pruneOverlay', () => {
     // pruneOverlay itself does not distinguish where a known id came from.
     const overlay = anOverlay({ placements: { a: {}, b: {} } });
     const result = pruneOverlay(overlay, new Set(['a', 'b']));
-    expect(result.placements).toEqual({ a: {}, b: {} });
+    expect(result.ui.placements).toEqual({ a: {}, b: {} });
   });
 });

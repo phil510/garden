@@ -1,5 +1,5 @@
 import type { AddressInfo } from 'node:net';
-import { EVENTS_CLOSE_CODES, type Delta, type UiState } from '@garden/shared';
+import { DEFAULT_UI_STATE, EVENTS_CLOSE_CODES, type Delta, type UiState } from '@garden/shared';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { WebSocket } from 'ws';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -28,21 +28,7 @@ async function until<T>(
   return last;
 }
 
-const UI_STATE: UiState = {
-  groupOrder: [],
-  pinnedRepos: [],
-  collapsedRepos: [],
-  hideDeadRepos: [],
-  preset: 'single',
-  slots: [null],
-  focusedSlot: 0,
-  layout: null,
-  swarms: [],
-  placements: {},
-  swarmOrder: [],
-  collapsedSwarms: [],
-  hideDeadSwarms: [],
-};
+const UI_STATE: UiState = DEFAULT_UI_STATE;
 
 function fakeProjection() {
   const listeners = new Set<(deltas: Delta[]) => void>();
