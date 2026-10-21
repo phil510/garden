@@ -6,13 +6,21 @@ import type { CliClient, Io } from './commands.js';
 import { defaultClient } from './commands.js';
 import { CliHttpError } from './http.js';
 import { writeAll } from './io.js';
-import { isProcessRunning, readPidFile, removePidFile } from './pid.js';
+import {
+  classifyRecordedPid,
+  isProcessRunning,
+  readPidFile,
+  removePidFile,
+  type PidRecord,
+} from './pid.js';
+import { fetchHealthPid, type HealthPidResult } from './serverProcess.js';
 import { killTmuxServer } from './tmux.js';
 
 export interface StopDeps {
-  readonly readPid: (path: string) => number | null;
+  readonly readPid: (path: string) => PidRecord | null;
   readonly removePid: (path: string) => void;
   readonly isProcessRunning: (pid: number) => boolean;
+  readonly healthPid: (healthUrl: string) => Promise<HealthPidResult>;
   readonly kill: (pid: number, signal: NodeJS.Signals) => void;
   readonly home: string;
   readonly stopTimeoutMs: number;
@@ -23,6 +31,7 @@ export const defaultStopDeps: StopDeps = {
   readPid: readPidFile,
   removePid: removePidFile,
   isProcessRunning,
+  healthPid: fetchHealthPid,
   kill: (pid, signal) => {
     process.kill(pid, signal);
   },
@@ -35,13 +44,27 @@ export const defaultStopDeps: StopDeps = {
 export async function runStop(io: Io, deps: StopDeps = defaultStopDeps): Promise<0 | 1> {
   const config = loadConfig(process.env, ensureConfigFile(deps.home), deps.home);
   const pidPath = join(config.appDir, 'server.pid');
-  const pid = deps.readPid(pidPath);
+  const record = deps.readPid(pidPath);
 
-  if (pid === null || !deps.isProcessRunning(pid)) {
-    // A recorded pid that is no longer running is stale bookkeeping, not a running server.
+  // Probe the port the server started on, not the configured one, which may have changed since.
+  const healthUrl = `http://${config.host}:${String(record?.port ?? config.port)}/health`;
+  const status = await classifyRecordedPid(record?.pid ?? null, deps, healthUrl);
+
+  if (record === null || status === 'stale') {
+    // A recorded pid that is dead, or that /health says is some other process, is stale
+    // bookkeeping, not a running server — and must never be signalled.
     deps.removePid(pidPath);
     await writeAll(io.stdout, 'garden is not running\n');
     return 0;
+  }
+
+  const { pid } = record;
+  if (status === 'unresponsive') {
+    await writeAll(
+      io.stderr,
+      `garden: process ${String(pid)} is alive but its /health did not answer, so it can't be confirmed as garden and was not signalled. If it is a hung garden, stop it with: kill ${String(pid)}\n`,
+    );
+    return 1;
   }
 
   deps.kill(pid, 'SIGTERM');

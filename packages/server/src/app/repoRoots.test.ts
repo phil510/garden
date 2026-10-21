@@ -1,3 +1,4 @@
+import { DEFAULT_UI_STATE } from '@garden/shared';
 import { describe, expect, it, vi } from 'vitest';
 import type { GardenEvent } from '../domain/types.js';
 import type { GitPort, OverlayState, StorePort } from './ports.js';
@@ -5,15 +6,9 @@ import { createProjection, type Projection } from './projection.js';
 import { watchRepoRoots } from './repoRoots.js';
 
 const emptyOverlay: OverlayState = {
-  version: 1,
+  version: 2,
   tmuxNames: {},
-  groups: {},
-  stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
-  swarms: [],
-  placements: {},
-  swarmOrder: [],
-  collapsedSwarms: [],
-  hideDeadSwarms: [],
+  ui: DEFAULT_UI_STATE,
   watches: [],
   alerts: [],
   digests: [],

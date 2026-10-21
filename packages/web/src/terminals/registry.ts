@@ -1,3 +1,4 @@
+import { PANE_CLOSE_CODES } from '@garden/shared';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { Terminal } from '@xterm/xterm';
@@ -8,6 +9,7 @@ import { openFailureMessage } from '../features/filetree/pathLineErrors.js';
 import { resolveAgainst, resolvePathLineTarget } from '../features/filetree/projectPaths.js';
 import { refreshRepoList } from '../features/sidebar/repoListCache.js';
 import { useLocalStore } from '../state/localStore.js';
+import { useRefusedAttachStore } from '../state/refusedAttachStore.js';
 import { useSessionStore } from '../state/sessionStore.js';
 import { useToastStore } from '../state/toastStore.js';
 import { openExternalLink } from './hyperlinks.js';
@@ -207,7 +209,12 @@ function createPane(sessionId: string, container: HTMLElement, epoch: number): P
 
   const socket = connectPaneSocket(sessionId, initialSize, {
     onData: (chunk) => terminal.write(chunk),
-    onClose: dispose,
+    onClose: (code) => {
+      if (code === PANE_CLOSE_CODES.ALREADY_ATTACHED) {
+        useRefusedAttachStore.getState().markRefused(sessionId);
+      }
+      dispose();
+    },
   });
   terminal.onData((data) => socket.write(data));
 
@@ -251,8 +258,9 @@ function createPane(sessionId: string, container: HTMLElement, epoch: number): P
 
 /** Puts the session's pane in `container`, fitted to it and tracking its size. A session already
  *  in the registry is never attached a second time — the server refuses a second concurrent
- *  attach per session, so moving the existing terminal and reusing its socket is what keeps that
- *  refusal from ever being reached. A pane held over from an earlier `epoch` is the one case
+ *  attach per session, so moving the existing terminal and reusing its socket keeps this window
+ *  from refusing itself. A refusal caused by another window ends with the session marked in
+ *  `useRefusedAttachStore`. A pane held over from an earlier `epoch` is the one case
  *  where that socket is already gone, so it is replaced rather than reused. */
 export function attachPane(sessionId: string, container: HTMLElement, epoch: number): void {
   const existing = panes.get(sessionId);
@@ -266,8 +274,9 @@ export function attachPane(sessionId: string, container: HTMLElement, epoch: num
   handle.mount(container);
 }
 
-/** Ends a session's pane socket and disposes its terminal. Safe to call on a session with no
- *  open pane. */
+/** Ends a session's pane socket and disposes its terminal, and forgets that its attach was
+ *  refused so the next attach starts fresh. Safe to call on a session with no open pane. */
 export function detachPane(sessionId: string): void {
   panes.get(sessionId)?.dispose();
+  useRefusedAttachStore.getState().clearRefused(sessionId);
 }

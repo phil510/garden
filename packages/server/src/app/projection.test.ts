@@ -1,3 +1,4 @@
+import { DEFAULT_UI_STATE } from '@garden/shared';
 import { aHookEvent } from '@garden/shared/fixtures';
 import type { Delta, UiState } from '@garden/shared';
 import { describe, expect, it } from 'vitest';
@@ -6,15 +7,9 @@ import type { OverlayState, StorePort } from './ports.js';
 import { createProjection } from './projection.js';
 
 const emptyOverlay: OverlayState = {
-  version: 1,
+  version: 2,
   tmuxNames: {},
-  groups: {},
-  stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
-  swarms: [],
-  placements: {},
-  swarmOrder: [],
-  collapsedSwarms: [],
-  hideDeadSwarms: [],
+  ui: DEFAULT_UI_STATE,
   watches: [],
   alerts: [],
   digests: [],
@@ -158,33 +153,10 @@ describe('sessions(filter)', () => {
 
 describe('ui state', () => {
   const overlay: OverlayState = {
-    version: 1,
+    ...emptyOverlay,
     tmuxNames: { 'sid-1': 'repo' },
-    groups: {
-      '/repos/b': { pinned: false, order: 1, collapsed: true, hideDead: false },
-      '/repos/a': { pinned: true, order: 0, collapsed: false, hideDead: true },
-    },
-    stage: {
-      preset: 'two-across',
-      slots: ['sid-1', null],
-      focusedSlot: 1,
-      layout: { grid: 'opaque' },
-    },
-    swarms: [],
-    placements: {},
-    swarmOrder: [],
-    collapsedSwarms: [],
-    hideDeadSwarms: [],
-    watches: [],
-    alerts: [],
-    digests: [],
-    pipes: {},
-  };
-
-  it('orders the groups by the store order rather than by insertion', () => {
-    const projection = createProjection(fakeStore(overlay).port);
-
-    expect(projection.uiState()).toEqual<UiState>({
+    ui: {
+      ...DEFAULT_UI_STATE,
       groupOrder: ['/repos/a', '/repos/b'],
       pinnedRepos: ['/repos/a'],
       collapsedRepos: ['/repos/b'],
@@ -193,12 +165,13 @@ describe('ui state', () => {
       slots: ['sid-1', null],
       focusedSlot: 1,
       layout: { grid: 'opaque' },
-      swarms: [],
-      placements: {},
-      swarmOrder: [],
-      collapsedSwarms: [],
-      hideDeadSwarms: [],
-    });
+    },
+  };
+
+  it('reads the stored ui back as the client sees it', () => {
+    const projection = createProjection(fakeStore(overlay).port);
+
+    expect(projection.uiState()).toEqual<UiState>(overlay.ui);
   });
 
   it('applies a partial update and leaves the rest of the slice standing', () => {
@@ -214,14 +187,36 @@ describe('ui state', () => {
     });
   });
 
-  it('preserves the store fields the client never sees', () => {
-    const store = fakeStore(overlay);
+  it('writes a patch into ui and leaves every other stored field alone', () => {
+    const stored: OverlayState = {
+      ...overlay,
+      ui: {
+        ...overlay.ui,
+        swarms: [{ id: 'swarm-1', name: 'A swarm', archived: false }],
+        placements: { 'sid-1': { swarmId: 'swarm-1' } },
+      },
+      watches: [
+        {
+          id: 'w-1',
+          sessionId: 'sid-1',
+          repo: 'acme/widgets',
+          pr: 7,
+          kinds: ['closed'],
+          createdAt: now,
+          cursor: null,
+          pendingDigest: null,
+          status: 'active',
+        },
+      ],
+      alerts: [{ sessionId: 'sid-1', text: 'stuck', raisedAt: now, updatedAt: now }],
+      pipes: { 'sid-1': now },
+    };
+    const store = fakeStore(stored);
     const projection = createProjection(store.port);
 
     projection.updateUiState({ hideDeadRepos: [] });
 
-    expect(store.written().tmuxNames).toEqual({ 'sid-1': 'repo' });
-    expect(store.written().version).toBe(1);
+    expect(store.written()).toEqual({ ...stored, ui: { ...stored.ui, hideDeadRepos: [] } });
   });
 
   it('writes the layout blob through untouched', () => {
@@ -230,7 +225,7 @@ describe('ui state', () => {
 
     projection.updateUiState({ layout: { grid: 'dragged' } });
 
-    expect(store.written().stage.layout).toEqual({ grid: 'dragged' });
+    expect(store.written().ui.layout).toEqual({ grid: 'dragged' });
   });
 
   it('drops the panes a smaller preset has no slot for', () => {
@@ -241,7 +236,7 @@ describe('ui state', () => {
 
     expect(projection.uiState().slots).toEqual(['sid-1']);
     expect(projection.uiState().focusedSlot).toBe(0);
-    expect(store.written().stage.slots).toEqual(['sid-1']);
+    expect(store.written().ui.slots).toEqual(['sid-1']);
   });
 
   it('pads the slot array out when a larger preset arrives', () => {
@@ -256,61 +251,44 @@ describe('ui state', () => {
   describe('a stored stage that disagrees with its preset', () => {
     const unfitted: OverlayState = {
       ...emptyOverlay,
-      stage: { preset: 'single', slots: ['sid-1', 'sid-2'], focusedSlot: 1, layout: {} },
+      ui: { ...DEFAULT_UI_STATE, preset: 'single', slots: ['sid-1', 'sid-2'], focusedSlot: 1 },
     };
 
-    it('reads back fitted before any patch', () => {
-      const projection = createProjection(fakeStore(unfitted).port);
+    it('reads back fitted before any patch, without rewriting the store', () => {
+      const store = fakeStore(unfitted);
+      const projection = createProjection(store.port);
 
       expect(projection.uiState().slots).toEqual(['sid-1']);
       expect(projection.uiState().focusedSlot).toBe(0);
+      expect(store.written()).toBe(unfitted);
+    });
+
+    it('widens from the fitted stage when a patch changes only the preset', () => {
+      const projection = createProjection(fakeStore(unfitted).port);
+
+      projection.updateUiState({ preset: 'two-across' });
+
+      expect(projection.uiState().slots).toEqual(['sid-1', null]);
     });
 
     it('stays fitted after an overlay write that leaves the stage alone', () => {
       const projection = createProjection(fakeStore(unfitted).port);
 
-      projection.updateOverlay((base) => ({ ...base, swarms: [] }));
+      projection.updateOverlay((base) => ({ ...base, ui: { ...base.ui, swarms: [] } }));
 
       expect(projection.uiState().slots).toEqual(['sid-1']);
       expect(projection.uiState().focusedSlot).toBe(0);
     });
   });
 
-  it('writes a reordered group list back as store orders', () => {
-    const store = fakeStore(overlay);
-    const projection = createProjection(store.port);
-
-    projection.updateUiState({ groupOrder: ['/repos/b', '/repos/a'] });
-
-    expect(store.written().groups).toEqual({
-      '/repos/b': { pinned: false, order: 0, collapsed: true, hideDead: false },
-      '/repos/a': { pinned: true, order: 1, collapsed: false, hideDead: true },
-    });
-    expect(projection.uiState().groupOrder).toEqual(['/repos/b', '/repos/a']);
-  });
-
-  it('keeps a repo named only as pinned, ordering it after the ordered ones', () => {
+  it('stores the repo lists exactly as sent', () => {
     const store = fakeStore(emptyOverlay);
     const projection = createProjection(store.port);
 
     projection.updateUiState({ groupOrder: ['/repos/a'], pinnedRepos: ['/repos/z'] });
 
-    expect(store.written().groups).toEqual({
-      '/repos/a': { pinned: false, order: 0, collapsed: false, hideDead: false },
-      '/repos/z': { pinned: true, order: 1, collapsed: false, hideDead: false },
-    });
-  });
-
-  it('keeps a repo named only as hide-dead, ordering it after the ordered ones', () => {
-    const store = fakeStore(emptyOverlay);
-    const projection = createProjection(store.port);
-
-    projection.updateUiState({ groupOrder: ['/repos/a'], hideDeadRepos: ['/repos/z'] });
-
-    expect(store.written().groups).toEqual({
-      '/repos/a': { pinned: false, order: 0, collapsed: false, hideDead: false },
-      '/repos/z': { pinned: false, order: 1, collapsed: false, hideDead: true },
-    });
+    expect(store.written().ui.groupOrder).toEqual(['/repos/a']);
+    expect(store.written().ui.pinnedRepos).toEqual(['/repos/z']);
   });
 
   it('round-trips swarmOrder, collapsedSwarms and hideDeadSwarms through updateUiState', () => {
@@ -323,9 +301,9 @@ describe('ui state', () => {
       hideDeadSwarms: ['swarm-2'],
     });
 
-    expect(store.written().swarmOrder).toEqual(['swarm-2', 'swarm-1']);
-    expect(store.written().collapsedSwarms).toEqual(['swarm-1']);
-    expect(store.written().hideDeadSwarms).toEqual(['swarm-2']);
+    expect(store.written().ui.swarmOrder).toEqual(['swarm-2', 'swarm-1']);
+    expect(store.written().ui.collapsedSwarms).toEqual(['swarm-1']);
+    expect(store.written().ui.hideDeadSwarms).toEqual(['swarm-2']);
     expect(projection.uiState().swarmOrder).toEqual(['swarm-2', 'swarm-1']);
     expect(projection.uiState().collapsedSwarms).toEqual(['swarm-1']);
     expect(projection.uiState().hideDeadSwarms).toEqual(['swarm-2']);
@@ -365,8 +343,6 @@ describe('persisting the tmux name map', () => {
 
   const populated: OverlayState = {
     ...emptyOverlay,
-    groups: { '/Users/dev/repo': { pinned: true, order: 0, collapsed: false, hideDead: true } },
-    stage: { preset: 'single', slots: ['sid-9'], focusedSlot: 0, layout: {} },
     watches: [
       {
         id: 'w-1',
@@ -380,8 +356,14 @@ describe('persisting the tmux name map', () => {
         status: 'active',
       },
     ],
-    swarms: [{ id: 'swarm-1', name: 'A swarm', archived: false }],
-    placements: { 'sid-9': { swarmId: 'swarm-1' } },
+    ui: {
+      ...DEFAULT_UI_STATE,
+      pinnedRepos: ['/Users/dev/repo'],
+      hideDeadRepos: ['/Users/dev/repo'],
+      slots: ['sid-9'],
+      swarms: [{ id: 'swarm-1', name: 'A swarm', archived: false }],
+      placements: { 'sid-9': { swarmId: 'swarm-1' } },
+    },
   };
 
   /** Counts writes so a test can tell "wrote the same thing" from "did not write". */
@@ -474,8 +456,11 @@ describe('updateUiState when the store write fails', () => {
 describe('swarms and placements', () => {
   const withPlacements: OverlayState = {
     ...emptyOverlay,
-    swarms: [{ id: 'swarm-1', name: 'A swarm', archived: false }],
-    placements: { 'sid-1': { swarmId: 'swarm-1' } },
+    ui: {
+      ...DEFAULT_UI_STATE,
+      swarms: [{ id: 'swarm-1', name: 'A swarm', archived: false }],
+      placements: { 'sid-1': { swarmId: 'swarm-1' } },
+    },
   };
 
   it('carries swarms and placements through the uiState() round trip', () => {
@@ -487,16 +472,6 @@ describe('swarms and placements', () => {
     expect(projection.uiState().placements).toEqual({ 'sid-1': { swarmId: 'swarm-1' } });
   });
 
-  it('leaves swarms and placements untouched when a ui-only patch is applied', () => {
-    const store = fakeStore(withPlacements);
-    const projection = createProjection(store.port);
-
-    projection.updateUiState({ hideDeadRepos: [] });
-
-    expect(store.written().swarms).toEqual(withPlacements.swarms);
-    expect(store.written().placements).toEqual(withPlacements.placements);
-  });
-
   it('updateOverlay writes through the store, refreshes uiState(), and notifies ui subscribers', () => {
     const store = fakeStore(emptyOverlay);
     const projection = createProjection(store.port);
@@ -505,11 +480,13 @@ describe('swarms and placements', () => {
 
     const next = projection.updateOverlay((base) => ({
       ...base,
-      swarms: [{ id: 'swarm-1', name: 'A swarm', archived: false }],
+      ui: { ...base.ui, swarms: [{ id: 'swarm-1', name: 'A swarm', archived: false }] },
     }));
 
-    expect(next.swarms).toEqual([{ id: 'swarm-1', name: 'A swarm', archived: false }]);
-    expect(store.written().swarms).toEqual([{ id: 'swarm-1', name: 'A swarm', archived: false }]);
+    expect(next.ui.swarms).toEqual([{ id: 'swarm-1', name: 'A swarm', archived: false }]);
+    expect(store.written().ui.swarms).toEqual([
+      { id: 'swarm-1', name: 'A swarm', archived: false },
+    ]);
     expect(projection.uiState().swarms).toEqual([
       { id: 'swarm-1', name: 'A swarm', archived: false },
     ]);
@@ -559,9 +536,12 @@ describe('swarms and placements', () => {
   it('placementOf resolves a placed session, including its top-level swarm', () => {
     const overlay: OverlayState = {
       ...emptyOverlay,
-      placements: {
-        child: { parent: 'orchestrator' },
-        orchestrator: { swarmId: 'swarm-1' },
+      ui: {
+        ...DEFAULT_UI_STATE,
+        placements: {
+          child: { parent: 'orchestrator' },
+          orchestrator: { swarmId: 'swarm-1' },
+        },
       },
     };
     const projection = createProjection(fakeStore(overlay).port);
@@ -579,7 +559,10 @@ describe('swarms and placements', () => {
   });
 
   it('merges parent/swarmId onto every session, even when called unfiltered', () => {
-    const store = fakeStore({ ...emptyOverlay, placements: { 'sid-1': { swarmId: 'swarm-1' } } });
+    const store = fakeStore({
+      ...emptyOverlay,
+      ui: { ...DEFAULT_UI_STATE, placements: { 'sid-1': { swarmId: 'swarm-1' } } },
+    });
     const projection = createProjection(store.port);
     projection.dispatch(hook('UserPromptSubmit', 'sid-1'));
 
@@ -591,9 +574,12 @@ describe('swarms and placements', () => {
   it('resolves swarm membership over the full placements map before the dead-session filter narrows the list', () => {
     const store = fakeStore({
       ...emptyOverlay,
-      placements: {
-        orchestrator: { swarmId: 'swarm-1' },
-        child: { parent: 'orchestrator' },
+      ui: {
+        ...DEFAULT_UI_STATE,
+        placements: {
+          orchestrator: { swarmId: 'swarm-1' },
+          child: { parent: 'orchestrator' },
+        },
       },
     });
     const projection = createProjection(store.port);

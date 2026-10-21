@@ -1,3 +1,4 @@
+import { DEFAULT_UI_STATE } from '@garden/shared';
 import { aHookEvent } from '@garden/shared/fixtures';
 import type { HookPayload } from '@garden/shared';
 import Fastify from 'fastify';
@@ -8,15 +9,9 @@ import type { OverlayState } from '../../app/ports.js';
 import { hookRoutes } from './hooks.js';
 
 const emptyOverlay: OverlayState = {
-  version: 1,
+  version: 2,
   tmuxNames: {},
-  groups: {},
-  stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
-  swarms: [],
-  placements: {},
-  swarmOrder: [],
-  collapsedSwarms: [],
-  hideDeadSwarms: [],
+  ui: DEFAULT_UI_STATE,
   watches: [],
   alerts: [],
   digests: [],

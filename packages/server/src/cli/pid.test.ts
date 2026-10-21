@@ -3,7 +3,16 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { isProcessRunning, parsePid, readPidFile, removePidFile, writePidFile } from './pid.js';
+import {
+  classifyRecordedPid,
+  isProcessRunning,
+  parsePid,
+  parsePidRecord,
+  readPidFile,
+  removePidFile,
+  writePidFile,
+} from './pid.js';
+import type { HealthPidResult } from './serverProcess.js';
 
 let dir: string;
 let path: string;
@@ -29,14 +38,33 @@ describe('parsePid', () => {
   });
 });
 
+describe('parsePidRecord', () => {
+  it('reads the pid and port', () => {
+    expect(parsePidRecord('1234\n7777\n')).toEqual({ pid: 1234, port: 7777 });
+  });
+
+  it('reads a pid-only file written before the port was recorded, with no port', () => {
+    expect(parsePidRecord('1234\n')).toEqual({ pid: 1234, port: null });
+  });
+
+  it('drops an unusable port but keeps the pid', () => {
+    expect(parsePidRecord('1234\nabc\n')).toEqual({ pid: 1234, port: null });
+    expect(parsePidRecord('1234\n99999\n')).toEqual({ pid: 1234, port: null });
+  });
+
+  it('is null when the pid is unusable', () => {
+    expect(parsePidRecord('junk\n7777\n')).toBeNull();
+  });
+});
+
 describe('readPidFile', () => {
   it('returns null when no file has been written', () => {
     expect(readPidFile(path)).toBeNull();
   });
 
-  it('round-trips a written pid', () => {
-    writePidFile(path, 4242);
-    expect(readPidFile(path)).toBe(4242);
+  it('round-trips a written pid and port', () => {
+    writePidFile(path, 4242, 7777);
+    expect(readPidFile(path)).toEqual({ pid: 4242, port: 7777 });
   });
 });
 
@@ -48,7 +76,7 @@ describe('removePidFile', () => {
   });
 
   it('deletes a written file', () => {
-    writePidFile(path, 1);
+    writePidFile(path, 1, 7777);
     removePidFile(path);
     expect(readPidFile(path)).toBeNull();
   });
@@ -69,5 +97,49 @@ describe('isProcessRunning', () => {
       });
     });
     expect(isProcessRunning(exitedPid)).toBe(false);
+  });
+});
+
+describe('classifyRecordedPid', () => {
+  function classify(pid: number | null, alive: boolean, health: HealthPidResult) {
+    const probed: string[] = [];
+    const result = classifyRecordedPid(
+      pid,
+      {
+        isProcessRunning: () => alive,
+        healthPid: (url) => {
+          probed.push(url);
+          return Promise.resolve(health);
+        },
+      },
+      'http://h/health',
+    );
+    return { result, probed };
+  }
+
+  it('confirms garden when /health reports the recorded pid', async () => {
+    expect(await classify(4242, true, 4242).result).toBe('garden');
+  });
+
+  it('is stale when /health reports a different pid', async () => {
+    expect(await classify(4242, true, 777).result).toBe('stale');
+  });
+
+  it('is stale when nothing is listening', async () => {
+    expect(await classify(4242, true, 'refused').result).toBe('stale');
+  });
+
+  it('is unresponsive when the process is alive but /health does not answer', async () => {
+    expect(await classify(4242, true, 'no-answer').result).toBe('unresponsive');
+  });
+
+  it('is stale without probing when the pid is dead or absent', async () => {
+    const dead = classify(4242, false, 4242);
+    const none = classify(null, true, 4242);
+
+    expect(await dead.result).toBe('stale');
+    expect(await none.result).toBe('stale');
+    expect(dead.probed).toEqual([]);
+    expect(none.probed).toEqual([]);
   });
 });

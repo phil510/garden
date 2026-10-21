@@ -1,3 +1,4 @@
+import { DEFAULT_UI_STATE } from '@garden/shared';
 import { describe, expect, it } from 'vitest';
 import type { Logger, OverlayState } from '../../app/ports.js';
 import type { Projection } from '../../app/projection.js';
@@ -8,15 +9,9 @@ import { createApp } from '../server.js';
 import { swarmRoutes } from './swarms.js';
 
 const emptyOverlay: OverlayState = {
-  version: 1,
+  version: 2,
   tmuxNames: {},
-  groups: {},
-  stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
-  swarms: [],
-  placements: {},
-  swarmOrder: [],
-  collapsedSwarms: [],
-  hideDeadSwarms: [],
+  ui: DEFAULT_UI_STATE,
   watches: [],
   alerts: [],
   digests: [],
@@ -105,7 +100,7 @@ describe('POST /swarms/:id/archive', () => {
   it('answers ok on success', async () => {
     const overlay: OverlayState = {
       ...emptyOverlay,
-      swarms: [{ id: 's1', name: 'A', archived: false }],
+      ui: { ...emptyOverlay.ui, swarms: [{ id: 's1', name: 'A', archived: false }] },
     };
     const app = buildApp({
       projection: fakeProjection({ updateOverlay: (mutate) => mutate(overlay) }),
@@ -132,7 +127,7 @@ describe('POST /swarms/:id/unarchive', () => {
   it('answers ok on success', async () => {
     const overlay: OverlayState = {
       ...emptyOverlay,
-      swarms: [{ id: 's1', name: 'A', archived: true }],
+      ui: { ...emptyOverlay.ui, swarms: [{ id: 's1', name: 'A', archived: true }] },
     };
     const app = buildApp({
       projection: fakeProjection({ updateOverlay: (mutate) => mutate(overlay) }),
@@ -159,7 +154,7 @@ describe('DELETE /swarms/:id', () => {
   it('answers ok on success', async () => {
     const overlay: OverlayState = {
       ...emptyOverlay,
-      swarms: [{ id: 's1', name: 'A', archived: false }],
+      ui: { ...emptyOverlay.ui, swarms: [{ id: 's1', name: 'A', archived: false }] },
     };
     const app = buildApp({
       projection: fakeProjection({ updateOverlay: (mutate) => mutate(overlay) }),

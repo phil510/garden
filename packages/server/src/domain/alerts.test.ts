@@ -1,17 +1,12 @@
+import { DEFAULT_UI_STATE } from '@garden/shared';
 import { describe, expect, it } from 'vitest';
 import { raiseAlert, withoutAlert } from './alerts.js';
 import type { OverlayState } from './overlay.js';
 
 const anOverlay = (overrides: Partial<OverlayState> = {}): OverlayState => ({
-  version: 1,
+  version: 2,
   tmuxNames: {},
-  groups: {},
-  stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
-  swarms: [],
-  placements: {},
-  swarmOrder: [],
-  collapsedSwarms: [],
-  hideDeadSwarms: [],
+  ui: DEFAULT_UI_STATE,
   watches: [],
   alerts: [],
   digests: [],

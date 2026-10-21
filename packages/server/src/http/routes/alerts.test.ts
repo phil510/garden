@@ -1,3 +1,4 @@
+import { DEFAULT_UI_STATE } from '@garden/shared';
 import { aSession } from '@garden/shared/fixtures';
 import { describe, expect, it } from 'vitest';
 import type { AlertsDeps } from '../../app/alerts.js';
@@ -7,15 +8,9 @@ import { createApp } from '../server.js';
 import { alertRoutes } from './alerts.js';
 
 const emptyOverlay: OverlayState = {
-  version: 1,
+  version: 2,
   tmuxNames: {},
-  groups: {},
-  stage: { preset: 'single', slots: [null], focusedSlot: 0, layout: {} },
-  swarms: [],
-  placements: {},
-  swarmOrder: [],
-  collapsedSwarms: [],
-  hideDeadSwarms: [],
+  ui: DEFAULT_UI_STATE,
   watches: [],
   alerts: [],
   digests: [],
