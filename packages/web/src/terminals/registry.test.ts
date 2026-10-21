@@ -674,4 +674,35 @@ describe('a pane whose socket closed on its own', () => {
     expect(first.closed).toBe(true);
     expect(FakeSocket.instances).toHaveLength(2);
   });
+
+  it('marks the session refused when the server refused the attach as already attached', async () => {
+    const { attachPane } = await loadRegistry();
+    const { useRefusedAttachStore } = await import('../state/refusedAttachStore.js');
+    attachPane('session-a', aContainer({ width: '800px', height: '600px' }), 0);
+
+    lastSocket().handlers.onClose(4009);
+
+    expect(useRefusedAttachStore.getState().refused.has('session-a')).toBe(true);
+  });
+
+  it('does not mark the session refused for any other close', async () => {
+    const { attachPane } = await loadRegistry();
+    const { useRefusedAttachStore } = await import('../state/refusedAttachStore.js');
+    attachPane('session-a', aContainer({ width: '800px', height: '600px' }), 0);
+
+    lastSocket().handlers.onClose(1000);
+
+    expect(useRefusedAttachStore.getState().refused.has('session-a')).toBe(false);
+  });
+
+  it('forgets a refusal when the pane is detached', async () => {
+    const { attachPane, detachPane } = await loadRegistry();
+    const { useRefusedAttachStore } = await import('../state/refusedAttachStore.js');
+    attachPane('session-a', aContainer({ width: '800px', height: '600px' }), 0);
+    lastSocket().handlers.onClose(4009);
+
+    detachPane('session-a');
+
+    expect(useRefusedAttachStore.getState().refused.has('session-a')).toBe(false);
+  });
 });
