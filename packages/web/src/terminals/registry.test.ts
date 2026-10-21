@@ -142,8 +142,16 @@ class FakeResizeObserver {
 vi.mock('@xterm/xterm', () => ({ Terminal: FakeTerminal }));
 vi.mock('@xterm/addon-fit', () => ({ FitAddon: FakeFitAddon }));
 vi.mock('@xterm/addon-web-links', () => ({ WebLinksAddon: FakeWebLinksAddon }));
+const pathLineMocks = vi.hoisted(() => ({
+  repos: [] as { path: string }[],
+  getFile: undefined as unknown as (...args: unknown[]) => Promise<unknown>,
+}));
 vi.mock('../features/sidebar/repoListCache.js', () => ({
-  refreshRepoList: () => Promise.resolve([]),
+  refreshRepoList: () => Promise.resolve(pathLineMocks.repos),
+}));
+vi.mock('../api/client.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../api/client.js')>()),
+  getFile: (...args: unknown[]) => pathLineMocks.getFile(...args),
 }));
 vi.mock('../api/paneSocket.js', () => ({
   connectPaneSocket: (_sessionId: string, size: PaneSize, handlers: PaneSocketHandlers) =>
@@ -353,16 +361,26 @@ describe('attachPane', () => {
   });
 
   describe('path-line links', () => {
-    async function clickLink(lineText: string): Promise<{
+    beforeEach(() => {
+      pathLineMocks.repos = [];
+      pathLineMocks.getFile = () => Promise.resolve({});
+    });
+
+    async function clickLink(
+      lineText: string,
+      cwd: string | null = '/work/repo',
+    ): Promise<{
       text: string | undefined;
       requestOpenFile: Mock;
+      toast: () => string | null;
     }> {
       const { attachPane } = await loadRegistry();
       const { useLocalStore } = await import('../state/localStore.js');
       const { useSessionStore } = await import('../state/sessionStore.js');
       useSessionStore.setState({
-        sessions: { 'session-a': { cwd: '/work/repo' } } as never,
+        sessions: { 'session-a': { cwd: cwd ?? undefined } } as never,
       });
+      const { useToastStore } = await import('../state/toastStore.js');
       const requestOpenFile = vi.fn();
       useLocalStore.setState({ requestOpenFile });
       attachPane('session-a', aContainer({ width: '800px', height: '600px' }), 0);
@@ -370,7 +388,11 @@ describe('attachPane', () => {
       terminal.setLine(0, lineText);
       const links = provideLinks(pathLineProvider(terminal), 1);
       links?.[0]?.activate(new MouseEvent('click'), links[0].text);
-      return { text: links?.[0]?.text, requestOpenFile };
+      return {
+        text: links?.[0]?.text,
+        requestOpenFile,
+        toast: () => useToastStore.getState().message,
+      };
     }
 
     it('opens a bare path without a line', async () => {
@@ -393,6 +415,68 @@ describe('attachPane', () => {
       terminal.setLine(0, 'ers/profile.json', true);
 
       expect(provideLinks(pathLineProvider(terminal), 1)).toBeUndefined();
+    });
+
+    it('opens a session-target file with no toast', async () => {
+      const { requestOpenFile, toast } = await clickLink('edited src/foo.ts today');
+
+      await vi.waitFor(() => expect(requestOpenFile).toHaveBeenCalled());
+      expect(toast()).toBeNull();
+    });
+
+    it.each(['src/foo.ts', '/work/repo/src/foo.ts'])(
+      'toasts that the session directory is unknown when clicking %s without a cwd',
+      async (token) => {
+        const { requestOpenFile, toast } = await clickLink(`see ${token} now`, null);
+
+        await vi.waitFor(() =>
+          expect(toast()).toBe(`Can't open ${token}: session directory unknown`),
+        );
+        expect(requestOpenFile).not.toHaveBeenCalled();
+      },
+    );
+
+    it('toasts a path outside every project and the session directory', async () => {
+      const { requestOpenFile, toast } = await clickLink('wrote /tmp/x.ts:3');
+
+      await vi.waitFor(() => expect(toast()).toBe("/tmp/x.ts isn't in any known project"));
+      expect(requestOpenFile).not.toHaveBeenCalled();
+    });
+
+    describe('in a listed project', () => {
+      beforeEach(() => {
+        pathLineMocks.repos = [{ path: '/other/proj' }];
+      });
+
+      it('toasts a missing file when the probe answers 404', async () => {
+        const { ApiError } = await import('../api/client.js');
+        pathLineMocks.getFile = () => Promise.reject(new ApiError('no such path', 404));
+        const { requestOpenFile, toast } = await clickLink('at /other/proj/gone.ts:3');
+
+        await vi.waitFor(() => expect(toast()).toBe('File not found: /other/proj/gone.ts'));
+        expect(requestOpenFile).not.toHaveBeenCalled();
+      });
+
+      it('toasts the server reason when the probe answers 400', async () => {
+        const { ApiError } = await import('../api/client.js');
+        pathLineMocks.getFile = () => Promise.reject(new ApiError('not a file: dir', 400));
+        const { toast } = await clickLink('at /other/proj/dir:3');
+
+        await vi.waitFor(() => expect(toast()).toBe("Can't open /other/proj/dir: not a file: dir"));
+      });
+
+      it('opens the file with no toast when the probe succeeds', async () => {
+        const { requestOpenFile, toast } = await clickLink('at /other/proj/a.ts:3');
+
+        await vi.waitFor(() =>
+          expect(requestOpenFile).toHaveBeenCalledWith(
+            { kind: 'root', root: '/other/proj' },
+            'a.ts',
+            3,
+          ),
+        );
+        expect(toast()).toBeNull();
+      });
     });
 
     it('opens a path:line link at its line', async () => {

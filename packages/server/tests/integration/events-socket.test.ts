@@ -15,26 +15,16 @@ import {
   status,
   workTreePrefix,
 } from '../../src/adapters/git.js';
-import { DEFAULT_OVERLAY_STATE } from '../../src/adapters/store.js';
 import { createProjection } from '../../src/app/projection.js';
 import { createRepoCatalog } from '../../src/app/repoCatalog.js';
 import { createRootWatches } from '../../src/app/rootWatch.js';
-import type { OverlayState, StorePort } from '../../src/app/ports.js';
 import { createServer } from '../../src/http/server.js';
+import { fakeStore } from './support/fakeStore.js';
+import { opened } from './support/socket.js';
 import { settle, sleep, QUIET_WINDOW_MS } from './support/fsSignals.js';
 import { noPipes } from './support/noPipes.js';
 import { noRootWatches } from './support/noRootWatches.js';
 import { until } from './support/poll.js';
-
-function fakeStore(): StorePort {
-  let current: OverlayState = DEFAULT_OVERLAY_STATE;
-  return {
-    read: () => current,
-    write: (state) => {
-      current = state;
-    },
-  };
-}
 
 function unusedPorts() {
   return {
@@ -67,13 +57,6 @@ function unusedPorts() {
       },
     },
   };
-}
-
-function opened(socket: WebSocket): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
-    socket.once('open', resolve);
-    socket.once('error', reject);
-  });
 }
 
 function receiveOne(socket: WebSocket): Promise<ServerMessage> {

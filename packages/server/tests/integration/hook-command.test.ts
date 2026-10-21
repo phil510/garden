@@ -3,12 +3,11 @@ import { createServer } from 'node:http';
 import type { AddressInfo, Socket } from 'node:net';
 import { aHookEvent } from '@garden/shared/fixtures';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_OVERLAY_STATE } from '../../src/adapters/store.js';
 import { updateWatches } from '../../src/app/watches.js';
 import { createProjection, type Projection } from '../../src/app/projection.js';
-import type { OverlayState, StorePort } from '../../src/app/ports.js';
 import { claudeSettings } from '../../src/appdir.js';
 import { createServer as createGardenServer } from '../../src/http/server.js';
+import { fakeStore } from './support/fakeStore.js';
 import { noPipes } from './support/noPipes.js';
 import { noRootWatches } from './support/noRootWatches.js';
 
@@ -105,16 +104,6 @@ describe('the generated hook command', () => {
     }
   });
 });
-
-function fakeStore(): StorePort {
-  let current: OverlayState = DEFAULT_OVERLAY_STATE;
-  return {
-    read: () => current,
-    write: (state) => {
-      current = state;
-    },
-  };
-}
 
 function realServer(projection: Projection) {
   return createGardenServer({

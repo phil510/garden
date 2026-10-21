@@ -116,3 +116,9 @@ between the base and your change.
 Screenshot before you touch anything to see the current state, make the change, screenshot again,
 and compare. For a ticket about a visual bug, a before/after screenshot pair is what you attach as
 evidence in the PR — not just a description of the CSS you changed.
+
+A zoomed capture reads as aligned at small offsets, so a visual pass is believed exactly when it is
+wrong. Verify alignment, overlap and stacking by measuring the elements over CDP instead:
+`getBoundingClientRect` for boxes, `getComputedStyle` (pseudo-elements too, e.g.
+`getComputedStyle(el, '::before')`) for borders, offsets and z-order. Report the measured
+coordinates, not a verdict, and treat the capture as a secondary check.

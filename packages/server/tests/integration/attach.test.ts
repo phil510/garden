@@ -9,50 +9,20 @@ import { PANE_CLOSE_CODES } from '@garden/shared';
 import { afterEach, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
 import { attachPty, type PtyTarget } from '../../src/adapters/pty.js';
-import { DEFAULT_OVERLAY_STATE } from '../../src/adapters/store.js';
-import {
-  killSession,
-  listPanes,
-  newSession,
-  respawnPane,
-  type TmuxTarget,
-} from '../../src/adapters/tmux.js';
+import { killSession, newSession, type TmuxTarget } from '../../src/adapters/tmux.js';
 import { createAttachRegistry } from '../../src/app/attach.js';
-import type {
-  ConfigPort,
-  GitPort,
-  OverlayState,
-  PtyPort,
-  StorePort,
-  TmuxPort,
-} from '../../src/app/ports.js';
+import type { ConfigPort, GitPort, PtyPort } from '../../src/app/ports.js';
 import { createProjection } from '../../src/app/projection.js';
 import { createServer } from '../../src/http/server.js';
+import { fakeStore } from './support/fakeStore.js';
+import { opened } from './support/socket.js';
+import { tmuxPort } from './support/tmuxPort.js';
 import { until } from './support/poll.js';
 import { withTmuxServer } from './support/tmux-server.js';
 import { noPipes } from './support/noPipes.js';
 import { noRootWatches } from './support/noRootWatches.js';
 
 const execFileAsync = promisify(execFile);
-
-function fakeStore(): StorePort {
-  let current: OverlayState = DEFAULT_OVERLAY_STATE;
-  return {
-    read: () => current,
-    write: (state) => {
-      current = state;
-    },
-  };
-}
-
-function tmuxPort(target: TmuxTarget): TmuxPort {
-  return {
-    listPanes: () => listPanes(target),
-    newSession: (request) => newSession(target, request),
-    respawnPane: (request) => respawnPane(target, request),
-    killSession: (name) => killSession(target, name),
-  };
-}
 
 function ptyPort(target: PtyTarget): PtyPort {
   return {
@@ -123,13 +93,6 @@ async function listClients(target: TmuxTarget, name: string): Promise<string> {
     name,
   ]);
   return stdout.trim();
-}
-
-function opened(socket: WebSocket): Promise<void> {
-  return new Promise((resolve, reject) => {
-    socket.once('open', resolve);
-    socket.once('error', reject);
-  });
 }
 
 function closed(socket: WebSocket): Promise<{ code: number; reason: string }> {
