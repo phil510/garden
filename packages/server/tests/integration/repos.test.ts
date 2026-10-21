@@ -1,26 +1,13 @@
-import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { listRepos } from '../../src/app/repos.js';
 import type { GitPort } from '../../src/app/ports.js';
 import { createBranchReader, repoRoot } from '../../src/adapters/git.js';
+import { initRepo, runGit } from './support/git.js';
 
 const git: Pick<GitPort, 'repoRoot' | 'branch'> = { repoRoot, branch: createBranchReader() };
-
-function runGit(cwd: string, args: readonly string[]): void {
-  execFileSync('git', args, { cwd });
-}
-
-function initRepo(dir: string): void {
-  runGit(dir, ['init', '--initial-branch=main']);
-  runGit(dir, ['config', 'user.email', 'garden-test@example.com']);
-  runGit(dir, ['config', 'user.name', 'garden test']);
-  writeFileSync(join(dir, 'README.md'), 'hello\n');
-  runGit(dir, ['add', 'README.md']);
-  runGit(dir, ['commit', '-m', 'initial commit']);
-}
 
 describe('listRepos against real git repos and a real worktree', () => {
   let dir: string | undefined;

@@ -15,21 +15,15 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import type { SessionState } from '@garden/shared';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_OVERLAY_STATE } from '../../src/adapters/store.js';
-import {
-  killSession,
-  listPanes,
-  newSession,
-  respawnPane,
-  type TmuxTarget,
-} from '../../src/adapters/tmux.js';
+import { listPanes, type TmuxTarget } from '../../src/adapters/tmux.js';
 import { watchTranscripts } from '../../src/adapters/transcripts.js';
-import type { OverlayState, StorePort, TmuxPort } from '../../src/app/ports.js';
 import { createProjection, type Projection } from '../../src/app/projection.js';
 import { createSession } from '../../src/app/sessions.js';
 import { slugify } from '../../src/domain/slug.js';
 import type { GardenEvent } from '../../src/domain/types.js';
 import { createServer as createGardenServer } from '../../src/http/server.js';
+import { fakeStore } from './support/fakeStore.js';
+import { tmuxPort } from './support/tmuxPort.js';
 import { until } from './support/poll.js';
 import { withTmuxServer } from './support/tmux-server.js';
 import { noPipes } from './support/noPipes.js';
@@ -67,25 +61,6 @@ function fakeClaudeCommand(transcriptsDir: string): readonly string[] {
     TSX_LOADER,
     FAKE_CLAUDE,
   ];
-}
-
-function fakeStore(): StorePort {
-  let current: OverlayState = DEFAULT_OVERLAY_STATE;
-  return {
-    read: () => current,
-    write: (state) => {
-      current = state;
-    },
-  };
-}
-
-function tmuxPort(target: TmuxTarget): TmuxPort {
-  return {
-    listPanes: () => listPanes(target),
-    newSession: (request) => newSession(target, request),
-    respawnPane: (request) => respawnPane(target, request),
-    killSession: (name) => killSession(target, name),
-  };
 }
 
 function unused(): never {

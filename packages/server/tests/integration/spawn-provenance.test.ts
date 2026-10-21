@@ -2,17 +2,11 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { DEFAULT_OVERLAY_STATE } from '../../src/adapters/store.js';
-import {
-  killSession,
-  listPanes,
-  newSession,
-  respawnPane,
-  type TmuxTarget,
-} from '../../src/adapters/tmux.js';
-import type { OverlayState, StorePort, TmuxPort } from '../../src/app/ports.js';
+import { listPanes } from '../../src/adapters/tmux.js';
 import { createProjection } from '../../src/app/projection.js';
 import { createSession } from '../../src/app/sessions.js';
+import { fakeStore } from './support/fakeStore.js';
+import { tmuxPort } from './support/tmuxPort.js';
 import { until } from './support/poll.js';
 import { sessionEnv, withTmuxServer } from './support/tmux-server.js';
 
@@ -21,25 +15,6 @@ import { sessionEnv, withTmuxServer } from './support/tmux-server.js';
 // positional parameters rather than folding them into the script text, so they're silently
 // ignored here.
 const sleeper = ['sh', '-c', 'sleep 30'];
-
-function fakeStore(): StorePort {
-  let current: OverlayState = DEFAULT_OVERLAY_STATE;
-  return {
-    read: () => current,
-    write: (state) => {
-      current = state;
-    },
-  };
-}
-
-function tmuxPort(target: TmuxTarget): TmuxPort {
-  return {
-    listPanes: () => listPanes(target),
-    newSession: (request) => newSession(target, request),
-    respawnPane: (request) => respawnPane(target, request),
-    killSession: (name) => killSession(target, name),
-  };
-}
 
 describe('spawn provenance', () => {
   const dirs: string[] = [];

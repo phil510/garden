@@ -1,25 +1,12 @@
-import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { status } from '../../src/adapters/git.js';
 import { watchFsRoot } from '../../src/adapters/fsWatch.js';
+import { initRepo, runGit } from './support/git.js';
 import { until } from './support/poll.js';
 import { QUIET_WINDOW_MS, settle, sleep } from './support/fsSignals.js';
-
-function runGit(cwd: string, args: readonly string[]): void {
-  execFileSync('git', args, { cwd });
-}
-
-function initRepo(dir: string): void {
-  runGit(dir, ['init', '--initial-branch=main']);
-  runGit(dir, ['config', 'user.email', 'garden-test@example.com']);
-  runGit(dir, ['config', 'user.name', 'garden test']);
-  writeFileSync(join(dir, 'README.md'), 'hello\n');
-  runGit(dir, ['add', 'README.md']);
-  runGit(dir, ['commit', '-m', 'initial commit']);
-}
 
 const logger = { warn: () => undefined };
 

@@ -1,4 +1,3 @@
-import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -11,36 +10,13 @@ import {
   status,
   workTreePrefix,
 } from '../../src/adapters/git.js';
-import { DEFAULT_OVERLAY_STATE } from '../../src/adapters/store.js';
 import { createProjection } from '../../src/app/projection.js';
 import { createRepoCatalog } from '../../src/app/repoCatalog.js';
-import type { OverlayState, StorePort } from '../../src/app/ports.js';
 import { createServer } from '../../src/http/server.js';
+import { fakeStore } from './support/fakeStore.js';
+import { initRepo } from './support/git.js';
 import { noPipes } from './support/noPipes.js';
 import { noRootWatches } from './support/noRootWatches.js';
-
-function fakeStore(): StorePort {
-  let current: OverlayState = DEFAULT_OVERLAY_STATE;
-  return {
-    read: () => current,
-    write: (state) => {
-      current = state;
-    },
-  };
-}
-
-function runGit(cwd: string, args: readonly string[]): void {
-  execFileSync('git', args, { cwd });
-}
-
-function initRepo(dir: string): void {
-  runGit(dir, ['init', '--initial-branch=main']);
-  runGit(dir, ['config', 'user.email', 'garden-test@example.com']);
-  runGit(dir, ['config', 'user.name', 'garden test']);
-  writeFileSync(join(dir, 'README.md'), 'hello\n');
-  runGit(dir, ['add', 'README.md']);
-  runGit(dir, ['commit', '-m', 'initial commit']);
-}
 
 describe('/fs routes against a real temp repo', () => {
   let dir: string | undefined;
