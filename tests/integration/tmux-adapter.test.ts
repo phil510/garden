@@ -1,6 +1,8 @@
+import { execFile } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 import {
   TmuxError,
@@ -9,9 +11,12 @@ import {
   newSession,
   respawnPane,
   socketHasLivePanes,
+  unsetGlobalEnv,
 } from '../../packages/server/src/adapters/tmux.js';
 import { until } from './support/poll.js';
 import { withTmuxServer } from './support/tmux-server.js';
+
+const execFileAsync = promisify(execFile);
 
 const sleeper = ['sh', '-c', 'sleep 30'];
 
@@ -162,6 +167,61 @@ describe('the tmux adapter', () => {
         );
         expect(await socketHasLivePanes(target.socket)).toBe(false);
       });
+    });
+  });
+
+  it('clears a variable a server inherited at start from the environment new panes get', async () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'garden-cwd-'));
+    try {
+      await withTmuxServer(async (target) => {
+        // The server copies the environment of the command that starts it into its global
+        // environment, which is how a starting garden's own variables reached every pane.
+        await execFileAsync(
+          'tmux',
+          [
+            '-L',
+            target.socket,
+            '-f',
+            target.confPath,
+            'new-session',
+            '-d',
+            '-s',
+            'boot',
+            ...sleeper,
+          ],
+          { env: { ...process.env, GARDEN_LEAK_PROBE: '1' } },
+        );
+
+        await unsetGlobalEnv(target, 'GARDEN_LEAK_PROBE');
+
+        await newSession(target, {
+          name: 'after',
+          cwd,
+          port: 4310,
+          sessionId: 'after-id',
+          command: ['sh', '-c', 'printenv GARDEN_LEAK_PROBE; echo $? > status.txt; sleep 30'],
+        });
+        const status = await until(
+          'the pane to report whether it inherited the variable',
+          () => {
+            try {
+              return Promise.resolve(readFileSync(join(cwd, 'status.txt'), 'utf8').trim());
+            } catch {
+              return Promise.resolve('');
+            }
+          },
+          (text) => text !== '',
+        );
+        expect(status).toBe('1');
+      });
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it('treats unsetting a variable on a socket with no server as a no-op', async () => {
+    await withTmuxServer(async (target) => {
+      await expect(unsetGlobalEnv(target, 'GARDEN_LEAK_PROBE')).resolves.toBeUndefined();
     });
   });
 });

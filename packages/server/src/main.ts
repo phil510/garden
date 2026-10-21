@@ -24,8 +24,10 @@ import {
   listPanes,
   newSession,
   respawnPane,
+  unsetGlobalEnv,
 } from './adapters/tmux.js';
 import type { TmuxTarget } from './adapters/tmux.js';
+import { SERVER_PROCESS_ENV } from './cli/start.js';
 import { createAttachRegistry, type AttachRegistry } from './app/attach.js';
 import { createBranchSweeper } from './app/branches.js';
 import { createTranscriptReplay, type TranscriptReplay } from './app/transcriptReplay.js';
@@ -232,6 +234,13 @@ export async function main(detached: boolean): Promise<void> {
   } catch (error) {
     logger.error(
       `applying tmux conf failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  try {
+    await unsetGlobalEnv({ socket: config.tmuxSocket, confPath }, SERVER_PROCESS_ENV);
+  } catch (error) {
+    logger.error(
+      `clearing ${SERVER_PROCESS_ENV} from tmux failed: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
 
