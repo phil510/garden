@@ -5,9 +5,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
-import { attachPty } from '../../src/adapters/pty.js';
-import { applyConf } from '../../src/adapters/tmux.js';
-import { writeTmuxConf } from '../../src/appdir.js';
+import { attachPty } from '../../packages/server/src/adapters/pty.js';
+import { applyConf } from '../../packages/server/src/adapters/tmux.js';
+import { writeTmuxConf } from '../../packages/server/src/appdir.js';
 import { until } from './support/poll.js';
 
 const execFileAsync = promisify(execFile);

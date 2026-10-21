@@ -1,6 +1,3 @@
-// Tests scripts/setup-sandbox.ts — a root-level script, not part of any package — from the
-// server package's integration tier because that is the only tier that drives real tmux; there
-// is no separate integration tier for scripts/.
 import { execFile } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -8,13 +5,13 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
-import { TMUX_SOCKET } from '../../src/config.js';
-import { listPanes, newSession } from '../../src/adapters/tmux.js';
+import { TMUX_SOCKET } from '../../packages/server/src/config.js';
+import { listPanes, newSession } from '../../packages/server/src/adapters/tmux.js';
 import { withTmuxServer } from './support/tmux-server.js';
 
 const execFileAsync = promisify(execFile);
 
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const SETUP_SANDBOX = join(repoRoot, 'scripts', 'setup-sandbox.ts');
 // A bare `tsx` specifier resolves against the process's own cwd rather than this repo, so
 // --import needs tsx's loader by absolute path instead.

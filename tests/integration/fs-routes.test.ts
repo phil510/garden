@@ -5,14 +5,15 @@ import type { TreeResponse } from '@garden/shared';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   createBranchReader,
+  isBareRepository,
   remoteUrl,
   repoRoot,
   status,
   workTreePrefix,
-} from '../../src/adapters/git.js';
-import { createProjection } from '../../src/app/projection.js';
-import { createRepoCatalog } from '../../src/app/repoCatalog.js';
-import { createServer } from '../../src/http/server.js';
+} from '../../packages/server/src/adapters/git.js';
+import { createProjection } from '../../packages/server/src/app/projection.js';
+import { createRepoCatalog } from '../../packages/server/src/app/repoCatalog.js';
+import { createServer } from '../../packages/server/src/http/server.js';
 import { fakeStore } from './support/fakeStore.js';
 import { initRepo } from './support/git.js';
 import { noPipes } from './support/noPipes.js';
@@ -54,7 +55,10 @@ describe('/fs routes against a real temp repo', () => {
           throw new Error('not used by this test');
         },
       },
-      repos: createRepoCatalog({ git: { repoRoot, branch: createBranchReader() }, roots }),
+      repos: createRepoCatalog({
+        git: { repoRoot, isBareRepository, branch: createBranchReader() },
+        roots,
+      }),
       serverPort: 4310,
       settingsPath: '/home/.garden/claude-settings.json',
       readClaudeCommand: () => ['claude'],

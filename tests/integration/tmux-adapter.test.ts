@@ -9,7 +9,7 @@ import {
   newSession,
   respawnPane,
   socketHasLivePanes,
-} from '../../src/adapters/tmux.js';
+} from '../../packages/server/src/adapters/tmux.js';
 import { until } from './support/poll.js';
 import { withTmuxServer } from './support/tmux-server.js';
 

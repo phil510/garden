@@ -1,4 +1,4 @@
-import type { Pipes } from '../../../src/app/pipes.js';
+import type { Pipes } from '../../../packages/server/src/app/pipes.js';
 
 /** For servers under test that never receive a pipe connection. */
 export const noPipes: Pipes = {

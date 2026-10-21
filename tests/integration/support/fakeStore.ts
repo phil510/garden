@@ -1,5 +1,5 @@
-import { DEFAULT_OVERLAY_STATE } from '../../../src/adapters/store.js';
-import type { OverlayState, StorePort } from '../../../src/app/ports.js';
+import { DEFAULT_OVERLAY_STATE } from '../../../packages/server/src/adapters/store.js';
+import type { OverlayState, StorePort } from '../../../packages/server/src/app/ports.js';
 
 /** An in-memory overlay store, so a test never touches the app dir. */
 export function fakeStore(): StorePort {

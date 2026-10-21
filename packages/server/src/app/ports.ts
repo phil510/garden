@@ -111,6 +111,7 @@ export interface GhPort {
 
 export interface GitPort {
   repoRoot(cwd: string): Promise<string>;
+  isBareRepository(cwd: string): Promise<boolean>;
   /** `cwd` relative to its working tree root, slash-terminated, empty at the root — the basis
    *  `status` reports its paths in. */
   workTreePrefix(cwd: string): Promise<string>;

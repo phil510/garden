@@ -1,6 +1,6 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { FS_CHANGE_DEBOUNCE_MS } from '../../../src/adapters/fsWatch.js';
+import { FS_CHANGE_DEBOUNCE_MS } from '../../../packages/server/src/adapters/fsWatch.js';
 import { until } from './poll.js';
 
 /** Long enough for a trailing debounce to fire and for a stray second signal to show up. */

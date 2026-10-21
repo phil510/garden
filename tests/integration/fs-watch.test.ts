@@ -2,8 +2,8 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { status } from '../../src/adapters/git.js';
-import { watchFsRoot } from '../../src/adapters/fsWatch.js';
+import { status } from '../../packages/server/src/adapters/git.js';
+import { watchFsRoot } from '../../packages/server/src/adapters/fsWatch.js';
 import { initRepo, runGit } from './support/git.js';
 import { until } from './support/poll.js';
 import { QUIET_WINDOW_MS, settle, sleep } from './support/fsSignals.js';

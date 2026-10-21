@@ -15,13 +15,13 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import type { SessionState } from '@garden/shared';
 import { describe, expect, it } from 'vitest';
-import { listPanes, type TmuxTarget } from '../../src/adapters/tmux.js';
-import { createTranscripts } from '../../src/adapters/transcripts.js';
-import { createProjection, type Projection } from '../../src/app/projection.js';
-import { createSession } from '../../src/app/sessions.js';
-import { slugify } from '../../src/domain/slug.js';
-import type { GardenEvent } from '../../src/domain/types.js';
-import { createServer as createGardenServer } from '../../src/http/server.js';
+import { listPanes, type TmuxTarget } from '../../packages/server/src/adapters/tmux.js';
+import { createTranscripts } from '../../packages/server/src/adapters/transcripts.js';
+import { createProjection, type Projection } from '../../packages/server/src/app/projection.js';
+import { createSession } from '../../packages/server/src/app/sessions.js';
+import { slugify } from '../../packages/server/src/domain/slug.js';
+import type { GardenEvent } from '../../packages/server/src/domain/types.js';
+import { createServer as createGardenServer } from '../../packages/server/src/http/server.js';
 import { fakeStore } from './support/fakeStore.js';
 import { tmuxPort } from './support/tmuxPort.js';
 import { until } from './support/poll.js';
@@ -31,7 +31,7 @@ import { noRootWatches } from './support/noRootWatches.js';
 
 const execFileAsync = promisify(execFile);
 
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const FAKE_CLAUDE = join(repoRoot, 'scripts', 'fake-claude.ts');
 // A bare `tsx` specifier resolves against the pane's own cwd, which is an arbitrary project
 // directory rather than this repo, so --import needs tsx's loader by absolute path instead.

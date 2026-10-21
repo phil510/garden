@@ -18,7 +18,7 @@ import {
   repoRoot,
   status,
   workTreePrefix,
-} from '../../src/adapters/git.js';
+} from '../../packages/server/src/adapters/git.js';
 import { initRepo, runGit } from './support/git.js';
 
 describe('the git adapter', () => {
