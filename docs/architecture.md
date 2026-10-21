@@ -160,7 +160,7 @@ packages/server/src/
     tmux.ts        execFile wrapper: list, new-session, respawn-pane, kill, version check
     git.ts         git-common-dir, branch (read from HEAD, no spawn), status --porcelain, worktree prefix, origin URL
     gh.ts          one conditional `gh api` GET: ETag in, `--include` output parsed, rate-limit resume time, classified result out
-    transcripts.ts chokidar watch + read
+    transcripts.ts bounded read; polls live transcript paths, scans for the rest
     fsWatch.ts     native recursive fs.watch on one root, debounced, .git/ filtered
     pty.ts         node-pty attach
     store.ts       <appDir>/state.json, atomic writes (overlay only)
@@ -251,13 +251,9 @@ So the startup sequence is a replay, not a restore:
    on its own. A failure here is logged, not fatal to boot.
 2. Start the transcript watcher — before any dispatch below, so a write landing anywhere in
    this sequence still reaches it instead of being lost until the next unrelated event or a
-   restart. Its own initial scan dispatches nothing (`ignoreInitial`), so the existing corpus is
-   read once during boot, by step 5, rather than by the watcher's own scan as well — see the
-   reconciliation paragraph below for what that trades away. One gap: a file created while that
-   scan is still walking the tree, after step 5 has already taken its own listing, is discovered
-   by the scan rather than as a live event, so `ignoreInitial` suppresses it too — neither step 5
-   nor the watcher dispatches it, and it surfaces on the first reconciliation pass instead, up to
-   ~10s later rather than immediately.
+   restart. It dispatches nothing for a file step 5 has already read, so the existing corpus is
+   read once during boot rather than again by the watcher's first scan. A file created after
+   step 5 took its listing is found by the first scan instead, up to ~10s later.
 3. Dispatch `{ type: 'store-loaded' }` — the projection now knows the id-to-name map and the
    UI preferences, and nothing else. Then replay the persisted watches: `replayWatches` runs the
    watch writer once, which prunes expired digests and closed watches (and persists that), and
@@ -284,18 +280,38 @@ emit during normal operation — boot is just the first batch of them. A live se
 this way has `unknown` status until its next hook event, which is correct rather than a
 limitation.
 
-The watcher itself does carry one reconciliation of its own: alongside chokidar's native watch,
-it runs a periodic rescan (every ~10s) that diffs every in-scope transcript file's `(size,
-mtimeMs)` against what was last read — by either path, since a native-watch read and a
-reconciliation read share one cache — and rereads anything new or changed. This backstops a real
-gap in chokidar's own guarantees — its `'ready'` event proves the transcripts directory's own
-watch is registered, but not that every session subdirectory's watch is armed too, because
-chokidar scans a newly created directory's contents before it registers that directory's own
-native watch handle. A rapid write landing in that narrower window would otherwise go unnoticed
-until something else touches the file or the server restarts. Because the initial scan no
-longer seeds this cache, it starts empty at boot, so the first reconciliation pass (~10s in,
-after HTTP is already serving) reads every in-scope file once; later passes are incremental as
-usual.
+Transcripts are kept current by polling, not by native file watching: one `fs.watch` per file
+costs more as the corpus grows (and hits `EMFILE`), and a scan is needed regardless because
+native events drop. The adapter keeps a live set of transcript paths and runs two timers:
+
+- **Live poll, every 1s.** Each live path is `stat`ed and reread only when its `(size, mtimeMs)`
+  differs from what was last read. A live path whose file doesn't exist yet is skipped silently
+  and picked up once it appears, because a session reports its path before its file exists.
+- **Discovery scan, every ~10s.** The same diff over every in-scope `<slug>/*.jsonl`, finding
+  files garden doesn't know are live. A file the scan finds new or changed is reread and joins
+  the live set, which also covers live sessions after a server restart (`session-registered`
+  is not replayed at boot).
+
+Live paths are learned from the `transcript_path` of every hook (`app/hooks.ts` calls
+`LiveTranscripts.track`). That path is authoritative and survives `/clear`, which replaces the
+session's Claude id. A garden-spawned session sends `SessionStart` within a second of spawn;
+garden doesn't also derive the path from the cwd and id at spawn, since that would be a second
+source for the same fact and the scan finds the file if a hook never arrives. `track` is O(1)
+and does no I/O, and ignores any path that isn't `<transcriptsDir>/<in-scope slug>/<name>.jsonl`:
+out-of-scope slugs and a session's nested `subagents/` files are never read, because a subagent
+file carries its parent session's id and reading it would corrupt the parent's record. A live
+path unchanged for 5 minutes leaves the live set; hooks re-track it, and the scan promotes it on
+its next change.
+
+The cost of this is latency for a session garden didn't start and hasn't heard a hook from: its
+first lines can take up to ~10s to appear, the same as any scan-found file. Status is unaffected,
+since hooks own it.
+
+`readRecord`, which boot replay uses, and the watcher share one signature map, and each read
+records the signature of the `stat` taken before it reads. So replay leaves the map filled, and
+the first scan after boot rereads only what changed since. A write landing mid-read makes the
+recorded signature stale, never ahead of the content, which costs one extra reread and never a
+missed change.
 
 The pipe sweep (`pipes.sweep`, hourly) does not run at boot: its first pass is one interval after
 the server starts, so pipes whose server restarted have time to reconnect before the no-pipe rule
