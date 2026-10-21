@@ -6,18 +6,34 @@ export function parsePid(text: string): number | null {
   return Number.isInteger(pid) && pid > 0 ? pid : null;
 }
 
+/** What `server.pid` records: the server's pid and the port it bound. `port` is null for a file
+ *  written before the port was recorded, which callers resolve to the configured port. */
+export interface PidRecord {
+  readonly pid: number;
+  readonly port: number | null;
+}
+
+/** `<pid>\n<port>\n`; a bare `<pid>\n` is the older format. */
+export function parsePidRecord(text: string): PidRecord | null {
+  const [pidLine = '', portLine] = text.split('\n');
+  const pid = parsePid(pidLine);
+  if (pid === null) return null;
+  const port = portLine === undefined ? null : parsePid(portLine);
+  return { pid, port: port !== null && port <= 65535 ? port : null };
+}
+
 /** A missing or unparseable pid file means "nothing recorded", not an error. */
-export function readPidFile(path: string): number | null {
+export function readPidFile(path: string): PidRecord | null {
   try {
-    return parsePid(readFileSync(path, 'utf8'));
+    return parsePidRecord(readFileSync(path, 'utf8'));
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
     throw error;
   }
 }
 
-export function writePidFile(path: string, pid: number): void {
-  writeFileSync(path, `${String(pid)}\n`, 'utf8');
+export function writePidFile(path: string, pid: number, port: number): void {
+  writeFileSync(path, `${String(pid)}\n${String(port)}\n`, 'utf8');
 }
 
 export function removePidFile(path: string): void {

@@ -81,7 +81,10 @@ describe('runStop', () => {
 
   it('clears a stale pid file that names a process no longer running', async () => {
     const { io, stdout } = collectingIo();
-    const { deps, calls } = baseDeps({ readPid: () => 4242, isProcessRunning: () => false });
+    const { deps, calls } = baseDeps({
+      readPid: () => ({ pid: 4242, port: null }),
+      isProcessRunning: () => false,
+    });
 
     const exitCode = await runStop(io, deps);
 
@@ -98,7 +101,7 @@ describe('runStop', () => {
       running = false;
     }, 30);
     const { deps, calls } = baseDeps({
-      readPid: () => 4242,
+      readPid: () => ({ pid: 4242, port: null }),
       isProcessRunning: () => running,
       healthPid: () => Promise.resolve(4242),
     });
@@ -114,7 +117,7 @@ describe('runStop', () => {
   it('fails after the deadline when the server never stops', async () => {
     const { io, stderr } = collectingIo();
     const { deps, calls } = baseDeps({
-      readPid: () => 4242,
+      readPid: () => ({ pid: 4242, port: null }),
       isProcessRunning: () => true,
       healthPid: () => Promise.resolve(4242),
     });
@@ -129,7 +132,7 @@ describe('runStop', () => {
   it('treats a live pid that /health says is another process as stale and never signals it', async () => {
     const { io, stdout } = collectingIo();
     const { deps, calls } = baseDeps({
-      readPid: () => 4242,
+      readPid: () => ({ pid: 4242, port: null }),
       isProcessRunning: () => true,
       healthPid: () => Promise.resolve(777),
     });
@@ -145,7 +148,7 @@ describe('runStop', () => {
   it('treats a live pid with nothing listening on the port as stale and never signals it', async () => {
     const { io, stdout } = collectingIo();
     const { deps, calls } = baseDeps({
-      readPid: () => 4242,
+      readPid: () => ({ pid: 4242, port: null }),
       isProcessRunning: () => true,
       healthPid: () => Promise.resolve('refused'),
     });
@@ -158,10 +161,51 @@ describe('runStop', () => {
     expect(calls.some((c) => c.startsWith('kill:'))).toBe(false);
   });
 
+  it('probes the recorded port, not the configured one, and stops the server there', async () => {
+    const { io, stdout } = collectingIo();
+    const probed: string[] = [];
+    let running = true;
+    setTimeout(() => {
+      running = false;
+    }, 30);
+    const { deps, calls } = baseDeps({
+      readPid: () => ({ pid: 4242, port: 1 }),
+      isProcessRunning: () => running,
+      healthPid: (url) => {
+        probed.push(url);
+        return Promise.resolve(4242);
+      },
+    });
+
+    const exitCode = await runStop(io, deps);
+
+    expect(exitCode).toBe(0);
+    expect(probed).toEqual(['http://127.0.0.1:1/health']);
+    expect(stdout).toEqual(['garden stopped\n']);
+    expect(calls).toContain('kill:4242:SIGTERM');
+  });
+
+  it('probes the configured port for a pid file that records no port', async () => {
+    const { io } = collectingIo();
+    const probed: string[] = [];
+    const { deps } = baseDeps({
+      readPid: () => ({ pid: 4242, port: null }),
+      isProcessRunning: () => true,
+      healthPid: (url) => {
+        probed.push(url);
+        return Promise.resolve('refused');
+      },
+    });
+
+    await runStop(io, deps);
+
+    expect(probed).toEqual([expect.stringMatching(/^http:\/\/127\.0\.0\.1:(?!1\/)\d+\/health$/)]);
+  });
+
   it('refuses without signalling or clearing the pid file when a live pid does not answer /health', async () => {
     const { io, stderr } = collectingIo();
     const { deps, calls } = baseDeps({
-      readPid: () => 4242,
+      readPid: () => ({ pid: 4242, port: null }),
       isProcessRunning: () => true,
       healthPid: () => Promise.resolve('no-answer'),
     });

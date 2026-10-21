@@ -6,12 +6,18 @@ import type { CliClient, Io } from './commands.js';
 import { defaultClient } from './commands.js';
 import { CliHttpError } from './http.js';
 import { writeAll } from './io.js';
-import { classifyRecordedPid, isProcessRunning, readPidFile, removePidFile } from './pid.js';
+import {
+  classifyRecordedPid,
+  isProcessRunning,
+  readPidFile,
+  removePidFile,
+  type PidRecord,
+} from './pid.js';
 import { fetchHealthPid, type HealthPidResult } from './serverProcess.js';
 import { killTmuxServer } from './tmux.js';
 
 export interface StopDeps {
-  readonly readPid: (path: string) => number | null;
+  readonly readPid: (path: string) => PidRecord | null;
   readonly removePid: (path: string) => void;
   readonly isProcessRunning: (pid: number) => boolean;
   readonly healthPid: (healthUrl: string) => Promise<HealthPidResult>;
@@ -38,12 +44,13 @@ export const defaultStopDeps: StopDeps = {
 export async function runStop(io: Io, deps: StopDeps = defaultStopDeps): Promise<0 | 1> {
   const config = loadConfig(process.env, ensureConfigFile(deps.home), deps.home);
   const pidPath = join(config.appDir, 'server.pid');
-  const pid = deps.readPid(pidPath);
+  const record = deps.readPid(pidPath);
 
-  const healthUrl = `http://${config.host}:${String(config.port)}/health`;
-  const status = await classifyRecordedPid(pid, deps, healthUrl);
+  // Probe the port the server started on, not the configured one, which may have changed since.
+  const healthUrl = `http://${config.host}:${String(record?.port ?? config.port)}/health`;
+  const status = await classifyRecordedPid(record?.pid ?? null, deps, healthUrl);
 
-  if (pid === null || status === 'stale') {
+  if (record === null || status === 'stale') {
     // A recorded pid that is dead, or that /health says is some other process, is stale
     // bookkeeping, not a running server — and must never be signalled.
     deps.removePid(pidPath);
@@ -51,6 +58,7 @@ export async function runStop(io: Io, deps: StopDeps = defaultStopDeps): Promise
     return 0;
   }
 
+  const { pid } = record;
   if (status === 'unresponsive') {
     await writeAll(
       io.stderr,

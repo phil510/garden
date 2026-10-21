@@ -7,6 +7,7 @@ import {
   classifyRecordedPid,
   isProcessRunning,
   parsePid,
+  parsePidRecord,
   readPidFile,
   removePidFile,
   writePidFile,
@@ -37,14 +38,33 @@ describe('parsePid', () => {
   });
 });
 
+describe('parsePidRecord', () => {
+  it('reads the pid and port', () => {
+    expect(parsePidRecord('1234\n7777\n')).toEqual({ pid: 1234, port: 7777 });
+  });
+
+  it('reads a pid-only file written before the port was recorded, with no port', () => {
+    expect(parsePidRecord('1234\n')).toEqual({ pid: 1234, port: null });
+  });
+
+  it('drops an unusable port but keeps the pid', () => {
+    expect(parsePidRecord('1234\nabc\n')).toEqual({ pid: 1234, port: null });
+    expect(parsePidRecord('1234\n99999\n')).toEqual({ pid: 1234, port: null });
+  });
+
+  it('is null when the pid is unusable', () => {
+    expect(parsePidRecord('junk\n7777\n')).toBeNull();
+  });
+});
+
 describe('readPidFile', () => {
   it('returns null when no file has been written', () => {
     expect(readPidFile(path)).toBeNull();
   });
 
-  it('round-trips a written pid', () => {
-    writePidFile(path, 4242);
-    expect(readPidFile(path)).toBe(4242);
+  it('round-trips a written pid and port', () => {
+    writePidFile(path, 4242, 7777);
+    expect(readPidFile(path)).toEqual({ pid: 4242, port: 7777 });
   });
 });
 
@@ -56,7 +76,7 @@ describe('removePidFile', () => {
   });
 
   it('deletes a written file', () => {
-    writePidFile(path, 1);
+    writePidFile(path, 1, 7777);
     removePidFile(path);
     expect(readPidFile(path)).toBeNull();
   });

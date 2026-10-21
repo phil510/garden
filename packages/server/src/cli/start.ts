@@ -4,7 +4,13 @@ import { ensureConfigFile, loadConfig } from '../config.js';
 import { chromeInstalled, openChromeWindow } from './browser.js';
 import type { Io } from './commands.js';
 import { writeAll } from './io.js';
-import { classifyRecordedPid, isProcessRunning, readPidFile, writePidFile } from './pid.js';
+import {
+  classifyRecordedPid,
+  isProcessRunning,
+  readPidFile,
+  writePidFile,
+  type PidRecord,
+} from './pid.js';
 import {
   DEFAULT_HEALTH_TIMEOUT_MS,
   fetchHealthPid,
@@ -52,8 +58,8 @@ export const SERVER_PROCESS_ENV = 'GARDEN_SERVER_PROCESS';
 export const SERVER_DETACHED_FLAG = '--detached';
 
 export interface StartDeps {
-  readonly readPid: (path: string) => number | null;
-  readonly writePid: (path: string, pid: number) => void;
+  readonly readPid: (path: string) => PidRecord | null;
+  readonly writePid: (path: string, pid: number, port: number) => void;
   readonly isProcessRunning: (pid: number) => boolean;
   readonly healthPid: (healthUrl: string) => Promise<HealthPidResult>;
   readonly spawnServer: (
@@ -84,12 +90,21 @@ export const defaultStartDeps: StartDeps = {
 export async function runStart(io: Io, deps: StartDeps = defaultStartDeps): Promise<0 | 1> {
   const config = loadConfig(process.env, ensureConfigFile(deps.home), deps.home);
   const pidPath = join(config.appDir, 'server.pid');
-  const existingPid = deps.readPid(pidPath);
-  const healthUrl = `http://${config.host}:${String(config.port)}/health`;
+  const existing = deps.readPid(pidPath);
+  // The running server keeps the port it started on even if config.json has changed since.
+  const runningPort = existing?.port ?? config.port;
 
   // Attach only to a confirmed garden. A live pid that isn't one (reused after an unclean
   // shutdown) or that doesn't answer leads to a fresh start, which overwrites the pid file.
-  if ((await classifyRecordedPid(existingPid, deps, healthUrl)) !== 'garden') {
+  const attachStatus = await classifyRecordedPid(
+    existing?.pid ?? null,
+    deps,
+    `http://${config.host}:${String(runningPort)}/health`,
+  );
+  let port = runningPort;
+  if (attachStatus !== 'garden') {
+    port = config.port;
+    const healthUrl = `http://${config.host}:${String(port)}/health`;
     const result = await deps.spawnServer(
       deps.scriptPath,
       [SERVER_DETACHED_FLAG],
@@ -110,10 +125,10 @@ export async function runStart(io: Io, deps: StartDeps = defaultStartDeps): Prom
       );
       return 1;
     }
-    deps.writePid(pidPath, result.pid);
+    deps.writePid(pidPath, result.pid, port);
   }
 
-  const url = `http://${config.host}:${String(config.port)}`;
+  const url = `http://${config.host}:${String(port)}`;
   if (deps.chromeInstalled()) {
     await deps.openChromeWindow(url);
   } else {
