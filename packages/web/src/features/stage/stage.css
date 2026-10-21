@@ -192,7 +192,8 @@
   background-color: var(--ground);
 }
 
-.dead-pane-body {
+.dead-pane-body,
+.refused-pane-body {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -204,16 +205,19 @@
   color: var(--text-muted);
 }
 
-.dead-pane-body .dp-icon {
+.dead-pane-body .dp-icon,
+.refused-pane-body .dp-icon {
   color: var(--text-faint);
 }
 
-.dead-pane-body .dp-line1 {
+.dead-pane-body .dp-line1,
+.refused-pane-body .dp-line1 {
   font-size: 12.5px;
   color: var(--text);
 }
 
-.dead-pane-body .dp-line2 {
+.dead-pane-body .dp-line2,
+.refused-pane-body .dp-line2 {
   font-size: 11.5px;
   color: var(--text-faint);
   max-width: 320px;
