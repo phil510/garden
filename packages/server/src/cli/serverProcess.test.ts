@@ -1,10 +1,10 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { createServer } from 'node:http';
+import { createServer, type RequestListener, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { isProcessRunning } from './pid.js';
-import { spawnServer } from './serverProcess.js';
+import { fetchHealthPid, spawnServer } from './serverProcess.js';
 
 let dir: string;
 
@@ -41,7 +41,7 @@ describe('spawnServer', () => {
     const port = await reservePort();
     const script = writeScript(
       'ready.mjs',
-      `import { createServer } from 'node:http';\ncreateServer((_req, res) => { res.end('ok'); }).listen(${String(port)}, '127.0.0.1');\n`,
+      `import { createServer } from 'node:http';\ncreateServer((_req, res) => { res.end(JSON.stringify({ status: 'ok', pid: process.pid })); }).listen(${String(port)}, '127.0.0.1');\n`,
     );
 
     const result = await spawnServer(
@@ -57,6 +57,24 @@ describe('spawnServer', () => {
       expect(isProcessRunning(result.pid)).toBe(true);
       process.kill(result.pid, 'SIGTERM');
     }
+  });
+
+  it('is not ready while the health url reports a different pid, and times out', async () => {
+    const port = await reservePort();
+    const script = writeScript(
+      'otherPid.mjs',
+      `import { createServer } from 'node:http';\ncreateServer((_req, res) => { res.end(JSON.stringify({ status: 'ok', pid: process.pid + 1 })); }).listen(${String(port)}, '127.0.0.1');\n`,
+    );
+
+    const result = await spawnServer(
+      script,
+      [],
+      process.env,
+      `http://127.0.0.1:${String(port)}/health`,
+      400,
+    );
+
+    expect(result.kind).toBe('timed-out');
   });
 
   it('reports exited with the child stderr when it exits before becoming healthy', async () => {
@@ -115,5 +133,65 @@ describe('spawnServer', () => {
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
     expect(pid !== undefined && isProcessRunning(pid)).toBe(false);
+  });
+});
+
+describe('fetchHealthPid', () => {
+  let server: Server | undefined;
+
+  afterEach(() => {
+    server?.closeAllConnections();
+    server?.close();
+    server = undefined;
+  });
+
+  function serve(handler: RequestListener): Promise<string> {
+    return new Promise((resolve) => {
+      server = createServer(handler);
+      server.listen(0, '127.0.0.1', () => {
+        const address = server?.address();
+        const port = typeof address === 'object' && address !== null ? address.port : 0;
+        resolve(`http://127.0.0.1:${String(port)}/health`);
+      });
+    });
+  }
+
+  it('returns the pid the health body reports', async () => {
+    const url = await serve((_req, res) => {
+      res.end(JSON.stringify({ status: 'ok', pid: 4242 }));
+    });
+
+    expect(await fetchHealthPid(url)).toBe(4242);
+  });
+
+  it('reports no-answer when the body carries no numeric pid', async () => {
+    const url = await serve((_req, res) => {
+      res.end('ok');
+    });
+
+    expect(await fetchHealthPid(url)).toBe('no-answer');
+  });
+
+  it('reports no-answer for a non-2xx response', async () => {
+    const url = await serve((_req, res) => {
+      res.statusCode = 500;
+      res.end(JSON.stringify({ pid: 4242 }));
+    });
+
+    expect(await fetchHealthPid(url)).toBe('no-answer');
+  });
+
+  it('reports refused when nothing is listening on the port', async () => {
+    const port = await reservePort();
+
+    expect(await fetchHealthPid(`http://127.0.0.1:${String(port)}/health`)).toBe('refused');
+  });
+
+  it('reports no-answer when the server never responds within the timeout', async () => {
+    const url = await serve(() => {
+      // never responds
+    });
+
+    expect(await fetchHealthPid(url, 150)).toBe('no-answer');
   });
 });
