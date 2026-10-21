@@ -352,6 +352,12 @@ not on ceremony: a peer that reported done is evidence, once you've decided not 
 saying kill it. Only
 when nothing has reported and the status is ambiguous do you read `recap` or ask.
 
+Kill only by full garden id, and only an id that appears in the list of your children:
+`garden ls --json | jq -r --arg me "$GARDEN_SESSION_ID" '.[] | select(.parent==$me) | .id'`. A
+session not in it is not yours to kill — ask your user. The garden/tmux name and the messaging name
+differ only by a suffix, so a name picks the wrong session easily, and a mis-kill is silent: its
+owner is never told.
+
 Winding down a peer leaves the run folder in place: other members still need their files, and a
 peer mid-write to its own has no way to know it just disappeared. Remove `.orchestration/<run>/`
 only once every member is wound down and you are ending your own run too — with the whole swarm
