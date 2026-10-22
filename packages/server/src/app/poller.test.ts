@@ -359,6 +359,19 @@ describe('fetchWatch', () => {
       null,
     ]);
   });
+
+  it('reports a conflict that already exists at the first poll, once', async () => {
+    const github = fakeGh();
+    seedQuiet(github);
+    github.set(PR, pr({ mergeable: false }));
+    const first = await fetchObserved(github, null);
+    const second = await fetchObserved(github, cursorAfter(first));
+
+    expect([first.activity.conflict, second.activity.conflict]).toEqual([
+      { headSha: 'sha1' },
+      null,
+    ]);
+  });
 });
 
 function cursorAfter(observation: Observation): Cursor {

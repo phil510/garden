@@ -181,7 +181,7 @@ describe('conflictTransition', () => {
     expect(conflictTransition(null, true)).toEqual({ fires: false, next: true });
   });
 
-  it('fires once for a conflict that persists', () => {
+  it('does not re-fire while a conflict persists', () => {
     expect(conflictTransition(false, false)).toEqual({ fires: false, next: false });
   });
 
