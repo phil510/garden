@@ -173,9 +173,23 @@ describe('statusTransitions', () => {
 });
 
 describe('conflictTransition', () => {
-  it('takes the first known reading as a baseline, even a conflicting one', () => {
-    expect(conflictTransition(null, false)).toEqual({ fires: false, next: false });
+  it('fires on a conflict already present at the first known reading', () => {
+    expect(conflictTransition(null, false)).toEqual({ fires: true, next: false });
+  });
+
+  it('does not fire on a first mergeable reading', () => {
     expect(conflictTransition(null, true)).toEqual({ fires: false, next: true });
+  });
+
+  it('fires once for a conflict that persists', () => {
+    expect(conflictTransition(false, false)).toEqual({ fires: false, next: false });
+  });
+
+  it('fires once for a conflict first seen after GitHub finishes computing', () => {
+    const computing = conflictTransition(null, null);
+
+    expect(computing).toEqual({ fires: false, next: null });
+    expect(conflictTransition(computing.next, false).fires).toBe(true);
   });
 
   it('fires when a mergeable PR becomes conflicting', () => {

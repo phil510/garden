@@ -294,14 +294,15 @@ export function statusTransitions(
   return { transitions, reported: next };
 }
 
-/** `mergeable: null` means GitHub is still computing, so the previous reading stands. The
- *  first known reading is a baseline; a conflict is a known `true` turning into `false`. */
+/** `mergeable: null` means GitHub is still computing, so the previous reading stands. A conflict
+ *  fires when a known `false` reading follows anything but `false`, so a PR already conflicting
+ *  at the first poll is reported, and one that stays conflicting is reported once. */
 export function conflictTransition(
   previous: boolean | null,
   mergeable: boolean | null,
 ): { fires: boolean; next: boolean | null } {
   if (mergeable === null) return { fires: false, next: previous };
-  return { fires: previous === true && mergeable === false, next: mergeable };
+  return { fires: previous !== false && mergeable === false, next: mergeable };
 }
 
 /** New activity as the digest sees it: no content, only who and when. */
