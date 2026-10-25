@@ -333,6 +333,12 @@ review once. Each premature sync triggers a review of code the next upstream cha
 an upstream is on hold, tell its downstream peers so their conflict handling doesn't merge it down,
 and have each record it in its brief.
 
+Brief a peer working a stacked PR to run ship-it with its review loop named as usual, but to stop
+before the review loop starts and wait for your go-ahead. A stack is settled when the downstream
+PRs are built, the stack has been sandbox-tested end to end, and no further changes are expected.
+Release the loops in dependency order once it is. A loop that finishes early gets redone when
+downstream testing forces changes, so the wait saves the review rounds, not just the time.
+
 **Pivots**, where the user replaces a requirement rather than adjusting it, are rare. Hold peers at
 their next stopping point and settle the replacement fully before dispatching, because anything
 relayed piecemeal builds code the next piece deletes. Rewrite the superseded briefs, and say whether
