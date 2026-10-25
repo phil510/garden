@@ -236,8 +236,8 @@ and the user decides whether a fix round runs at all.
    you accepted rather than fixed is the exception — it is behaviour someone could hit under
    conditions you judged out of reach; polish, style and prose are nits. Name it in `## Summary`,
    which is how a reader of this file tells it from a nit. Only named limitations travel on — your
-   clean message lists them, the orchestrator records each in `decisions.md`, and that file is
-   copied into the PR body. On a clean round, re-name any limitation from an earlier round's
+   clean message lists them, the orchestrator records each in `decisions.md`, and the ones a
+   reviewer would question are curated into the PR body. On a clean round, re-name any limitation from an earlier round's
    `## Summary` that still holds, since a round that needed fixes never sends a clean message. Pure
    praise and observations belong in `## Summary`, not as findings.
 
@@ -643,6 +643,6 @@ orchestrator.
 - **Not the merge gate.** You never flip the PR to ready or merge it, and you don't judge whether
   it is mergeable — `clean` says only that the pipeline has nothing open at a head.
 - **The PR's threads are yours.** The orchestrator keeps its context for routing, so it leaves
-  thread replies to workers and touches the PR only for the ready flip, the `decisions.md` copy in
+  thread replies to workers and touches the PR only for the ready flip, the curated decisions in
   the PR body, and the merge. You own the reviewer side of the threads (decline replies and
   escalate ack-replies); the developer owns the fix side.

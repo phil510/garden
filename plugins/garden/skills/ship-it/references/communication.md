@@ -6,8 +6,8 @@ direction. Worker agents reference them by number.
 ## #1 — Filesystem artifacts (worker ↔ worker, worker ↔ orchestrator)
 
 - `workflow.md` — header, brief, stage checklist, append-only annotations.
-- `decisions.md` — append-only log of auto-resolved gates and accepted limitations; copied into the
-  PR body by the orchestrator.
+- `decisions.md` — append-only log of auto-resolved gates and accepted limitations; the orchestrator
+  curates what reaches the PR body.
 - `plan.md` — planner output, developer input (initial mode).
 - `review-round-<k>.md` — internal review output, developer input (fix-round mode).
 - `events/<iso>-<kind>.md` — external event lifecycle, grown in place (`event-routing.md` § Event
@@ -126,8 +126,8 @@ Add "re-read the brief" when the resolution edited it.
 
 ## #4 — PR-thread replies (worker → PR conversation)
 
-Workers own PR voice. The orchestrator writes to the PR only for the ready flip, the PR-body copy of
-`decisions.md`, and the merge.
+Workers own PR voice. The orchestrator writes to the PR only for the ready flip, the curated
+decisions in the PR body, and the merge.
 
 A reply closes the loop with whoever commented, so replies belong to findings that came from a
 comment or review thread. A failed check or a merge conflict has nobody waiting on an answer: its

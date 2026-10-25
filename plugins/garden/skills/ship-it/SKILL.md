@@ -13,7 +13,7 @@ You are the **orchestrator** for a multi-stage PR pipeline that runs over hours 
 a brief, spawn workers as teammates, route their signals, flip the PR to ready, decide whether it is
 merge-eligible, and page the user when a decision is theirs. You are the only actor that talks to
 the user. Workers own PR voice — replies and thread resolves; you write to the PR only for the ready
-flip, the `decisions.md` copy in its body, and the merge.
+flip, the curated decisions in its body, and the merge.
 
 Four workers — planner, developer, reviewer, review-loop — join one implicit team that forms on the
 first named spawn (there is no `TeamCreate` step). Each is a plugin agent whose definition is its
@@ -168,7 +168,7 @@ print the brief to the user. Don't wait for approval beyond the triage gate.
      nobody. On `Size: small` the cap is one round, so a dirty round arrives as `review_cap`.
    - **Clean** → the reviewer has ticked stage 3. Write each limitation its report names to
      `decisions.md` as its own entry (a bare ISO timestamp at column 0, then
-     ` — orchestrator: <decision>`); never record nits. Every entry ends up on the PR.
+     ` — orchestrator: <decision>`); never record nits. The log stays complete; step 5 curates what reaches the PR.
 
 Internal rounds and every decide-and-log call within them run under `autonomy.md`.
 
@@ -182,7 +182,8 @@ If the user asks to drop it, `garden unwatch <pr-number>` and append
 `> NOTE <iso> — orchestrator: PR watch opted out by user` — resume looks for that note — after which
 the pipeline is user-driven: they tell you when the PR merges or closes.
 
-Then branch on the brief's `Review loop`:
+If the brief asks you to pause before the review loop, stop here and wait for the sender's go-ahead,
+then branch on the brief's `Review loop`:
 
 - **`none`** → the outcome is `skipped`. Append `> NOTE <iso> — orchestrator: review loop skipped`
   and go to step 5. Nothing is spawned; `pipeline-status.sh` derives `skipped` from the brief, so a
@@ -212,8 +213,16 @@ Review-loop messages are answered in place, never by a fresh spawn:
 Runs on `passed` or `skipped`, or on the user's word after `blocked`, and nowhere else — ready is
 the moment humans and full CI start reading the PR.
 
-1. Put `decisions.md` on the PR: build the new body as the current body plus a `## Decisions`
-   section holding every entry (replacing that section if one exists). Write it to a file, check
+1. Put the decisions on the PR. `decisions.md` is the complete internal log; the PR gets a curated
+   set, because a reviewer reads it to find the choices worth questioning, not to audit the run.
+   Keep only entries a reviewer would question: a call a reasonable author could have made
+   differently, or a limitation someone could hit. Show a superseded entry only in its final form.
+   Rewrite each in product and code terms: the choice, why, and what it beat. Leave out actor and
+   stage names, timestamps, and references to the brief, plan, review rounds, findings or the
+   pipeline; a reader of the PR has none of that context. Build the new body as the current body
+   plus a `## Decisions` section holding that set (merged into any decisions section the body
+   already has, so the author's own entries survive), with the generated-by trailer still the last
+   line. Write it to a file, check
    `test -s <file>`, then `gh pr edit <url> --body-file <file>` — an empty file silently blanks the
    PR — and read it back with `gh pr view <url> --json body`.
 2. `gh pr ready <url>`, then append `> NOTE <iso> — orchestrator: PR flipped to ready`. That
@@ -294,7 +303,7 @@ Whenever you page the merge, also raise `garden alert` right away (`alert` skill
 is the only case that alerts immediately. A new head sha is a new page, so rewrite the alert then.
 Clear it once the user answers, the PR merges or closes, or the pipeline stops.
 
-To merge: if `decisions.md` has entries the PR body doesn't, re-copy it as in step 5. Pick the
+To merge: if `decisions.md` has entries the PR's decisions don't reflect, re-curate them as in step 5. Pick the
 method from injected instructions; else the one method the repo allows
 (`gh repo view <owner>/<repo> --json squashMergeAllowed,mergeCommitAllowed,rebaseMergeAllowed`);
 else ask. `gh pr merge` has no reliable non-interactive default, so always pass it:
@@ -317,8 +326,8 @@ report is a prompt to check, not the confirmation: **confirm `gh pr view <url> -
    report from a round in flight goes in the summary as unrouted, not to another worker.
 2. **Stop every worker** still in the ledger with `TaskStop` and record each as confirmed or
    uncertain (`spawn-details.md` § Stopping a worker).
-3. **Publish what would otherwise be lost.** Every `decisions.md` entry should be on the PR — body,
-   commit or thread; add what's missing now, the last point the PR is the natural place for it.
+3. **Publish what would otherwise be lost.** Every decision a reviewer would question should be on the PR — body,
+   commit or thread, curated as in step 5; add what's missing now, the last point the PR is the natural place for it.
    Collect **Unrouted at stop** items: the final digest's unhandled segments, any late report's
    findings, and `unrouted_candidates` once verified.
 4. **`pipeline-finish.sh --worktree <abs> --status completed`.** It writes inside the worktree, so it

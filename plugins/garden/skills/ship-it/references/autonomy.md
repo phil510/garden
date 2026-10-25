@@ -72,7 +72,7 @@ the reviewer accepted: what was decided, what settled it, and which doc or findi
 It's what makes an unattended run reviewable afterwards. When the user is watching, they see each
 decision because they're making it. When nobody is, "it merged cleanly" proves nothing about
 whether the choices along the way were sound — this file is the record that lets the user check
-afterwards instead. The orchestrator copies it into the PR body before the ready flip, and again
+afterwards instead. The orchestrator puts a curated version of it in the PR body before the ready flip, and again
 before merging if it changed, because the PR is the surface that outlives the run.
 
 A line starts at column 0 with a bare ISO timestamp:
