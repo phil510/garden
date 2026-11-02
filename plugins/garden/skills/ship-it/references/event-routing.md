@@ -125,7 +125,7 @@ Bot and human comments get the same dispositions:
 - `fix` → spawn a fresh developer in fix-round-from-event mode; it commits, replies, and resolves
   the conversation. Its push starts a checks wait.
 - `decline` → nothing to dispatch: the reviewer has already replied with the reason and left the
-  conversation unresolved.
+  conversation open for visibility. An open declined thread doesn't hold the merge.
 - `escalate` → the reviewer annotates and sends `ESCALATING`; resolve it (`escalate-resume.md`),
   then message the decision back to that reviewer.
 
