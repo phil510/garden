@@ -134,7 +134,8 @@ comment or review thread. A failed check or a merge conflict has nobody waiting 
 outcome lives in the event file, and the fix commit shows on the PR by itself.
 
 - **Reviewer** (`decline` and `escalate` on a comment or review): posts a reply before reporting
-  and records its `reply_id`. Does **not** resolve the conversation — the human decides. A
+  and records its `reply_id`. Leaves the conversation open so the decline stays visible on the PR;
+  it doesn't hold the merge. A
   `decline` gives a substantive reason citing the brief; an `escalate` gives a short ack that the
   comment is being routed to the owner.
 - **Developer** (`fix` on a comment or review): after commit and push, replies with the commit sha,

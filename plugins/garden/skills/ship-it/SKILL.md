@@ -270,10 +270,11 @@ Eligible when all of these hold at `headRefOid`:
   next two conditions exist.
 - **Nothing open for the pipeline.** No open escalation, no unclassified `activity` event (escalation
   files are never classified) and no `fix` finding without a developer round (`pipeline-status.sh`), no worker mid-round (the ledger), and no
-  unresolved review thread:
-  `gh api graphql -F o=<owner> -F r=<repo> -F n=<pr> -f query='query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequest(number:$n){reviewThreads(first:100){nodes{isResolved}}}}}' --jq '[.data.repository.pullRequest.reviewThreads.nodes[]|select(.isResolved|not)]|length'`.
-  A thread the reviewer declined stays unresolved on purpose — the commenter decides — so it blocks
-  eligibility until a human resolves it or tells you to merge anyway.
+  unanswered review thread — unresolved, with someone else's comment last:
+  `gh api graphql -F o=<owner> -F r=<repo> -F n=<pr> -f query='query($o:String!,$r:String!,$n:Int!){viewer{login} repository(owner:$o,name:$r){pullRequest(number:$n){reviewThreads(first:100){nodes{isResolved comments(last:1){nodes{author{login}}}}}}}}' --jq '.data.viewer.login as $me|[.data.repository.pullRequest.reviewThreads.nodes[]|select((.isResolved|not) and .comments.nodes[0].author.login != $me)]|length'`.
+  A declined thread stays open so the decline is visible on the PR, not to hold the merge: the
+  reviewer's reply is its last comment, so it doesn't count here. A thread with a newer comment
+  after that reply does, until the reviewer classifies it.
 - **Checks have reported**, and none failed: `gh pr checks <url> --json name,bucket` lists every
   bucket as `pass` or `skipping`. With nothing reported it prints no list: it exits 1 with
   `no checks reported on the '<branch>' branch`. Once mergeability is confirmed (a conflicting head
