@@ -31,7 +31,17 @@ export async function listTranscriptFiles(
   const files: string[] = [];
   for (const dir of inScopeDirs(dirNames, roots)) {
     const dirPath = join(transcriptsDir, dir);
-    for (const entry of await readdir(dirPath)) {
+    let entries: string[];
+    try {
+      entries = await readdir(dirPath);
+    } catch (error) {
+      // A dangling symlink, a symlink to a file, or a folder removed since the listing above:
+      // one unlistable entry must not take down every other project's transcripts.
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === 'ENOENT' || code === 'ENOTDIR') continue;
+      throw error;
+    }
+    for (const entry of entries) {
       if (entry.endsWith('.jsonl')) files.push(join(dirPath, entry));
     }
   }
