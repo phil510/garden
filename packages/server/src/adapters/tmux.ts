@@ -188,6 +188,22 @@ export async function applyConf(target: TmuxTarget): Promise<void> {
   }
 }
 
+/**
+ * Removes `name` from the server's global environment, which every new pane inherits. A
+ * server started by an older garden kept its starting environment there, so this cleans up
+ * after it. No server is a no-op, and sent without `-f` for the same reason as `applyConf`.
+ */
+export async function unsetGlobalEnv(target: TmuxTarget, name: string): Promise<void> {
+  const argv = ['-L', target.socket, 'set-environment', '-g', '-u', name];
+  try {
+    await execFileAsync('tmux', argv);
+  } catch (error) {
+    const stderr = (error as { stderr?: string }).stderr ?? '';
+    if (/no server running|error connecting to/i.test(stderr)) return;
+    throw new TmuxError(argv, stderr, error);
+  }
+}
+
 /** Throws when `tmux -V`'s output is unparseable or below garden's minimum. The pure half of
  *  the startup gate — callable from a plain string, with no process involved. */
 export function assertTmuxVersion(versionOutput: string): void {

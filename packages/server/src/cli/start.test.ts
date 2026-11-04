@@ -8,6 +8,7 @@ import {
   runStart,
   SERVER_DETACHED_FLAG,
   SERVER_PROCESS_ENV,
+  takeServerProcessMarker,
   type StartDeps,
 } from './start.js';
 
@@ -354,5 +355,20 @@ describe('runStart', () => {
 
     expect(exitCode).toBe(0);
     expect(stdout).toEqual([expect.stringMatching(/^http:\/\/127\.0\.0\.1:\d+\n$/)]);
+  });
+});
+
+describe('takeServerProcessMarker', () => {
+  it('reports the marker and removes it, so nothing the server spawns inherits it', () => {
+    const env: NodeJS.ProcessEnv = { [SERVER_PROCESS_ENV]: '1', PATH: '/bin' };
+    expect(takeServerProcessMarker(env)).toBe(true);
+    expect(env).toEqual({ PATH: '/bin' });
+  });
+
+  it('reports false for an absent or non-1 marker and still removes it', () => {
+    expect(takeServerProcessMarker({})).toBe(false);
+    const env: NodeJS.ProcessEnv = { [SERVER_PROCESS_ENV]: '0' };
+    expect(takeServerProcessMarker(env)).toBe(false);
+    expect(env).toEqual({});
   });
 });

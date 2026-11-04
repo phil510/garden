@@ -1,6 +1,6 @@
 import { writeAll } from '../src/cli/io.js';
 import { decideEntrypointAction, parseEntrypointArgv, runCli, usageLines } from '../src/cli/run.js';
-import { runStart, SERVER_PROCESS_ENV } from '../src/cli/start.js';
+import { runStart, takeServerProcessMarker } from '../src/cli/start.js';
 import { main } from '../src/main.js';
 
 // Getters, so `process.stdout` is only created for commands that use it. `garden events`
@@ -28,7 +28,7 @@ async function runServer(detached: boolean): Promise<void> {
 }
 
 const { command, rest, isDetached } = parseEntrypointArgv(process.argv.slice(2));
-const action = decideEntrypointAction(command, process.env[SERVER_PROCESS_ENV] === '1');
+const action = decideEntrypointAction(command, takeServerProcessMarker(process.env));
 
 switch (action.kind) {
   case 'server':
