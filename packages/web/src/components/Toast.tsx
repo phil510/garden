@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useToastStore, type ToastKind } from '../state/toastStore';
 import './toast.css';
 
-const AUTO_DISMISS_MS = 6000;
+const AUTO_DISMISS_MS = 5000;
 
 interface ToastViewProps {
   message: string | null;
