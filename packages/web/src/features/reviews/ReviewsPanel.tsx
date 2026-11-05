@@ -43,8 +43,9 @@ export function ReviewsPanelView({ queue, now }: ReviewsPanelViewProps) {
   const notice = reviewFaultNotice(queue?.fault ?? null);
   const items = queue?.items ?? [];
   const checking = notice === null && (queue === null || queue.polledAt === null);
+  // A queue that was never polled has no count worth reporting; "0 requests" would be a claim.
   const summary =
-    queue === null
+    queue === null || (queue.polledAt === null && items.length === 0)
       ? null
       : `${String(items.length)} ${items.length === 1 ? 'request' : 'requests'}${
           queue.polledAt === null
