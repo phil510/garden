@@ -427,6 +427,14 @@ export interface ReviewQueue {
   fault: 'gh-missing' | 'logged-out' | 'rate-limited' | 'incomplete' | 'error' | null;
 }
 
+/** The `502` body of `POST /reviews/:owner/:name/:number/dismiss`: the queue's fault vocabulary
+ *  without `incomplete`, which a single call cannot produce. `status` is GitHub's HTTP status,
+ *  present only when GitHub answered and refused. */
+export interface DismissReviewFailure {
+  kind: 'gh-missing' | 'logged-out' | 'rate-limited' | 'error';
+  status?: number;
+}
+
 /** `WS /events`: a snapshot on connect, then deltas. `ui-state` and `reviews` are global, not
  *  derived from sessions: each is sent to every connection. `fs-changed` goes only to the
  *  connection that sent `watch`, and `root` echoes the spelling that connection sent. */

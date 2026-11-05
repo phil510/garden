@@ -2,7 +2,7 @@ import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { ghGet, parseGhInclude, rateLimitResumeAt } from './gh.js';
+import { ghGet, ghRemoveReviewRequest, parseGhInclude, rateLimitResumeAt } from './gh.js';
 import type { GhResponse } from './gh.js';
 
 /** A stand-in `gh` that records its argv and prints a canned `--include` response, because the
@@ -162,5 +162,79 @@ describe('ghGet', () => {
     await expect(ghGet(stubGh('boom', 1), 'repos/a/b', null, 0)).rejects.toThrow(
       /no HTTP response/,
     );
+  });
+});
+
+describe('ghRemoveReviewRequest', () => {
+  it('sends one DELETE naming the reviewer and returns the parsed body of a 200', async () => {
+    const gh = stubGh('HTTP/2.0 200 OK\r\n\r\n{"requested_reviewers":[]}', 0);
+
+    const result = await ghRemoveReviewRequest(gh, 'a/b', 7, 'octo', 0);
+
+    expect(result).toEqual({ kind: 'ok', body: { requested_reviewers: [] } });
+    expect(argv()).toEqual([
+      'api',
+      '--include',
+      '-X',
+      'DELETE',
+      'repos/a/b/pulls/7/requested_reviewers',
+      '-f',
+      'reviewers[]=octo',
+    ]);
+  });
+
+  it('returns a null body for an empty 2xx', async () => {
+    const gh = stubGh('HTTP/2.0 204 No Content\r\n\r\n', 0);
+
+    expect(await ghRemoveReviewRequest(gh, 'a/b', 7, 'octo', 0)).toEqual({
+      kind: 'ok',
+      body: null,
+    });
+  });
+
+  it.each([403, 404, 422] as const)('reports GitHub refusing with a %i', async (status) => {
+    const gh = stubGh(`HTTP/2.0 ${String(status)} X\r\n\r\n{"message":"nope"}`, 1);
+
+    expect(await ghRemoveReviewRequest(gh, 'a/b', 7, 'octo', 0)).toEqual({
+      kind: 'inaccessible',
+      status,
+    });
+  });
+
+  it('reports a rate limit rather than a refusal for a 403 with no calls left', async () => {
+    const gh = stubGh(
+      'HTTP/2.0 403 Forbidden\r\nX-Ratelimit-Remaining: 0\r\nX-Ratelimit-Reset: 2000\r\n\r\n{}',
+      1,
+    );
+
+    expect(await ghRemoveReviewRequest(gh, 'a/b', 7, 'octo', 0)).toEqual({
+      kind: 'rate-limited',
+      resumeAt: 2_000_000,
+    });
+  });
+
+  it('reports logged out for exit 4 and for a 401', async () => {
+    expect(await ghRemoveReviewRequest(stubGh('', 4), 'a/b', 7, 'octo', 0)).toEqual({
+      kind: 'unavailable',
+      reason: 'logged-out',
+    });
+    const badToken = stubGh('HTTP/2.0 401 Unauthorized\r\n\r\n{}', 1);
+    expect(await ghRemoveReviewRequest(badToken, 'a/b', 7, 'octo', 0)).toEqual({
+      kind: 'unavailable',
+      reason: 'logged-out',
+    });
+  });
+
+  it('throws on any other failure status', async () => {
+    const gh = stubGh('HTTP/2.0 500 Server Error\r\n\r\n{}', 1);
+
+    await expect(ghRemoveReviewRequest(gh, 'a/b', 7, 'octo', 0)).rejects.toThrow(/HTTP 500/);
+  });
+
+  it('reports a missing binary', async () => {
+    expect(await ghRemoveReviewRequest(join(dir, 'no-such-gh'), 'a/b', 7, 'octo', 0)).toEqual({
+      kind: 'unavailable',
+      reason: 'missing',
+    });
   });
 });

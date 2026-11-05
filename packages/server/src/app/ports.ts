@@ -1,5 +1,5 @@
 import type { ConfigFile } from '../config.js';
-import type { GhResult } from '../domain/github.js';
+import type { GhResult, GhWriteResult } from '../domain/github.js';
 import type { TranscriptParse } from '../domain/transcript.js';
 import type { GardenEvent } from '../domain/types.js';
 import type { OverlayState } from '../domain/overlay.js';
@@ -107,6 +107,8 @@ export interface GitStatusEntry {
  *  `If-None-Match`; null asks unconditionally. */
 export interface GhPort {
   get(path: string, etag: string | null): Promise<GhResult>;
+  /** Removes `login`'s review request on `repo`#`number`. */
+  removeReviewRequest(repo: string, number: number, login: string): Promise<GhWriteResult>;
 }
 
 export interface GitPort {

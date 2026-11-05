@@ -21,6 +21,7 @@ function setup() {
   const logged: string[] = [];
   const poller = createReviewPoller({
     gh: {
+      removeReviewRequest: () => Promise.reject(new Error('not used by this test')),
       get(path, etag) {
         calls.push({ path, etag });
         try {
@@ -140,7 +141,10 @@ describe('review poller', () => {
     let release: (result: GhResult) => void = () => undefined;
     const store = createReviewStore();
     const poller = createReviewPoller({
-      gh: { get: () => new Promise<GhResult>((resolve) => (release = resolve)) },
+      gh: {
+        removeReviewRequest: () => Promise.reject(new Error('not used by this test')),
+        get: () => new Promise<GhResult>((resolve) => (release = resolve)),
+      },
       store,
       config: { read: () => ({ pollIntervalMinutes: 5 }) as never },
       logger: { warn: () => undefined, error: () => undefined },

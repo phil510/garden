@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { readClaudeSessionNames } from './adapters/claudeSessions.js';
 import { watchFsRoot } from './adapters/fsWatch.js';
-import { ghGet } from './adapters/gh.js';
+import { ghGet, ghRemoveReviewRequest } from './adapters/gh.js';
 import {
   createBranchReader,
   isBareRepository,
@@ -125,7 +125,11 @@ function gitPort(): GitPort {
 }
 
 function ghPort(): GhPort {
-  return { get: (path, etag) => ghGet('gh', path, etag, Date.now()) };
+  return {
+    get: (path, etag) => ghGet('gh', path, etag, Date.now()),
+    removeReviewRequest: (repo, number, login) =>
+      ghRemoveReviewRequest('gh', repo, number, login, Date.now()),
+  };
 }
 
 function ptyPort(target: PtyTarget): PtyPort {
