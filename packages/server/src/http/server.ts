@@ -8,6 +8,8 @@ import type { FilesystemDeps } from '../app/filesystem.js';
 import type { HooksDeps } from '../app/hooks.js';
 import type { Logger } from '../app/ports.js';
 import type { RepoCatalog } from '../app/repoCatalog.js';
+import { createReviewSessions } from '../app/reviewSessions.js';
+import type { ReviewStore } from '../app/reviews.js';
 import type { SessionsDeps } from '../app/sessions.js';
 import type { SwarmsDeps } from '../app/swarms.js';
 import type { WatchesDeps } from '../app/watches.js';
@@ -16,6 +18,7 @@ import { fsRoutes } from './routes/fs.js';
 import { healthRoutes } from './routes/health.js';
 import { hookRoutes } from './routes/hooks.js';
 import { repoRoutes } from './routes/repos.js';
+import { reviewRoutes } from './routes/reviews.js';
 import { sessionRoutes } from './routes/sessions.js';
 import { settingsRoutes } from './routes/settings.js';
 import type { SettingsDeps } from './routes/settings.js';
@@ -31,8 +34,7 @@ import { pipeSessionId, registerPipeSocket, type PipeDeps } from './ws/pipe.js';
 export type ServerDeps = SessionsDeps &
   HooksDeps & { readonly repos: RepoCatalog } & FilesystemDeps &
   AttachSocketDeps &
-  EventsDeps &
-  PipeDeps &
+  EventsDeps & { readonly reviews: Pick<ReviewStore, 'item' | 'link'> } & PipeDeps &
   SettingsDeps &
   SwarmsDeps &
   WatchesDeps;
@@ -63,6 +65,7 @@ export function createServer(deps: ServerDeps, logger: Logger = noopLogger): Fas
   app.register((instance) => alertRoutes(instance, deps));
   app.register((instance) => digestRoutes(instance, deps));
   app.register((instance) => fsRoutes(instance, deps));
+  app.register((instance) => reviewRoutes(instance, createReviewSessions(deps)));
 
   const clientDir = resolveClientDir(dirname(fileURLToPath(import.meta.url)));
   registerStaticRoutes(app, clientDir);
