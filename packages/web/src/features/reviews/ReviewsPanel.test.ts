@@ -4,6 +4,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { reviewFaultNotice } from './reviewFaultNotice';
+import { DismissConfirm } from './DismissConfirm';
 import { ReviewRow, ReviewsCountBadge, ReviewsPanelView } from './ReviewsPanel';
 
 const now = Date.parse('2026-11-04T13:00:00Z');
@@ -62,6 +63,37 @@ describe('ReviewRow', () => {
     const html = render({ updatedAt: '2026-11-04T12:00:00Z' });
     expect(html).toContain('acme/widgets#1');
     expect(html).toContain('octocat · 1h ago');
+  });
+});
+
+describe('dismiss', () => {
+  const row = renderToStaticMarkup(createElement(ReviewRow, { item, now }));
+  const confirm = (sending: boolean) =>
+    renderToStaticMarkup(
+      createElement(DismissConfirm, {
+        onConfirm: () => undefined,
+        onCancel: () => undefined,
+        sending,
+      }),
+    );
+
+  it('offers Dismiss on an idle row without showing the confirmation', () => {
+    expect(row).toContain('Dismiss');
+    expect(row).not.toContain('Confirm');
+    expect(row).not.toContain('author will see');
+  });
+
+  it('warns that the request is removed on GitHub and the author will see it', () => {
+    const html = confirm(false);
+    expect(html).toContain('Remove your review request on GitHub');
+    expect(html).toContain('The author will see that you removed it');
+    expect(html).toContain('Confirm');
+    expect(html).toContain('Cancel');
+  });
+
+  it('disables both buttons while sending', () => {
+    expect(confirm(false)).not.toContain('disabled');
+    expect(confirm(true).match(/disabled/g)).toHaveLength(2);
   });
 });
 
