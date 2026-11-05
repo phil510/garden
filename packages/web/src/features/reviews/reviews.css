@@ -62,6 +62,10 @@
 .rv-toggle {
   position: relative;
 }
+.rv-toggle svg {
+  width: 15px;
+  height: 15px;
+}
 .rv-badge {
   position: absolute;
   top: -2px;
