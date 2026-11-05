@@ -108,3 +108,11 @@ export function pickClone(
     if (candidate.repo === repo && (best === null || candidate.path < best)) best = candidate.path;
   return best;
 }
+
+/** `items` with each one's `sessionId` set from `links`; a link for a key not in `items` is ignored. */
+export function joinLinks(
+  items: readonly ReviewItem[],
+  links: Readonly<Record<string, string>>,
+): ReviewItem[] {
+  return items.map((item) => ({ ...item, sessionId: links[item.key] ?? null }));
+}

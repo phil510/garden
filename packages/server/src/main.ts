@@ -46,6 +46,7 @@ import type {
 import { createPipes, type Pipes } from './app/pipes.js';
 import { createProjection, type Projection } from './app/projection.js';
 import { createRepoCatalog } from './app/repoCatalog.js';
+import { createCloneResolver } from './app/reviewClones.js';
 import { createRootWatches } from './app/rootWatch.js';
 import { watchRepoRoots } from './app/repoRoots.js';
 import { pruneKnownSessions } from './app/swarms.js';
@@ -300,10 +301,12 @@ export async function main(detached: boolean): Promise<void> {
     mintId: () => randomBytes(6).toString('hex'),
   });
 
-  const reviews = createReviewStore();
+  const repos = createRepoCatalog({ git, roots: config.roots });
+  const reviews = createReviewStore({ overlay: projection });
   const reviewPoller = createReviewPoller({
     gh: ghPort(),
     store: reviews,
+    clones: createCloneResolver({ git, catalog: repos }),
     config: configAdapter,
     logger,
     now: Date.now,
@@ -342,7 +345,6 @@ export async function main(detached: boolean): Promise<void> {
     }
   }, PIPE_SWEEP_INTERVAL_MS);
 
-  const repos = createRepoCatalog({ git, roots: config.roots });
   const app = createServer(
     {
       projection,

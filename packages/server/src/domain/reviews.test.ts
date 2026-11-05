@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { GhResult } from './github.js';
 import { searchResponse } from './reviews.fixture.js';
 import {
+  joinLinks,
   parseReviewSearch,
   pickClone,
   repoFromRepositoryUrl,
@@ -107,5 +108,25 @@ describe('pickClone', () => {
   it('is null when nothing matches', () => {
     expect(pickClone([{ path: '/r/a', repo: null }], 'acme/widgets')).toBeNull();
     expect(pickClone([], 'acme/widgets')).toBeNull();
+  });
+});
+
+describe('joinLinks', () => {
+  const items = parseReviewSearch(searchResponse)?.items ?? [];
+
+  it('sets the session id of a linked item and leaves the rest null', () => {
+    const first = items[0];
+    expect(first).toBeDefined();
+    const joined = joinLinks(items, { [first?.key ?? '']: 'session-1' });
+    expect(joined.map((i) => i.sessionId)).toEqual([
+      'session-1',
+      ...items.slice(1).map(() => null),
+    ]);
+  });
+
+  it('ignores a link for a key that is not among the items', () => {
+    expect(joinLinks(items, { 'a/b#1': 'session-1' }).every((i) => i.sessionId === null)).toBe(
+      true,
+    );
   });
 });
