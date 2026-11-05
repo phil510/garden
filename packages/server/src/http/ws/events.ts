@@ -3,10 +3,12 @@ import type { FastifyInstance } from 'fastify';
 import { WebSocketServer, type WebSocket } from 'ws';
 import type { Projection } from '../../app/projection.js';
 import type { RootWatches } from '../../app/rootWatch.js';
+import type { ReviewStore } from '../../app/reviews.js';
 
 export interface EventsDeps {
   readonly projection: Projection;
   readonly rootWatches: RootWatches;
+  readonly reviews: Pick<ReviewStore, 'queue' | 'subscribe'>;
 }
 
 /** A debounced `fs-changed` can land after the client has started closing. */
@@ -60,12 +62,16 @@ export function registerEventsSocket(app: FastifyInstance, deps: EventsDeps): We
       type: 'snapshot',
       sessions: deps.projection.sessions(),
       uiState: deps.projection.uiState(),
+      reviews: deps.reviews.queue(),
     });
     const unsubscribe = deps.projection.subscribe((deltas) => {
       send(socket, { type: 'deltas', deltas });
     });
     const unsubscribeUiState = deps.projection.subscribeUiState((uiState) => {
       send(socket, { type: 'ui-state', uiState });
+    });
+    const unsubscribeReviews = deps.reviews.subscribe((queue) => {
+      send(socket, { type: 'reviews', queue });
     });
     const rootWatch = deps.rootWatches.connect((root) =>
       send(socket, { type: 'fs-changed', root }),
@@ -78,6 +84,7 @@ export function registerEventsSocket(app: FastifyInstance, deps: EventsDeps): We
     socket.on('close', () => {
       unsubscribe();
       unsubscribeUiState();
+      unsubscribeReviews();
       rootWatch.close();
     });
   });

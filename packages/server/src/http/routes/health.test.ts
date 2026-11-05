@@ -1,3 +1,4 @@
+import { createReviewStore } from '../../app/reviews.js';
 import { describe, expect, it } from 'vitest';
 import type { Projection } from '../../app/projection.js';
 import type { ServerDeps } from '../server.js';
@@ -38,6 +39,7 @@ function fakeDeps(): ServerDeps {
       replay: () => undefined,
     },
     rootWatches: { connect: () => ({ watch: () => Promise.resolve(), close: () => undefined }) },
+    reviews: createReviewStore(),
     tmux: {
       listPanes: () => Promise.reject(new Error('not used by this test')),
       newSession: () => Promise.reject(new Error('not used by this test')),

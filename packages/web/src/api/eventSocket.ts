@@ -64,6 +64,9 @@ export function connectEventSocket(handlers: EventSocketHandlers): EventSocketCo
         return handlers.onDeltas(message);
       case 'ui-state':
         return handlers.onUiState(message);
+      case 'reviews':
+        // The review queue has no consumer in the web yet.
+        return;
       case 'fs-changed':
         return handlers.onFsChanged(message.root);
       default:

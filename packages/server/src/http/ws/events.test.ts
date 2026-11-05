@@ -5,6 +5,7 @@ import { WebSocket } from 'ws';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { Projection } from '../../app/projection.js';
 import type { RootWatches } from '../../app/rootWatch.js';
+import { createReviewStore } from '../../app/reviews.js';
 import { registerEventsSocket } from './events.js';
 
 /** Polls until `predicate` holds or the deadline passes, failing with the last observation. */
@@ -98,6 +99,7 @@ describe('registerEventsSocket', () => {
     const wss = registerEventsSocket(app, {
       projection,
       rootWatches: fakeRootWatches().rootWatches,
+      reviews: createReviewStore(),
     });
     // `registerEventsSocket` runs in `noServer` mode; production wiring of the shared
     // `upgrade` listener lives in `http/server.ts`, so this standalone test does it too.
@@ -140,6 +142,7 @@ describe('registerEventsSocket', () => {
     const wss = registerEventsSocket(app, {
       projection,
       rootWatches: fakeRootWatches().rootWatches,
+      reviews: createReviewStore(),
     });
     app.server.on('upgrade', (request, socket, head) => {
       wss.handleUpgrade(request, socket, head, (ws) => wss.emit('connection', ws, request));
@@ -168,7 +171,11 @@ describe('registerEventsSocket', () => {
     const { projection } = fakeProjection();
     const { rootWatches, watched, state } = fakeRootWatches();
     app = Fastify();
-    const wss = registerEventsSocket(app, { projection, rootWatches });
+    const wss = registerEventsSocket(app, {
+      projection,
+      rootWatches,
+      reviews: createReviewStore(),
+    });
     app.server.on('upgrade', (request, socket, head) => {
       wss.handleUpgrade(request, socket, head, (ws) => wss.emit('connection', ws, request));
     });
@@ -202,6 +209,63 @@ describe('registerEventsSocket', () => {
       () => state.open,
       (open) => open === 0,
       'the root watch to be released after close',
+    );
+  });
+
+  it('sends the review queue in the snapshot and on each change, and drops the subscription on close', async () => {
+    const { projection } = fakeProjection();
+    const store = createReviewStore();
+    let subscribers = 0;
+    const reviews: typeof store = {
+      ...store,
+      subscribe(listener) {
+        subscribers += 1;
+        const unsubscribe = store.subscribe(listener);
+        return () => {
+          subscribers -= 1;
+          unsubscribe();
+        };
+      },
+    };
+    store.complete([], '2026-01-10T00:00:00Z');
+    app = Fastify();
+    const wss = registerEventsSocket(app, {
+      projection,
+      rootWatches: fakeRootWatches().rootWatches,
+      reviews,
+    });
+    app.server.on('upgrade', (request, socket, head) => {
+      wss.handleUpgrade(request, socket, head, (ws) => wss.emit('connection', ws, request));
+    });
+    await app.listen({ port: 0, host: '127.0.0.1' });
+    const { port } = app.server.address() as AddressInfo;
+
+    socket = new WebSocket(`ws://127.0.0.1:${String(port)}/events`);
+    const received: { type: string; reviews?: unknown; queue?: unknown }[] = [];
+    socket.on('message', (data: Buffer) => {
+      received.push(JSON.parse(data.toString('utf8')) as (typeof received)[number]);
+    });
+    await until(
+      () => received,
+      (messages) => messages.length > 0,
+      'the snapshot',
+    );
+    expect(received[0]?.reviews).toEqual(store.queue());
+
+    store.fail('rate-limited');
+    await until(
+      () => received,
+      (messages) => messages.length > 1,
+      'a reviews message after a store change',
+    );
+    expect(received[1]).toEqual({ type: 'reviews', queue: store.queue() });
+    expect(store.queue().fault).toBe('rate-limited');
+
+    socket.close();
+    await until(
+      () => subscribers,
+      (count) => count === 0,
+      'the reviews subscription to be dropped after close',
     );
   });
 });
