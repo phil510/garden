@@ -3,7 +3,7 @@ import type { ReviewQueue } from '@garden/shared';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { reviewFaultNotice } from './reviewFaultNotice';
+import { reviewFaultNotice, reviewHasFault } from './reviewFaultNotice';
 import { DismissConfirm } from './DismissConfirm';
 import { ReviewRow, ReviewsCountBadge, ReviewsPanelView } from './ReviewsPanel';
 
@@ -104,5 +104,16 @@ describe('ReviewsCountBadge', () => {
 
   it('renders the count', () => {
     expect(renderToStaticMarkup(createElement(ReviewsCountBadge, { count: 4 }))).toContain('>4<');
+  });
+});
+
+describe('reviewHasFault', () => {
+  it.each(faults)('marks the toggle for a %s fault', (fault) => {
+    expect(reviewHasFault(aReviewQueue({ fault }))).toBe(true);
+  });
+
+  it('leaves the toggle unmarked without a fault or a queue', () => {
+    expect(reviewHasFault(aReviewQueue({ fault: null }))).toBe(false);
+    expect(reviewHasFault(null)).toBe(false);
   });
 });
