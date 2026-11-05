@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { GhResult } from './github.js';
 import { searchResponse } from './reviews.fixture.js';
-import { parseReviewSearch, repoFromRepositoryUrl, reviewPollOutcome } from './reviews.js';
+import {
+  parseReviewSearch,
+  pickClone,
+  repoFromRepositoryUrl,
+  reviewPollOutcome,
+} from './reviews.js';
 
 const withFields = (fields: Record<string, unknown>): unknown => ({
   ...(searchResponse as Record<string, unknown>),
@@ -86,5 +91,21 @@ describe('reviewPollOutcome', () => {
     const outcome = reviewPollOutcome(result);
     if (fault === null) expect(outcome.kind).toBe('complete');
     else expect(outcome).toEqual({ kind: 'fault', fault });
+  });
+});
+
+describe('pickClone', () => {
+  it('picks the matching path that sorts first', () => {
+    const candidates = [
+      { path: '/r/b', repo: 'acme/widgets' },
+      { path: '/r/a', repo: 'acme/widgets' },
+      { path: '/r/0', repo: 'acme/other' },
+    ];
+    expect(pickClone(candidates, 'acme/widgets')).toBe('/r/a');
+  });
+
+  it('is null when nothing matches', () => {
+    expect(pickClone([{ path: '/r/a', repo: null }], 'acme/widgets')).toBeNull();
+    expect(pickClone([], 'acme/widgets')).toBeNull();
   });
 });
