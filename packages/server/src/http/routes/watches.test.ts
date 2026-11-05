@@ -15,6 +15,7 @@ const overlay: OverlayState = {
   alerts: [],
   digests: [],
   pipes: {},
+  reviews: { links: {} },
 };
 
 const unused = () => {

@@ -11,6 +11,7 @@ const anOverlay = (overrides: Partial<OverlayState> = {}): OverlayState => ({
   alerts: [],
   digests: [],
   pipes: {},
+  reviews: { links: {} },
   ...overrides,
 });
 

@@ -24,6 +24,7 @@ const emptyOverlay: OverlayState = {
   alerts: [],
   digests: [],
   pipes: {},
+  reviews: { links: {} },
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;

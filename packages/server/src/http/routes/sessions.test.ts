@@ -29,6 +29,7 @@ const emptyOverlay: OverlayState = {
   alerts: [],
   digests: [],
   pipes: {},
+  reviews: { links: {} },
 };
 
 function fakeTmux(overrides: Partial<TmuxPort> = {}): TmuxPort {

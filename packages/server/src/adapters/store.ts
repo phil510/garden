@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DEFAULT_UI_STATE, STAGE_PRESETS, isWatchKind } from '@garden/shared';
 import type { SessionPlacement, StagePreset, SwarmRecord, UiState } from '@garden/shared';
-import type { OverlayState, PersistedAlert } from '../domain/overlay.js';
+import type { OverlayState, PersistedAlert, ReviewsOverlay } from '../domain/overlay.js';
 import type { DigestRecord, Watch } from '../domain/watches.js';
 
 export const DEFAULT_OVERLAY_STATE: OverlayState = {
@@ -13,6 +13,7 @@ export const DEFAULT_OVERLAY_STATE: OverlayState = {
   alerts: [],
   digests: [],
   pipes: {},
+  reviews: { links: {} },
 };
 
 function statePath(appDir: string): string {
@@ -329,6 +330,17 @@ function readPipes(
   return pipes;
 }
 
+/** Like pipes, a bad link is dropped on its own rather than failing the file. */
+function readReviews(value: unknown, path: string, logger: StoreLogger): ReviewsOverlay {
+  if (!isRecord(value) || !isRecord(value['links'])) return { links: {} };
+  const links: Record<string, string> = {};
+  for (const [key, sessionId] of Object.entries(value['links'])) {
+    if (typeof sessionId === 'string' && sessionId !== '') links[key] = sessionId;
+    else logger.warn(`dropping malformed review link for ${key} in ${path}`);
+  }
+  return { links };
+}
+
 /** `undefined` when the file's UI part is unusable: an unknown version, a v1 file with a bad
  *  stage or group, a v2 file with no `ui` object. */
 function readStoredUi(
@@ -378,6 +390,7 @@ export function readOverlayState(appDir: string, logger: StoreLogger): OverlaySt
     alerts: readAlerts(parsed['alerts'], path, logger),
     digests: readDigests(parsed['digests'], path, logger),
     pipes: readPipes(parsed['pipes'], path, logger),
+    reviews: readReviews(parsed['reviews'], path, logger),
   };
 }
 
