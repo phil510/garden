@@ -1,5 +1,5 @@
-import type { ReviewItem, ReviewQueue } from '@garden/shared';
-import type { GhResult } from './github.js';
+import type { DismissReviewFailure, ReviewItem, ReviewQueue } from '@garden/shared';
+import type { GhResult, GhWriteResult } from './github.js';
 import { normalizeRepo } from './watches.js';
 
 /** One search page is the whole read: more matches than this and the queue is not complete. */
@@ -95,4 +95,30 @@ export function reviewPollOutcome(result: GhResult): ReviewPollOutcome {
     case 'not-modified':
       return { kind: 'fault', fault: 'error' };
   }
+}
+
+/** A write that did not succeed, as the body the dismiss route answers with. */
+export function dismissFailure(
+  result: Exclude<GhWriteResult, { kind: 'ok' }>,
+): DismissReviewFailure {
+  switch (result.kind) {
+    case 'unavailable':
+      return { kind: result.reason === 'missing' ? 'gh-missing' : 'logged-out' };
+    case 'rate-limited':
+      return { kind: 'rate-limited' };
+    case 'inaccessible':
+      return { kind: 'error', status: result.status };
+  }
+}
+
+/** Whether the pull request body GitHub returned still lists `login` as a requested reviewer. */
+export function stillRequested(body: unknown, login: string): boolean {
+  if (!isRecord(body) || !Array.isArray(body['requested_reviewers'])) return false;
+  const wanted = login.toLowerCase();
+  return body['requested_reviewers'].some(
+    (reviewer) =>
+      isRecord(reviewer) &&
+      typeof reviewer['login'] === 'string' &&
+      reviewer['login'].toLowerCase() === wanted,
+  );
 }
