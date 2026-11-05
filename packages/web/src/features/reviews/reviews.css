@@ -55,7 +55,12 @@
 }
 .rv-actions {
   display: flex;
-  gap: 4px;
+  align-items: center;
+  gap: 8px;
+}
+.rv-noclone {
+  color: var(--text-faint);
+  font-size: 11px;
 }
 
 /* Count pill on the top-bar toggle */
