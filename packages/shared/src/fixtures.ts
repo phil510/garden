@@ -1,4 +1,4 @@
-import type { HookPayload, SessionState, WatchSummary } from './index.js';
+import type { HookPayload, ReviewItem, ReviewQueue, SessionState, WatchSummary } from './index.js';
 
 // One shared array so two default sessions are `Object.is`-equal on `watches`, as the server's
 // reducer keeps them.
@@ -37,4 +37,24 @@ export function aHookEvent(overrides: Partial<HookPayload> = {}): HookPayload {
     permission_mode: 'default',
     ...overrides,
   };
+}
+
+export function aReviewItem(overrides: Partial<ReviewItem> = {}): ReviewItem {
+  return {
+    key: 'acme/widgets#1',
+    repo: 'acme/widgets',
+    number: 1,
+    title: 'A pull request',
+    author: 'octocat',
+    url: 'https://github.com/acme/widgets/pull/1',
+    draft: false,
+    updatedAt: '2026-11-04T12:00:00Z',
+    clonePath: null,
+    sessionId: null,
+    ...overrides,
+  };
+}
+
+export function aReviewQueue(overrides: Partial<ReviewQueue> = {}): ReviewQueue {
+  return { items: [], polledAt: '2026-11-04T12:05:00Z', fault: null, ...overrides };
 }
