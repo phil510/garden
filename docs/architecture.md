@@ -14,11 +14,13 @@ garden has four sources of truth about the outside world:
 - **clients** — the browser and the CLI issue commands.
 
 All four fold into one thing: a map of session id to session state. That map streams to
-browsers as a snapshot on connect, then as deltas. There are two exceptions, both outside the
-delta stream. One is a client's inbound `watch` message and the `fs-changed` it earns: a
-per-connection filesystem watch, answered to that connection only. The other is the per-session
-pipe stream (`WS /sessions/:id/events`), which pushes PR-watch digest lines to a `garden events
---follow` process and takes acks back (§4.6).
+browsers as a snapshot on connect, then as deltas. Some things travel outside the delta stream.
+Two are global messages on `/events` beside the session deltas: `ui-state`, the persisted UI
+slice, and `reviews`, the queue of open PRs awaiting the user's review (`app/reviews.ts`, an
+in-memory store fed by `app/reviewPoller.ts`). A third is a client's inbound `watch` message and
+the `fs-changed` it earns: a per-connection filesystem watch, answered to that connection only.
+The last is the per-session pipe stream (`WS /sessions/:id/events`), which pushes PR-watch digest
+lines to a `garden events --follow` process and takes acks back (§4.6).
 
 Every layer in this codebase exists to serve that sentence. Adapters turn the outside world
 into events. One pure function folds events into state. One diff turns state changes into
@@ -174,6 +176,8 @@ packages/server/src/
     watches.ts     add / remove / list watch use cases and boot replay, all through one writer
     pipes.ts       registry of open pipe streams: connect, ack, close, hourly sweep, boot replay
     poller.ts      fetch a watch's PR activity; the loop that merges it through that writer
+    reviews.ts     in-memory review queue store
+    reviewPoller.ts  the loop that searches GitHub for review requests and feeds that store
     filesystem.ts
     repos.ts
     rootWatch.ts   one watch per /events connection, swapped on a new root
@@ -217,7 +221,8 @@ Adapters never touch state. They emit events:
 - the hook route emits `{ type: 'hook', payload }`
 - a tmux poll emits `{ type: 'tmux-snapshot', sessions }`
 
-`/events` is projection-only except for one pair of messages. A client sends `{ type: 'watch', root }`
+`/events` carries the projection's deltas plus the global `ui-state` and `reviews` messages, and
+one more pair that is not projection state. A client sends `{ type: 'watch', root }`
 to watch a project root, and the server answers `{ type: 'fs-changed', root }` to that connection
 alone. Those travel beside the projection (`app/rootWatch.ts`, via `adapters/fsWatch.ts`) and never go
 through `reduce`: a file change is a hint to refetch, not session state.
@@ -274,7 +279,9 @@ So the startup sequence is a replay, not a restore:
    `branch: null` until their cwd resolves, and the events socket delivers each branch as it lands.
 8. Once listening, start the watch poller (`app/poller.ts`). It runs its own timer, reading
    `pollIntervalMinutes` before each cycle, and goes through the same watch writer as step 3, so
-   each cycle also prunes expired watches.
+   each cycle also prunes expired watches. Beside it runs the review poller
+   (`app/reviewPoller.ts`), a separate loop on the same interval with its own rate-limit hold,
+   because the watch tick ends early on a rate limit and search is limited separately.
 
 Nothing is reconciled by hand for steps 4 and 5, because they carry the same facts the adapters
 emit during normal operation — boot is just the first batch of them. A live session recovered
