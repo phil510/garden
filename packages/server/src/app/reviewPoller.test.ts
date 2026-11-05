@@ -136,11 +136,20 @@ describe('review poller', () => {
     expect(t.logged.join('\n')).toContain('error');
   });
 
-  it('does not start again after stop', async () => {
-    const t = setup();
-    t.poller.stop();
-    t.poller.start();
-    await t.poller.tick();
-    expect(t.calls).toEqual([]);
+  it('drops the answer of a search that was in flight when the poller stopped', async () => {
+    let release: (result: GhResult) => void = () => undefined;
+    const store = createReviewStore();
+    const poller = createReviewPoller({
+      gh: { get: () => new Promise<GhResult>((resolve) => (release = resolve)) },
+      store,
+      config: { read: () => ({ pollIntervalMinutes: 5 }) as never },
+      logger: { warn: () => undefined, error: () => undefined },
+      now: () => T0,
+    });
+    const ticking = poller.tick();
+    poller.stop();
+    release(complete);
+    await ticking;
+    expect(store.queue()).toEqual({ items: [], polledAt: null, fault: null });
   });
 });
