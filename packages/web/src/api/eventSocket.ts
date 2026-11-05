@@ -5,6 +5,7 @@ export interface EventSocketHandlers {
   onSnapshot: (message: Extract<ServerMessage, { type: 'snapshot' }>) => void;
   onDeltas: (message: Extract<ServerMessage, { type: 'deltas' }>) => void;
   onUiState: (message: Extract<ServerMessage, { type: 'ui-state' }>) => void;
+  onReviews: (message: Extract<ServerMessage, { type: 'reviews' }>) => void;
   /** Fires on every successful (re)connection, including the first. A dropped connection
    *  loses every pane attach with it, so this is what tells on-stage panes to reattach. */
   onConnect: () => void;
@@ -65,8 +66,7 @@ export function connectEventSocket(handlers: EventSocketHandlers): EventSocketCo
       case 'ui-state':
         return handlers.onUiState(message);
       case 'reviews':
-        // The review queue has no consumer in the web yet.
-        return;
+        return handlers.onReviews(message);
       case 'fs-changed':
         return handlers.onFsChanged(message.root);
       default:
