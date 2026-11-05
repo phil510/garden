@@ -11,3 +11,8 @@ const NOTICES: Record<NonNullable<ReviewQueue['fault']>, string> = {
 export function reviewFaultNotice(fault: ReviewQueue['fault']): string | null {
   return fault === null ? null : NOTICES[fault];
 }
+
+/** Whether the queue is faulted, for the top-bar toggle's fault dot. */
+export function reviewHasFault(queue: ReviewQueue | null): boolean {
+  return queue?.fault != null;
+}

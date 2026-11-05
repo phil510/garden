@@ -15,6 +15,7 @@ import { WatchesPanel } from './features/watches/WatchesPanel';
 import { usePipeGrace } from './features/watches/usePipeGrace';
 import { receiveReviews } from './features/reviews/receiveReviews';
 import { reviewCount } from './features/reviews/reviewToast';
+import { reviewHasFault } from './features/reviews/reviewFaultNotice';
 import { ReviewsCountBadge, ReviewsPanel } from './features/reviews/ReviewsPanel';
 import { PresetSwitcher } from './features/stage/PresetSwitcher';
 import { Stage } from './features/stage/Stage';
@@ -43,7 +44,9 @@ export function App() {
   const groups = collectWatchGroups(Object.values(sessions), pipeFaulted);
   const hasFault = anyFault(groups);
   const { faultedSessions } = summarizeWatchGroups(groups);
-  const reviewsOpen = reviewCount(useReviewStore((state) => state.queue));
+  const reviewQueue = useReviewStore((state) => state.queue);
+  const reviewsOpen = reviewCount(reviewQueue);
+  const reviewsFault = reviewHasFault(reviewQueue);
 
   useEffect(() => {
     const sessionStore = useSessionStore.getState();
@@ -160,8 +163,8 @@ export function App() {
             <BellIcon />
           </button>
           <button
-            className={`ghost icon-btn rv-toggle${rightPanel === 'reviews' ? ' active-btn' : ''}`}
-            title="Review requests"
+            className={`ghost icon-btn rv-toggle${rightPanel === 'reviews' ? ' active-btn' : ''}${reviewsFault ? ' has-fault' : ''}`}
+            title={reviewsFault ? 'Review requests: GitHub check failing' : 'Review requests'}
             aria-pressed={rightPanel === 'reviews'}
             onClick={() => toggleOverlay('reviews')}
           >
