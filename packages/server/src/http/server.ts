@@ -16,6 +16,8 @@ import { fsRoutes } from './routes/fs.js';
 import { healthRoutes } from './routes/health.js';
 import { hookRoutes } from './routes/hooks.js';
 import { repoRoutes } from './routes/repos.js';
+import { reviewRoutes } from './routes/reviews.js';
+import type { ReviewsDeps } from './routes/reviews.js';
 import { sessionRoutes } from './routes/sessions.js';
 import { settingsRoutes } from './routes/settings.js';
 import type { SettingsDeps } from './routes/settings.js';
@@ -35,7 +37,8 @@ export type ServerDeps = SessionsDeps &
   PipeDeps &
   SettingsDeps &
   SwarmsDeps &
-  WatchesDeps;
+  WatchesDeps &
+  ReviewsDeps;
 
 /** Keeps every other `createServer(...)` call site (tests that don't care about logging)
  *  working unchanged — only `main.ts` and tests that assert logging behavior pass a real one. */
@@ -60,6 +63,7 @@ export function createServer(deps: ServerDeps, logger: Logger = noopLogger): Fas
   app.register((instance) => uiStateRoutes(instance, deps));
   app.register((instance) => swarmRoutes(instance, deps));
   app.register((instance) => watchRoutes(instance, deps));
+  app.register((instance) => reviewRoutes(instance, deps));
   app.register((instance) => alertRoutes(instance, deps));
   app.register((instance) => digestRoutes(instance, deps));
   app.register((instance) => fsRoutes(instance, deps));

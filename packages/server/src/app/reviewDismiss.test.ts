@@ -54,6 +54,20 @@ describe('review dismisser', () => {
     expect(calls).toEqual([]);
   });
 
+  it('answers invalid-repo without calling GitHub for a name that is not a repo', async () => {
+    const { dismisser, calls } = setup();
+
+    expect(await dismisser.dismiss('acme/wid gets', 1)).toEqual({ kind: 'invalid-repo' });
+    expect(calls).toEqual([]);
+  });
+
+  it('matches the queue whatever the spelling of the owner and repo', async () => {
+    const { dismisser, calls } = setup();
+
+    expect(await dismisser.dismiss('Acme/Widgets', 1)).toEqual({ kind: 'dismissed' });
+    expect(calls).toContain('DELETE acme/widgets#1 me');
+  });
+
   it('removes the request as the authenticated user and drops the item', async () => {
     const { dismisser, calls, store } = setup();
 

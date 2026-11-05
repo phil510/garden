@@ -1,11 +1,13 @@
 import type { DismissReviewFailure } from '@garden/shared';
 import { dismissFailure, stillRequested } from '../domain/reviews.js';
+import { normalizeRepo } from '../domain/watches.js';
 import type { PollerLogger } from './poller.js';
 import type { GhPort } from './ports.js';
 import type { ReviewStore } from './reviews.js';
 
 export type DismissReviewOutcome =
   | { readonly kind: 'dismissed' }
+  | { readonly kind: 'invalid-repo' }
   | { readonly kind: 'not-found' }
   | { readonly kind: 'failed'; readonly failure: DismissReviewFailure };
 
@@ -17,7 +19,7 @@ export interface ReviewDismisserDeps {
 
 export interface ReviewDismisser {
   /** Removes the user's review request on GitHub, then the item from the queue. `repo` is the
-   *  normalised `owner/name`. The queue is left alone unless GitHub confirms the removal. */
+   *  `owner/name` as the caller spelled it. The queue is left alone unless GitHub confirms the removal. */
   dismiss(repo: string, number: number): Promise<DismissReviewOutcome>;
 }
 
@@ -46,7 +48,9 @@ export function createReviewDismisser(deps: ReviewDismisserDeps): ReviewDismisse
   }
 
   return {
-    async dismiss(repo, number) {
+    async dismiss(spelling, number) {
+      const repo = normalizeRepo(spelling);
+      if (repo === null) return { kind: 'invalid-repo' };
       const key = `${repo}#${String(number)}`;
       if (!store.queue().items.some((item) => item.key === key)) return { kind: 'not-found' };
       try {

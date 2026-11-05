@@ -31,6 +31,7 @@ import { createBranchSweeper } from './app/branches.js';
 import { createTranscriptReplay, type TranscriptReplay } from './app/transcriptReplay.js';
 import { createPoller } from './app/poller.js';
 import { createReviewPoller } from './app/reviewPoller.js';
+import { createReviewDismisser } from './app/reviewDismiss.js';
 import { createReviewStore } from './app/reviews.js';
 import type {
   ConfigPort,
@@ -312,6 +313,7 @@ export async function main(detached: boolean): Promise<void> {
     logger,
     now: Date.now,
   });
+  const reviewDismisser = createReviewDismisser({ gh: ghPort(), store: reviews, logger });
 
   const poll = setInterval(() => {
     // A tmux that fails mid-run leaves liveness stale until the next tick; it does not end the server.
@@ -358,6 +360,7 @@ export async function main(detached: boolean): Promise<void> {
       repos,
       rootWatches: createRootWatches({ watcher: fsWatchPort(logger), repos, logger }),
       reviews,
+      reviewDismisser,
       serverPort: config.port,
       settingsPath,
       readClaudeCommand: readClaudeCommand(configAdapter),
