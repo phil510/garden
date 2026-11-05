@@ -116,4 +116,28 @@ describe('createCloneResolver', () => {
       ['acme/b', null],
     ]);
   });
+
+  it('bounds concurrent git calls while still resolving every path', async () => {
+    let active = 0;
+    let peak = 0;
+    const paths = Array.from({ length: 30 }, (_, i) => `/r/repo${i}`);
+    const resolver = createCloneResolver({
+      git: {
+        isBareRepository: async () => {
+          active += 1;
+          peak = Math.max(peak, active);
+          await new Promise((resolve) => setTimeout(resolve, 1));
+          active -= 1;
+          return false;
+        },
+        remoteUrl: (cwd) => Promise.resolve(`https://github.com/acme/${cwd.split('/').pop()}`),
+      },
+      catalog: { list: () => Promise.resolve(paths.map((path) => entry(path))) },
+    });
+    const repos = paths.map((path) => `acme/${path.split('/').pop()}`);
+    const resolved = await resolver.resolve(repos);
+    expect(peak).toBeLessThanOrEqual(8);
+    expect(peak).toBeGreaterThan(1);
+    expect(repos.every((repo) => resolved.get(repo) === `/r/${repo.split('/')[1]}`)).toBe(true);
+  });
 });

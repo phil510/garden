@@ -1,7 +1,10 @@
 import { parseGitHubRepo } from '../domain/watches.js';
 import { pickClone } from '../domain/reviews.js';
+import { createLimiter } from './limiter.js';
 import type { GitPort } from './ports.js';
 import type { RepoCatalog } from './repoCatalog.js';
+
+const MAX_CONCURRENT_GIT_INSPECTIONS = 8;
 
 export interface CloneResolverDeps {
   readonly git: Pick<GitPort, 'isBareRepository' | 'remoteUrl'>;
@@ -29,6 +32,8 @@ interface Seen {
  */
 export function createCloneResolver(deps: CloneResolverDeps): CloneResolver {
   const seen = new Map<string, Seen>();
+  // The first resolve inspects every catalog path; unbounded, that is one git subprocess per repo at once.
+  const limit = createLimiter(MAX_CONCURRENT_GIT_INSPECTIONS);
 
   async function inspect(path: string): Promise<Seen | null> {
     try {
@@ -54,7 +59,7 @@ export function createCloneResolver(deps: CloneResolverDeps): CloneResolver {
         paths
           .filter((path) => !seen.has(path))
           .map(async (path) => {
-            const result = await inspect(path);
+            const result = await limit(() => inspect(path));
             if (result !== null) seen.set(path, result);
           }),
       );
