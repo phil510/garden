@@ -51,11 +51,12 @@ export function createReviewStore(deps: {
       publish({ ...polled, fault });
     },
     link(key, sessionId) {
-      links = { ...links, [key]: sessionId };
+      const next = { ...links, [key]: sessionId };
       deps.overlay.updateOverlay((base) => ({
         ...base,
-        reviews: { ...base.reviews, links },
+        reviews: { ...base.reviews, links: next },
       }));
+      links = next;
       publish(polled);
     },
   };
