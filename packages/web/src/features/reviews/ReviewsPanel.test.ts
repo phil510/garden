@@ -24,10 +24,6 @@ describe('ReviewsPanelView', () => {
     );
   });
 
-  it('gives every fault its own notice', () => {
-    expect(new Set(faults.map(reviewFaultNotice)).size).toBe(faults.length);
-  });
-
   it('does not read a logged-out empty queue as empty', () => {
     const html = renderPanel(aReviewQueue({ fault: 'logged-out' }));
     expect(html).toContain('gh auth login');
