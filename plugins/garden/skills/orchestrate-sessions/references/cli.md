@@ -188,40 +188,6 @@ fails if the number is watched in more than one repo.
 statuses, conflicts) as ids, authors, states and times, never PR content. Digests are kept 7 days
 from mint, newest 20 per watch; an expired or unknown id exits 1.
 
-## Review requests
-
-```
-garden reviews list --json
-garden reviews start <owner/name#N> --json
-garden reviews claim <owner/name#N> [--session <id>] --json
-garden reviews dismiss <owner/name#N> --json
-```
-
-These act on the queue of PRs where the human's review is requested, the same one the Reviews
-panel shows. `<owner/name#N>` is the key `list` prints; a malformed one is a usage error.
-
-`list` prints the queue the server already holds, not a fresh GitHub search, as
-`{ "items": [...], "polledAt", "fault" }`. Each item has `key`, `title`, `author`, `draft`,
-`updatedAt`, `clonePath` and `sessionId` (the linked session, or null). A `fault` (`gh-missing`,
-`logged-out`, `rate-limited`, `incomplete`, `error`) is data, not a failure: the command still
-exits 0, and `items` is the last good poll's, so check `fault` before trusting an empty list.
-
-`start` is the panel's Start/Open: it prints the linked session's id, creating one in the repo's
-local clone when none is linked (`--json`: `{ "sessionId" }`). With no local clone it exits 1.
-
-`claim` links the PR to an existing session instead of creating one. `--session` defaults to the
-caller's `GARDEN_SESSION_ID`; with neither it exits 1 before any request. Any session may claim
-any PR. If the PR was linked to another session the link moves, and the output names it
-(`linked <key> to <id> (moved from <prev>)`); `--json` gives
-`{ "sessionId", "previousSessionId" }`, with `previousSessionId` null when nothing moved,
-including when the session already held the link. An unknown session id writes no link.
-
-`dismiss` removes the human's review request on GitHub and prints `{ "ok": true }`. It does not
-confirm and cannot be undone from garden, so the caller confirms with the user first. A GitHub
-refusal exits 1 with `GitHub refused the dismiss: <kind> (<status>)` on stderr.
-
-`start`, `claim` and `dismiss` exit 1 for a PR that is not in the queue.
-
 ## Events pipe
 
 ```
