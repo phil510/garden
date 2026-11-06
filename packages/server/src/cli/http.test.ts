@@ -5,8 +5,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  claimReview,
   CliHttpError,
   createSession,
+  dismissReview,
   killSession,
   listSessions,
   placeSession,
@@ -261,5 +263,41 @@ describe('errors', () => {
   it('reports the server as not running when the connection is refused', async () => {
     process.env.GARDEN_PORT = '1';
     await expect(listSessions()).rejects.toThrow(/not running/);
+  });
+});
+
+describe('review requests', () => {
+  it('resolves a dismiss that answers 204 with no body', async () => {
+    await startServer((_request, response) => {
+      response.writeHead(204).end();
+    });
+    await expect(dismissReview('acme', 'widgets', 7)).resolves.toBeUndefined();
+  });
+
+  it('reports the kind and GitHub status of a refused dismiss', async () => {
+    await startServer((_request, response) => {
+      sendJson(response, 502, { kind: 'error', status: 422 });
+    });
+    await expect(dismissReview('acme', 'widgets', 7)).rejects.toThrow(
+      new CliHttpError('GitHub refused the dismiss: error (422)', { status: 502 }),
+    );
+  });
+
+  it('reports a refused dismiss that carries no GitHub status', async () => {
+    await startServer((_request, response) => {
+      sendJson(response, 502, { kind: 'logged-out' });
+    });
+    await expect(dismissReview('acme', 'widgets', 7)).rejects.toThrow(
+      'GitHub refused the dismiss: logged-out',
+    );
+  });
+
+  it('surfaces the server error of a claim for a PR that is not queued', async () => {
+    await startServer((_request, response) => {
+      sendJson(response, 404, { error: 'no review request acme/widgets#7' });
+    });
+    await expect(claimReview('acme', 'widgets', 7, 's1')).rejects.toThrow(
+      'no review request acme/widgets#7',
+    );
   });
 });

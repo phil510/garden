@@ -237,6 +237,10 @@ function fakeClient(overrides: Partial<CliClient> = {}): { client: CliClient; ca
     raiseAlert: () => Promise.reject(new Error('not used by this test')),
     clearAlert: () => Promise.reject(new Error('not used by this test')),
     digest: () => Promise.reject(new Error('not used by this test')),
+    reviews: () => Promise.reject(new Error('not used by this test')),
+    startReview: () => Promise.reject(new Error('not used by this test')),
+    claimReview: () => Promise.reject(new Error('not used by this test')),
+    dismissReview: () => Promise.reject(new Error('not used by this test')),
     ...overrides,
   };
   return { client, calls };

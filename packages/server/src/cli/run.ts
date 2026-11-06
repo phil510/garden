@@ -8,7 +8,7 @@ import {
   isStatus,
   parseNonNegativeInt,
 } from '@garden/shared';
-import type { CliClient, Io } from './commands.js';
+import type { CliClient, Io, ReviewRef } from './commands.js';
 import {
   defaultClient,
   runAdopt,
@@ -19,6 +19,10 @@ import {
   runLs,
   runNew,
   runResume,
+  runReviewsClaim,
+  runReviewsDismiss,
+  runReviewsList,
+  runReviewsStart,
   runUnwatch,
   runWatch,
   runWatches,
@@ -41,6 +45,7 @@ const CLI_COMMANDS = [
   'watches',
   'alert',
   'digest',
+  'reviews',
   'events',
   'stop',
   'uninstall',
@@ -54,7 +59,8 @@ export function isCliCommand(command: string | undefined): command is CliCommand
 export function usageLines(): string {
   return (
     'usage: garden [new <dir> | ls | kill <id> | resume <id> | adopt <id> | ' +
-    'watch <pr> | unwatch <pr> | unwatch --all | watches | alert <text> | alert clear | digest <id> | events --follow | ' +
+    'watch <pr> | unwatch <pr> | unwatch --all | watches | alert <text> | alert clear | digest <id> | ' +
+    'reviews list | reviews start <owner/name#N> | reviews claim <owner/name#N> | reviews dismiss <owner/name#N> | events --follow | ' +
     'stop [--all] | uninstall]\n'
   );
 }
@@ -209,6 +215,15 @@ function parsePr(value: string | undefined): number | undefined {
   return Number.isSafeInteger(pr) && pr > 0 ? pr : undefined;
 }
 
+/** `owner/name#N`, as `reviews list` prints it. */
+function parseReviewRef(value: string | undefined): ReviewRef | undefined {
+  const match = /^([^/#\s]+)\/([^/#\s]+)#(\d+)$/.exec(value ?? '');
+  const number = parsePr(match?.[3]);
+  return match === null || number === undefined
+    ? undefined
+    : { owner: match[1] ?? '', name: match[2] ?? '', number };
+}
+
 const SESSION_FLAG_USAGE = '[--session <id>]';
 
 /** `rest` is `garden <command>`'s remaining argv: positionals plus `--json`. `stopAllDeps` is
@@ -328,6 +343,25 @@ export async function runCli(
       return positionals[0] === undefined
         ? usage(io, 'garden digest <id> [--json]')
         : runDigest(io, positionals[0], json, client);
+    case 'reviews': {
+      const [verb, target, ...extra] = positionals;
+      const form = (v: string, tail = '') => `garden reviews ${v} <owner/name#N>${tail}`;
+      if (verb === 'list') {
+        return target !== undefined || values.session !== undefined
+          ? usage(io, 'garden reviews list')
+          : runReviewsList(io, json, client);
+      }
+      if (verb !== 'start' && verb !== 'claim' && verb !== 'dismiss')
+        return usage(io, 'garden reviews <list | start | claim | dismiss>');
+      const ref = parseReviewRef(target);
+      const claiming = verb === 'claim';
+      if (ref === undefined || extra.length > 0 || (!claiming && values.session !== undefined))
+        return usage(io, form(verb, claiming ? ` ${SESSION_FLAG_USAGE}` : ''));
+      if (claiming) return runReviewsClaim(io, { env, session: values.session, ref }, json, client);
+      return verb === 'start'
+        ? runReviewsStart(io, ref, json, client)
+        : runReviewsDismiss(io, ref, json, client);
+    }
     case 'events': {
       if (!values.follow || values.session !== undefined)
         return usage(io, 'garden events --follow');
