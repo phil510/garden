@@ -64,6 +64,12 @@ describe('ReviewRow', () => {
     expect(html).toContain('acme/widgets#1');
     expect(html).toContain('octocat · 1h ago');
   });
+
+  it('makes the reference the only link to the pull request', () => {
+    const html = render({});
+    expect(html).toMatch(/<button[^>]*class="rv-ref"[^>]*>acme\/widgets#1<\/button>/);
+    expect(html).not.toContain('Open on GitHub');
+  });
 });
 
 describe('dismiss', () => {
