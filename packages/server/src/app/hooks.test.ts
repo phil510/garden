@@ -17,6 +17,7 @@ const emptyOverlay: OverlayState = {
   alerts: [],
   digests: [],
   pipes: {},
+  reviews: { links: {} },
 };
 
 const NOW = 1_000 * 24 * 60 * 60 * 1000;

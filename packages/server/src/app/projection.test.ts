@@ -14,6 +14,7 @@ const emptyOverlay: OverlayState = {
   alerts: [],
   digests: [],
   pipes: {},
+  reviews: { links: {} },
 };
 
 /** In-memory StorePort: the projection's contract with the store is read-modify-write,

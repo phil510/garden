@@ -1,6 +1,13 @@
 import type { Alert, UiState } from '@garden/shared';
 import type { DigestRecord, Watch } from './watches.js';
 
+/** Review requests garden has started a session for. The review store is the only writer. */
+export interface ReviewsOverlay {
+  /** `<owner>/<name>#<number>` to the garden session id. Written by Start session and never
+   *  removed, so a re-requested review lands in the same session. */
+  readonly links: Readonly<Record<string, string>>;
+}
+
 export type PersistedAlert = Alert & { readonly sessionId: string };
 
 /** `~/.garden/state.json`. Overlay facts only — what garden decided and cannot
@@ -20,4 +27,5 @@ export interface OverlayState {
   readonly digests: readonly DigestRecord[];
   /** Per session id, the last moment a pipe was known connected (epoch ms). */
   readonly pipes: Readonly<Record<string, number>>;
+  readonly reviews: ReviewsOverlay;
 }

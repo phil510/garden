@@ -242,8 +242,8 @@ mapping. It does not optimistically mutate state and hope tmux agrees.
 `<appDir>/state.json` holds **overlay facts only** — things garden itself decided and cannot
 recompute: the session id to tmux name map, group order, and per-project pins, collapsed state
 and hide-dead toggle, plus stage preset and slot assignments and focused slot, plus swarm
-records and per-session parent/swarmId placements, plus the PR watches, each session's open alert and the last time each
-session had a pipe connected. The file is versioned (currently 2): the UI state sits under `ui` as the
+records and per-session parent/swarmId placements, plus the PR watches, each session's open alert the last time each
+session had a pipe connected, and the review requests a session was started for. The file is versioned (currently 2): the UI state sits under `ui` as the
 client's `UiState`, next to `tmuxNames` and the non-UI records, and a version 1 file is migrated on
 read. It does **not** hold a `SessionState` snapshot. Every session fact is derived on every boot — liveness and exit code
 from tmux, cwd, title and recap from the transcripts, branch from a live git lookup

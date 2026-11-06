@@ -11,3 +11,9 @@ export class AmbiguousWatchError extends Error {}
 
 /** No archived digest has this id: it expired, was never recorded, or predates details. */
 export class DigestNotFoundError extends Error {}
+
+/** The review request is not in the queue. */
+export class ReviewNotFoundError extends Error {}
+
+/** No local clone of the review request's repo is known, so there is nowhere to start a session. */
+export class NoLocalCloneError extends Error {}

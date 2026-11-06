@@ -1,6 +1,7 @@
 import { reviewPollOutcome } from '../domain/reviews.js';
 import type { PollerLogger } from './poller.js';
 import type { ConfigPort, GhPort } from './ports.js';
+import type { CloneResolver } from './reviewClones.js';
 import type { ReviewStore } from './reviews.js';
 
 /** Search takes the whole query in the URL, and the adapter passes the path to `gh api`
@@ -12,6 +13,7 @@ export const REVIEW_SEARCH_PATH = `search/issues?q=${encodeURIComponent(
 export interface ReviewPollerDeps {
   readonly gh: GhPort;
   readonly store: Pick<ReviewStore, 'complete' | 'fail'>;
+  readonly clones: CloneResolver;
   /** `pollIntervalMinutes` is read after every tick, so a settings change applies from the next. */
   readonly config: Pick<ConfigPort, 'read'>;
   readonly logger: PollerLogger;
@@ -55,7 +57,13 @@ export function createReviewPoller(deps: ReviewPollerDeps): ReviewPoller {
       }
       const outcome = reviewPollOutcome(result);
       if (outcome.kind === 'complete') {
-        deps.store.complete(outcome.items, new Date(deps.now()).toISOString());
+        const clones = await deps.clones.resolve([...new Set(outcome.items.map((i) => i.repo))]);
+        if (stopped) return;
+        const items = outcome.items.map((item) => ({
+          ...item,
+          clonePath: clones.get(item.repo) ?? null,
+        }));
+        deps.store.complete(items, new Date(deps.now()).toISOString());
         return;
       }
       if (outcome.fault === 'incomplete' || outcome.fault === 'error')

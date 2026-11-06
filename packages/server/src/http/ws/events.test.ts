@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { Projection } from '../../app/projection.js';
 import type { RootWatches } from '../../app/rootWatch.js';
 import { createReviewStore } from '../../app/reviews.js';
+import { memoryOverlay } from '../../app/reviews.fixture.js';
 import { registerEventsSocket } from './events.js';
 
 /** Polls until `predicate` holds or the deadline passes, failing with the last observation. */
@@ -99,7 +100,7 @@ describe('registerEventsSocket', () => {
     const wss = registerEventsSocket(app, {
       projection,
       rootWatches: fakeRootWatches().rootWatches,
-      reviews: createReviewStore(),
+      reviews: createReviewStore({ overlay: memoryOverlay() }),
     });
     // `registerEventsSocket` runs in `noServer` mode; production wiring of the shared
     // `upgrade` listener lives in `http/server.ts`, so this standalone test does it too.
@@ -142,7 +143,7 @@ describe('registerEventsSocket', () => {
     const wss = registerEventsSocket(app, {
       projection,
       rootWatches: fakeRootWatches().rootWatches,
-      reviews: createReviewStore(),
+      reviews: createReviewStore({ overlay: memoryOverlay() }),
     });
     app.server.on('upgrade', (request, socket, head) => {
       wss.handleUpgrade(request, socket, head, (ws) => wss.emit('connection', ws, request));
@@ -174,7 +175,7 @@ describe('registerEventsSocket', () => {
     const wss = registerEventsSocket(app, {
       projection,
       rootWatches,
-      reviews: createReviewStore(),
+      reviews: createReviewStore({ overlay: memoryOverlay() }),
     });
     app.server.on('upgrade', (request, socket, head) => {
       wss.handleUpgrade(request, socket, head, (ws) => wss.emit('connection', ws, request));
@@ -214,7 +215,7 @@ describe('registerEventsSocket', () => {
 
   it('sends the review queue in the snapshot and on each change, and drops the subscription on close', async () => {
     const { projection } = fakeProjection();
-    const store = createReviewStore();
+    const store = createReviewStore({ overlay: memoryOverlay() });
     let subscribers = 0;
     const reviews: typeof store = {
       ...store,

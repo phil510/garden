@@ -9,7 +9,9 @@ import {
 import {
   AmbiguousWatchError,
   DigestNotFoundError,
+  NoLocalCloneError,
   RepoUnresolvedError,
+  ReviewNotFoundError,
   WatchNotFoundError,
 } from '../app/errors.js';
 import { ConfigWriteRefusedError } from '../app/ports.js';
@@ -25,9 +27,11 @@ const STATUS_BY_ERROR: readonly (readonly [ErrorClass, number])[] = [
   [PathNotFoundError, 404],
   [WatchNotFoundError, 404],
   [DigestNotFoundError, 404],
+  [ReviewNotFoundError, 404],
   [RepoUnresolvedError, 400],
   [AmbiguousWatchError, 400],
   [SwarmCycleError, 409],
+  [NoLocalCloneError, 409],
   [ConfigWriteRefusedError, 409],
   [RootNotListedError, 403],
   [PathOutsideRootError, 400],

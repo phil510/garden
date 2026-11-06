@@ -9,8 +9,11 @@ import { ReviewRow, ReviewsCountBadge, ReviewsPanelView } from './ReviewsPanel';
 const now = Date.parse('2026-11-04T13:00:00Z');
 const item = aReviewItem({ title: 'Tidy the parser' });
 
+const onStart = () => undefined;
+const onOpen = () => undefined;
+
 const renderPanel = (queue: ReviewQueue | null) =>
-  renderToStaticMarkup(createElement(ReviewsPanelView, { queue, now }));
+  renderToStaticMarkup(createElement(ReviewsPanelView, { queue, now, onStart, onOpen }));
 
 const faults = ['gh-missing', 'logged-out', 'rate-limited', 'incomplete', 'error'] as const;
 
@@ -51,7 +54,9 @@ describe('ReviewsPanelView', () => {
 
 describe('ReviewRow', () => {
   const render = (overrides: Parameters<typeof aReviewItem>[0]) =>
-    renderToStaticMarkup(createElement(ReviewRow, { item: aReviewItem(overrides), now }));
+    renderToStaticMarkup(
+      createElement(ReviewRow, { item: aReviewItem(overrides), now, onStart, onOpen }),
+    );
 
   it('shows the draft marker only for drafts', () => {
     expect(render({ draft: true })).toContain('Draft');
@@ -68,6 +73,36 @@ describe('ReviewRow', () => {
     const html = render({});
     expect(html).toMatch(/<button[^>]*class="rv-ref"[^>]*>acme\/widgets#1<\/button>/);
     expect(html).not.toContain('Open on GitHub');
+  });
+});
+
+describe('ReviewRow session actions', () => {
+  const render = (overrides: Parameters<typeof aReviewItem>[0]) =>
+    renderToStaticMarkup(
+      createElement(ReviewRow, { item: aReviewItem(overrides), now, onStart, onOpen }),
+    );
+
+  it('offers Open session, and no Start, once a session is linked', () => {
+    const html = render({ clonePath: '/r/widgets', sessionId: 'session-1' });
+    expect(html).toContain('Open session');
+    expect(html).not.toContain('Start session');
+  });
+
+  it('keeps Open session when the clone is gone', () => {
+    expect(render({ clonePath: null, sessionId: 'session-1' })).toContain('Open session');
+  });
+
+  it('offers an enabled Start session for an unlinked request with a clone', () => {
+    const html = render({ clonePath: '/r/widgets' });
+    expect(html).toContain('Start session');
+    expect(html).not.toContain('disabled');
+    expect(html).not.toContain('no local clone');
+  });
+
+  it('disables Start session and says why when there is no clone', () => {
+    const html = render({ clonePath: null });
+    expect(html).toMatch(/<button[^>]*disabled[^>]*>Start session/);
+    expect(html).toContain('no local clone');
   });
 });
 

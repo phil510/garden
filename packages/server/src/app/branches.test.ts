@@ -13,6 +13,7 @@ const emptyOverlay: OverlayState = {
   alerts: [],
   digests: [],
   pipes: {},
+  reviews: { links: {} },
 };
 
 /** A real projection, so these tests exercise the same fold production runs — same rationale

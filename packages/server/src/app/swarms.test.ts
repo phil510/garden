@@ -26,6 +26,7 @@ const emptyOverlay: OverlayState = {
   alerts: [],
   digests: [],
   pipes: {},
+  reviews: { links: {} },
 };
 
 /** In-memory: `app/swarms.ts`'s whole contract with the store is through

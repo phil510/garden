@@ -1,6 +1,11 @@
 import type { ReviewItem, ReviewQueue } from '@garden/shared';
+import { startReviewSession, updateUiState } from '../../api/client';
+import { commandFailureMessage, reportCommandFailure } from '../../api/reportCommandFailure';
 import { useReviewStore } from '../../state/reviewStore';
+import { useToastStore } from '../../state/toastStore';
+import { useUiStore } from '../../state/uiStore';
 import { openExternalLink } from '../../terminals/hyperlinks';
+import { placeOnStage } from '../sidebar/placeOnStage';
 import { formatRelativeTime } from '../sidebar/relativeTime';
 import { reviewFaultNotice } from './reviewFaultNotice';
 import './reviews.css';
@@ -8,10 +13,12 @@ import './reviews.css';
 interface ReviewRowProps {
   item: ReviewItem;
   now: number;
+  onStart: (item: ReviewItem) => void;
+  onOpen: (sessionId: string) => void;
 }
 
 /** One request. `.rv-actions` is the trailing slot for per-row buttons. */
-export function ReviewRow({ item, now }: ReviewRowProps) {
+export function ReviewRow({ item, now, onStart, onOpen }: ReviewRowProps) {
   return (
     <div className="rv-item">
       <div className="rv-top">
@@ -29,7 +36,24 @@ export function ReviewRow({ item, now }: ReviewRowProps) {
         <span className="when">
           {item.author} · {formatRelativeTime(Date.parse(item.updatedAt), now)}
         </span>
-        <div className="rv-actions" />
+        <div className="rv-actions">
+          {item.sessionId !== null ? (
+            <button className="small" onClick={() => onOpen(item.sessionId ?? '')}>
+              Open session
+            </button>
+          ) : (
+            <>
+              {item.clonePath === null && <span className="rv-noclone">no local clone</span>}
+              <button
+                className="small"
+                disabled={item.clonePath === null}
+                onClick={() => onStart(item)}
+              >
+                Start session
+              </button>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -38,9 +62,11 @@ export function ReviewRow({ item, now }: ReviewRowProps) {
 interface ReviewsPanelViewProps {
   queue: ReviewQueue | null;
   now: number;
+  onStart: (item: ReviewItem) => void;
+  onOpen: (sessionId: string) => void;
 }
 
-export function ReviewsPanelView({ queue, now }: ReviewsPanelViewProps) {
+export function ReviewsPanelView({ queue, now, onStart, onOpen }: ReviewsPanelViewProps) {
   const notice = reviewFaultNotice(queue?.fault ?? null);
   const items = queue?.items ?? [];
   const checking = notice === null && (queue === null || queue.polledAt === null);
@@ -76,7 +102,7 @@ export function ReviewsPanelView({ queue, now }: ReviewsPanelViewProps) {
       ) : items.length > 0 ? (
         <div className="aw-list">
           {items.map((item) => (
-            <ReviewRow key={item.key} item={item} now={now} />
+            <ReviewRow key={item.key} item={item} now={now} onStart={onStart} onOpen={onOpen} />
           ))}
         </div>
       ) : (
@@ -94,7 +120,27 @@ export function ReviewsPanelView({ queue, now }: ReviewsPanelViewProps) {
 /** Review requests in the file panel's slot. */
 export function ReviewsPanel() {
   const queue = useReviewStore((state) => state.queue);
-  return <ReviewsPanelView queue={queue} now={Date.now()} />;
+  const uiState = useUiStore((state) => state.uiState);
+
+  function open(sessionId: string) {
+    updateUiState(placeOnStage(uiState.slots, uiState.focusedSlot, sessionId)).catch(
+      reportCommandFailure,
+    );
+  }
+
+  function start(item: ReviewItem) {
+    const [owner, name] = item.repo.split('/') as [string, string];
+    startReviewSession(owner, name, item.number)
+      .then((result) => {
+        open(result.sessionId);
+      })
+      .catch((error: unknown) => {
+        reportCommandFailure(error);
+        useToastStore.getState().showToast(commandFailureMessage(error));
+      });
+  }
+
+  return <ReviewsPanelView queue={queue} now={Date.now()} onStart={start} onOpen={open} />;
 }
 
 /** The top-bar pill; nothing at zero. */
