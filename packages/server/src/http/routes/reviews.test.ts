@@ -126,6 +126,17 @@ describe('POST /reviews/:owner/:name/:number/claim', () => {
     expect(reviews.item('acme/widgets#7')?.sessionId).toBe('s1');
   });
 
+  it('answers 404 for an unknown session or a request that is not queued', async () => {
+    const { app, reviews } = buildApp([aReview()], ['s1']);
+    expect(
+      (await post(app, '/reviews/acme/widgets/7/claim', { sessionId: 'nope' })).statusCode,
+    ).toBe(404);
+    expect((await post(app, '/reviews/acme/widgets/8/claim', { sessionId: 's1' })).statusCode).toBe(
+      404,
+    );
+    expect(reviews.item('acme/widgets#7')?.sessionId).toBeNull();
+  });
+
   it('answers 400 for a number that is not a positive integer', async () => {
     const { app } = buildApp([aReview()], ['s1']);
     expect((await post(app, '/reviews/acme/widgets/0/claim', { sessionId: 's1' })).statusCode).toBe(
