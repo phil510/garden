@@ -8,7 +8,9 @@ description: >-
   session", "resume a session", the bare CLI verbs (`garden new`, `garden ls`,
   `garden kill`, `garden resume`), and for anything spanning several sessions:
   "spin up sessions for these three issues", "check on the sessions I started",
-  "is that one done yet", "wind these down". Reach for it before improvising a
+  "is that one done yet", "wind these down", and the review-request queue
+  (`garden reviews`: list, start or claim a session for, or dismiss a review
+  request). Reach for it before improvising a
   wait, sizing a message or a status report, or reading a session's status as
   done. Not for the garden server itself — "stop the server", "shut garden
   down", "restart the server", "uninstall garden" (`garden stop`, `garden uninstall`) name the server process, not a
