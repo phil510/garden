@@ -21,6 +21,10 @@
   gap: 6px;
 }
 .rv-ref {
+  all: unset;
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
   color: var(--text-muted);
   font-family: var(--font-mono);
   font-size: 11px;
@@ -29,10 +33,14 @@
   white-space: nowrap;
   min-width: 0;
 }
-.rv-link {
-  margin-left: auto;
-  flex: 0 0 auto;
-  font-size: 11px;
+.rv-ref:hover {
+  text-decoration-style: solid;
+  color: var(--accent);
+}
+.rv-ref:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+  border-radius: 2px;
 }
 .rv-draft {
   font-size: 10.5px;
@@ -75,13 +83,25 @@
 .rv-toggle {
   position: relative;
 }
+/* Fault dot top-right like the watches button; the count badge sits bottom-right so they never overlap */
+.rv-toggle.has-fault::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--danger);
+  box-shadow: 0 0 0 1.5px var(--surface);
+}
 .rv-toggle svg {
   width: 15px;
   height: 15px;
 }
 .rv-badge {
   position: absolute;
-  top: -2px;
+  bottom: -2px;
   right: -2px;
   min-width: 14px;
   height: 14px;
