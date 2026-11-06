@@ -15,13 +15,14 @@ export function ReviewRow({ item, now }: ReviewRowProps) {
   return (
     <div className="rv-item">
       <div className="rv-top">
-        <span className="rv-ref">
+        <button
+          className="rv-ref"
+          title={`Open ${item.repo} #${String(item.number)} on GitHub`}
+          onClick={() => openExternalLink(item.url)}
+        >
           {item.repo}#{item.number}
-        </span>
-        {item.draft && <span className="rv-draft">Draft</span>}
-        <button className="link-btn rv-link" onClick={() => openExternalLink(item.url)}>
-          Open on GitHub
         </button>
+        {item.draft && <span className="rv-draft">Draft</span>}
       </div>
       <div className="rv-title">{item.title}</div>
       <div className="rv-foot">
