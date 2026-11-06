@@ -440,6 +440,17 @@ export interface StartReviewSessionResponse {
   sessionId: string;
 }
 
+/** `POST /reviews/:owner/:name/:number/claim`: link the review request to an existing session. */
+export interface ClaimReviewRequest {
+  sessionId: string;
+}
+
+/** `previousSessionId` is the session the link moved off, null when nothing moved. */
+export interface ClaimReviewResponse {
+  sessionId: string;
+  previousSessionId: string | null;
+}
+
 /** `WS /events`: a snapshot on connect, then deltas. `ui-state` and `reviews` are global, not
  *  derived from sessions: each is sent to every connection. `fs-changed` goes only to the
  *  connection that sent `watch`, and `root` echoes the spelling that connection sent. */

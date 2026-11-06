@@ -34,7 +34,7 @@ import { pipeSessionId, registerPipeSocket, type PipeDeps } from './ws/pipe.js';
 export type ServerDeps = SessionsDeps &
   HooksDeps & { readonly repos: RepoCatalog } & FilesystemDeps &
   AttachSocketDeps &
-  EventsDeps & { readonly reviews: Pick<ReviewStore, 'item' | 'link'> } & PipeDeps &
+  EventsDeps & { readonly reviews: Pick<ReviewStore, 'item' | 'link' | 'queue'> } & PipeDeps &
   SettingsDeps &
   SwarmsDeps &
   WatchesDeps &
@@ -70,6 +70,7 @@ export function createServer(deps: ServerDeps, logger: Logger = noopLogger): Fas
     reviewRoutes(instance, {
       sessions: createReviewSessions(deps),
       reviewDismisser: deps.reviewDismisser,
+      reviews: deps.reviews,
     }),
   );
 
