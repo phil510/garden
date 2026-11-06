@@ -398,13 +398,43 @@ export type FileResponse =
  *  placement use cases, never this generic patch. */
 export type UiStateRequest = Partial<Omit<UiState, 'swarms' | 'placements'>>;
 
-/** `WS /events`: a snapshot on connect, then deltas. `fs-changed` is the exception to
- *  projection-only: it goes only to the connection that sent `watch`, and `root` echoes the
- *  spelling that connection sent. */
+/** An open PR whose review is directly requested from the user. `clonePath` and `sessionId` are
+ *  null until a local clone and a review session are linked to it. */
+export interface ReviewItem {
+  /** `<owner>/<name>#<number>` */
+  key: string;
+  /** `<owner>/<name>`, normalised like watch repos. */
+  repo: string;
+  number: number;
+  title: string;
+  /** The PR author's login. */
+  author: string;
+  /** The PR's `html_url`. */
+  url: string;
+  draft: boolean;
+  /** The PR's `updated_at`, ISO. */
+  updatedAt: string;
+  clonePath: string | null;
+  sessionId: string | null;
+}
+
+/** The review queue. `items` is newest `updatedAt` first and survives a failed poll; `fault` says
+ *  why the last poll failed, null when it was complete. `polledAt` is the last complete poll,
+ *  null until the first one after boot. */
+export interface ReviewQueue {
+  items: ReviewItem[];
+  polledAt: string | null;
+  fault: 'gh-missing' | 'logged-out' | 'rate-limited' | 'incomplete' | 'error' | null;
+}
+
+/** `WS /events`: a snapshot on connect, then deltas. `ui-state` and `reviews` are global, not
+ *  derived from sessions: each is sent to every connection. `fs-changed` goes only to the
+ *  connection that sent `watch`, and `root` echoes the spelling that connection sent. */
 export type ServerMessage =
-  | { type: 'snapshot'; sessions: SessionState[]; uiState: UiState }
+  | { type: 'snapshot'; sessions: SessionState[]; uiState: UiState; reviews: ReviewQueue }
   | { type: 'deltas'; deltas: Delta[] }
   | { type: 'ui-state'; uiState: UiState }
+  | { type: 'reviews'; queue: ReviewQueue }
   | { type: 'fs-changed'; root: string };
 
 /** `WS /events`, client to server: replaces this connection's filesystem watch. `root` is a

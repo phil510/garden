@@ -18,6 +18,7 @@ import { fakeStore } from './support/fakeStore.js';
 import { initRepo } from './support/git.js';
 import { noPipes } from './support/noPipes.js';
 import { noRootWatches } from './support/noRootWatches.js';
+import { noReviews } from './support/noReviews.js';
 
 describe('/fs routes against a real temp repo', () => {
   let dir: string | undefined;
@@ -35,6 +36,7 @@ describe('/fs routes against a real temp repo', () => {
       projection,
       pipes: noPipes,
       rootWatches: noRootWatches,
+      reviews: noReviews,
       tmux: {
         listPanes: () => Promise.reject(new Error('not used by this test')),
         newSession: () => Promise.reject(new Error('not used by this test')),

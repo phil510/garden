@@ -24,12 +24,14 @@ import { opened } from './support/socket.js';
 import { settle, sleep, QUIET_WINDOW_MS } from './support/fsSignals.js';
 import { noPipes } from './support/noPipes.js';
 import { noRootWatches } from './support/noRootWatches.js';
+import { noReviews } from './support/noReviews.js';
 import { until } from './support/poll.js';
 
 function unusedPorts() {
   return {
     pipes: noPipes,
     rootWatches: noRootWatches,
+    reviews: noReviews,
     tmux: {
       listPanes: () => Promise.reject(new Error('not used by this test')),
       newSession: () => Promise.reject(new Error('not used by this test')),
@@ -123,7 +125,12 @@ describe('WS /events against the real server', () => {
     });
 
     const snapshot = await snapshotPromise;
-    expect(snapshot).toEqual({ type: 'snapshot', sessions: [], uiState: projection.uiState() });
+    expect(snapshot).toEqual({
+      type: 'snapshot',
+      sessions: [],
+      uiState: projection.uiState(),
+      reviews: noReviews.queue(),
+    });
 
     const nextDelta = receiveOne(socket);
     projection.dispatch({
@@ -231,6 +238,7 @@ describe('WS /events root watches against a real watcher', () => {
         repos,
         logger,
       }),
+      reviews: noReviews,
     });
     await app.listen({ port: 0, host: '127.0.0.1' });
     const { port } = app.server.address() as AddressInfo;

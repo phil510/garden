@@ -13,6 +13,7 @@ import type { Watch } from '../../packages/server/src/domain/watches.js';
 import { createServer } from '../../packages/server/src/http/server.js';
 import { fakeStore } from './support/fakeStore.js';
 import { noRootWatches } from './support/noRootWatches.js';
+import { noReviews } from './support/noReviews.js';
 import { until } from './support/poll.js';
 
 const SESSION = 'sess-1';
@@ -92,6 +93,7 @@ describe('garden events --follow against the real server', () => {
         readClaudeCommand: () => ['claude'],
         deadSessionCap: 10,
         rootWatches: noRootWatches,
+        reviews: noReviews,
         tmux: {
           listPanes: notUsed,
           newSession: notUsed,

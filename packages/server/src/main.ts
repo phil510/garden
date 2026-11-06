@@ -30,6 +30,8 @@ import { createAttachRegistry, type AttachRegistry } from './app/attach.js';
 import { createBranchSweeper } from './app/branches.js';
 import { createTranscriptReplay, type TranscriptReplay } from './app/transcriptReplay.js';
 import { createPoller } from './app/poller.js';
+import { createReviewPoller } from './app/reviewPoller.js';
+import { createReviewStore } from './app/reviews.js';
 import type {
   ConfigPort,
   FsWatchPort,
@@ -298,6 +300,15 @@ export async function main(detached: boolean): Promise<void> {
     mintId: () => randomBytes(6).toString('hex'),
   });
 
+  const reviews = createReviewStore();
+  const reviewPoller = createReviewPoller({
+    gh: ghPort(),
+    store: reviews,
+    config: configAdapter,
+    logger,
+    now: Date.now,
+  });
+
   const poll = setInterval(() => {
     // A tmux that fails mid-run leaves liveness stale until the next tick; it does not end the server.
     dispatchTmuxSnapshot(projection, tmux).catch((error: unknown) => {
@@ -342,6 +353,7 @@ export async function main(detached: boolean): Promise<void> {
       attach,
       repos,
       rootWatches: createRootWatches({ watcher: fsWatchPort(logger), repos, logger }),
+      reviews,
       serverPort: config.port,
       settingsPath,
       readClaudeCommand: readClaudeCommand(configAdapter),
@@ -357,6 +369,7 @@ export async function main(detached: boolean): Promise<void> {
     stopRepoRoots();
     branches.stop();
     watchPoller.stop();
+    reviewPoller.stop();
     return watcher.close();
   });
   for (const signal of ['SIGINT', 'SIGTERM'] as const) {
@@ -387,6 +400,7 @@ export async function main(detached: boolean): Promise<void> {
     logger.error(`branch sweep failed: ${error instanceof Error ? error.message : String(error)}`);
   });
   watchPoller.start();
+  reviewPoller.start();
   if (detached) {
     // Earliest the health endpoint can answer 'ok' — the earliest spawnServer's poll loop can
     // observe readiness and exit, closing its end of the stderr pipe. Nothing should log through

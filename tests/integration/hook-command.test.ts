@@ -10,6 +10,7 @@ import { createServer as createGardenServer } from '../../packages/server/src/ht
 import { fakeStore } from './support/fakeStore.js';
 import { noPipes } from './support/noPipes.js';
 import { noRootWatches } from './support/noRootWatches.js';
+import { noReviews } from './support/noReviews.js';
 
 function hookCommand(): string {
   const command = claudeSettings().hooks.SessionStart?.[0]?.hooks[0]?.command;
@@ -111,6 +112,7 @@ function realServer(projection: Projection) {
     projection,
     pipes: noPipes,
     rootWatches: noRootWatches,
+    reviews: noReviews,
     tmux: {
       listPanes: () => Promise.reject(new Error('not used by this test')),
       newSession: () => Promise.reject(new Error('not used by this test')),
