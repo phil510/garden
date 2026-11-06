@@ -7,7 +7,7 @@ import type { ReviewStore } from './reviews.js';
 /** Search takes the whole query in the URL, and the adapter passes the path to `gh api`
  *  verbatim, so the encoding is ours. */
 export const REVIEW_SEARCH_PATH = `search/issues?q=${encodeURIComponent(
-  'is:open is:pr user-review-requested:@me',
+  'is:open is:pr archived:false user-review-requested:@me',
 )}&per_page=100`;
 
 export interface ReviewPollerDeps {

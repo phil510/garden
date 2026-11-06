@@ -63,7 +63,9 @@ describe('review poller', () => {
     await t.poller.tick();
     expect(t.calls).toHaveLength(1);
     const url = new URL(`https://x/${REVIEW_SEARCH_PATH}`);
-    expect(url.searchParams.get('q')).toBe('is:open is:pr user-review-requested:@me');
+    expect(url.searchParams.get('q')).toBe(
+      'is:open is:pr archived:false user-review-requested:@me',
+    );
     expect(url.searchParams.get('per_page')).toBe('100');
     expect(t.calls[0]?.etag).toBeNull();
   });
