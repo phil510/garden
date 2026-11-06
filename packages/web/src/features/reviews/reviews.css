@@ -1,0 +1,105 @@
+.rv-fault {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  font-size: 11.5px;
+  color: var(--danger);
+  border-bottom: 1px solid var(--border);
+}
+.rv-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  font-size: 12.5px;
+}
+.rv-item + .rv-item {
+  border-top: 1px solid var(--border);
+}
+.rv-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.rv-ref {
+  all: unset;
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.rv-ref:hover {
+  text-decoration-style: solid;
+  color: var(--accent);
+}
+.rv-ref:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+.rv-draft {
+  font-size: 10.5px;
+  color: var(--text-faint);
+  border: 1px solid var(--border-strong);
+  border-radius: 99px;
+  padding: 0 6px;
+}
+.rv-title {
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.rv-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+.rv-actions {
+  display: flex;
+  gap: 4px;
+}
+
+/* Count pill on the top-bar toggle */
+.rv-toggle {
+  position: relative;
+}
+/* Fault dot top-right like the watches button; the count badge sits bottom-right so they never overlap */
+.rv-toggle.has-fault::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--danger);
+  box-shadow: 0 0 0 1.5px var(--surface);
+}
+.rv-toggle svg {
+  width: 15px;
+  height: 15px;
+}
+.rv-badge {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  box-sizing: border-box;
+  border-radius: 99px;
+  background: var(--accent);
+  color: var(--surface);
+  font-size: 9.5px;
+  font-weight: 600;
+  line-height: 14px;
+  text-align: center;
+  box-shadow: 0 0 0 1.5px var(--surface);
+}

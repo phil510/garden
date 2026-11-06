@@ -10,22 +10,27 @@ import { SettingsModal } from './features/settings/SettingsModal';
 import { ShutdownOverlay } from './features/shutdown/ShutdownOverlay';
 import { anyFault, collectWatchGroups, summarizeWatchGroups } from './features/watches/allWatches';
 import { AlertsPanel } from './features/alerts/AlertsPanel';
-import { BellIcon, EyeIcon } from './features/watches/WatchIcons';
+import { BellIcon, EyeIcon, ReviewsIcon } from './features/watches/WatchIcons';
 import { WatchesPanel } from './features/watches/WatchesPanel';
 import { usePipeGrace } from './features/watches/usePipeGrace';
+import { receiveReviews } from './features/reviews/receiveReviews';
+import { reviewCount } from './features/reviews/reviewToast';
+import { reviewHasFault } from './features/reviews/reviewFaultNotice';
+import { ReviewsCountBadge, ReviewsPanel } from './features/reviews/ReviewsPanel';
 import { PresetSwitcher } from './features/stage/PresetSwitcher';
 import { Stage } from './features/stage/Stage';
 import { useLocalStore } from './state/localStore';
 import { usePipeGraceStore } from './state/pipeGraceStore';
+import { useReviewStore } from './state/reviewStore';
 import { useSessionStore } from './state/sessionStore';
 import { useUiStore } from './state/uiStore';
 
-type RightPanel = 'files' | 'watches' | 'alerts' | null;
+type RightPanel = 'files' | 'watches' | 'alerts' | 'reviews' | null;
 
 export function App() {
   const [rightPanel, setRightPanel] = useState<RightPanel>('files');
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  // What the eye and bell buttons return to when they close their view.
+  // What the eye, bell and reviews buttons return to when they close their view.
   const beforeOverlay = useRef<RightPanel>('files');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [stopped, setStopped] = useState(false);
@@ -39,6 +44,9 @@ export function App() {
   const groups = collectWatchGroups(Object.values(sessions), pipeFaulted);
   const hasFault = anyFault(groups);
   const { faultedSessions } = summarizeWatchGroups(groups);
+  const reviewQueue = useReviewStore((state) => state.queue);
+  const reviewsOpen = reviewCount(reviewQueue);
+  const reviewsFault = reviewHasFault(reviewQueue);
 
   useEffect(() => {
     const sessionStore = useSessionStore.getState();
@@ -49,6 +57,8 @@ export function App() {
       onSnapshot: (message) => {
         sessionStore.setSnapshot(message.sessions);
         uiStore.setUiState(message.uiState);
+        // A snapshot resets the toast baseline, so it never toasts.
+        useReviewStore.getState().setQueue(message.reviews);
       },
       onDeltas: (message) => {
         sessionStore.applyDeltas(message.deltas);
@@ -56,6 +66,7 @@ export function App() {
       onUiState: (message) => {
         uiStore.setUiState(message.uiState);
       },
+      onReviews: (message) => receiveReviews(message.queue),
       onFsChanged: (root) => {
         if (root === useLocalStore.getState().filePanel.root) localStore.bumpFsRefresh();
       },
@@ -78,12 +89,13 @@ export function App() {
     };
   }, []);
 
-  function toggleOverlay(panel: 'watches' | 'alerts') {
+  function toggleOverlay(panel: 'watches' | 'alerts' | 'reviews') {
     if (rightPanel === panel) {
       setRightPanel(beforeOverlay.current);
     } else {
-      // Switching straight between watches and alerts keeps the panel they both return to.
-      if (rightPanel !== 'watches' && rightPanel !== 'alerts') beforeOverlay.current = rightPanel;
+      // Switching straight between overlays keeps the panel they all return to.
+      if (rightPanel !== 'watches' && rightPanel !== 'alerts' && rightPanel !== 'reviews')
+        beforeOverlay.current = rightPanel;
       setRightPanel(panel);
     }
   }
@@ -151,6 +163,15 @@ export function App() {
             <BellIcon />
           </button>
           <button
+            className={`ghost icon-btn rv-toggle${rightPanel === 'reviews' ? ' active-btn' : ''}${reviewsFault ? ' has-fault' : ''}`}
+            title={reviewsFault ? 'Review requests: GitHub check failing' : 'Review requests'}
+            aria-pressed={rightPanel === 'reviews'}
+            onClick={() => toggleOverlay('reviews')}
+          >
+            <ReviewsIcon />
+            <ReviewsCountBadge count={reviewsOpen} />
+          </button>
+          <button
             className={rightPanel === 'files' ? 'ghost icon-btn active-btn' : 'ghost icon-btn'}
             title="Toggle file panel"
             aria-pressed={rightPanel === 'files'}
@@ -204,6 +225,9 @@ export function App() {
             </div>
             <div className="filepanel-pane" hidden={rightPanel !== 'alerts'}>
               <AlertsPanel />
+            </div>
+            <div className="filepanel-pane" hidden={rightPanel !== 'reviews'}>
+              <ReviewsPanel />
             </div>
           </div>
         </div>

@@ -47,3 +47,19 @@ export function BellIcon() {
     </svg>
   );
 }
+
+export function ReviewsIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M4 5h16v11H9l-5 4Z" />
+      <path d="m9 10 2 2 4-4" />
+    </svg>
+  );
+}

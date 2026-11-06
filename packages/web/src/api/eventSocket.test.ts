@@ -22,6 +22,7 @@ describe('connectEventSocket', () => {
     onSnapshot: vi.fn(),
     onDeltas: vi.fn(),
     onUiState: vi.fn(),
+    onReviews: vi.fn(),
     onConnect: vi.fn(),
     onFsChanged: vi.fn(),
     onShutdown: vi.fn(),
@@ -44,6 +45,15 @@ describe('connectEventSocket', () => {
   });
 
   const latest = () => FakeWebSocket.instances.at(-1)!;
+
+  it('dispatches a reviews frame to onReviews', () => {
+    connectEventSocket(handlers);
+    const queue = { items: [], polledAt: null, fault: null };
+
+    latest().emit('message', { data: JSON.stringify({ type: 'reviews', queue }) });
+
+    expect(handlers.onReviews).toHaveBeenCalledWith({ type: 'reviews', queue });
+  });
 
   it.each(['not json', 'null', '{"type":"bogus"}'])(
     'drops the malformed frame %s and keeps dispatching',
