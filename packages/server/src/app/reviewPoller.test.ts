@@ -4,6 +4,7 @@ import type { GhResult } from '../domain/github.js';
 import { searchResponse } from '../domain/reviews.fixture.js';
 import { createReviewPoller, REVIEW_SEARCH_PATH } from './reviewPoller.js';
 import { createReviewStore } from './reviews.js';
+import { memoryOverlay } from './reviews.fixture.js';
 
 const T0 = Date.parse('2026-01-10T00:00:00Z');
 
@@ -17,7 +18,8 @@ function setup() {
   const calls: { path: string; etag: string | null }[] = [];
   let answer: () => GhResult = () => complete;
   let clock = T0;
-  const store = createReviewStore();
+  const store = createReviewStore({ overlay: memoryOverlay() });
+  const clonePaths = new Map<string, string>();
   const logged: string[] = [];
   const poller = createReviewPoller({
     gh: {
@@ -32,6 +34,10 @@ function setup() {
       },
     },
     store,
+    clones: {
+      resolve: (repos) =>
+        Promise.resolve(new Map(repos.map((r) => [r, clonePaths.get(r) ?? null]))),
+    },
     config: { read: () => ({ pollIntervalMinutes: 5 }) as never },
     logger: { warn: (m) => logged.push(m), error: (m) => logged.push(m) },
     now: () => clock,
@@ -39,6 +45,7 @@ function setup() {
   return {
     poller,
     store,
+    clonePaths,
     calls,
     logged,
     answer(next: () => GhResult) {
@@ -67,6 +74,16 @@ describe('review poller', () => {
     expect(t.store.queue().items.map((i) => i.number)).toEqual([378, 376, 374]);
     expect(t.store.queue().polledAt).toBe(new Date(T0).toISOString());
     expect(t.store.queue().fault).toBeNull();
+  });
+
+  it("sets each item's clone path from the resolver, null when there is none", async () => {
+    const t = setup();
+    await t.poller.tick();
+    expect(t.store.queue().items.map((i) => i.clonePath)).toEqual([null, null, null]);
+    t.clonePaths.set('phil510/garden', '/r/garden');
+    t.advance(60_000 * 10);
+    await t.poller.tick();
+    expect(t.store.queue().items.map((i) => i.clonePath)).toEqual(Array(3).fill('/r/garden'));
   });
 
   const failures: [string, () => GhResult, NonNullable<ReviewQueue['fault']>][] = [
@@ -139,13 +156,14 @@ describe('review poller', () => {
 
   it('drops the answer of a search that was in flight when the poller stopped', async () => {
     let release: (result: GhResult) => void = () => undefined;
-    const store = createReviewStore();
+    const store = createReviewStore({ overlay: memoryOverlay() });
     const poller = createReviewPoller({
       gh: {
         removeReviewRequest: () => Promise.reject(new Error('not used by this test')),
         get: () => new Promise<GhResult>((resolve) => (release = resolve)),
       },
       store,
+      clones: { resolve: () => Promise.resolve(new Map()) },
       config: { read: () => ({ pollIntervalMinutes: 5 }) as never },
       logger: { warn: () => undefined, error: () => undefined },
       now: () => T0,

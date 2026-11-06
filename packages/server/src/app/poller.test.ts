@@ -389,6 +389,7 @@ const emptyOverlay: OverlayState = {
   alerts: [],
   digests: [],
   pipes: {},
+  reviews: { links: {} },
 };
 
 /** A real projection over an in-memory store, a fake GitHub and an injected clock. */

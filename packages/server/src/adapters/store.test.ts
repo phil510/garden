@@ -175,6 +175,7 @@ describe('readOverlayState version 2', () => {
         alerts: [{ sessionId: 'session-1', text: 'stuck\non CI', raisedAt: 400, updatedAt: 500 }],
         digests: [],
         pipes: { 'session-1': 300 },
+        reviews: { links: { 'acme/widgets#7': 'session-1' } },
       };
       writeOverlayState(appDir, state);
       const logger = collectingLogger();
@@ -269,6 +270,7 @@ describe('readOverlayState version 1 migration', () => {
       alerts: [alert],
       digests: [digest],
       pipes: { 'session-1': 300 },
+      reviews: { links: {} },
     });
     expect(logger.warnings).toEqual([]);
   });
@@ -575,6 +577,45 @@ describe('readOverlayState pipes', () => {
     expect(state.pipes).toEqual({ good: 5 });
     expect(state.tmuxNames).toEqual({ 'session-1': 'garden-project' });
     expect(logger.warnings).toHaveLength(2);
+  });
+});
+
+describe('readOverlayState reviews', () => {
+  const read = (contents: unknown) => {
+    const logger = collectingLogger();
+    let state = DEFAULT_OVERLAY_STATE;
+    withTempAppDir((appDir) => {
+      mkdirSync(appDir, { recursive: true });
+      writeFileSync(join(appDir, 'state.json'), JSON.stringify(contents));
+      state = readOverlayState(appDir, logger);
+    });
+    return { state, logger };
+  };
+  const file = (reviews: unknown) => ({ version: 2, tmuxNames: {}, ui: {}, reviews });
+
+  it('loads no links from a file written before they existed', () => {
+    const legacy: Record<string, unknown> = file({});
+    delete legacy['reviews'];
+    const { state, logger } = read(legacy);
+    expect(state.reviews).toEqual({ links: {} });
+    expect(logger.warnings).toEqual([]);
+  });
+
+  it('round-trips links through a write', () => {
+    withTempAppDir((appDir) => {
+      const state: OverlayState = {
+        ...DEFAULT_OVERLAY_STATE,
+        reviews: { links: { 'acme/widgets#7': 'session-1' } },
+      };
+      writeOverlayState(appDir, state);
+      expect(readOverlayState(appDir, collectingLogger())).toEqual(state);
+    });
+  });
+
+  it('drops a malformed link with a warning while keeping the rest', () => {
+    const { state, logger } = read(file({ links: { 'a/b#1': 's1', 'a/b#2': 5 } }));
+    expect(state.reviews).toEqual({ links: { 'a/b#1': 's1' } });
+    expect(logger.warnings).toHaveLength(1);
   });
 });
 

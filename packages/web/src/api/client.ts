@@ -14,6 +14,7 @@ import type {
   ReposResponse,
   SettingsRequest,
   SettingsResponse,
+  StartReviewSessionResponse,
   TreeResponse,
   UiStateRequest,
   WatchResponse,
@@ -61,6 +62,17 @@ export function createSession(cwd: string): Promise<CreateSessionResponse> {
 
 export function resumeSession(id: string): Promise<CreateSessionResponse> {
   return request(`/sessions/${encodeURIComponent(id)}/resume`, { method: 'POST' });
+}
+
+export function startReviewSession(
+  owner: string,
+  name: string,
+  number: number,
+): Promise<StartReviewSessionResponse> {
+  return request(
+    `/reviews/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/${String(number)}/session`,
+    { method: 'POST' },
+  );
 }
 
 export function killSession(id: string): Promise<OkResponse> {

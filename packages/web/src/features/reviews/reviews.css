@@ -61,9 +61,22 @@
   font-size: 11px;
   color: var(--text-faint);
 }
+.rv-foot .when {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .rv-actions {
+  flex: 0 0 auto;
+  white-space: nowrap;
   display: flex;
-  gap: 4px;
+  align-items: center;
+  gap: 8px;
+}
+.rv-noclone {
+  color: var(--text-faint);
+  font-size: 11px;
 }
 .rv-actions .small,
 .rv-confirm .small {

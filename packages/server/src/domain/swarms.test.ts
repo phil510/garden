@@ -18,6 +18,7 @@ function anOverlay(ui: Partial<UiState> = {}): OverlayState {
     alerts: [],
     digests: [],
     pipes: {},
+    reviews: { links: {} },
   };
 }
 

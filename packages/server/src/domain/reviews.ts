@@ -122,3 +122,23 @@ export function stillRequested(body: unknown, login: string): boolean {
       reviewer['login'].toLowerCase() === wanted,
   );
 }
+
+/** The path of the clone whose origin is `repo`; when several match, the one that sorts first so
+ *  the choice doesn't move between polls. Null when none does. */
+export function pickClone(
+  candidates: readonly { path: string; repo: string | null }[],
+  repo: string,
+): string | null {
+  let best: string | null = null;
+  for (const candidate of candidates)
+    if (candidate.repo === repo && (best === null || candidate.path < best)) best = candidate.path;
+  return best;
+}
+
+/** `items` with each one's `sessionId` set from `links`; a link for a key not in `items` is ignored. */
+export function joinLinks(
+  items: readonly ReviewItem[],
+  links: Readonly<Record<string, string>>,
+): ReviewItem[] {
+  return items.map((item) => ({ ...item, sessionId: links[item.key] ?? null }));
+}

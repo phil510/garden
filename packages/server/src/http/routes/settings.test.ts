@@ -1,4 +1,5 @@
 import { createReviewStore } from '../../app/reviews.js';
+import { memoryOverlay } from '../../app/reviews.fixture.js';
 import { describe, expect, it } from 'vitest';
 import type { Projection } from '../../app/projection.js';
 import type { ConfigPort } from '../../app/ports.js';
@@ -52,7 +53,7 @@ function fakeDeps(overrides: Partial<ServerDeps> = {}): ServerDeps {
       replay: () => undefined,
     },
     rootWatches: { connect: () => ({ watch: () => Promise.resolve(), close: () => undefined }) },
-    reviews: createReviewStore(),
+    reviews: createReviewStore({ overlay: memoryOverlay() }),
     reviewDismisser: { dismiss: () => Promise.reject(new Error('not used by this test')) },
     tmux: {
       listPanes: () => Promise.reject(new Error('not used by this test')),

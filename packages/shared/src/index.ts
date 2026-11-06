@@ -435,6 +435,11 @@ export interface DismissReviewFailure {
   status?: number;
 }
 
+/** `POST /reviews/:owner/:name/:number/session`: the session for that review request. */
+export interface StartReviewSessionResponse {
+  sessionId: string;
+}
+
 /** `WS /events`: a snapshot on connect, then deltas. `ui-state` and `reviews` are global, not
  *  derived from sessions: each is sent to every connection. `fs-changed` goes only to the
  *  connection that sent `watch`, and `root` echoes the spelling that connection sent. */

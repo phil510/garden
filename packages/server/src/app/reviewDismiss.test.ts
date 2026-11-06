@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { GhResult, GhWriteResult } from '../domain/github.js';
 import { createReviewDismisser } from './reviewDismiss.js';
 import { createReviewStore } from './reviews.js';
+import { memoryOverlay } from './reviews.fixture.js';
 
 const item = (number: number): ReviewItem => ({
   key: `acme/widgets#${String(number)}`,
@@ -23,7 +24,7 @@ const removed: GhWriteResult = { kind: 'ok', body: { requested_reviewers: [] } }
 /** A GitHub whose `/user` and DELETE answers the test sets, recording every call. */
 function setup(answers: { user?: GhResult; remove?: GhWriteResult | (() => never) } = {}) {
   const calls: string[] = [];
-  const store = createReviewStore();
+  const store = createReviewStore({ overlay: memoryOverlay() });
   store.complete([item(1), item(2)], '2026-01-10T00:05:00Z');
   const errors: string[] = [];
   const dismisser = createReviewDismisser({
