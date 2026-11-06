@@ -110,12 +110,28 @@ function recordingClient(
       calls.push(`digest:${id}`);
       return Promise.reject(new Error('not used by this test'));
     },
+    reviews: () => {
+      calls.push('reviews');
+      return Promise.resolve({ items: [], polledAt: null, fault: null });
+    },
+    startReview: (owner, name, number) => {
+      calls.push(`review-start:${owner}/${name}#${String(number)}`);
+      return Promise.resolve({ sessionId: 'started' });
+    },
+    claimReview: (owner, name, number, sessionId) => {
+      calls.push(`review-claim:${owner}/${name}#${String(number)}:${sessionId}`);
+      return Promise.resolve({ sessionId, previousSessionId: null });
+    },
+    dismissReview: (owner, name, number) => {
+      calls.push(`review-dismiss:${owner}/${name}#${String(number)}`);
+      return Promise.resolve();
+    },
   };
   return { client, calls };
 }
 
 describe('isCliCommand', () => {
-  it('recognises the thirteen subcommands and nothing else', () => {
+  it('recognises the fourteen subcommands and nothing else', () => {
     expect(isCliCommand('new')).toBe(true);
     expect(isCliCommand('ls')).toBe(true);
     expect(isCliCommand('kill')).toBe(true);
@@ -126,6 +142,7 @@ describe('isCliCommand', () => {
     expect(isCliCommand('watches')).toBe(true);
     expect(isCliCommand('alert')).toBe(true);
     expect(isCliCommand('digest')).toBe(true);
+    expect(isCliCommand('reviews')).toBe(true);
     expect(isCliCommand('events')).toBe(true);
     expect(isCliCommand('stop')).toBe(true);
     expect(isCliCommand('uninstall')).toBe(true);
@@ -727,5 +744,55 @@ describe('alert', () => {
       'garden: GARDEN_SESSION_ID is not set\n',
       'garden: GARDEN_SESSION_ID is not set\n',
     ]);
+  });
+});
+
+describe('reviews', () => {
+  const env = { GARDEN_SESSION_ID: 's1' };
+  const run = (args: string[]) => {
+    const { io, stderr } = collectingIo();
+    const { client, calls } = recordingClient();
+    return runCli('reviews', args, io, client, undefined, env).then((code) => ({
+      code,
+      calls,
+      stderr,
+    }));
+  };
+
+  it('dispatches each verb to its client call', async () => {
+    expect((await run(['list'])).calls).toEqual(['reviews']);
+    expect((await run(['start', 'acme/widgets#7'])).calls).toEqual(['review-start:acme/widgets#7']);
+    expect((await run(['dismiss', 'acme/widgets#7'])).calls).toEqual([
+      'review-dismiss:acme/widgets#7',
+    ]);
+  });
+
+  it('claims for --session, else the caller session', async () => {
+    expect((await run(['claim', 'acme/widgets#7'])).calls).toEqual([
+      'review-claim:acme/widgets#7:s1',
+    ]);
+    expect((await run(['claim', 'acme/widgets#7', '--session', 's2'])).calls).toEqual([
+      'review-claim:acme/widgets#7:s2',
+    ]);
+  });
+
+  it.each([
+    [[]],
+    [['bogus']],
+    [['start']],
+    [['start', 'acme/widgets']],
+    [['start', 'acme/widgets#0']],
+    [['start', 'acme/widgets#1e3']],
+    [['start', 'widgets#7']],
+    [['start', 'a/b/c#7']],
+    [['start', 'acme/widgets#7', 'extra']],
+    [['list', 'acme/widgets#7']],
+    [['start', 'acme/widgets#7', '--session', 's2']],
+    [['dismiss', 'acme/widgets#7', '--session', 's2']],
+  ])('prints usage for %j and makes no call', async (args) => {
+    const { code, calls, stderr } = await run(args);
+    expect(code).toBe(1);
+    expect(calls).toEqual([]);
+    expect(stderr).toEqual([expect.stringContaining('garden: usage: garden reviews')]);
   });
 });

@@ -1,12 +1,16 @@
 import type {
   AlertResponse,
+  ClaimReviewResponse,
   CreateSessionResponse,
   DigestResponse,
   OkResponse,
   Placement,
+  ReviewItem,
+  ReviewQueue,
   SessionsFilter,
   SessionsResponse,
   SpawnOptions,
+  StartReviewSessionResponse,
   WatchesResponse,
   WatchResponse,
   WatchSummary,
@@ -51,6 +55,15 @@ export interface CliClient {
   raiseAlert(sessionId: string, text: string): Promise<AlertResponse>;
   clearAlert(sessionId: string): Promise<OkResponse>;
   digest(id: string): Promise<DigestResponse>;
+  reviews(): Promise<ReviewQueue>;
+  startReview(owner: string, name: string, number: number): Promise<StartReviewSessionResponse>;
+  claimReview(
+    owner: string,
+    name: string,
+    number: number,
+    sessionId: string,
+  ): Promise<ClaimReviewResponse>;
+  dismissReview(owner: string, name: string, number: number): Promise<void>;
 }
 
 export const defaultClient: CliClient = http;
@@ -313,5 +326,90 @@ export function runDigest(
       }
     },
     ({ digest }) => digest.line,
+  );
+}
+
+/** A review request named on the command line as `owner/name#N`. */
+export interface ReviewRef {
+  readonly owner: string;
+  readonly name: string;
+  readonly number: number;
+}
+
+const refKey = ({ owner, name, number }: ReviewRef) => `${owner}/${name}#${String(number)}`;
+
+function reviewLine(item: ReviewItem): string {
+  return [
+    item.key,
+    item.draft ? 'draft' : 'ready',
+    item.author,
+    item.updatedAt,
+    item.sessionId ?? '-',
+    item.title,
+  ].join('\t');
+}
+
+/** A queue fault is data, not an error: the items shown are the last good poll's. */
+function queueLines(queue: ReviewQueue): string {
+  const lines = queue.items.map(reviewLine);
+  if (queue.fault !== null)
+    lines.push(`fault: ${queue.fault} (polled ${queue.polledAt ?? 'never'})`);
+  return lines.length === 0 ? 'no review requests' : lines.join('\n');
+}
+
+export function runReviewsList(
+  io: Io,
+  json: boolean,
+  client: CliClient = defaultClient,
+): Promise<0 | 1> {
+  return runCommand(io, json, () => client.reviews(), queueLines);
+}
+
+export function runReviewsStart(
+  io: Io,
+  ref: ReviewRef,
+  json: boolean,
+  client: CliClient = defaultClient,
+): Promise<0 | 1> {
+  return runCommand(
+    io,
+    json,
+    () => client.startReview(ref.owner, ref.name, ref.number),
+    (result) => result.sessionId,
+  );
+}
+
+export function runReviewsClaim(
+  io: Io,
+  target: { readonly env: NodeJS.ProcessEnv; readonly session: string | undefined; ref: ReviewRef },
+  json: boolean,
+  client: CliClient = defaultClient,
+): Promise<0 | 1> {
+  const { ref } = target;
+  return runCommand(
+    io,
+    json,
+    () =>
+      client.claimReview(ref.owner, ref.name, ref.number, watchSession(target.env, target.session)),
+    (result) =>
+      `linked ${refKey(ref)} to ${result.sessionId}` +
+      (result.previousSessionId === null ? '' : ` (moved from ${result.previousSessionId})`),
+  );
+}
+
+export function runReviewsDismiss(
+  io: Io,
+  ref: ReviewRef,
+  json: boolean,
+  client: CliClient = defaultClient,
+): Promise<0 | 1> {
+  return runCommand(
+    io,
+    json,
+    async (): Promise<OkResponse> => {
+      await client.dismissReview(ref.owner, ref.name, ref.number);
+      return { ok: true };
+    },
+    () => 'dismissed',
   );
 }

@@ -2,6 +2,7 @@ import type {
   CreateSessionResponse,
   DigestResponse,
   OkResponse,
+  ReviewQueue,
   SessionsFilter,
   SessionState,
   SessionsResponse,
@@ -17,6 +18,8 @@ import {
   runLs,
   runNew,
   runResume,
+  runReviewsClaim,
+  runReviewsList,
   runUnwatch,
   runAlert,
   runAlertClear,
@@ -81,6 +84,10 @@ function throwingClient(error: Error): CliClient {
     raiseAlert: () => Promise.reject(error),
     clearAlert: () => Promise.reject(error),
     digest: () => Promise.reject(error),
+    reviews: () => Promise.reject(error),
+    startReview: () => Promise.reject(error),
+    claimReview: () => Promise.reject(error),
+    dismissReview: () => Promise.reject(error),
   };
 }
 
@@ -651,5 +658,85 @@ describe('runDigest', () => {
     expect(await runDigest(io, 'x', false, throwingClient(new Error('server is down')))).toBe(1);
 
     expect(stderr).toEqual(['garden: server is down\n']);
+  });
+});
+
+describe('runReviewsList', () => {
+  const faulted: ReviewQueue = {
+    items: [
+      {
+        key: 'acme/widgets#7',
+        repo: 'acme/widgets',
+        number: 7,
+        title: 'Add widgets',
+        author: 'octocat',
+        url: 'https://github.com/acme/widgets/pull/7',
+        draft: true,
+        updatedAt: '2026-01-10T00:00:00Z',
+        clonePath: null,
+        sessionId: 's1',
+      },
+    ],
+    polledAt: null,
+    fault: 'logged-out',
+  };
+  const client: CliClient = {
+    ...throwingClient(new Error('unused')),
+    reviews: () => Promise.resolve(faulted),
+  };
+
+  it('exits 0 and prints the items and the fault', async () => {
+    const { io, stdout } = collectingIo();
+    expect(await runReviewsList(io, false, client)).toBe(0);
+    expect(stdout).toEqual([
+      'acme/widgets#7\tdraft\toctocat\t2026-01-10T00:00:00Z\ts1\tAdd widgets\n' +
+        'fault: logged-out (polled never)\n',
+    ]);
+  });
+
+  it('prints the whole queue, fault included, under --json', async () => {
+    const { io, stdout } = collectingIo();
+    expect(await runReviewsList(io, true, client)).toBe(0);
+    expect(JSON.parse(stdout.join(''))).toEqual(faulted);
+  });
+});
+
+describe('runReviewsClaim', () => {
+  const ref = { owner: 'acme', name: 'widgets', number: 7 };
+
+  function claimingClient(previousSessionId: string | null) {
+    const calls: string[] = [];
+    const client: CliClient = {
+      ...throwingClient(new Error('unused')),
+      claimReview: (owner, name, number, sessionId) => {
+        calls.push(`${owner}/${name}#${String(number)}:${sessionId}`);
+        return Promise.resolve({ sessionId, previousSessionId });
+      },
+    };
+    return { client, calls };
+  }
+
+  it('claims for the caller session when no --session is given', async () => {
+    const { io, stdout } = collectingIo();
+    const { client, calls } = claimingClient(null);
+    const env = { GARDEN_SESSION_ID: 'caller' };
+    expect(await runReviewsClaim(io, { env, session: undefined, ref }, false, client)).toBe(0);
+    expect(calls).toEqual(['acme/widgets#7:caller']);
+    expect(stdout).toEqual(['linked acme/widgets#7 to caller\n']);
+  });
+
+  it('names the session the link moved off', async () => {
+    const { io, stdout } = collectingIo();
+    const { client } = claimingClient('old');
+    expect(await runReviewsClaim(io, { env: {}, session: 's2', ref }, false, client)).toBe(0);
+    expect(stdout).toEqual(['linked acme/widgets#7 to s2 (moved from old)\n']);
+  });
+
+  it('fails without a request when there is neither --session nor a caller session', async () => {
+    const { io, stderr } = collectingIo();
+    const { client, calls } = claimingClient(null);
+    expect(await runReviewsClaim(io, { env: {}, session: undefined, ref }, false, client)).toBe(1);
+    expect(calls).toEqual([]);
+    expect(stderr).toEqual(['garden: GARDEN_SESSION_ID is not set\n']);
   });
 });

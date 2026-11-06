@@ -1,4 +1,5 @@
 import { DEFAULT_UI_STATE } from '@garden/shared';
+import { aSession } from '@garden/shared/fixtures';
 import type { ReviewItem } from '@garden/shared';
 import { describe, expect, it } from 'vitest';
 import type { DismissReviewOutcome, ReviewDismisser } from '../../app/reviewDismiss.js';
@@ -24,13 +25,13 @@ const aReview = (overrides: Partial<ReviewItem> = {}): ReviewItem => ({
   ...overrides,
 });
 
-function buildApp(items: ReviewItem[]) {
+function buildApp(items: ReviewItem[], sessionIds: string[] = []) {
   const spawned: TmuxNewSessionRequest[] = [];
   const unused = () => {
     throw new Error('not used by this test');
   };
   const projection: Projection = {
-    sessions: () => [],
+    sessions: () => sessionIds.map((id) => aSession({ id })),
     uiState: () => DEFAULT_UI_STATE,
     dispatch: () => undefined,
     updateUiState: unused,
@@ -63,8 +64,8 @@ function buildApp(items: ReviewItem[]) {
   const reviewDismisser: ReviewDismisser = {
     dismiss: () => Promise.reject(new Error('not used by this test')),
   };
-  app.register((instance) => reviewRoutes(instance, { sessions, reviewDismisser }));
-  return { app, spawned };
+  app.register((instance) => reviewRoutes(instance, { sessions, reviewDismisser, reviews }));
+  return { app, spawned, reviews };
 }
 
 const post = (app: ReturnType<typeof buildApp>['app'], url: string, payload?: object) =>
@@ -102,6 +103,56 @@ describe('POST /reviews/:owner/:name/:number/session', () => {
   });
 });
 
+describe('GET /reviews', () => {
+  it('answers 200 with the queue, its fault and polledAt', async () => {
+    const { app, reviews } = buildApp([aReview()]);
+    reviews.fail('error');
+    const response = await app.inject({ method: 'GET', url: '/reviews' });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      items: [{ key: 'acme/widgets#7' }],
+      fault: 'error',
+      polledAt: '2026-01-10T00:05:00Z',
+    });
+  });
+});
+
+describe('POST /reviews/:owner/:name/:number/claim', () => {
+  it('links the session and answers with it', async () => {
+    const { app, reviews } = buildApp([aReview()], ['s1']);
+    const response = await post(app, '/reviews/acme/widgets/7/claim', { sessionId: 's1' });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ sessionId: 's1', previousSessionId: null });
+    expect(reviews.item('acme/widgets#7')?.sessionId).toBe('s1');
+  });
+
+  it('answers 404 for an unknown session or a request that is not queued', async () => {
+    const { app, reviews } = buildApp([aReview()], ['s1']);
+    expect(
+      (await post(app, '/reviews/acme/widgets/7/claim', { sessionId: 'nope' })).statusCode,
+    ).toBe(404);
+    expect((await post(app, '/reviews/acme/widgets/8/claim', { sessionId: 's1' })).statusCode).toBe(
+      404,
+    );
+    expect(reviews.item('acme/widgets#7')?.sessionId).toBeNull();
+  });
+
+  it('answers 400 for a number that is not a positive integer', async () => {
+    const { app } = buildApp([aReview()], ['s1']);
+    expect((await post(app, '/reviews/acme/widgets/0/claim', { sessionId: 's1' })).statusCode).toBe(
+      400,
+    );
+  });
+
+  it.each([undefined, {}, { sessionId: '' }, { sessionId: 3 }])(
+    'answers 400 for the body %j',
+    async (payload) => {
+      const { app } = buildApp([aReview()], ['s1']);
+      expect((await post(app, '/reviews/acme/widgets/7/claim', payload)).statusCode).toBe(400);
+    },
+  );
+});
+
 function postDismiss(url: string, outcome: DismissReviewOutcome) {
   const calls: [string, number][] = [];
   const reviewDismisser: ReviewDismisser = {
@@ -112,9 +163,13 @@ function postDismiss(url: string, outcome: DismissReviewOutcome) {
   };
   const sessions: ReviewSessions = {
     start: () => Promise.reject(new Error('not used by this test')),
+    claim: () => {
+      throw new Error('not used by this test');
+    },
   };
+  const reviews = { queue: () => createReviewStore({ overlay: memoryOverlay() }).queue() };
   const app = createApp();
-  app.register((instance) => reviewRoutes(instance, { sessions, reviewDismisser }));
+  app.register((instance) => reviewRoutes(instance, { sessions, reviewDismisser, reviews }));
   return app.inject({ method: 'POST', url }).then((response) => ({ response, calls }));
 }
 

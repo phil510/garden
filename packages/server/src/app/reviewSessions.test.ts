@@ -1,8 +1,9 @@
 import { DEFAULT_UI_STATE } from '@garden/shared';
+import { aSession } from '@garden/shared/fixtures';
 import type { ReviewItem } from '@garden/shared';
 import { describe, expect, it } from 'vitest';
 import type { GardenEvent } from '../domain/types.js';
-import { NoLocalCloneError, ReviewNotFoundError } from './errors.js';
+import { NoLocalCloneError, ReviewNotFoundError, SessionNotFoundError } from './errors.js';
 import type { TmuxNewSessionRequest, TmuxPort } from './ports.js';
 import type { Projection } from './projection.js';
 import { createReviewSessions } from './reviewSessions.js';
@@ -29,7 +30,7 @@ function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
   return { promise, resolve };
 }
 
-function harness(items: ReviewItem[], gate?: Promise<void>) {
+function harness(items: ReviewItem[], gate?: Promise<void>, sessionIds: string[] = []) {
   const spawned: TmuxNewSessionRequest[] = [];
   const links = new Map<string, string>();
   const tmux: TmuxPort = {
@@ -46,7 +47,7 @@ function harness(items: ReviewItem[], gate?: Promise<void>) {
     throw new Error('not used by this test');
   };
   const projection: Projection = {
-    sessions: () => [],
+    sessions: () => sessionIds.map((id) => aSession({ id })),
     uiState: () => DEFAULT_UI_STATE,
     dispatch: (event) => dispatched.push(event),
     updateUiState: unused,
@@ -121,5 +122,40 @@ describe('createReviewSessions', () => {
     await expect(sessions.start('acme', 'widgets', 8)).rejects.toThrow(ReviewNotFoundError);
     await expect(sessions.start('..', 'widgets', 7)).rejects.toThrow(ReviewNotFoundError);
     expect(spawned).toEqual([]);
+  });
+});
+
+describe('claim', () => {
+  const claim = (sessions: ReturnType<typeof harness>['sessions'], sessionId: string) =>
+    sessions.claim('acme', 'widgets', 7, sessionId);
+
+  it('links the request to an existing session', () => {
+    const { sessions, links } = harness([aReview()], undefined, ['s1']);
+    expect(claim(sessions, 's1')).toEqual({ sessionId: 's1', previousSessionId: null });
+    expect(links.get('acme/widgets#7')).toBe('s1');
+  });
+
+  it('moves a link and names the session it left', () => {
+    const { sessions, links } = harness([aReview({ sessionId: 's1' })], undefined, ['s1', 's2']);
+    expect(claim(sessions, 's2')).toEqual({ sessionId: 's2', previousSessionId: 's1' });
+    expect(links.get('acme/widgets#7')).toBe('s2');
+  });
+
+  it('writes nothing when the session already holds the link', () => {
+    const { sessions, links } = harness([aReview({ sessionId: 's1' })], undefined, ['s1']);
+    expect(claim(sessions, 's1')).toEqual({ sessionId: 's1', previousSessionId: null });
+    expect(links.size).toBe(0);
+  });
+
+  it('rejects an unknown session without writing a link', () => {
+    const { sessions, links } = harness([aReview()], undefined, ['s1']);
+    expect(() => claim(sessions, 'nope')).toThrow(SessionNotFoundError);
+    expect(links.size).toBe(0);
+  });
+
+  it('rejects a request that is not in the queue without writing a link', () => {
+    const { sessions, links } = harness([aReview()], undefined, ['s1']);
+    expect(() => sessions.claim('acme', 'widgets', 8, 's1')).toThrow(ReviewNotFoundError);
+    expect(links.size).toBe(0);
   });
 });

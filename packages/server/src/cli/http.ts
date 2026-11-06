@@ -1,18 +1,23 @@
 import { homedir } from 'node:os';
 import type {
   AlertResponse,
+  ClaimReviewRequest,
+  ClaimReviewResponse,
   CreateSessionRequest,
   CreateSessionResponse,
   DigestResponse,
+  DismissReviewFailure,
   ErrorResponse,
   OkResponse,
   Placement,
   PlacementRequest,
   RaiseAlertRequest,
   ResumeSessionRequest,
+  ReviewQueue,
   SessionsFilter,
   SessionsResponse,
   SpawnOptions,
+  StartReviewSessionResponse,
   WatchesResponse,
   WatchResponse,
 } from '@garden/shared';
@@ -47,7 +52,12 @@ export function pipeUrl(sessionId: string): string {
   return `ws://${hostPort()}${pipeStreamPath(sessionId)}`;
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+/** `describeError` words an error body that carries no `error` field. */
+async function request<T>(
+  path: string,
+  init?: RequestInit,
+  describeError?: (body: unknown) => string,
+): Promise<T> {
   let response: Response;
   try {
     response = await fetch(`${baseUrl()}${path}`, init);
@@ -56,10 +66,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as ErrorResponse | null;
-    throw new CliHttpError(body?.error ?? `garden server returned ${String(response.status)}`, {
-      status: response.status,
-    });
+    const message =
+      body?.error ??
+      (body === null ? undefined : describeError?.(body)) ??
+      `garden server returned ${String(response.status)}`;
+    throw new CliHttpError(message, { status: response.status });
   }
+  if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
 }
 
@@ -176,4 +189,42 @@ export function clearAlert(sessionId: string): Promise<OkResponse> {
 
 export function digest(id: string): Promise<DigestResponse> {
   return request(`/digests/${encodeURIComponent(id)}`);
+}
+
+export function reviews(): Promise<ReviewQueue> {
+  return request('/reviews');
+}
+
+function reviewPath(owner: string, name: string, number: number, action: string): string {
+  return `/reviews/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/${String(number)}/${action}`;
+}
+
+export function startReview(
+  owner: string,
+  name: string,
+  number: number,
+): Promise<StartReviewSessionResponse> {
+  return request(reviewPath(owner, name, number, 'session'), { method: 'POST' });
+}
+
+export function claimReview(
+  owner: string,
+  name: string,
+  number: number,
+  sessionId: string,
+): Promise<ClaimReviewResponse> {
+  const body: ClaimReviewRequest = { sessionId };
+  return request(reviewPath(owner, name, number, 'claim'), {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+/** Resolves once GitHub has dropped the request; a refusal rejects with its kind and status. */
+export async function dismissReview(owner: string, name: string, number: number): Promise<void> {
+  await request<void>(reviewPath(owner, name, number, 'dismiss'), { method: 'POST' }, (body) => {
+    const { kind, status } = body as DismissReviewFailure;
+    return `GitHub refused the dismiss: ${kind}${status === undefined ? '' : ` (${String(status)})`}`;
+  });
 }
