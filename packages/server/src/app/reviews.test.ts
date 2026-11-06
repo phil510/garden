@@ -70,6 +70,56 @@ describe('review store', () => {
     expect(seen).toEqual([]);
   });
 
+  describe('dismiss', () => {
+    it('removes the item at once and notifies subscribers', () => {
+      const store = createReviewStore({ overlay: memoryOverlay() });
+      store.complete([item(1), item(2)], POLLED);
+      const seen: ReviewQueue[] = [];
+      store.subscribe((queue) => seen.push(queue));
+      store.dismiss(item(1).key);
+      expect(store.queue().items).toEqual([item(2)]);
+      expect(seen).toHaveLength(1);
+      expect(seen[0]?.items).toEqual([item(2)]);
+    });
+
+    it('keeps the item out of a complete poll that still lists it', () => {
+      const store = createReviewStore({ overlay: memoryOverlay() });
+      store.complete([item(1), item(2)], POLLED);
+      store.dismiss(item(1).key);
+      store.complete([item(1), item(2)], '2026-01-10T00:10:00Z');
+      expect(store.queue().items).toEqual([item(2)]);
+    });
+
+    it('lets the item back once a complete poll has stopped listing it', () => {
+      const store = createReviewStore({ overlay: memoryOverlay() });
+      store.complete([item(1), item(2)], POLLED);
+      store.dismiss(item(1).key);
+      store.complete([item(2)], '2026-01-10T00:10:00Z');
+      store.complete([item(1), item(2)], '2026-01-10T00:15:00Z');
+      expect(store.queue().items).toEqual([item(1), item(2)]);
+    });
+
+    it('is neither undone nor cleared by a failed poll', () => {
+      const store = createReviewStore({ overlay: memoryOverlay() });
+      store.complete([item(1), item(2)], POLLED);
+      store.dismiss(item(1).key);
+      store.fail('error');
+      expect(store.queue().items).toEqual([item(2)]);
+      store.complete([item(1), item(2)], '2026-01-10T00:10:00Z');
+      expect(store.queue().items).toEqual([item(2)]);
+    });
+
+    it('is safe for a key a poll already dropped, and clears on the next complete poll', () => {
+      const store = createReviewStore({ overlay: memoryOverlay() });
+      store.complete([item(2)], POLLED);
+      store.dismiss(item(1).key);
+      expect(store.queue().items).toEqual([item(2)]);
+      store.complete([item(2)], '2026-01-10T00:10:00Z');
+      store.complete([item(1), item(2)], '2026-01-10T00:15:00Z');
+      expect(store.queue().items).toEqual([item(1), item(2)]);
+    });
+  });
+
   describe('links', () => {
     it('joins the links read at construction onto the items', () => {
       const store = createReviewStore({ overlay: memoryOverlay({ [item(1).key]: 'session-1' }) });

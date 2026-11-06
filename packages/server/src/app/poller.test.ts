@@ -36,6 +36,7 @@ function fakeGh() {
   let version = 0;
   let beforeNextGet: (() => void) | null = null;
   const gh: GhPort = {
+    removeReviewRequest: () => Promise.reject(new Error('not used by this test')),
     get(path, etag) {
       const hook = beforeNextGet;
       beforeNextGet = null;

@@ -41,6 +41,7 @@ function fakeDeps(): ServerDeps {
     },
     rootWatches: { connect: () => ({ watch: () => Promise.resolve(), close: () => undefined }) },
     reviews: createReviewStore({ overlay: memoryOverlay() }),
+    reviewDismisser: { dismiss: () => Promise.reject(new Error('not used by this test')) },
     tmux: {
       listPanes: () => Promise.reject(new Error('not used by this test')),
       newSession: () => Promise.reject(new Error('not used by this test')),

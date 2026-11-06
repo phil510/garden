@@ -153,7 +153,7 @@ packages/server/src/
     stage.ts       slot arithmetic across preset changes
     watches.ts     watch rules: kind normalisation, upsert/remove, 7-day digest pruning, summaries
     pipes.ts       ack a digest, end watches with no pipe for 7 days, prune stale pipe times
-    github.ts      REST JSON -> PR facts, and the gh port's result type
+    github.ts      REST JSON -> PR facts, and the gh port's read and write result types
     pollCursor.ts  the poller's cursor (ids, ETags, counts; no PR content) and the diffs over it
     digest.ts      fold observed activity into a watch: kinds, quiet window, digest line and detail
     paths.ts       filesystem scoping
@@ -161,7 +161,7 @@ packages/server/src/
   adapters/        one external system each
     tmux.ts        execFile wrapper: list, new-session, respawn-pane, kill, version check
     git.ts         git-common-dir, branch (read from HEAD, no spawn), status --porcelain, worktree prefix, origin URL
-    gh.ts          one conditional `gh api` GET: ETag in, `--include` output parsed, rate-limit resume time, classified result out
+    gh.ts          a conditional `gh api` GET (ETag in, `--include` output parsed, rate-limit resume time, classified result out) and one DELETE that removes a review request
     transcripts.ts bounded read; polls live transcript paths, scans for the rest
     fsWatch.ts     native recursive fs.watch on one root, debounced, .git/ filtered
     pty.ts         node-pty attach
@@ -176,7 +176,8 @@ packages/server/src/
     watches.ts     add / remove / list watch use cases and boot replay, all through one writer
     pipes.ts       registry of open pipe streams: connect, ack, close, hourly sweep, boot replay
     poller.ts      fetch a watch's PR activity; the loop that merges it through that writer
-    reviews.ts     in-memory review queue store
+    reviews.ts     in-memory review queue store; a dismissed key stays hidden until a complete poll drops it
+    reviewDismiss.ts  the dismiss use case: remove the user's review request on GitHub, then the queue item
     reviewPoller.ts  the loop that searches GitHub for review requests and feeds that store
     filesystem.ts
     repos.ts

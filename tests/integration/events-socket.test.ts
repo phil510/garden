@@ -24,7 +24,7 @@ import { opened } from './support/socket.js';
 import { settle, sleep, QUIET_WINDOW_MS } from './support/fsSignals.js';
 import { noPipes } from './support/noPipes.js';
 import { noRootWatches } from './support/noRootWatches.js';
-import { noReviews } from './support/noReviews.js';
+import { noReviewDismisser, noReviews } from './support/noReviews.js';
 import { until } from './support/poll.js';
 
 function unusedPorts() {
@@ -32,6 +32,7 @@ function unusedPorts() {
     pipes: noPipes,
     rootWatches: noRootWatches,
     reviews: noReviews,
+    reviewDismisser: noReviewDismisser,
     tmux: {
       listPanes: () => Promise.reject(new Error('not used by this test')),
       newSession: () => Promise.reject(new Error('not used by this test')),
@@ -239,6 +240,7 @@ describe('WS /events root watches against a real watcher', () => {
         logger,
       }),
       reviews: noReviews,
+      reviewDismisser: noReviewDismisser,
     });
     await app.listen({ port: 0, host: '127.0.0.1' });
     const { port } = app.server.address() as AddressInfo;

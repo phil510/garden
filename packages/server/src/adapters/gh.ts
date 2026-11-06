@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import type { GhResult } from '../domain/github.js';
+import type { GhResult, GhWriteResult } from '../domain/github.js';
 
 /** What `gh api --include` printed: the status line, the headers (names lower-cased) and the body. */
 export interface GhResponse {
@@ -117,4 +117,46 @@ export async function ghGet(
   if (response.status < 200 || response.status >= 300)
     throw new Error(`gh ${args.join(' ')} answered HTTP ${String(response.status)}`);
   return { kind: 'ok', etag: response.headers['etag'] ?? null, body: JSON.parse(response.body) };
+}
+
+/** Removes `login` from the requested reviewers of `repo`#`number`. `-X DELETE` is required: `-f`
+ *  alone would turn the call into a POST. GitHub answers 422 when the reviewer is not a
+ *  requested one, and 403 or 404 when the user may not change the request. */
+export async function ghRemoveReviewRequest(
+  binary: string,
+  repo: string,
+  number: number,
+  login: string,
+  now: number,
+): Promise<GhWriteResult> {
+  const args = [
+    'api',
+    '--include',
+    '-X',
+    'DELETE',
+    `repos/${repo}/pulls/${String(number)}/requested_reviewers`,
+    '-f',
+    `reviewers[]=${login}`,
+  ];
+  let exit: GhExit;
+  try {
+    exit = await run(binary, args);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT')
+      return { kind: 'unavailable', reason: 'missing' };
+    throw error;
+  }
+  const response = parseGhInclude(exit.stdout);
+  if (response === null) {
+    if (exit.code === EXIT_NOT_LOGGED_IN) return { kind: 'unavailable', reason: 'logged-out' };
+    throw new Error(`gh ${args.join(' ')} printed no HTTP response: ${exit.stderr.trim()}`);
+  }
+  const resumeAt = rateLimitResumeAt(response, now);
+  if (resumeAt !== null) return { kind: 'rate-limited', resumeAt };
+  if (response.status === 401) return { kind: 'unavailable', reason: 'logged-out' };
+  if ([403, 404, 422].includes(response.status))
+    return { kind: 'inaccessible', status: response.status };
+  if (response.status < 200 || response.status >= 300)
+    throw new Error(`gh ${args.join(' ')} answered HTTP ${String(response.status)}`);
+  return { kind: 'ok', body: response.body.trim() === '' ? null : JSON.parse(response.body) };
 }

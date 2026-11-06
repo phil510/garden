@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { readClaudeSessionNames } from './adapters/claudeSessions.js';
 import { watchFsRoot } from './adapters/fsWatch.js';
-import { ghGet } from './adapters/gh.js';
+import { ghGet, ghRemoveReviewRequest } from './adapters/gh.js';
 import {
   createBranchReader,
   isBareRepository,
@@ -31,6 +31,7 @@ import { createBranchSweeper } from './app/branches.js';
 import { createTranscriptReplay, type TranscriptReplay } from './app/transcriptReplay.js';
 import { createPoller } from './app/poller.js';
 import { createReviewPoller } from './app/reviewPoller.js';
+import { createReviewDismisser } from './app/reviewDismiss.js';
 import { createReviewStore } from './app/reviews.js';
 import type {
   ConfigPort,
@@ -126,7 +127,11 @@ function gitPort(): GitPort {
 }
 
 function ghPort(): GhPort {
-  return { get: (path, etag) => ghGet('gh', path, etag, Date.now()) };
+  return {
+    get: (path, etag) => ghGet('gh', path, etag, Date.now()),
+    removeReviewRequest: (repo, number, login) =>
+      ghRemoveReviewRequest('gh', repo, number, login, Date.now()),
+  };
 }
 
 function ptyPort(target: PtyTarget): PtyPort {
@@ -311,6 +316,7 @@ export async function main(detached: boolean): Promise<void> {
     logger,
     now: Date.now,
   });
+  const reviewDismisser = createReviewDismisser({ gh: ghPort(), store: reviews, logger });
 
   const poll = setInterval(() => {
     // A tmux that fails mid-run leaves liveness stale until the next tick; it does not end the server.
@@ -356,6 +362,7 @@ export async function main(detached: boolean): Promise<void> {
       repos,
       rootWatches: createRootWatches({ watcher: fsWatchPort(logger), repos, logger }),
       reviews,
+      reviewDismisser,
       serverPort: config.port,
       settingsPath,
       readClaudeCommand: readClaudeCommand(configAdapter),

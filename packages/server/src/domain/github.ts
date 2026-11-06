@@ -7,6 +7,14 @@ export type GhResult =
   | { readonly kind: 'rate-limited'; readonly resumeAt: number }
   | { readonly kind: 'unavailable'; readonly reason: 'missing' | 'logged-out' };
 
+/** The outcome of one write (a non-GET call) through `gh`. A 2xx is `ok`; GitHub refusing the
+ *  call is `inaccessible` with its status. Other failures are thrown. */
+export type GhWriteResult =
+  | { readonly kind: 'ok'; readonly body: unknown }
+  | { readonly kind: 'inaccessible'; readonly status: number }
+  | { readonly kind: 'rate-limited'; readonly resumeAt: number }
+  | { readonly kind: 'unavailable'; readonly reason: 'missing' | 'logged-out' };
+
 export interface PrFact {
   readonly open: boolean;
   readonly merged: boolean;

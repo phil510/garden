@@ -28,7 +28,7 @@ import { until } from './support/poll.js';
 import { withTmuxServer } from './support/tmux-server.js';
 import { noPipes } from './support/noPipes.js';
 import { noRootWatches } from './support/noRootWatches.js';
-import { noReviews } from './support/noReviews.js';
+import { noReviewDismisser, noReviews } from './support/noReviews.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -146,6 +146,7 @@ async function withFakeClaudeSession(
     pipes: noPipes,
     rootWatches: noRootWatches,
     reviews: noReviews,
+    reviewDismisser: noReviewDismisser,
     tmux: tmuxPort(target),
     configPort: { read: unused, write: unused },
     git: { status: unused, workTreePrefix: unused, remoteUrl: unused },

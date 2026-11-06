@@ -4,6 +4,7 @@ import type {
   CreateSessionResponse,
   CreateSwarmRequest,
   CreateSwarmResponse,
+  DismissReviewFailure,
   ErrorResponse,
   FileResponse,
   OkResponse,
@@ -28,6 +29,14 @@ export class ApiError extends Error {
   ) {
     super(message, options);
     this.name = 'ApiError';
+  }
+}
+
+/** The server answered `502` to a dismiss: GitHub (or `gh`) failed, and `failure` says how. */
+export class DismissReviewError extends ApiError {
+  constructor(readonly failure: DismissReviewFailure) {
+    super(`dismissing the review request failed: ${failure.kind}`, 502);
+    this.name = 'DismissReviewError';
   }
 }
 
@@ -168,4 +177,23 @@ export function removeWatch(sessionId: string, pr: number, repo: string): Promis
   return request(`/sessions/${encodeURIComponent(sessionId)}/watches?${query.toString()}`, {
     method: 'DELETE',
   });
+}
+
+/** Removes the signed-in user's review request on GitHub. Resolves on `204`, which has no body,
+ *  so this does not go through `request()`. */
+export async function dismissReview(repo: string, number: number): Promise<void> {
+  const [owner = '', name = ''] = repo.split('/');
+  const response = await fetch(
+    `/reviews/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/${String(number)}/dismiss`,
+    { method: 'POST' },
+  );
+  if (response.ok) return;
+  const body = (await response.json().catch(() => null)) as
+    (Partial<DismissReviewFailure> & Partial<ErrorResponse>) | null;
+  if (response.status === 502 && typeof body?.kind === 'string')
+    throw new DismissReviewError(body as DismissReviewFailure);
+  throw new ApiError(
+    body?.error ?? `garden server returned ${String(response.status)}`,
+    response.status,
+  );
 }

@@ -427,6 +427,14 @@ export interface ReviewQueue {
   fault: 'gh-missing' | 'logged-out' | 'rate-limited' | 'incomplete' | 'error' | null;
 }
 
+/** The `502` body of `POST /reviews/:owner/:name/:number/dismiss`: the queue's fault vocabulary
+ *  without `incomplete`, which a single call cannot produce. `status` is GitHub's HTTP status,
+ *  present only when GitHub answered and refused. */
+export interface DismissReviewFailure {
+  kind: 'gh-missing' | 'logged-out' | 'rate-limited' | 'error';
+  status?: number;
+}
+
 /** `POST /reviews/:owner/:name/:number/session`: the session for that review request. */
 export interface StartReviewSessionResponse {
   sessionId: string;

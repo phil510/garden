@@ -78,6 +78,30 @@
   color: var(--text-faint);
   font-size: 11px;
 }
+.rv-actions .small,
+.rv-confirm .small {
+  padding: 2px 8px;
+  font-size: 11px;
+}
+.rv-confirm {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 11.5px;
+}
+.rv-confirm-text {
+  min-width: 0;
+}
+.rv-confirm-actions {
+  display: flex;
+  gap: 4px;
+  flex: 0 0 auto;
+}
 
 /* Count pill on the top-bar toggle */
 .rv-toggle {

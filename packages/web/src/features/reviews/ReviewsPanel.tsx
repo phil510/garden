@@ -1,5 +1,6 @@
 import type { ReviewItem, ReviewQueue } from '@garden/shared';
-import { startReviewSession, updateUiState } from '../../api/client';
+import { useState } from 'react';
+import { dismissReview, startReviewSession, updateUiState } from '../../api/client';
 import { commandFailureMessage, reportCommandFailure } from '../../api/reportCommandFailure';
 import { useReviewStore } from '../../state/reviewStore';
 import { useToastStore } from '../../state/toastStore';
@@ -7,6 +8,8 @@ import { useUiStore } from '../../state/uiStore';
 import { openExternalLink } from '../../terminals/hyperlinks';
 import { placeOnStage } from '../sidebar/placeOnStage';
 import { formatRelativeTime } from '../sidebar/relativeTime';
+import { DismissConfirm } from './DismissConfirm';
+import { dismissFailureMessage } from './dismissFailureMessage';
 import { reviewFaultNotice } from './reviewFaultNotice';
 import './reviews.css';
 
@@ -19,6 +22,20 @@ interface ReviewRowProps {
 
 /** One request. `.rv-actions` is the trailing slot for per-row buttons. */
 export function ReviewRow({ item, now, onStart, onOpen }: ReviewRowProps) {
+  const [dismissal, setDismissal] = useState<'idle' | 'confirming' | 'sending'>('idle');
+
+  // On success the row leaves with the `reviews` push, so no success toast and no removal here.
+  function confirmDismiss() {
+    setDismissal('sending');
+    dismissReview(item.repo, item.number)
+      .then(() => setDismissal('idle'))
+      .catch((error: unknown) => {
+        reportCommandFailure(error);
+        useToastStore.getState().showToast(dismissFailureMessage(error), 'error');
+        setDismissal('idle');
+      });
+  }
+
   return (
     <div className="rv-item">
       <div className="rv-top">
@@ -53,8 +70,18 @@ export function ReviewRow({ item, now, onStart, onOpen }: ReviewRowProps) {
               </button>
             </>
           )}
+          <button className="small" onClick={() => setDismissal('confirming')}>
+            Dismiss
+          </button>
         </div>
       </div>
+      {dismissal !== 'idle' && (
+        <DismissConfirm
+          onConfirm={confirmDismiss}
+          onCancel={() => setDismissal('idle')}
+          sending={dismissal === 'sending'}
+        />
+      )}
     </div>
   );
 }
