@@ -70,12 +70,12 @@
 .rv-toggle {
   position: relative;
 }
-/* Fault dot on the top-left corner, so it never sits under the count badge */
+/* Fault dot top-right like the watches button; the count badge sits bottom-right so they never overlap */
 .rv-toggle.has-fault::after {
   content: '';
   position: absolute;
   top: 2px;
-  left: 2px;
+  right: 2px;
   width: 6px;
   height: 6px;
   border-radius: 50%;
@@ -88,7 +88,7 @@
 }
 .rv-badge {
   position: absolute;
-  top: -2px;
+  bottom: -2px;
   right: -2px;
   min-width: 14px;
   height: 14px;
