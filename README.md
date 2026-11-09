@@ -30,6 +30,26 @@ there is no separate step. If the hook ever goes missing, `pnpm rebuild lefthook
 
 **Pre-commit gate.** lefthook runs typecheck, lint, formatting, and unit tests on every commit. CI runs those plus a workspace build and the integration tier, which needs tmux — so a clean commit is a good signal, not a guarantee of a green PR.
 
+## Installing the `garden` command
+
+```bash
+pnpm cli:install
+```
+
+This builds every package and writes a `garden` launcher into `~/.local/bin` (pass
+`--bin-dir <dir>` for somewhere else) that runs this checkout's build in place. It warns if
+that directory isn't on `PATH` or another `garden` comes before it, and it won't overwrite a
+`garden` it didn't write unless you add `--force`. Install from the main checkout rather than a
+worktree: the launcher stops working when the directory it points at is removed.
+
+To update after pulling, or after moving the checkout, run the same thing from the checkout:
+
+```bash
+pnpm install && pnpm cli:install
+```
+
+If the build is missing, `garden` says so and prints that command instead of a stack trace.
+
 ## Configuration
 
 garden reads `~/.garden/config.json` on startup, writing a default one on first run. Fields:
@@ -60,7 +80,7 @@ garden reads `~/.garden/config.json` on startup, writing a default one on first 
 
 ## Dev loop
 
-`pnpm build` builds every package. Linking the `garden` bin globally makes the `garden` command start the server and open the console in a Chrome app window.
+`pnpm build` builds every package; an installed `garden` (see above) picks the new build up on its next run. `garden` starts the server and opens the console in a Chrome app window.
 
 For UI work, skip the build. Run `pnpm dev:sandbox:server` in one terminal and `pnpm dev:sandbox:web` in another, then open the URL vite prints. The sandbox is a second, fully isolated garden instance — its own port, tmux socket, app dir, and transcripts dir — so it runs concurrently with an installed `garden` without either one reaching the other's sessions or state. `dev:sandbox:server` runs the server from TypeScript source and writes no pid file, so `garden stop` will not reach it — Ctrl-C stops it. `dev:sandbox:web` serves the client with HMR and proxies the API routes and both WebSockets to the sandbox server, whichever port it's running on.
 
