@@ -1,4 +1,5 @@
 import type { ReviewItem, ReviewQueue } from '@garden/shared';
+import { aSession } from '@garden/shared/fixtures';
 import { describe, expect, it } from 'vitest';
 import { createReviewStore } from './reviews.js';
 import { memoryOverlay } from './reviews.fixture.js';
@@ -122,7 +123,9 @@ describe('review store', () => {
 
   describe('links', () => {
     it('joins the links read at construction onto the items', () => {
-      const store = createReviewStore({ overlay: memoryOverlay({ [item(1).key]: 'session-1' }) });
+      const store = createReviewStore({
+        overlay: memoryOverlay({ [item(1).key]: 'session-1' }, [aSession({ id: 'session-1' })]),
+      });
       store.complete([item(1), item(2)], POLLED);
       expect(store.queue().items.map((i) => i.sessionId)).toEqual(['session-1', null]);
       expect(store.item(item(1).key)?.sessionId).toBe('session-1');
@@ -130,7 +133,9 @@ describe('review store', () => {
     });
 
     it('keeps a link while its PR is out of the results and joins it again when it returns', () => {
-      const store = createReviewStore({ overlay: memoryOverlay({ [item(1).key]: 'session-1' }) });
+      const store = createReviewStore({
+        overlay: memoryOverlay({ [item(1).key]: 'session-1' }, [aSession({ id: 'session-1' })]),
+      });
       store.complete([item(1)], POLLED);
       store.complete([item(2)], POLLED);
       expect(store.queue().items.map((i) => i.sessionId)).toEqual([null]);
@@ -138,8 +143,24 @@ describe('review store', () => {
       expect(store.queue().items[0]?.sessionId).toBe('session-1');
     });
 
+    it.each([
+      ['a live session', aSession({ id: 'gone' }), 'gone'],
+      ['a dead session', aSession({ id: 'gone', liveness: 'dead' }), 'gone'],
+      ['a session missing from the projection', undefined, null],
+    ])('serves a link to %s as %j', (_label, session, expected) => {
+      const overlay = memoryOverlay({ [item(1).key]: 'gone' }, session ? [session] : []);
+      const store = createReviewStore({ overlay });
+      store.complete([item(1)], POLLED);
+      expect(store.queue().items[0]?.sessionId).toBe(expected);
+      expect(store.item(item(1).key)?.sessionId).toBe(expected);
+      expect(overlay.overlay().reviews.links).toEqual({ [item(1).key]: 'gone' });
+    });
+
     it('persists a new link, joins it and notifies subscribers', () => {
-      const overlay = memoryOverlay({ [item(2).key]: 'session-2' });
+      const overlay = memoryOverlay({ [item(2).key]: 'session-2' }, [
+        aSession({ id: 'session-1' }),
+        aSession({ id: 'session-2' }),
+      ]);
       const store = createReviewStore({ overlay });
       store.complete([item(1), item(2)], POLLED);
       const seen: ReviewQueue[] = [];

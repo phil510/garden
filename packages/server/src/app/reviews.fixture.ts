@@ -1,11 +1,13 @@
 import { DEFAULT_UI_STATE } from '@garden/shared';
+import type { SessionState } from '@garden/shared';
 import type { OverlayState } from '../domain/overlay.js';
 import type { Projection } from './projection.js';
 
 /** The slice of the projection the review store uses, over an overlay held in memory. */
 export function memoryOverlay(
   links: Record<string, string> = {},
-): Pick<Projection, 'overlay' | 'updateOverlay'> & { writes: OverlayState[] } {
+  sessions: SessionState[] = [],
+): Pick<Projection, 'overlay' | 'updateOverlay' | 'sessions'> & { writes: OverlayState[] } {
   let state: OverlayState = {
     version: 2,
     tmuxNames: {},
@@ -20,6 +22,7 @@ export function memoryOverlay(
   return {
     writes,
     overlay: () => state,
+    sessions: () => sessions,
     updateOverlay(mutate) {
       state = mutate(state);
       writes.push(state);
