@@ -7,10 +7,12 @@ import type { SessionsDeps } from './sessions.js';
 
 export interface ReviewSessions {
   /** The session for a review request: the linked one if there is one, even when it has since
-   *  been killed, else a new one in the request's clone, linked before it is returned. */
+   *  been killed, else a new one in the request's clone, linked before it is returned. A link to
+   *  a session missing from the projection counts as no link and is replaced. */
   start(owner: string, name: string, number: number): Promise<{ sessionId: string }>;
   /** Links the review request to an existing session, moving the link off any other session.
-   *  Claiming into the session that already holds the link writes nothing. */
+   *  Claiming into the session that already holds the link writes nothing. A link to a missing
+   *  session is no link, so `previousSessionId` is null for it. */
   claim(owner: string, name: string, number: number, sessionId: string): ClaimReviewResponse;
 }
 
