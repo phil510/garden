@@ -1,11 +1,14 @@
 import { DEFAULT_UI_STATE } from '@garden/shared';
 import { aSession } from '@garden/shared/fixtures';
-import type { ReviewItem } from '@garden/shared';
+import type { ReviewItem, SessionState } from '@garden/shared';
 import { describe, expect, it } from 'vitest';
 import type { GardenEvent } from '../domain/types.js';
 import { NoLocalCloneError, ReviewNotFoundError, SessionNotFoundError } from './errors.js';
 import type { TmuxNewSessionRequest, TmuxPort } from './ports.js';
 import type { Projection } from './projection.js';
+import type { ReviewStore } from './reviews.js';
+import { createReviewStore } from './reviews.js';
+import { memoryOverlay } from './reviews.fixture.js';
 import { createReviewSessions } from './reviewSessions.js';
 
 const aReview = (overrides: Partial<ReviewItem> = {}): ReviewItem => ({
@@ -30,7 +33,13 @@ function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
   return { promise, resolve };
 }
 
-function harness(items: ReviewItem[], gate?: Promise<void>, sessionIds: string[] = []) {
+function harness(
+  items: ReviewItem[],
+  gate?: Promise<void>,
+  sessionIds: string[] = [],
+  reviewsFor?: (sessions: SessionState[]) => Pick<ReviewStore, 'item' | 'link'>,
+) {
+  const known = sessionIds.map((id) => aSession({ id }));
   const spawned: TmuxNewSessionRequest[] = [];
   const links = new Map<string, string>();
   const tmux: TmuxPort = {
@@ -47,9 +56,12 @@ function harness(items: ReviewItem[], gate?: Promise<void>, sessionIds: string[]
     throw new Error('not used by this test');
   };
   const projection: Projection = {
-    sessions: () => sessionIds.map((id) => aSession({ id })),
+    sessions: () => known,
     uiState: () => DEFAULT_UI_STATE,
-    dispatch: (event) => dispatched.push(event),
+    dispatch: (event) => {
+      dispatched.push(event);
+      if (event.type === 'session-registered') known.push(aSession({ id: event.id }));
+    },
     updateUiState: unused,
     subscribe: () => () => undefined,
     subscribeUiState: () => () => undefined,
@@ -64,7 +76,7 @@ function harness(items: ReviewItem[], gate?: Promise<void>, sessionIds: string[]
     serverPort: 4310,
     settingsPath: '/home/.garden/claude-settings.json',
     readClaudeCommand: () => ['claude'],
-    reviews: {
+    reviews: reviewsFor?.(known) ?? {
       item: (key) => {
         const found = items.find((candidate) => candidate.key === key);
         const sessionId = links.get(key);
@@ -85,6 +97,20 @@ describe('createReviewSessions', () => {
     expect(spawned.map((request) => request.cwd)).toEqual(['/r/widgets']);
     expect(spawned[0]?.sessionId).toBe(sessionId);
     expect(links.get('acme/widgets#7')).toBe(sessionId);
+  });
+
+  it('replaces a link to a session missing from the projection with a new session', async () => {
+    const key = 'acme/widgets#7';
+    let store!: ReviewStore;
+    const { sessions, spawned } = harness([], undefined, [], (known) => {
+      store = createReviewStore({ overlay: memoryOverlay({ [key]: 'gone' }, known) });
+      store.complete([aReview()], '2026-01-10T00:00:00Z');
+      return store;
+    });
+    const { sessionId } = await sessions.start('acme', 'widgets', 7);
+    expect(sessionId).not.toBe('gone');
+    expect(spawned.map((request) => request.cwd)).toEqual(['/r/widgets']);
+    expect(store.item(key)?.sessionId).toBe(sessionId);
   });
 
   it('matches the owner and name case-insensitively', async () => {

@@ -22,28 +22,34 @@ export interface ReviewStore {
 /**
  * The review queue, in memory: empty after a restart until the first complete poll. The links
  * to sessions are the one persisted part and this store is their only writer, so it reads them
- * once and holds them. A link is joined onto an item by key and never pruned: not when the PR
- * leaves the search results, and not when the session is missing from the projection.
+ * once and holds them. A link is never pruned, not even when the PR leaves the search results,
+ * but it is only served while its session is in the projection (dead or alive): a link to a
+ * missing session reads as unlinked.
  */
 export function createReviewStore(deps: {
-  readonly overlay: Pick<Projection, 'overlay' | 'updateOverlay'>;
+  readonly overlay: Pick<Projection, 'overlay' | 'updateOverlay' | 'sessions'>;
 }): ReviewStore {
   let links: Readonly<Record<string, string>> = deps.overlay.overlay().reviews.links;
   let polled: ReviewQueue = { items: [], polledAt: null, fault: null };
-  let queue = polled;
   const listeners = new Set<(queue: ReviewQueue) => void>();
   const suppressed = new Set<string>();
 
+  const joined = (): ReviewQueue => {
+    const known = new Set(deps.overlay.sessions().map((session) => session.id));
+    const live = Object.fromEntries(Object.entries(links).filter(([, id]) => known.has(id)));
+    const visible = polled.items.filter((item) => !suppressed.has(item.key));
+    return { ...polled, items: joinLinks(visible, live) };
+  };
+
   const publish = (next: ReviewQueue) => {
     polled = next;
-    const visible = next.items.filter((item) => !suppressed.has(item.key));
-    queue = { ...next, items: joinLinks(visible, links) };
-    for (const listener of listeners) listener(queue);
+    const current = joined();
+    for (const listener of listeners) listener(current);
   };
 
   return {
-    queue: () => queue,
-    item: (key) => queue.items.find((candidate) => candidate.key === key),
+    queue: joined,
+    item: (key) => joined().items.find((candidate) => candidate.key === key),
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);

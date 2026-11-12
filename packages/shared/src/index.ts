@@ -399,7 +399,8 @@ export type FileResponse =
 export type UiStateRequest = Partial<Omit<UiState, 'swarms' | 'placements'>>;
 
 /** An open PR whose review is directly requested from the user. `clonePath` and `sessionId` are
- *  null until a local clone and a review session are linked to it. */
+ *  null until a local clone and a review session are linked to it; a link to a session missing from
+ *  the session list reads as null. */
 export interface ReviewItem {
   /** `<owner>/<name>#<number>` */
   key: string;

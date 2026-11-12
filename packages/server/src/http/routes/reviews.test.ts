@@ -30,8 +30,9 @@ function buildApp(items: ReviewItem[], sessionIds: string[] = []) {
   const unused = () => {
     throw new Error('not used by this test');
   };
+  const known = sessionIds.map((id) => aSession({ id }));
   const projection: Projection = {
-    sessions: () => sessionIds.map((id) => aSession({ id })),
+    sessions: () => known,
     uiState: () => DEFAULT_UI_STATE,
     dispatch: () => undefined,
     updateUiState: unused,
@@ -42,7 +43,7 @@ function buildApp(items: ReviewItem[], sessionIds: string[] = []) {
     subscribeOverlay: () => () => undefined,
     placementOf: () => undefined,
   };
-  const reviews = createReviewStore({ overlay: memoryOverlay() });
+  const reviews = createReviewStore({ overlay: memoryOverlay({}, known) });
   reviews.complete(items, '2026-01-10T00:05:00Z');
   const sessions = createReviewSessions({
     tmux: {
