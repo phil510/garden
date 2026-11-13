@@ -257,8 +257,9 @@ three different things from you — and the entry goes when the event fires. A w
 open is a Blocked entry like any other, its event the merge of all its blockers.
 
 When a blocker merges, release the work it was blocking right away, even while your user is away:
-tell the peers that build on it, in whatever wave, so they rebase and keep drafting on what landed.
-That is machine work, so it needs no one's say-so and keeps the swarm moving. Releasing work is not
+tell the peers still drafting on it, in whatever wave, so they keep drafting on what landed. A peer
+already paused at its draft PR is in the merge queue, so it rebases only when its loop or merge
+comes up next ("Trust the peer's pipeline" says why). That is machine work, so it needs no one's say-so and keeps the swarm moving. Releasing work is not
 opening a wave. The wave opens only when its last blocker has merged and the two-wave limit allows,
 because opening it puts its asks in front of your user. A decision that comes up meanwhile goes in
 as waiting on your user, for their return, not guessed — a guessed decision is one they never got to
