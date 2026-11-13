@@ -248,11 +248,15 @@ failed attach. Find its swarm by following `parent` up, or with `garden ls --jso
 Blocked records the event that unblocks, not a status — "waiting on your user", "answered but
 the peer hasn't been told" and "peer has it and is working" look alike in a status field and need
 three different things from you — and the entry goes when the event fires. A wave not yet
-open is a Blocked entry like any other, its event the merge of its blockers. When a blocker merges,
-open the wave it was holding right away (within the two-wave limit) and tell its peers, even while
-your user is away: that keeps the swarm moving without asking them anything. A decision that comes
-up meanwhile goes in as waiting on your user, for their return, not guessed — a guessed decision is
-one they never got to make.
+open is a Blocked entry like any other, its event the merge of all its blockers.
+
+When a blocker merges, release the work it was blocking right away, even while your user is away:
+tell the peers that build on it, in whatever wave, so they rebase and keep drafting on what landed.
+That is machine work, so it needs no one's say-so and keeps the swarm moving. Releasing work is not
+opening a wave. The wave opens only when its last blocker has merged and the two-wave limit allows,
+because opening it puts its asks in front of your user. A decision that comes up meanwhile goes in
+as waiting on your user, for their return, not guessed — a guessed decision is one they never got to
+make.
 
 Decisions are appended with who made them and on what, never edited: a reversed decision and the
 reason it was reversed are both things nothing else on disk holds.
