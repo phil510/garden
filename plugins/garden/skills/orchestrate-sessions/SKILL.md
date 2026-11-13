@@ -85,11 +85,11 @@ just returned. It opens with a line naming the peer's task and stays maintained 
 (see "Write the run down" below for why the id, not a label). `message-session` covers the rest
 of the brief.
 
-In a swarm paced in waves ("Pace a large swarm in waves" below), the brief also names the peer's
-wave, and the member file's task line records it. Tell every peer to pause at its draft PR. Tell a
-later-wave peer to hold anything that needs the human until you say its wave is open: a question
-gets parked in its member file while it carries on with whatever doesn't depend on the answer,
-rather than guessing one.
+Tell a peer working in a stack or a wave to pause at its draft PR ("Pace a large swarm in waves"
+below says why). In a swarm paced in waves, the brief also names the peer's wave, and the member
+file's task line records it. Tell a later-wave peer to hold anything that needs the human until you
+say its wave is open: it parks a question in its member file, where you collect it when the wave
+opens, and carries on with whatever doesn't depend on the answer rather than guessing one.
 
 **Settle merge/approval policy in the brief.** Naming the approver and the merge policy before
 the peer starts is what keeps an `ask`-style gate from stalling later. So is saying which
@@ -110,8 +110,8 @@ You rarely raise your own alert (`alert` skill). When a peer reports a decision 
 make, surface it to the user as you normally would; that is the preferred path. If the peer's ask
 is still going unanswered, tell it to raise its own alert, since the question lives in its pane.
 Relaying the human's answer back down stays fine. A later-wave peer's question waits for its wave
-instead, because an alert is exactly the demand the wave holds back. A permission prompt is the
-exception: the peer can't proceed and only the human can grant it, so surface it as "Status does
+on both paths — you don't surface it and it doesn't alert — because either one is exactly the
+demand the wave holds back. A permission prompt is the exception: the peer can't proceed and only the human can grant it, so surface it as "Status does
 not mean what it looks like" says.
 
 **Merge and create-issue are two separate autonomy switches**, each `auto` or `ask-human`, not one
@@ -125,7 +125,8 @@ can confirm instead. Cleanup (worktree, branch) stays with whichever session is 
 the PR; you inherit it only if that peer died while holding.
 
 **A peer you own that runs its own sessions is part of your swarm**, so the wave, pause-at-draft
-and human-gate rules go into the brief it gives its own peers. Telling it what's happening in the
+and hold-asks-until-open rules ("Pace a large swarm in waves") go into the brief it gives its own
+peers. Telling it what's happening in the
 run informs the sub-swarm without governing it: its sessions put asks in front of the human at
 their own pace, and the gate you are holding has quietly been bypassed — the same shape as a
 dispatched peer that can merge on its own.
@@ -136,7 +137,7 @@ In a swarm larger than a handful of sessions, what you pace is demand on the hum
 review requests, merge asks — not machine work. Sessions can draft at any rate; the human can answer
 at only one, and demand that arrives faster than they can answer is what turns a run chaotic:
 questions go stale, reviews pile up unread, and nobody can say what to merge next. Below a handful,
-waves are overhead; skip the splitting, though the stack rules in steps 3–5 still hold.
+waves are overhead.
 
 A wave's life, in order:
 
@@ -157,15 +158,17 @@ A wave's life, in order:
 5. **Release review-bot loops last, one or two at a time**, in dependency order, rebasing each PR
    as its loop is released. A loop that finishes before the wave is verified gets redone when
    testing forces a change, so the wait saves review rounds, not just time; one or two at a time
-   keeps review traffic at the rate the human can read it. Wave N+1 gets no loops until N has merged
-   and the PR being released is rebased onto it: review changes to N ripple into N+1, so a loop
+   keeps review traffic at the rate the human can read it. Wave N+1 gets no loops until every PR in N
+   has merged and the PR being released is rebased onto it: review changes to N ripple into N+1, so a loop
    already running there would be redone.
 6. **Hand the wave to the human** as one batch, shaped as "Keep the traffic small" describes.
 7. **Open the next wave once this one's must-merge-first PRs have merged** — the hard blockers the
    next wave builds on, not every PR in it. Waiting on every merge idles the swarm on PRs nothing
-   depends on. **At most two waves are open**: N waiting on the human's merges, N+1 in progress.
-   N+1 can rest on N's unmerged PRs; a third open wave would rest on N+1's as well, so one review
-   change to N would ripple through two layers of work instead of one.
+   depends on. **At most two waves are open**: N waiting on the human's merges, N+1 in progress. A
+   wave closes when every PR in it has merged, and only then may the wave after N+1 open. An open
+   wave asks the human to review work that may rest on the earlier wave's unmerged PRs; a third
+   would ask them to review work resting on N+1's as well, so one review change to N would ripple
+   through two layers of reviewed work instead of one.
 
 Steps 3–5 apply to any stack of PRs, whatever the swarm size; only splitting into waves waits for
 a large swarm.
@@ -242,11 +245,12 @@ failed attach. Find its swarm by following `parent` up, or with `garden ls --jso
 
 Blocked records the event that unblocks, not a status — "waiting on your user", "answered but
 the peer hasn't been told" and "peer has it and is working" look alike in a status field and need
-three different things from you — and the entry goes when the event fires. A closed wave is a
-Blocked entry like any other, its event the merge of its blockers. When a blocker merges, release
-the work it was holding right away, even while your user is away: that keeps the swarm moving
-without asking them anything. A decision that comes up meanwhile goes in as waiting on your user,
-for their return, not guessed — a guessed decision is one they never got to make.
+three different things from you — and the entry goes when the event fires. A wave not yet
+open is a Blocked entry like any other, its event the merge of its blockers. When a blocker merges,
+open the wave it was holding right away (within the two-wave limit) and tell its peers, even while
+your user is away: that keeps the swarm moving without asking them anything. A decision that comes
+up meanwhile goes in as waiting on your user, for their return, not guessed — a guessed decision is
+one they never got to make.
 
 Decisions are appended with who made them and on what, never edited: a reversed decision and the
 reason it was reversed are both things nothing else on disk holds.
