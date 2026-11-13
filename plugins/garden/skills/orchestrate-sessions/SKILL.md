@@ -85,6 +85,12 @@ just returned. It opens with a line naming the peer's task and stays maintained 
 (see "Write the run down" below for why the id, not a label). `message-session` covers the rest
 of the brief.
 
+In a swarm paced in waves ("Pace a large swarm in waves" below), the brief also names the peer's
+wave, and the member file's task line records it. Tell every peer to pause at its draft PR. Tell a
+later-wave peer to hold anything that needs the human until you say its wave is open: a question
+gets parked in its member file while it carries on with whatever doesn't depend on the answer,
+rather than guessing one.
+
 **Settle merge/approval policy in the brief.** Naming the approver and the merge policy before
 the peer starts is what keeps an `ask`-style gate from stalling later. So is saying which
 decisions a relayed answer can close:
@@ -103,7 +109,10 @@ peer to report back an answer it got in its pane.
 You rarely raise your own alert (`alert` skill). When a peer reports a decision only the human can
 make, surface it to the user as you normally would; that is the preferred path. If the peer's ask
 is still going unanswered, tell it to raise its own alert, since the question lives in its pane.
-Relaying the human's answer back down stays fine.
+Relaying the human's answer back down stays fine. A later-wave peer's question waits for its wave
+instead, because an alert is exactly the demand the wave holds back. A permission prompt is the
+exception: the peer can't proceed and only the human can grant it, so surface it as "Status does
+not mean what it looks like" says.
 
 **Merge and create-issue are two separate autonomy switches**, each `auto` or `ask-human`, not one
 combined setting — they differ in timing and in reversibility. Never dispatch a peer with either
@@ -114,6 +123,12 @@ telling the peer closes its gate — the same rule as above, not an exception: a
 leaves a peer nothing to check, only your word to trust or refuse, while a merge leaves a public record it
 can confirm instead. Cleanup (worktree, branch) stays with whichever session is alive and holding
 the PR; you inherit it only if that peer died while holding.
+
+**A peer you own that runs its own sessions is part of your swarm**, so the wave, pause-at-draft
+and human-gate rules go into the brief it gives its own peers. Telling it what's happening in the
+run informs the sub-swarm without governing it: its sessions put asks in front of the human at
+their own pace, and the gate you are holding has quietly been bypassed — the same shape as a
+dispatched peer that can merge on its own.
 
 ## Pace a large swarm in waves
 
