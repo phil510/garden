@@ -115,6 +115,46 @@ leaves a peer nothing to check, only your word to trust or refuse, while a merge
 can confirm instead. Cleanup (worktree, branch) stays with whichever session is alive and holding
 the PR; you inherit it only if that peer died while holding.
 
+## Pace a large swarm in waves
+
+In a swarm larger than a handful of sessions, what you pace is demand on the human — questions,
+review requests, merge asks — not machine work. Sessions can draft at any rate; the human can answer
+at only one, and demand that arrives faster than they can answer is what turns a run chaotic:
+questions go stale, reviews pile up unread, and nobody can say what to merge next. Below a handful,
+waves are overhead; skip the splitting, though the stack rules in steps 3–5 still hold.
+
+A wave's life, in order:
+
+1. **Split and propose before the first `garden new`.** Split by dependency: foundations (libraries
+   with no deployed surface), then the first deployed behaviour, then runtime and UI. A small
+   enabling fix every branch needs, such as a CI repair, can go first as a wave of its own. Put the
+   split to your user before dispatching. They tune the gating — what blocks what, how much goes in
+   a wave; you own the mechanics — membership, when a wave opens, rebases, loop release.
+2. **Drafting is never gated; asks are.** Any wave's sessions may be dispatched and draft. Only an
+   open wave puts anything in front of the human, so everything they see is something they can act
+   on now. "Dispatch" covers how a later-wave peer holds its asks.
+3. **Each session pauses at its draft PR.** It runs ship-it through internal review, with its review
+   loop named as usual, and stops before that loop starts to wait for your go-ahead. Everything
+   past that point spends review rounds before anyone knows the wave fits together.
+4. **Verify the wave.** Verified means sandbox-tested end to end — or, for library-only PRs, one
+   integration branch carrying all of them that builds and tests green — with no further changes
+   expected. Until then a downstream finding can still change an upstream PR.
+5. **Release review-bot loops last, one or two at a time**, in dependency order, rebasing each PR
+   as its loop is released. A loop that finishes before the wave is verified gets redone when
+   testing forces a change, so the wait saves review rounds, not just time; one or two at a time
+   keeps review traffic at the rate the human can read it. Wave N+1 gets no loops until N has merged
+   and the PR being released is rebased onto it: review changes to N ripple into N+1, so a loop
+   already running there would be redone.
+6. **Hand the wave to the human** as one batch, shaped as "Keep the traffic small" describes.
+7. **Open the next wave once this one's must-merge-first PRs have merged** — the hard blockers the
+   next wave builds on, not every PR in it. Waiting on every merge idles the swarm on PRs nothing
+   depends on. **At most two waves are open**: N waiting on the human's merges, N+1 in progress.
+   N+1 can rest on N's unmerged PRs; a third open wave would rest on N+1's as well, so one review
+   change to N would ripple through two layers of work instead of one.
+
+Steps 3–5 apply to any stack of PRs, whatever the swarm size; only splitting into waves waits for
+a large swarm.
+
 ## Two naming systems
 
 A session has a garden/tmux name (`79-bounded-session-list`) and a Claude Code name that
@@ -331,13 +371,8 @@ will hit, send them three lines about it.
 merge it down until the upstream head is settled and validated; then sync in dependency order and
 review once. Each premature sync triggers a review of code the next upstream change replaces. While
 an upstream is on hold, tell its downstream peers so their conflict handling doesn't merge it down,
-and have each record it in its brief.
-
-Brief a peer working a stacked PR to run ship-it with its review loop named as usual, but to stop
-before the review loop starts and wait for your go-ahead. A stack is settled when the downstream
-PRs are built, the stack has been sandbox-tested end to end, and no further changes are expected.
-Release the loops in dependency order once it is. A loop that finishes early gets redone when
-downstream testing forces changes, so the wait saves the review rounds, not just the time.
+and have each record it in its brief. When to release a stack's review loops is in "Pace a large
+swarm in waves".
 
 **Pivots**, where the user replaces a requirement rather than adjusting it, are rare. Hold peers at
 their next stopping point and settle the replacement fully before dispatching, because anything
