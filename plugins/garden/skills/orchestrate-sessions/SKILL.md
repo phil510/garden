@@ -227,6 +227,7 @@ merge: ask-human (approver: <name>) · create-issue: auto · swarm: 6f1c9e2a-3b7
 
 - session `garden-c1` for issue #160 — waiting on user: which launch commands to list (asked, unanswered)
 - session `garden-e2` for issue #159 — user answered "SSM, not env"; peer not yet told
+- wave 2 (issues #161, #162) — opens when PR #170 merges
 
 ## Decisions
 
@@ -241,9 +242,14 @@ failed attach. Find its swarm by following `parent` up, or with `garden ls --jso
 
 Blocked records the event that unblocks, not a status — "waiting on your user", "answered but
 the peer hasn't been told" and "peer has it and is working" look alike in a status field and need
-three different things from you — and the entry goes when the event fires. Decisions are appended
-with who made them and on what, never edited: a reversed decision and the reason it was reversed
-are both things nothing else on disk holds.
+three different things from you — and the entry goes when the event fires. A closed wave is a
+Blocked entry like any other, its event the merge of its blockers. When a blocker merges, release
+the work it was holding right away, even while your user is away: that keeps the swarm moving
+without asking them anything. A decision that comes up meanwhile goes in as waiting on your user,
+for their return, not guessed — a guessed decision is one they never got to make.
+
+Decisions are appended with who made them and on what, never edited: a reversed decision and the
+reason it was reversed are both things nothing else on disk holds.
 
 Everything else has an authoritative home: `garden ls` owns cwd, branch, liveness and status; git
 owns commits and worktrees; GitHub owns PR, CI and review state. A copy here can only go wrong —
