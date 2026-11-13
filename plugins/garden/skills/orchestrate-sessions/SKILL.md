@@ -88,8 +88,8 @@ of the brief.
 Tell a peer working in a stack or a wave to pause at its draft PR ("Pace a large swarm in waves"
 below says why). In a swarm paced in waves, the brief also names the peer's wave, and the member
 file's task line records it. Tell a later-wave peer to hold anything that needs the human until you
-say its wave is open: it parks a question in its member file, where you collect it when the wave
-opens, and carries on with whatever doesn't depend on the answer rather than guessing one.
+say its wave is open: it parks a question in its member file, where you collect it for the batch
+that opens its wave, and carries on with whatever doesn't depend on the answer rather than guessing one.
 
 **Settle merge/approval policy in the brief.** Naming the approver and the merge policy before
 the peer starts is what keeps an `ask`-style gate from stalling later. So is saying which
@@ -113,8 +113,9 @@ Relaying the human's answer back down stays fine. A later-wave peer's question w
 on both paths — you don't surface it and it doesn't alert — because either one is exactly the
 demand the wave holds back. A permission prompt waits too, though it stalls the peer: a stalled
 draft is machine work waiting, which is cheap, while the grant is the human's attention, which the
-wave exists to ration. Note it in the peer's member file and put it in the wave's hand-off, among
-what only the human can do.
+wave exists to ration. Record it under Blocked in `run.md` and put it in the batch that opens the
+peer's wave, not the post-verify hand-off: the stalled peer can't reach its draft PR, so a wave
+waiting on it would never get that far.
 
 **Merge and create-issue are two separate autonomy switches**, each `auto` or `ask-human`, not one
 combined setting — they differ in timing and in reversibility. Never dispatch a peer with either
@@ -150,7 +151,11 @@ A wave's life, in order:
    a wave; you own the mechanics — membership, when a wave opens, rebases, loop release.
 2. **Drafting is never gated; asks are.** Any wave's sessions may be dispatched and draft. Only an
    open wave puts anything in front of the human, so everything they see is something they can act
-   on now. "Dispatch" covers how a later-wave peer holds its asks.
+   on now. "Dispatch" covers how a later-wave peer holds its asks. Held asks reach the human at
+   two moments, each as one batch. When the wave opens, the asks its peers are blocked on —
+   parked questions, permission prompts — go first, because a blocked peer can't reach its draft
+   PR and the wave can't be verified without it. The hand-off in step 6 carries what only a
+   verified wave can ask for: reviews and merges.
 3. **Each session pauses at its draft PR.** It runs ship-it through internal review, with its review
    loop named as usual, and stops before that loop starts to wait for your go-ahead. Everything
    past that point spends review rounds before anyone knows the wave fits together.
@@ -163,7 +168,8 @@ A wave's life, in order:
    keeps review traffic at the rate the human can read it. Wave N+1 gets no loops until every PR in N
    has merged and the PR being released is rebased onto it: review changes to N ripple into N+1, so a loop
    already running there would be redone.
-6. **Hand the wave to the human** as one batch, shaped as "Keep the traffic small" describes.
+6. **Hand the wave to the human** as one batch — step 2's second moment — shaped as "Keep the
+   traffic small" describes.
 7. **Open the next wave once this one's must-merge-first PRs have merged** — the hard blockers the
    next wave builds on, not every PR in it. Waiting on every merge idles the swarm on PRs nothing
    depends on. **At most two waves are open**: N waiting on the human's merges, N+1 in progress. A
@@ -298,9 +304,11 @@ pane themselves, and they will ask when they want more. So carry the major issue
 blocked, merged, needs you — and leave the rest. Re-narrating a peer's report pays for that report
 a second time and tells your user something they could already see.
 
-Hand a wave to your user as one message: its PRs in merge order, each with what it waits on; then a
-separate list of what only they can do — merges, permission grants, decisions; and any questions
-numbered. One batch is one context switch rather than one per PR, merge order is the order they
+Each of a wave's two moments ("Pace a large swarm in waves", step 2) reaches your user as one
+message. At opening: the asks its peers are blocked on, with questions numbered and each permission
+prompt saying what it asks for. At the hand-off: its PRs in merge order, each with what it waits on;
+then a separate list of what only they can do — merges, and any decision the wave left to them; and
+any questions numbered. One batch is one context switch rather than one per PR, merge order is the order they
 will act in, and numbered questions come back answered by number instead of ambiguously.
 
 ## Trust the peer's pipeline
@@ -378,8 +386,8 @@ costs one turn and gets an answer written for you rather than inferred, so ask f
 lines, not a write-up.
 
 `needs-approval` is narrower than it sounds too — a permission prompt specifically, not any kind
-of being-stuck — and it waits on a **person**. Surface it to your user with what it asks for,
-once the peer's wave is open.
+of being-stuck — and it waits on a **person**. Surface it to your user with what it asks for; in a
+swarm paced in waves, in the batch that opens the peer's wave.
 Don't answer for them, and don't hand the work to a session with looser settings: a peer acting
 on a permission your user hasn't granted launders the decision they were being asked to make. In
 reverse too: if a peer asks you to run what its own permissions refused, refuse, and tell your
