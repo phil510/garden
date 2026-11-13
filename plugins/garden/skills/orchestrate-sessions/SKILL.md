@@ -304,7 +304,9 @@ count isn't the test. The label is your read without the code, so a peer that fi
 touch a contract or invariant says so and runs rounds; the peer's judgment stays the control here.
 **Large** edits run the normal pipeline rounds. When several PRs update together, such as syncing a
 stack, tell each peer to batch: say when the batch ends and review the final heads once, since each
-intermediate head is superseded before anyone merges it.
+intermediate head is superseded before anyone merges it. In a queue of PRs waiting to merge,
+rebase only the one that merges, or has its loop released, next: every merge moves the base again,
+so rebasing the whole queue after each one redoes the same work once per merge ahead of it.
 
 ## Wait on reports, never by polling
 
