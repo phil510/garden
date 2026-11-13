@@ -111,8 +111,10 @@ make, surface it to the user as you normally would; that is the preferred path. 
 is still going unanswered, tell it to raise its own alert, since the question lives in its pane.
 Relaying the human's answer back down stays fine. A later-wave peer's question waits for its wave
 on both paths — you don't surface it and it doesn't alert — because either one is exactly the
-demand the wave holds back. A permission prompt is the exception: the peer can't proceed and only the human can grant it, so surface it as "Status does
-not mean what it looks like" says.
+demand the wave holds back. A permission prompt waits too, though it stalls the peer: a stalled
+draft is machine work waiting, which is cheap, while the grant is the human's attention, which the
+wave exists to ration. Note it in the peer's member file and put it in the wave's hand-off, among
+what only the human can do.
 
 **Merge and create-issue are two separate autonomy switches**, each `auto` or `ask-human`, not one
 combined setting — they differ in timing and in reversibility. Never dispatch a peer with either
@@ -372,7 +374,8 @@ costs one turn and gets an answer written for you rather than inferred, so ask f
 lines, not a write-up.
 
 `needs-approval` is narrower than it sounds too — a permission prompt specifically, not any kind
-of being-stuck — and it waits on a **person**. Surface it to your user with what it asks for.
+of being-stuck — and it waits on a **person**. Surface it to your user with what it asks for,
+once the peer's wave is open.
 Don't answer for them, and don't hand the work to a session with looser settings: a peer acting
 on a permission your user hasn't granted launders the decision they were being asked to make. In
 reverse too: if a peer asks you to run what its own permissions refused, refuse, and tell your
