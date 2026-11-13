@@ -165,10 +165,10 @@ A wave's life, in order:
 7. **Open the next wave once this one's must-merge-first PRs have merged** — the hard blockers the
    next wave builds on, not every PR in it. Waiting on every merge idles the swarm on PRs nothing
    depends on. **At most two waves are open**: N waiting on the human's merges, N+1 in progress. A
-   wave closes when every PR in it has merged, and only then may the wave after N+1 open. An open
-   wave asks the human to review work that may rest on the earlier wave's unmerged PRs; a third
-   would ask them to review work resting on N+1's as well, so one review change to N would ripple
-   through two layers of reviewed work instead of one.
+   wave closes when every PR in it has merged, and only then may the wave after N+1 open. Two is the
+   most demand the human can track at once: N+1's questions and reviews keep the swarm busy while
+   they work through N's merges. A third open wave interleaves a third queue of asks with those two,
+   and that is where they lose track of which ask belongs to what.
 
 Steps 3–5 apply to any stack of PRs, whatever the swarm size; only splitting into waves waits for
 a large swarm.
