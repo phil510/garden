@@ -282,6 +282,11 @@ pane themselves, and they will ask when they want more. So carry the major issue
 blocked, merged, needs you — and leave the rest. Re-narrating a peer's report pays for that report
 a second time and tells your user something they could already see.
 
+Hand a wave to your user as one message: its PRs in merge order, each with what it waits on; then a
+separate list of what only they can do — merges, permission grants, decisions; and any questions
+numbered. One batch is one context switch rather than one per PR, merge order is the order they
+will act in, and numbered questions come back answered by number instead of ambiguously.
+
 ## Trust the peer's pipeline
 
 A peer running its own pipeline has already had a review stage, and output it pasted from a
