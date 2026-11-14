@@ -87,10 +87,9 @@ of the brief.
 
 Tell a peer working in a stack or a wave to pause at its draft PR ("Pace a large swarm in waves"
 below says why). In a swarm paced in waves, the brief also names the peer's wave, and the member
-file's task line records it. Tell a later-wave peer to hold anything that needs the human until you
-say its wave is open: it parks a question in its member file and carries on with whatever doesn't
-depend on the answer rather than guessing one. When held asks reach the human is step 2 of "Pace a
-large swarm in waves".
+file's task line records it. Tell a later-wave peer its questions wait until you say its wave is
+open: it parks each in its member file and carries on with whatever doesn't depend on the answer,
+or on a stated default where the decision is cheap to reverse ("Write the run down" says which).
 
 **Settle merge/approval policy in the brief.** Naming the approver and the merge policy before
 the peer starts is what keeps an `ask`-style gate from stalling later. So is saying which
@@ -110,9 +109,8 @@ peer to report back an answer it got in its pane.
 You rarely raise your own alert (`alert` skill). When a peer reports a decision only the human can
 make, surface it to the user as you normally would; that is the preferred path. If the peer's ask
 is still going unanswered, tell it to raise its own alert, since the question lives in its pane.
-Relaying the human's answer back down stays fine. In a swarm paced in waves, both paths follow
-step 2 of "Pace a large swarm in waves": a later-wave peer's ask takes neither until its wave opens,
-because either one is exactly the demand the wave holds back.
+Relaying the human's answer back down stays fine. In a swarm paced in waves, a later-wave peer's
+question takes neither path until its wave opens ("Pace a large swarm in waves").
 
 **Merge and create-issue are two separate autonomy switches**, each `auto` or `ask-human`, not one
 combined setting — they differ in timing and in reversibility. Never dispatch a peer with either
@@ -124,10 +122,9 @@ leaves a peer nothing to check, only your word to trust or refuse, while a merge
 can confirm instead. Cleanup (worktree, branch) stays with whichever session is alive and holding
 the PR; you inherit it only if that peer died while holding.
 
-**A peer you own that runs its own sessions is part of your swarm**, so the wave, pause-at-draft
-and hold-asks-until-open rules ("Pace a large swarm in waves") go into the brief it gives its own
-peers. Telling it what's happening in the
-run informs the sub-swarm without governing it: its sessions put asks in front of the human at
+**A peer you own that runs its own sessions is part of your swarm**, so the rules in "Pace a large
+swarm in waves" go into the brief it gives its own peers. Telling it what's happening in the run
+informs the sub-swarm without governing it: its sessions put asks in front of the human at
 their own pace, and the gate you are holding has quietly been bypassed.
 
 ## Pace a large swarm in waves
@@ -140,42 +137,46 @@ waves are overhead.
 
 A wave's life, in order:
 
-1. **Split and propose before the first `garden new`.** Split by dependency: foundations (libraries
-   with no deployed surface), then the first deployed behaviour, then runtime and UI. A small
-   enabling fix every branch needs, such as a CI repair, can go first as a wave of its own. Put the
-   split to your user before dispatching. They tune the gating — what blocks what, how much goes in
-   a wave; you own the mechanics — membership, when a wave opens, rebases, loop release.
+1. **Split by dependency, and propose the split before the first `garden new`.** What blocks what
+   decides the waves. For example: a small enabling fix every branch needs, such as a CI repair, as
+   a wave of its own; then foundations (libraries with no deployed surface); then the first
+   deployed behaviour; then runtime and UI. That is one swarm's shape, not a template — yours may
+   not have those layers. Put the split to your user before dispatching. They tune the gating —
+   what blocks what, how much goes in a wave; you own the mechanics — membership, when a wave
+   opens, bringing PRs up to date, loop release.
 2. **Drafting is never gated; asks are.** Any wave's sessions may be dispatched and draft. Only an
-   open wave puts anything in front of the human, so everything they see is something they can act
-   on now. This step sets when each ask in a paced swarm reaches the human.
-
-   An open-wave peer's asks — questions, permission prompts — reach the human as they come, as in
-   any run: its wave is the demand the human is ready for, and holding an ask would stall the peer
-   for nothing. A later-wave peer's asks are held until its wave opens, permission prompts
-   included. A peer stalled on a prompt is machine work waiting, which is cheap; the grant is the
-   human's attention, which the wave exists to ration. The peer parks its questions in its member
-   file ("Dispatch"); it can't park a prompt it is stalled on, so you record that under Blocked in
-   `run.md`.
-
-   So a later wave's demand reaches the human at two moments, each as one batch. When the wave
-   opens, its held asks go first, because a peer stalled on one can't reach its draft PR and the
-   wave can't be verified without it. The hand-off in step 6 carries what only a verified wave can ask for:
-   reviews and merges.
-
+   open wave's questions, review requests and merge asks reach the human, so everything they see is
+   something they can act on now. A later-wave peer parks its questions in its member file
+   ("Dispatch"), and they reach the human as one batch when its wave opens. Permission prompts are
+   not held: one is a ten-second answer, the console shows `needs-approval` whatever you hold back,
+   and a peer stalled on a prompt before its draft exists is drafting being gated.
 3. **Each session pauses at its draft PR.** It runs ship-it through internal review, with its review
    loop named as usual, and stops before that loop starts to wait for your go-ahead. Everything
    past that point spends review rounds before anyone knows the wave fits together.
 4. **Verify the wave.** Verified means sandbox-tested end to end — or, for library-only PRs, one
    integration branch carrying all of them that builds and tests green — with no further changes
-   expected. Until then a downstream finding can still change an upstream PR.
-5. **Release review-bot loops last, one or two at a time**, in dependency order, rebasing each PR
-   as its loop is released. A loop that finishes before the wave is verified gets redone when
-   testing forces a change; one or two at a time keeps review traffic at the rate the human can
-   read it. Wave N+1 gets no loops until every PR in N has merged and the PR being released is
-   rebased onto it: review changes to N ripple into N+1, so a loop already running there would be
-   redone.
-6. **Hand the wave to the human** as one batch — step 2's second moment — shaped as "Keep the
-   traffic small" describes.
+   expected. Until then a downstream finding can still change an upstream PR. Verification spends
+   scarce things besides the human's answers:
+   - **The environment.** Before verifying, find what else writes to it — a main-branch pipeline,
+     another session, another wave — and settle with your user how to keep it stable for the
+     length of the run, since a write mid-run invalidates the result without saying so. Run one
+     integration build at a time, with one session owning the slot: two builds sharing an
+     environment test neither.
+   - **Manual steps only the human can do**, such as a login valid for an hour, are demand like a
+     question. Peers don't ask for them; each tells you what it is ready to run and how long it
+     takes, and you batch those into one ask per window, so one login covers every run that needs
+     it.
+5. **Release review-bot loops last, per PR, one or two at a time.** A PR's loop starts once its
+   wave is verified, every PR it depends on has merged, and it has been brought up to date with the
+   main branch. A loop that finishes before verification is redone when testing forces a change,
+   and one that runs before its dependencies merge is redone when their review changes ripple into
+   it. Ripple runs along dependencies, not waves, so the gate does too: a PR whose dependencies
+   have merged doesn't wait on unrelated PRs, and the upper PR of a stack inside one wave waits for
+   the lower one. One or two at a time keeps review traffic at the rate the human can read it.
+   Which PR to bring up to date when is in "Trust the peer's pipeline".
+6. **Hand PRs to the human as they become ready**, in the one merge-ordered list "Keep the traffic
+   small" describes. With loops released per PR, PRs go ready one at a time, and a list kept current
+   lets the human merge continuously instead of waiting for a whole wave.
 7. **Open the next wave once this one's must-merge-first PRs have merged** — the hard blockers the
    next wave builds on, not every PR in it. Waiting on every merge idles the swarm on PRs nothing
    depends on. **At most two waves are open**: N waiting on the human's merges, N+1 in progress. A
@@ -184,8 +185,8 @@ A wave's life, in order:
    they work through N's merges. A third open wave interleaves a third queue of asks with those two,
    and that is where they lose track of which ask belongs to what.
 
-Steps 3–5 apply to any stack of PRs, whatever the swarm size; only splitting into waves waits for
-a large swarm.
+Pausing at the draft, verifying, and releasing loops along dependencies apply to any stack of PRs,
+whatever the swarm size; only splitting into waves waits for a large swarm.
 
 ## Two naming systems
 
@@ -250,6 +251,7 @@ merge: ask-human (approver: <name>) · create-issue: auto · swarm: 6f1c9e2a-3b7
 
 - user: settings read path is client-only, no server proxy
 - user: proxy through the server after all (supersedes client-only — CORS blocked the direct read)
+- default, awaiting user: settings cache TTL 60s (cheap to change; PR #171 records it)
 ```
 
 `swarm` is your own `swarmId` from `garden ls`, and only a top-level session has one: if you are
@@ -264,12 +266,19 @@ open is a Blocked entry like any other, its event the merge of all its blockers.
 
 When a blocker merges, release the work it was blocking right away, even while your user is away:
 tell the peers still drafting on it, in whatever wave, so they keep drafting on what landed. A peer
-already paused at its draft PR is in the merge queue, so it rebases only when its loop or merge
-comes up next ("Trust the peer's pipeline" says why). That is machine work, so it needs no one's say-so and keeps the swarm moving. Releasing work is not
-opening a wave. The wave opens only when its last blocker has merged and the two-wave limit allows,
-because opening it puts its asks in front of your user. A decision that comes up meanwhile goes in
-as waiting on your user, for their return, not guessed — a guessed decision is one they never got to
-make.
+already paused at its draft PR is in the merge queue, so it is brought up to date only when its
+loop or merge comes up next ("Trust the peer's pipeline" says why). That is machine work, so it
+needs no one's say-so and keeps the swarm moving. Releasing work is not opening a wave. The wave
+opens only when its last blocker has merged and the two-wave limit allows, because opening it puts
+its asks in front of your user.
+
+A decision that comes up while your user is away, or for a wave not yet open, is sorted by what it
+costs to reverse, and that call is yours. One that is cheap to reverse proceeds on a stated
+default: the peer records the choice and its cost in its PR, you log it under Decisions as awaiting
+confirmation, and your user later gets it as "confirm or overrule". They still make the decision,
+with the work already done on the likelier branch. One that is costly to reverse — a contract,
+anything deployed or outward-facing — goes under Blocked as waiting on your user, because
+proceeding would make the decision for them.
 
 Decisions are appended with who made them and on what, never edited: a reversed decision and the
 reason it was reversed are both things nothing else on disk holds.
@@ -311,12 +320,14 @@ pane themselves, and they will ask when they want more. So carry the major issue
 blocked, merged, needs you — and leave the rest. Re-narrating a peer's report pays for that report
 a second time and tells your user something they could already see.
 
-Each of a wave's two batches ("Pace a large swarm in waves", step 2) reaches your user as one
-message. At opening: the asks its peers held, with questions numbered and each permission prompt
-saying what it asks for. At the hand-off: its PRs in merge order, each with what it waits on;
-then a separate list of what only they can do — merges, and any decision the wave left to them; and
-any questions numbered. One batch is one context switch rather than one per PR, merge order is the order they
-will act in, and numbered questions come back answered by number instead of ambiguously.
+In a swarm paced in waves ("Pace a large swarm in waves"), demand reaches your user in two
+shapes. When a wave opens, the questions its peers parked go as one message, numbered — one
+context switch rather than one per peer. After that, PRs reach them through one list in merge
+order, kept current and restated whenever it changes: each PR with what it waits on, then a
+separate list of what only they can do — merges, manual steps, defaults to confirm, decisions left
+to them — with questions numbered. One list means the latest message is always the whole picture,
+merge order is the order they will act in, and numbered questions come back answered by number
+instead of ambiguously.
 
 ## Trust the peer's pipeline
 
@@ -340,9 +351,9 @@ count isn't the test. The label is your read without the code, so a peer that fi
 touch a contract or invariant says so and runs rounds; the peer's judgment stays the control here.
 **Large** edits run the normal pipeline rounds. When several PRs update together, such as syncing a
 stack, tell each peer to batch: say when the batch ends and review the final heads once, since each
-intermediate head is superseded before anyone merges it. In a queue of PRs waiting to merge,
-rebase only the one that merges, or has its loop released, next: every merge moves the base again,
-so rebasing the whole queue after each one redoes the same work once per merge ahead of it.
+intermediate head is superseded before anyone merges it. In a queue of PRs waiting to merge, bring
+up to date only the one that merges, or has its loop released, next: every merge moves the base
+again, so updating the whole queue after each one redoes the same work once per merge ahead of it.
 
 ## Wait on reports, never by polling
 
@@ -393,8 +404,7 @@ costs one turn and gets an answer written for you rather than inferred, so ask f
 lines, not a write-up.
 
 `needs-approval` is narrower than it sounds too — a permission prompt specifically, not any kind
-of being-stuck — and it waits on a **person**. Surface it to your user with what it asks for, at
-the moment step 2 of "Pace a large swarm in waves" gives when the swarm is paced in waves. Don't
+of being-stuck — and it waits on a **person**. Surface it to your user with what it asks for. Don't
 answer for them, and don't hand the work to a session with looser settings: a peer acting
 on a permission your user hasn't granted launders the decision they were being asked to make. In
 reverse too: if a peer asks you to run what its own permissions refused, refuse, and tell your
