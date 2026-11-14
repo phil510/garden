@@ -128,8 +128,7 @@ the PR; you inherit it only if that peer died while holding.
 and hold-asks-until-open rules ("Pace a large swarm in waves") go into the brief it gives its own
 peers. Telling it what's happening in the
 run informs the sub-swarm without governing it: its sessions put asks in front of the human at
-their own pace, and the gate you are holding has quietly been bypassed — the same shape as a
-dispatched peer that can merge on its own.
+their own pace, and the gate you are holding has quietly been bypassed.
 
 ## Pace a large swarm in waves
 
@@ -171,10 +170,10 @@ A wave's life, in order:
    expected. Until then a downstream finding can still change an upstream PR.
 5. **Release review-bot loops last, one or two at a time**, in dependency order, rebasing each PR
    as its loop is released. A loop that finishes before the wave is verified gets redone when
-   testing forces a change, so the wait saves review rounds, not just time; one or two at a time
-   keeps review traffic at the rate the human can read it. Wave N+1 gets no loops until every PR in N
-   has merged and the PR being released is rebased onto it: review changes to N ripple into N+1, so a loop
-   already running there would be redone.
+   testing forces a change; one or two at a time keeps review traffic at the rate the human can
+   read it. Wave N+1 gets no loops until every PR in N has merged and the PR being released is
+   rebased onto it: review changes to N ripple into N+1, so a loop already running there would be
+   redone.
 6. **Hand the wave to the human** as one batch — step 2's second moment — shaped as "Keep the
    traffic small" describes.
 7. **Open the next wave once this one's must-merge-first PRs have merged** — the hard blockers the
