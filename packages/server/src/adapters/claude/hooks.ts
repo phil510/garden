@@ -1,4 +1,5 @@
-import type { HookPayload, Status } from '@garden/shared';
+import type { Status } from '@garden/shared';
+import type { HookPayload } from './types.js';
 import type { HarnessSignal } from '../../domain/types.js';
 
 export function claudeSignal(payload: HookPayload, gardenSessionId?: string): HarnessSignal {

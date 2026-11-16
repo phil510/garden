@@ -1,6 +1,6 @@
 import { parseClaudeHook } from '../../../packages/server/src/adapters/claude/hooks.js';
 import { DEFAULT_UI_STATE } from '@garden/shared';
-import { aHookEvent } from '@garden/shared/fixtures';
+import { aHookEvent } from '../../../packages/server/src/adapters/claude/hooks.fixture.js';
 import type { PipeServerMessage } from '@garden/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Watch } from '../../../packages/server/src/domain/watches.js';

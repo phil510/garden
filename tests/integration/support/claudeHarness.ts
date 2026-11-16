@@ -1,1 +1,1 @@
-export { fakeClaudeHarness } from '../../../packages/server/src/app/harness.fixture.js';
+export { fakeClaudeHarness } from '../../support/claudeHarness.js';

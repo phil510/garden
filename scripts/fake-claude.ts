@@ -8,8 +8,8 @@ import { randomUUID } from 'node:crypto';
 import { appendFile, mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline';
-import { slugify } from '../packages/server/src/domain/slug.js';
-import type { HookPayload } from '../packages/shared/src/index.js';
+import { slugify } from '../packages/server/src/adapters/claude/slug.js';
+import type { HookPayload } from '../packages/server/src/adapters/claude/types.js';
 import { keywordOutcome } from './fake-keywords.js';
 import { keywordTranscriptLine, openingTranscript } from './fake-transcript.js';
 

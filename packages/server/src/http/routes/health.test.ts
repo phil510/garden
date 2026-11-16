@@ -1,4 +1,4 @@
-import { fakeClaudeHarness } from '../../app/harness.fixture.js';
+import { fakeHarness } from '../../app/harness.fixture.js';
 import { createReviewStore } from '../../app/reviews.js';
 import { memoryOverlay } from '../../app/reviews.fixture.js';
 import { describe, expect, it } from 'vitest';
@@ -34,7 +34,6 @@ function fakeProjection(): Projection {
 function fakeDeps(): ServerDeps {
   return {
     projection: fakeProjection(),
-    harness: { parseHook: () => null },
     liveTranscripts: { track: () => undefined },
     pipes: {
       connect: () => ({ ack: () => undefined, close: () => undefined }),
@@ -74,7 +73,7 @@ function fakeDeps(): ServerDeps {
     },
     serverPort: 4310,
     deadSessionCap: 10,
-    harness: fakeClaudeHarness('/home/.garden/claude-settings.json', () => ['claude']),
+    harness: fakeHarness(),
   };
 }
 

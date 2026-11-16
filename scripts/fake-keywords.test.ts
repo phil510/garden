@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { hookOutcome } from '../packages/server/src/adapters/claude/hooks.js';
-import { aHookEvent } from '../packages/shared/src/fixtures.js';
+import { aHookEvent } from '../packages/server/src/adapters/claude/hooks.fixture.js';
 import { keywordOutcome } from './fake-keywords.js';
 
 describe('keywordOutcome', () => {

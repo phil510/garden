@@ -66,7 +66,7 @@ merges them; nothing else computes a session fact.
 | tmux name                            | the id-to-name map in `state.json`, written by `dispatch` when a session is (un)registered                         |
 | liveness, exit code                  | tmux pane facts (`pane_dead`, `pane_dead_status`), overridden to dead by `ended`                                   |
 | `ended`                              | hooks: `SessionEnd` sets it, `SessionStart` clears it; `session-registered` also clears it                         |
-| status, reason                       | harness-neutral signals or launch registration (pure harness parsers hold the native event-to-status mappings)     |
+| status, reason                       | harness-neutral signals or launch registration (harness adapters hold the native event-to-status mappings)         |
 | branch                               | a live git lookup by cwd (`app/branches.ts`), re-asked each tick for live sessions                                 |
 | repo root                            | `git rev-parse --git-common-dir` on the cwd (`app/repoRoots.ts`), so worktrees fold into their main repo           |
 | Session display name                 | selected harness; Claude reads `~/.claude/sessions`, Codex supplies no name                                        |
@@ -344,7 +344,7 @@ Hook signals supply live paths through `app/hooks.ts` and `LiveTranscripts.track
 watcher delegates path acceptance and record reading to the harness layout. For Claude, that
 means `<transcriptsDir>/<in-scope slug>/<name>.jsonl`, excluding nested `subagents/` files whose
 parent ids would corrupt the parent's record. For Codex, acceptance requires an existing
-binding. `adapters/claude.ts` and `adapters/codex.ts` own these policies.
+binding. `adapters/claude/` and `adapters/codex/` own these policies.
 
 Garden does not derive a transcript path at spawn: hooks and the selected layout supply it.
 A live path unchanged for 5 minutes leaves the live set; hooks re-track it, and a scan promotes

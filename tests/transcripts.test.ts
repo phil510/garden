@@ -10,7 +10,7 @@ import { stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { slugify } from '../packages/server/src/domain/slug.js';
+import { slugify } from '../packages/server/src/adapters/claude/slug.js';
 import type { GardenEvent } from '../packages/server/src/domain/types.js';
 import {
   createTranscripts as createPoller,
@@ -25,7 +25,7 @@ import {
   createClaudeLayout,
   listTranscriptFiles,
   readTranscriptRecord,
-} from '../packages/server/src/adapters/claude.js';
+} from '../packages/server/src/adapters/claude/index.js';
 
 function createTranscripts(
   dir: string,

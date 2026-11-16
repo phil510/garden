@@ -1,11 +1,11 @@
 import { open, readdir, readFile, stat } from 'node:fs/promises';
 import { join, relative, sep } from 'node:path';
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { parseClaudeHook } from '../domain/claudeHooks.js';
-import { claudeCommand, type ClaudeLaunchOptions } from '../domain/claudeCommands.js';
-import { parseTranscript } from '../domain/claudeTranscript.js';
-import { inScopeDirs } from '../domain/slug.js';
-import type { TranscriptParse } from '../domain/transcript.js';
+import { parseClaudeHook } from './hooks.js';
+import { claudeCommand, type ClaudeLaunchOptions } from './commands.js';
+import { parseTranscript } from './transcript.js';
+import { inScopeDirs } from './slug.js';
+import type { TranscriptParse } from '../../domain/transcript.js';
 
 interface RegistryEntry {
   sessionId: string;

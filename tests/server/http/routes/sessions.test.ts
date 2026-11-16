@@ -1,4 +1,4 @@
-import { fakeClaudeHarness } from '../../app/harness.fixture.js';
+import { fakeClaudeHarness } from '../../../support/claudeHarness.js';
 import { DEFAULT_UI_STATE } from '@garden/shared';
 import { aSession } from '@garden/shared/fixtures';
 import type { SessionsFilter, SessionState } from '@garden/shared';
@@ -9,11 +9,11 @@ import type {
   OverlayState,
   TmuxNewSessionRequest,
   TmuxPort,
-} from '../../app/ports.js';
-import type { Projection } from '../../app/projection.js';
-import type { SessionsDeps } from '../../app/sessions.js';
-import { createApp } from '../server.js';
-import { sessionRoutes } from './sessions.js';
+} from '../../../../packages/server/src/app/ports.js';
+import type { Projection } from '../../../../packages/server/src/app/projection.js';
+import type { SessionsDeps } from '../../../../packages/server/src/app/sessions.js';
+import { createApp } from '../../../../packages/server/src/http/server.js';
+import { sessionRoutes } from '../../../../packages/server/src/http/routes/sessions.js';
 
 function spyLogger(): { logger: Logger; warnings: string[]; errors: string[] } {
   const warnings: string[] = [];

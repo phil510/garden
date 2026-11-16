@@ -1,6 +1,6 @@
 // Pure keyword→hook-event mapping the fake's REPL drives sessions with, kept apart from stdin
 // and the process so the mapping can be pinned in a unit test without spawning anything.
-import type { HookPayload } from '../packages/shared/src/index.js';
+import type { HookPayload } from '../packages/server/src/adapters/claude/types.js';
 
 export type Keyword = '/approve' | '/wait' | '/end';
 

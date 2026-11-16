@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { claudeCommand } from './claudeCommands.js';
+import { claudeCommand } from './commands.js';
 
 describe('Claude launch argv', () => {
   it.each(['spawn', 'resume'] as const)(

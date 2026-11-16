@@ -22,7 +22,7 @@ import {
   type TranscriptLogger,
   type TranscriptTiming,
 } from '../../packages/server/src/adapters/transcripts.js';
-import { createClaudeLayout } from '../../packages/server/src/adapters/claude.js';
+import { createClaudeLayout } from '../../packages/server/src/adapters/claude/index.js';
 
 function createTranscripts(
   dir: string,
@@ -34,7 +34,7 @@ function createTranscripts(
 }
 import { createProjection, type Projection } from '../../packages/server/src/app/projection.js';
 import { createSession } from '../../packages/server/src/app/sessions.js';
-import { slugify } from '../../packages/server/src/domain/slug.js';
+import { slugify } from '../../packages/server/src/adapters/claude/slug.js';
 import type { GardenEvent } from '../../packages/server/src/domain/types.js';
 import { createServer as createGardenServer } from '../../packages/server/src/http/server.js';
 import { fakeStore } from './support/fakeStore.js';

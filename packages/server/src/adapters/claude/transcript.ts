@@ -1,4 +1,4 @@
-import type { TranscriptParse } from './transcript.js';
+import type { TranscriptParse } from '../../domain/transcript.js';
 
 type Line = Record<string, unknown>;
 

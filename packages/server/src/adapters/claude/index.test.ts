@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { readClaudeSessionNames } from './claude.js';
+import { readClaudeSessionNames } from './index.js';
 
 function withTempDir(fn: (dir: string) => Promise<void>): Promise<void> {
   const dir = mkdtempSync(join(tmpdir(), 'garden-claude-sessions-'));

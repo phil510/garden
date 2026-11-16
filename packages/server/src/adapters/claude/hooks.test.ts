@@ -1,10 +1,6 @@
-import { aHookEvent } from '@garden/shared/fixtures';
+import { aHookEvent } from './hooks.fixture.js';
 import { describe, expect, it } from 'vitest';
-<<<<<<<< HEAD:packages/server/src/adapters/claude/hooks.test.ts
 import { hookOutcome, parseClaudeHook } from './hooks.js';
-========
-import { hookOutcome } from './claudeHooks.js';
->>>>>>>> 3127dcc (Move Claude behind the harness and transcript layout ports):packages/server/src/domain/claudeHooks.test.ts
 
 describe('hookOutcome', () => {
   it('carries a Notification message through as the status reason', () => {

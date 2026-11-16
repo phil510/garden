@@ -1,8 +1,7 @@
-import { parseClaudeHook } from './adapters/claude/hooks.js';
 import { randomBytes } from 'node:crypto';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { createClaudeHarness } from './adapters/claude.js';
+import { createClaudeHarness } from './adapters/claude/index.js';
 import { watchFsRoot } from './adapters/fsWatch.js';
 import { ghGet, ghRemoveReviewRequest } from './adapters/gh.js';
 import {
@@ -355,7 +354,6 @@ export async function main(detached: boolean): Promise<void> {
     {
       projection,
       liveTranscripts: watcher,
-      harness: { parseHook: parseClaudeHook },
       pipes,
       tmux,
       git,

@@ -1,15 +1,10 @@
-import { claudeCommand } from '../domain/claudeCommands.js';
-import { parseClaudeHook } from '../domain/claudeHooks.js';
 import type { HarnessPort } from './ports.js';
 
-export function fakeClaudeHarness(
-  settingsPath = '/unused/settings.json',
-  readCommand: () => readonly string[] = () => ['claude'],
-): HarnessPort {
+export function fakeHarness(): HarnessPort {
   return {
-    spawnCommand: (request) => claudeCommand(readCommand(), 'spawn', settingsPath, request),
-    resumeCommand: (request) => claudeCommand(readCommand(), 'resume', settingsPath, request),
-    parseHook: parseClaudeHook,
+    spawnCommand: () => ['harness-spawn'],
+    resumeCommand: () => ['harness-resume'],
+    parseHook: () => null,
     transcripts: {
       listFiles: () => Promise.resolve([]),
       accepts: () => false,

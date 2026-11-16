@@ -1,7 +1,7 @@
 // Pinned against garden's real parser: the point is that the two agree, and every
 // disagreement between them shows up as a null fact rather than an error.
 import { describe, expect, it } from 'vitest';
-import { parseTranscript } from '../packages/server/src/domain/claudeTranscript.js';
+import { parseTranscript } from '../packages/server/src/adapters/claude/transcript.js';
 import { keywordTranscriptLine, openingTranscript } from './fake-transcript.js';
 
 describe('the fake claude transcript', () => {
