@@ -11,7 +11,9 @@ const queueDir = join(home, 'queue');
 mkdirSync(queueDir, { recursive: true });
 if (args[0] === 'queue') {
   const id = args[args.indexOf('--thread') + 1];
-  const message = args[args.indexOf('--message') + 1];
+  const message =
+    args.find((arg) => arg.startsWith('--message='))?.slice('--message='.length) ??
+    args[args.indexOf('--message') + 1];
   if (id === undefined || message === undefined)
     throw new Error('queue requires thread and message');
   appendFileSync(join(queueDir, `${id}.jsonl`), `${JSON.stringify(message)}\n`);

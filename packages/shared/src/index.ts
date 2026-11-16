@@ -173,6 +173,10 @@ export interface PlacementRequest {
   placement: Placement;
 }
 
+export interface SendSessionMessageRequest {
+  message: string;
+}
+
 export interface SessionsResponse {
   sessions: SessionState[];
 }

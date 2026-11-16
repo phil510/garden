@@ -6,10 +6,16 @@ import type {
   ResumeSessionRequest,
   SessionsFilter,
   SessionsResponse,
+  SendSessionMessageRequest,
 } from '@garden/shared';
 import { isEffortLevel, isModelName, isStatus, parseNonNegativeInt } from '@garden/shared';
 import type { FastifyInstance } from 'fastify';
-import { createSession, killSession, resumeSession } from '../../app/sessions.js';
+import {
+  createSession,
+  killSession,
+  resumeSession,
+  sendSessionMessage,
+} from '../../app/sessions.js';
 import type { SessionsDeps } from '../../app/sessions.js';
 
 function isCreateSessionRequest(body: unknown): body is CreateSessionRequest {
@@ -32,6 +38,17 @@ function isResumeSessionRequest(body: unknown): body is ResumeSessionRequest | u
   if (body === undefined || body === null) return true;
   if (typeof body !== 'object' || Array.isArray(body)) return false;
   return hasValidSpawnOptions(body as Record<string, unknown>);
+}
+
+function isSessionMessageRequest(body: unknown): body is SendSessionMessageRequest {
+  if (typeof body !== 'object' || body === null) return false;
+  const message = (body as Record<string, unknown>)['message'];
+  if (typeof message !== 'string' || message.trim() === '') return false;
+  for (let index = 0; index < message.length; index += 1) {
+    const code = message.charCodeAt(index);
+    if ((code < 32 && code !== 9 && code !== 10) || code === 127) return false;
+  }
+  return true;
 }
 
 interface SessionsQuerystring {
@@ -139,6 +156,16 @@ export function sessionRoutes(app: FastifyInstance, deps: SessionsDeps) {
       id: request.params.id,
     });
     return reply.send(result);
+  });
+
+  app.post<{ Params: { id: string } }>('/sessions/:id/messages', async (request, reply) => {
+    const body: unknown = request.body;
+    if (!isSessionMessageRequest(body))
+      return reply.code(400).send({
+        error: 'message must be nonempty text without terminal control characters',
+      } satisfies ErrorResponse);
+    await sendSessionMessage(deps, request.params.id, body.message);
+    return reply.send({ ok: true } satisfies OkResponse);
   });
 
   app.post<{ Params: { id: string } }>('/sessions/:id/kill', async (request, reply) => {

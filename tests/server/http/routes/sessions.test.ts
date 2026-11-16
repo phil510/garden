@@ -772,3 +772,68 @@ describe('POST /sessions/:id/kill', () => {
     expect(errors[0]).toMatch(/^Error: tmux is not installed\n/);
   });
 });
+
+describe('POST session messages', () => {
+  it('validates text and delivers using only the addressed garden id', async () => {
+    const delivered: unknown[] = [];
+    const app = buildApp({
+      tmux: fakeTmux(),
+      projection: fakeProjection([aSession({ id: 'garden' })]),
+      serverPort: 4311,
+      harness: {
+        spawnCommand: () => [],
+        resumeCommand: () => [],
+        sendMessage: (id, message) => {
+          delivered.push([id, message]);
+          return Promise.resolve();
+        },
+      },
+    });
+    for (const message of [null, 23, '', '   ', 'unsafe\x1b[31m', 'unsafe\u0000']) {
+      expect(
+        (
+          await app.inject({
+            method: 'POST',
+            url: '/sessions/garden/messages',
+            payload: { message },
+          })
+        ).statusCode,
+      ).toBe(400);
+    }
+    const message = 'literal $(touch no) `echo no`\nsecond line';
+    const response = await app.inject({
+      method: 'POST',
+      url: '/sessions/garden/messages',
+      payload: { message, codexId: 'untrusted', id: 'other' },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ ok: true });
+    expect(delivered).toEqual([['garden', message]]);
+    await app.close();
+  });
+  it('returns a clear unsupported response on Claude and a missing-session response for unknown ids', async () => {
+    const app = buildApp({
+      tmux: fakeTmux(),
+      projection: fakeProjection([aSession({ id: 'garden' })]),
+      serverPort: 4310,
+      harness: fakeClaudeHarness('/settings', () => ['claude']),
+    });
+    const response = await app.inject({
+      method: 'POST',
+      url: '/sessions/garden/messages',
+      payload: { message: 'hello' },
+    });
+    expect(response.statusCode).toBe(409);
+    expect(response.json<{ error: string }>().error).toContain('supported only by the Codex');
+    expect(
+      (
+        await app.inject({
+          method: 'POST',
+          url: '/sessions/missing/messages',
+          payload: { message: 'hello' },
+        })
+      ).statusCode,
+    ).toBe(404);
+    await app.close();
+  });
+});

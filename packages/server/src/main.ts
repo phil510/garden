@@ -26,6 +26,7 @@ import {
   listPanes,
   newSession,
   respawnPane,
+  submitMessage,
 } from './adapters/tmux.js';
 import type { TmuxTarget } from './adapters/tmux.js';
 import { createAttachRegistry, type AttachRegistry } from './app/attach.js';
@@ -85,6 +86,7 @@ function tmuxPort(target: TmuxTarget): TmuxPort {
     newSession: (request) => newSession(target, request),
     respawnPane: (request) => respawnPane(target, request),
     killSession: (name) => killSession(target, name),
+    submitMessage: (name, message) => submitMessage(target, name, message),
   };
 }
 

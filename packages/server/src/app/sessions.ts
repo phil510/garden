@@ -3,7 +3,7 @@ import type { EffortLevel, SessionState } from '@garden/shared';
 import type { PermissionMode } from '../config.js';
 import { withoutAlert } from '../domain/alerts.js';
 import { deriveTmuxName } from '../domain/tmuxName.js';
-import { SessionNotFoundError } from './errors.js';
+import { SessionNotFoundError, SessionMessagingError } from './errors.js';
 import type { HarnessPort, TmuxPaneFact, TmuxPort } from './ports.js';
 import type { Projection } from './projection.js';
 import { recordSpawn, setArchived } from './swarms.js';
@@ -47,7 +47,7 @@ export interface SessionsDeps {
   readonly serverPort: number;
   readonly harness: Pick<
     HarnessPort,
-    'spawnCommand' | 'resumeCommand' | 'initialStatus' | 'beforeLaunch'
+    'spawnCommand' | 'resumeCommand' | 'initialStatus' | 'beforeLaunch' | 'sendMessage'
   >;
   readonly permissionMode?: PermissionMode;
 }
@@ -222,4 +222,28 @@ export async function killSession(deps: SessionsDeps, request: KillSessionReques
     projection.updateOverlay((base) => withoutAlert(base, request.id));
     projection.dispatch({ type: 'alert-changed', sessionId: request.id, alert: null });
   }
+}
+
+export async function sendSessionMessage(
+  deps: SessionsDeps,
+  id: string,
+  message: string,
+): Promise<void> {
+  findSession(deps.projection, id);
+  if (deps.harness.sendMessage === undefined)
+    throw new SessionMessagingError('garden send is supported only by the Codex harness');
+  await deps.harness.sendMessage(id, message, async () => {
+    const current = findSession(deps.projection, id);
+    const panes = await deps.tmux.listPanes();
+    if (
+      current.tmuxName === null ||
+      !panes.some((pane) => pane.session === current.tmuxName && !pane.dead)
+    )
+      throw new SessionMessagingError(
+        'Resume this pending session before sending its first message',
+      );
+    if (deps.tmux.submitMessage === undefined)
+      throw new SessionMessagingError('Pending session delivery is unavailable');
+    await deps.tmux.submitMessage(current.tmuxName, message);
+  });
 }

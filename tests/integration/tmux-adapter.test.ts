@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -9,6 +9,7 @@ import {
   newSession,
   respawnPane,
   socketHasLivePanes,
+  submitMessage,
 } from '../../packages/server/src/adapters/tmux.js';
 import { instanceEnvironment, loadConfig } from '../../packages/server/src/config.js';
 import { until } from './support/poll.js';
@@ -244,4 +245,41 @@ describe('the tmux adapter', () => {
       });
     });
   });
+});
+
+it('submits literal multiline bytes as one bracketed paste followed by Enter', async () => {
+  const cwd = mkdtempSync(join(tmpdir(), 'garden-tmux-submit-'));
+  try {
+    await withTmuxServer(async (target) => {
+      const ready = join(cwd, 'ready');
+      const received = join(cwd, 'received');
+      const program = `const fs=require('node:fs');process.stdin.setRawMode(true);process.stdin.resume();let text='';process.stdin.on('data',chunk=>{text+=chunk.toString('utf8');if(text.endsWith(String.fromCharCode(13))){fs.writeFileSync(process.argv[3],text);process.exit(0);}});process.stdout.write(String.fromCharCode(27)+'[?2004h');fs.writeFileSync(process.argv[2],'ready');`;
+      const script = join(cwd, 'input.cjs');
+      writeFileSync(script, program);
+      await newSession(target, {
+        name: 'literal',
+        cwd,
+        port: 4311,
+        sessionId: 'garden',
+        command: [process.execPath, script, ready, received],
+      });
+      await until(
+        'raw terminal input readiness',
+        () => Promise.resolve(existsSync(ready)),
+        Boolean,
+      );
+      const message =
+        "--leading literal $(touch injected) `touch injected` ' quoted\nsecond line\t雪";
+      await submitMessage(target, 'literal', message);
+      const bytes = await until(
+        'submitted input bytes',
+        () => Promise.resolve(existsSync(received) ? readFileSync(received, 'utf8') : ''),
+        (text) => text !== '',
+      );
+      expect(bytes).toBe(`\x1b[200~${message}\x1b[201~\r`);
+      expect(existsSync(join(cwd, 'injected'))).toBe(false);
+    });
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
 });
