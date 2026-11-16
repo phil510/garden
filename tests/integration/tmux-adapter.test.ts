@@ -283,3 +283,42 @@ it('submits literal multiline bytes as one bracketed paste followed by Enter', a
     rmSync(cwd, { recursive: true, force: true });
   }
 });
+
+it('keeps each paste and Enter together when two messages arrive concurrently', async () => {
+  const cwd = mkdtempSync(join(tmpdir(), 'garden-tmux-concurrent-submit-'));
+  try {
+    await withTmuxServer(async (target) => {
+      const ready = join(cwd, 'ready');
+      const received = join(cwd, 'received');
+      const program = `const fs=require('node:fs');process.stdin.setRawMode(true);process.stdin.resume();let text='';process.stdin.on('data',chunk=>{text+=chunk.toString('utf8');if(text.split(String.fromCharCode(13)).length===3){fs.writeFileSync(process.argv[3],text);process.exit(0);}});process.stdout.write(String.fromCharCode(27)+'[?2004h');fs.writeFileSync(process.argv[2],'ready');`;
+      const script = join(cwd, 'input.cjs');
+      writeFileSync(script, program);
+      await newSession(target, {
+        name: 'concurrent',
+        cwd,
+        port: 4311,
+        sessionId: 'garden',
+        command: [process.execPath, script, ready, received],
+      });
+      await until(
+        'raw terminal input readiness',
+        () => Promise.resolve(existsSync(ready)),
+        Boolean,
+      );
+      await Promise.all([
+        submitMessage(target, 'concurrent', 'first'),
+        submitMessage(target, 'concurrent', 'second'),
+      ]);
+      const bytes = await until(
+        'both submitted messages',
+        () => Promise.resolve(existsSync(received) ? readFileSync(received, 'utf8') : ''),
+        (text) => text !== '',
+      );
+      const first = '\x1b[200~first\x1b[201~\r';
+      const second = '\x1b[200~second\x1b[201~\r';
+      expect([first + second, second + first]).toContain(bytes);
+    });
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});

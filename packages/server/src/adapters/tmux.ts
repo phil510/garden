@@ -238,7 +238,8 @@ export async function checkTmuxVersion(): Promise<void> {
   assertTmuxVersion(stdout);
 }
 
-/** The paste buffer keeps message bytes out of shell parsing and preserves multiline input. */
+/** The buffer preserves literal multiline input; one command list keeps its paste and Enter
+ *  together across concurrent senders. */
 export async function submitMessage(
   target: TmuxTarget,
   name: string,
@@ -255,8 +256,21 @@ export async function submitMessage(
       child.stdin!.on('error', () => {});
       child.stdin!.end(message);
     });
-    await run(target, ['paste-buffer', '-p', '-r', '-d', '-b', buffer, '-t', name]);
-    await run(target, ['send-keys', '-t', name, 'Enter']);
+    await run(target, [
+      'paste-buffer',
+      '-p',
+      '-r',
+      '-d',
+      '-b',
+      buffer,
+      '-t',
+      name,
+      ';',
+      'send-keys',
+      '-t',
+      name,
+      'Enter',
+    ]);
   } catch (error) {
     await run(target, ['delete-buffer', '-b', buffer]).catch(() => {});
     throw error;
