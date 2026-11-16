@@ -62,7 +62,7 @@ function aSession(overrides: Partial<SessionState> = {}): SessionState {
     exitCode: null,
     tmuxName: 'repo',
     lastActivity: 0,
-    claudeSessionName: null,
+    sessionName: null,
     watches: [],
     alert: null,
     pipeConnected: false,

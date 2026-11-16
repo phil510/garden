@@ -1,3 +1,4 @@
+import { fakeClaudeHarness } from '../../app/harness.fixture.js';
 import { DEFAULT_UI_STATE } from '@garden/shared';
 import { aSession } from '@garden/shared/fixtures';
 import type { ReviewItem } from '@garden/shared';
@@ -57,9 +58,8 @@ function buildApp(items: ReviewItem[], sessionIds: string[] = []) {
     },
     projection,
     serverPort: 4310,
-    settingsPath: '/home/.garden/claude-settings.json',
-    readClaudeCommand: () => ['claude'],
     reviews,
+    harness: fakeClaudeHarness('/home/.garden/claude-settings.json', () => ['claude']),
   });
   const app = createApp();
   const reviewDismisser: ReviewDismisser = {

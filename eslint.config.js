@@ -159,7 +159,7 @@ export default tseslint.config(
                 '!./store.js',
                 '!./transcripts.js',
                 '!./tmux.js',
-                '!./claudeSessions.js',
+                '!./claude.js',
                 '!./fsWatch.js',
                 '!./gh.js',
                 '!./git.js',

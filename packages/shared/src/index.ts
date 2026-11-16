@@ -69,7 +69,7 @@ export interface SessionState {
   lastActivity: number;
   /** The Claude-side addressable name (e.g. `garden-7a`) read from the Claude session
    *  registry. Null when the registry carries no entry for this session's id. */
-  claudeSessionName: string | null;
+  sessionName: string | null;
   /** The session's PR watches, derived from the overlay by `reduce` so a change reaches clients
    *  as an ordinary session delta. Empty when the session has none. */
   watches: WatchSummary[];

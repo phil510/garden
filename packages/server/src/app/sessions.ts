@@ -4,7 +4,7 @@ import type { PermissionMode } from '../config.js';
 import { withoutAlert } from '../domain/alerts.js';
 import { deriveTmuxName } from '../domain/tmuxName.js';
 import { SessionNotFoundError } from './errors.js';
-import type { TmuxPaneFact, TmuxPort } from './ports.js';
+import type { HarnessPort, TmuxPaneFact, TmuxPort } from './ports.js';
 import type { Projection } from './projection.js';
 import { recordSpawn, setArchived } from './swarms.js';
 
@@ -41,36 +41,12 @@ export interface KillSessionRequest {
   readonly id: string;
 }
 
-/** The pieces `main.ts` binds once: the tmux target, the local server's own port, and
- *  the settings file every spawned Claude Code process is told to load.
- *
- *  `readClaudeCommand` is a function, not a value, because it must reflect a `claudeCommand`
- *  saved to `config.json` after boot without restarting garden — `main.ts` binds it to a
- *  fresh `configPort.read()` on every call, unlike `permissionMode`, which stays a boot-time
- *  snapshot. */
 export interface SessionsDeps {
   readonly tmux: TmuxPort;
   readonly projection: Projection;
   readonly serverPort: number;
-  readonly settingsPath: string;
-  readonly readClaudeCommand: () => readonly string[];
+  readonly harness: Pick<HarnessPort, 'spawnCommand' | 'resumeCommand' | 'initialStatus'>;
   readonly permissionMode?: PermissionMode;
-}
-
-/** No flag by default; `'bypassPermissions'` is the only mode that adds one. */
-function permissionFlags(mode: PermissionMode | undefined): readonly string[] {
-  return mode === 'bypassPermissions' ? ['--permission-mode', 'bypassPermissions'] : [];
-}
-
-/** `--model` / `--effort` for the spawned `claude`, each only when given. */
-function spawnFlags(request: {
-  readonly model?: string;
-  readonly effort?: EffortLevel;
-}): readonly string[] {
-  return [
-    ...(request.model === undefined ? [] : ['--model', request.model]),
-    ...(request.effort === undefined ? [] : ['--effort', request.effort]),
-  ];
 }
 
 export function findSession(projection: Projection, id: string): SessionState {
@@ -101,7 +77,7 @@ function takenTmuxNames(
 
 /**
  * Mints a session id, derives a tmux name unique against every session the
- * projection already knows about, and starts tmux running Claude Code before the
+ * projection already knows about, and starts tmux running the harness before the
  * session is registered — a tmux failure must never produce a session with no
  * process behind it.
  */
@@ -109,31 +85,32 @@ export async function createSession(
   deps: SessionsDeps,
   request: CreateSessionRequest,
 ): Promise<CreateSessionResult> {
-  const { tmux, projection, serverPort, settingsPath, readClaudeCommand, permissionMode } = deps;
+  const { tmux, projection, serverPort, harness, permissionMode } = deps;
 
   const panes = await tmux.listPanes();
   const takenNames = takenTmuxNames(projection, panes);
   const id = randomUUID();
   const tmuxName = deriveTmuxName(request.cwd, takenNames);
-  const claudeCommand = readClaudeCommand();
 
   await tmux.newSession({
     name: tmuxName,
     cwd: request.cwd,
     port: serverPort,
     sessionId: id,
-    command: [
-      ...claudeCommand,
-      '--session-id',
+    command: harness.spawnCommand({
       id,
-      ...permissionFlags(permissionMode),
-      ...spawnFlags(request),
-      '--settings',
-      settingsPath,
-    ],
+      ...request,
+      ...(permissionMode === undefined ? {} : { permissionMode }),
+    }),
   });
 
-  projection.dispatch({ type: 'session-registered', id, tmuxName, cwd: request.cwd });
+  projection.dispatch({
+    type: 'session-registered',
+    id,
+    tmuxName,
+    cwd: request.cwd,
+    ...(harness.initialStatus === undefined ? {} : { reported: harness.initialStatus }),
+  });
 
   if (request.callerSessionId === undefined) return { id, tmuxName };
 
@@ -170,18 +147,13 @@ export async function resumeSession(
   deps: SessionsDeps,
   request: ResumeSessionRequest,
 ): Promise<ResumeSessionResult> {
-  const { tmux, projection, serverPort, settingsPath, readClaudeCommand, permissionMode } = deps;
+  const { tmux, projection, serverPort, harness, permissionMode } = deps;
   const session = findSession(projection, request.id);
-  const claudeCommand = readClaudeCommand();
-  const command = [
-    ...claudeCommand,
-    '--resume',
-    request.id,
-    ...permissionFlags(permissionMode),
-    ...spawnFlags(request),
-    '--settings',
-    settingsPath,
-  ];
+  const command = harness.resumeCommand({
+    ...request,
+    cwd: session.cwd,
+    ...(permissionMode === undefined ? {} : { permissionMode }),
+  });
   const panes = await tmux.listPanes();
   const priorName = session.tmuxName;
 
@@ -193,6 +165,7 @@ export async function resumeSession(
       id: request.id,
       tmuxName: priorName,
       cwd: session.cwd,
+      ...(harness.initialStatus === undefined ? {} : { reported: harness.initialStatus }),
     });
     result = { id: request.id, tmuxName: priorName };
   } else {
@@ -205,7 +178,13 @@ export async function resumeSession(
       sessionId: session.id,
       command,
     });
-    projection.dispatch({ type: 'session-registered', id: request.id, tmuxName, cwd: session.cwd });
+    projection.dispatch({
+      type: 'session-registered',
+      id: request.id,
+      tmuxName,
+      cwd: session.cwd,
+      ...(harness.initialStatus === undefined ? {} : { reported: harness.initialStatus }),
+    });
     result = { id: request.id, tmuxName };
   }
 

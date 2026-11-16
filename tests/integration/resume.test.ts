@@ -1,3 +1,4 @@
+import { fakeClaudeHarness } from './support/claudeHarness.js';
 import { randomUUID } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -47,8 +48,7 @@ describe('resuming a session against real tmux', () => {
           tmux: tmuxPort(target),
           projection,
           serverPort: 4310,
-          settingsPath: '/nonexistent/claude-settings.json',
-          readClaudeCommand: () => ['claude'],
+          harness: fakeClaudeHarness('/nonexistent/claude-settings.json', () => ['claude']),
         },
         { id },
       );
@@ -83,8 +83,7 @@ describe('resuming a session against real tmux', () => {
           tmux: tmuxPort(target),
           projection,
           serverPort: 4310,
-          settingsPath: '/nonexistent/claude-settings.json',
-          readClaudeCommand: () => ['claude'],
+          harness: fakeClaudeHarness('/nonexistent/claude-settings.json', () => ['claude']),
         },
         { id },
       );
@@ -139,8 +138,7 @@ describe('resuming a session against real tmux', () => {
           tmux: tmuxPort(target),
           projection,
           serverPort: 4310,
-          settingsPath: '/nonexistent/claude-settings.json',
-          readClaudeCommand: () => ['claude'],
+          harness: fakeClaudeHarness('/nonexistent/claude-settings.json', () => ['claude']),
         },
         { id },
       );

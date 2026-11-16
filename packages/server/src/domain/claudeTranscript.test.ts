@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseTranscript } from './transcript.js';
+import { parseTranscript } from './claudeTranscript.js';
 
 const line = (o: unknown) => JSON.stringify(o);
 const envelope = { cwd: '/Users/dev/repo', sessionId: 'sid-1' };

@@ -101,3 +101,26 @@ describe('transcript replay', () => {
     expect(dispatched.at(-1)).toEqual(liveEvent('later'));
   });
 });
+
+describe('invalidated transcript reads', () => {
+  it('omits an invalidated read from the boot batch', async () => {
+    const dispatched: GardenEvent[] = [];
+    const transcripts: TranscriptPort = {
+      listFiles: () => Promise.resolve(['/old']),
+      readRecord: () => Promise.resolve(null),
+      watch: () => ({ track: () => undefined, close: () => Promise.resolve() }),
+    };
+    await createTranscriptReplay(
+      {
+        projection: {
+          dispatch: (event) => {
+            dispatched.push(event);
+          },
+        },
+        transcripts,
+      },
+      silent,
+    ).run();
+    expect(dispatched).toEqual([{ type: 'transcripts-replayed', records: [] }]);
+  });
+});

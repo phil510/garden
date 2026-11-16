@@ -10,15 +10,40 @@ import { stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { slugify } from '../domain/slug.js';
-import type { GardenEvent } from '../domain/types.js';
+import { slugify } from '../packages/server/src/domain/slug.js';
+import type { GardenEvent } from '../packages/server/src/domain/types.js';
 import {
-  createTranscripts,
+  createTranscripts as createPoller,
+  reconcileTranscripts as reconcileLayout,
+} from '../packages/server/src/adapters/transcripts.js';
+import type {
+  TranscriptLogger,
+  TranscriptSignature,
+  TranscriptTiming,
+} from '../packages/server/src/adapters/transcripts.js';
+import {
+  createClaudeLayout,
   listTranscriptFiles,
   readTranscriptRecord,
-  reconcileTranscripts,
-} from './transcripts.js';
-import type { TranscriptLogger, TranscriptSignature } from './transcripts.js';
+} from '../packages/server/src/adapters/claude.js';
+
+function createTranscripts(
+  dir: string,
+  roots: readonly string[],
+  logger: TranscriptLogger,
+  timing: TranscriptTiming = {},
+) {
+  return createPoller(createClaudeLayout(dir, roots, logger), logger, timing);
+}
+function reconcileTranscripts(
+  dir: string,
+  roots: readonly string[],
+  signatures: Map<string, TranscriptSignature>,
+  onStale: (path: string) => Promise<void>,
+  logger: TranscriptLogger,
+) {
+  return reconcileLayout(createClaudeLayout(dir, roots, logger), signatures, onStale, logger);
+}
 
 function silentLogger(): TranscriptLogger {
   return { warn: () => {}, error: () => {} };
@@ -528,5 +553,79 @@ describe('reconcileTranscripts', () => {
 
       expect(errors).toEqual([expect.stringContaining(path)]);
     });
+  });
+});
+describe('a harness-supplied transcript layout', () => {
+  it('polls an accepted path with an arbitrary extension and uses the supplied record reader', async () => {
+    await withTempHome((home) =>
+      withFakeIntervals(async () => {
+        const path = join(home, 'bound.rollout');
+        writeFileSync(path, 'native bytes');
+        const record = {
+          sessionId: 'garden-bound',
+          cwd: '/repo',
+          title: 'Native title',
+          lastPrompt: null,
+          recap: null,
+          lastActivity: 42,
+        };
+        const events: TranscriptChangedEvent[] = [];
+        const layout = {
+          listFiles: () => Promise.resolve([path]),
+          accepts: (candidate: string) => candidate === path,
+          async readRecord(candidate: string) {
+            expect(candidate).toBe(path);
+            const { size, mtimeMs } = await stat(path);
+            return { record, skipped: 0, signature: { size, mtimeMs } };
+          },
+        };
+        const transcripts = createPoller(layout, silentLogger(), {
+          pollMs: POLL_MS,
+          reconcileMs: RECONCILE_MS,
+        });
+        const watcher = transcripts.watch((event) => events.push(event));
+        try {
+          watcher.track(path);
+          await vi.advanceTimersByTimeAsync(POLL_MS);
+          await vi.waitFor(() =>
+            expect(events).toEqual([{ type: 'transcript-changed', path, record }]),
+          );
+        } finally {
+          await watcher.close();
+        }
+      }),
+    );
+  });
+
+  it('does not emit a record invalidated by the harness while its read was in flight', async () => {
+    await withTempHome((home) =>
+      withFakeIntervals(async () => {
+        const path = join(home, 'bound.rollout');
+        writeFileSync(path, 'native bytes');
+        const events: TranscriptChangedEvent[] = [];
+        let reads = 0;
+        const transcripts = createPoller(
+          {
+            listFiles: () => Promise.resolve([path]),
+            accepts: () => true,
+            readRecord: () => {
+              reads += 1;
+              return Promise.resolve(null);
+            },
+          },
+          silentLogger(),
+          { pollMs: POLL_MS, reconcileMs: RECONCILE_MS },
+        );
+        const watcher = transcripts.watch((event) => events.push(event));
+        try {
+          watcher.track(path);
+          await vi.advanceTimersByTimeAsync(POLL_MS);
+          await vi.waitFor(() => expect(reads).toBe(1));
+          expect(events).toEqual([]);
+        } finally {
+          await watcher.close();
+        }
+      }),
+    );
   });
 });

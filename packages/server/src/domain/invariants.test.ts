@@ -238,8 +238,8 @@ const everyVariant: Record<GardenEvent['type'], GardenEvent> = {
   'watches-changed': watchesChanged,
   'alert-changed': alertChanged,
   'pipe-changed': pipeChanged,
-  'claude-session-names-loaded': {
-    type: 'claude-session-names-loaded',
+  'session-names-loaded': {
+    type: 'session-names-loaded',
     names: { 'sid-1': 'garden-7a' },
   },
 };

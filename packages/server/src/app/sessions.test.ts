@@ -1,3 +1,4 @@
+import { fakeClaudeHarness } from './harness.fixture.js';
 import { DEFAULT_UI_STATE } from '@garden/shared';
 import { aSession } from '@garden/shared/fixtures';
 import type { SessionState, UiState } from '@garden/shared';
@@ -91,8 +92,7 @@ describe('createSession', () => {
         tmux,
         projection,
         serverPort: 4310,
-        settingsPath: '/home/.garden/claude-settings.json',
-        readClaudeCommand: () => ['claude'],
+        harness: fakeClaudeHarness('/home/.garden/claude-settings.json', () => ['claude']),
       },
       { cwd: '/Users/dev/garden' },
     );
@@ -134,8 +134,10 @@ describe('createSession', () => {
         tmux,
         projection,
         serverPort: 4310,
-        settingsPath: '/home/.garden/claude-settings.json',
-        readClaudeCommand: () => ['tsx', 'scripts/fake-claude.ts'],
+        harness: fakeClaudeHarness('/home/.garden/claude-settings.json', () => [
+          'tsx',
+          'scripts/fake-claude.ts',
+        ]),
       },
       { cwd: '/Users/dev/garden' },
     );
@@ -169,8 +171,7 @@ describe('createSession', () => {
       tmux,
       projection,
       serverPort: 4310,
-      settingsPath: '/home/.garden/claude-settings.json',
-      readClaudeCommand,
+      harness: fakeClaudeHarness('/home/.garden/claude-settings.json', readClaudeCommand),
     };
 
     await createSession(deps, { cwd: '/Users/dev/garden' });
@@ -196,9 +197,8 @@ describe('createSession', () => {
         tmux,
         projection,
         serverPort: 4310,
-        settingsPath: '/home/.garden/claude-settings.json',
-        readClaudeCommand: () => ['claude'],
         permissionMode: 'bypassPermissions',
+        harness: fakeClaudeHarness('/home/.garden/claude-settings.json', () => ['claude']),
       },
       { cwd: '/Users/dev/garden' },
     );
@@ -227,8 +227,7 @@ describe('createSession', () => {
       tmux,
       projection,
       serverPort: 4310,
-      settingsPath: '/home/.garden/claude-settings.json',
-      readClaudeCommand: () => ['claude'],
+      harness: fakeClaudeHarness('/home/.garden/claude-settings.json', () => ['claude']),
     };
 
     const both = await createSession(deps, {
@@ -265,8 +264,7 @@ describe('createSession', () => {
         tmux,
         projection,
         serverPort: 4310,
-        settingsPath: '/home/.garden/claude-settings.json',
-        readClaudeCommand: () => ['claude'],
+        harness: fakeClaudeHarness('/home/.garden/claude-settings.json', () => ['claude']),
       },
       { cwd: '/Users/dev/garden' },
     );
@@ -286,8 +284,7 @@ describe('createSession', () => {
         tmux,
         projection,
         serverPort: 4310,
-        settingsPath: '/home/.garden/claude-settings.json',
-        readClaudeCommand: () => ['claude'],
+        harness: fakeClaudeHarness('/home/.garden/claude-settings.json', () => ['claude']),
       },
       { cwd: '/Users/dev/garden' },
     );
@@ -309,8 +306,7 @@ describe('createSession', () => {
         tmux,
         projection,
         serverPort: 4310,
-        settingsPath: '/home/.garden/claude-settings.json',
-        readClaudeCommand: () => ['claude'],
+        harness: fakeClaudeHarness('/home/.garden/claude-settings.json', () => ['claude']),
       },
       { cwd: '/Users/dev/garden' },
     );
@@ -328,8 +324,7 @@ describe('createSession', () => {
           tmux,
           projection,
           serverPort: 4310,
-          settingsPath: '/home/.garden/claude-settings.json',
-          readClaudeCommand: () => ['claude'],
+          harness: fakeClaudeHarness('/home/.garden/claude-settings.json', () => ['claude']),
         },
         { cwd: '/Users/dev/garden' },
       ),
@@ -346,8 +341,7 @@ describe('createSession', () => {
         tmux,
         projection,
         serverPort: 4310,
-        settingsPath: '/home/.garden/claude-settings.json',
-        readClaudeCommand: () => ['claude'],
+        harness: fakeClaudeHarness('/home/.garden/claude-settings.json', () => ['claude']),
       },
       { cwd: '/Users/dev/garden', callerSessionId: 'caller' },
     );
@@ -366,8 +360,7 @@ describe('createSession', () => {
         tmux,
         projection,
         serverPort: 4310,
-        settingsPath: '/home/.garden/claude-settings.json',
-        readClaudeCommand: () => ['claude'],
+        harness: fakeClaudeHarness('/home/.garden/claude-settings.json', () => ['claude']),
       },
       { cwd: '/Users/dev/garden', callerSessionId: 'ghost' },
     );
@@ -400,8 +393,7 @@ describe('resumeSession', () => {
         tmux,
         projection,
         serverPort: 4310,
-        settingsPath,
-        readClaudeCommand: () => ['claude'],
+        harness: fakeClaudeHarness(settingsPath, () => ['claude']),
       },
       { id: 'sid-1' },
     );
@@ -431,9 +423,8 @@ describe('resumeSession', () => {
         tmux,
         projection,
         serverPort: 4310,
-        settingsPath,
-        readClaudeCommand: () => ['claude'],
         permissionMode: 'bypassPermissions',
+        harness: fakeClaudeHarness(settingsPath, () => ['claude']),
       },
       { id: 'sid-1' },
     );
@@ -470,8 +461,7 @@ describe('resumeSession', () => {
         tmux,
         projection,
         serverPort: 4310,
-        settingsPath,
-        readClaudeCommand: () => ['claude'],
+        harness: fakeClaudeHarness(settingsPath, () => ['claude']),
       },
       { id: 'sid-1', model: 'opus', effort: 'xhigh' },
     );
@@ -510,8 +500,7 @@ describe('resumeSession', () => {
         tmux,
         projection,
         serverPort: 4310,
-        settingsPath,
-        readClaudeCommand: () => ['tsx', 'scripts/fake-claude.ts'],
+        harness: fakeClaudeHarness(settingsPath, () => ['tsx', 'scripts/fake-claude.ts']),
       },
       { id: 'sid-1' },
     );
@@ -540,9 +529,8 @@ describe('resumeSession', () => {
         tmux,
         projection,
         serverPort: 4310,
-        settingsPath,
-        readClaudeCommand: () => ['claude'],
         permissionMode: 'bypassPermissions',
+        harness: fakeClaudeHarness(settingsPath, () => ['claude']),
       },
       { id: 'sid-1' },
     );
@@ -582,8 +570,7 @@ describe('resumeSession', () => {
         tmux,
         projection,
         serverPort: 4310,
-        settingsPath,
-        readClaudeCommand: () => ['claude'],
+        harness: fakeClaudeHarness(settingsPath, () => ['claude']),
       },
       { id: 'sid-1' },
     );
@@ -626,8 +613,7 @@ describe('resumeSession', () => {
         tmux,
         projection,
         serverPort: 4310,
-        settingsPath,
-        readClaudeCommand: () => ['claude'],
+        harness: fakeClaudeHarness(settingsPath, () => ['claude']),
       },
       { id: 'sid-1' },
     );
@@ -657,8 +643,7 @@ describe('resumeSession', () => {
           tmux,
           projection,
           serverPort: 4310,
-          settingsPath,
-          readClaudeCommand: () => ['claude'],
+          harness: fakeClaudeHarness(settingsPath, () => ['claude']),
         },
         { id: 'sid-1' },
       ),
@@ -679,8 +664,7 @@ describe('resumeSession', () => {
           tmux,
           projection,
           serverPort: 4310,
-          settingsPath,
-          readClaudeCommand: () => ['claude'],
+          harness: fakeClaudeHarness(settingsPath, () => ['claude']),
         },
         { id: 'sid-1' },
       ),
@@ -711,8 +695,7 @@ describe('resumeSession', () => {
         tmux,
         projection,
         serverPort: 4310,
-        settingsPath,
-        readClaudeCommand: () => ['claude'],
+        harness: fakeClaudeHarness(settingsPath, () => ['claude']),
       },
       { id: 'sid-1' },
     );
@@ -734,8 +717,7 @@ describe('resumeSession', () => {
         tmux,
         projection: soloProjection,
         serverPort: 4310,
-        settingsPath,
-        readClaudeCommand: () => ['claude'],
+        harness: fakeClaudeHarness(settingsPath, () => ['claude']),
       },
       { id: 'sid-1' },
     );
@@ -761,8 +743,7 @@ describe('resumeSession', () => {
         tmux,
         projection: memberProjection,
         serverPort: 4310,
-        settingsPath,
-        readClaudeCommand: () => ['claude'],
+        harness: fakeClaudeHarness(settingsPath, () => ['claude']),
       },
       { id: 'sid-1' },
     );
@@ -781,8 +762,7 @@ describe('resumeSession', () => {
           tmux,
           projection,
           serverPort: 4310,
-          settingsPath,
-          readClaudeCommand: () => ['claude'],
+          harness: fakeClaudeHarness(settingsPath, () => ['claude']),
         },
         { id: 'nope' },
       ),
@@ -804,13 +784,7 @@ describe('killSession', () => {
     ]);
 
     await killSession(
-      {
-        tmux,
-        projection,
-        serverPort: 4310,
-        settingsPath: '/x',
-        readClaudeCommand: () => ['claude'],
-      },
+      { tmux, projection, serverPort: 4310, harness: fakeClaudeHarness('/x', () => ['claude']) },
       { id: 'sid-1' },
     );
 
@@ -833,8 +807,7 @@ describe('killSession', () => {
         tmux: fakeTmux({ killSession: () => Promise.resolve() }),
         projection,
         serverPort: 4310,
-        settingsPath: '/x',
-        readClaudeCommand: () => ['claude'],
+        harness: fakeClaudeHarness('/x', () => ['claude']),
       },
       { id: 'sid-1' },
     );
@@ -859,8 +832,7 @@ describe('killSession', () => {
         tmux: fakeTmux({ killSession: () => Promise.resolve() }),
         projection,
         serverPort: 4310,
-        settingsPath: '/x',
-        readClaudeCommand: () => ['claude'],
+        harness: fakeClaudeHarness('/x', () => ['claude']),
       },
       { id: 'sid-1' },
     );
@@ -886,8 +858,7 @@ describe('killSession', () => {
           tmux: fakeTmux({ killSession: () => Promise.reject(new Error('tmux down')) }),
           projection,
           serverPort: 4310,
-          settingsPath: '/x',
-          readClaudeCommand: () => ['claude'],
+          harness: fakeClaudeHarness('/x', () => ['claude']),
         },
         { id: 'sid-1' },
       ),
@@ -903,13 +874,7 @@ describe('killSession', () => {
 
     await expect(
       killSession(
-        {
-          tmux,
-          projection,
-          serverPort: 4310,
-          settingsPath: '/x',
-          readClaudeCommand: () => ['claude'],
-        },
+        { tmux, projection, serverPort: 4310, harness: fakeClaudeHarness('/x', () => ['claude']) },
         { id: 'sid-1' },
       ),
     ).resolves.toBeUndefined();
@@ -921,13 +886,7 @@ describe('killSession', () => {
 
     await expect(
       killSession(
-        {
-          tmux,
-          projection,
-          serverPort: 4310,
-          settingsPath: '/x',
-          readClaudeCommand: () => ['claude'],
-        },
+        { tmux, projection, serverPort: 4310, harness: fakeClaudeHarness('/x', () => ['claude']) },
         { id: 'nope' },
       ),
     ).rejects.toThrow('no such session: nope');

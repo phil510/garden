@@ -1,3 +1,4 @@
+import { fakeClaudeHarness } from '../../app/harness.fixture.js';
 import { DEFAULT_UI_STATE } from '@garden/shared';
 import { aSession } from '@garden/shared/fixtures';
 import type { SessionsFilter, SessionState } from '@garden/shared';
@@ -90,8 +91,7 @@ describe('GET /sessions', () => {
       tmux: fakeTmux(),
       projection: fakeProjection([session]),
       serverPort: 4310,
-      settingsPath,
-      readClaudeCommand: () => ['claude'],
+      harness: fakeClaudeHarness(settingsPath, () => ['claude']),
     });
 
     const response = await app.inject({ method: 'GET', url: '/sessions' });
@@ -106,8 +106,7 @@ describe('GET /sessions', () => {
       tmux: fakeTmux(),
       projection: fakeProjection([], (filter) => (seenFilter = filter)),
       serverPort: 4310,
-      settingsPath,
-      readClaudeCommand: () => ['claude'],
+      harness: fakeClaudeHarness(settingsPath, () => ['claude']),
     });
 
     const response = await app.inject({ method: 'GET', url: '/sessions' });
@@ -122,8 +121,7 @@ describe('GET /sessions', () => {
       tmux: fakeTmux(),
       projection: fakeProjection([], (filter) => (seenFilter = filter)),
       serverPort: 4310,
-      settingsPath,
-      readClaudeCommand: () => ['claude'],
+      harness: fakeClaudeHarness(settingsPath, () => ['claude']),
     });
 
     const response = await app.inject({
@@ -145,8 +143,7 @@ describe('GET /sessions', () => {
       tmux: fakeTmux(),
       projection: fakeProjection(),
       serverPort: 4310,
-      settingsPath,
-      readClaudeCommand: () => ['claude'],
+      harness: fakeClaudeHarness(settingsPath, () => ['claude']),
     });
 
     const response = await app.inject({ method: 'GET', url: '/sessions?sinceDays=nope' });
@@ -159,8 +156,7 @@ describe('GET /sessions', () => {
       tmux: fakeTmux(),
       projection: fakeProjection(),
       serverPort: 4310,
-      settingsPath,
-      readClaudeCommand: () => ['claude'],
+      harness: fakeClaudeHarness(settingsPath, () => ['claude']),
     });
 
     const response = await app.inject({ method: 'GET', url: '/sessions?maxRecapChars=nope' });
@@ -173,8 +169,7 @@ describe('GET /sessions', () => {
       tmux: fakeTmux(),
       projection: fakeProjection(),
       serverPort: 4310,
-      settingsPath,
-      readClaudeCommand: () => ['claude'],
+      harness: fakeClaudeHarness(settingsPath, () => ['claude']),
     });
 
     const response = await app.inject({ method: 'GET', url: '/sessions?sinceDays=-1' });
@@ -187,8 +182,7 @@ describe('GET /sessions', () => {
       tmux: fakeTmux(),
       projection: fakeProjection(),
       serverPort: 4310,
-      settingsPath,
-      readClaudeCommand: () => ['claude'],
+      harness: fakeClaudeHarness(settingsPath, () => ['claude']),
     });
 
     const response = await app.inject({ method: 'GET', url: '/sessions?maxRecapChars=-1' });
@@ -203,8 +197,7 @@ describe('GET /sessions', () => {
       tmux: fakeTmux(),
       projection: fakeProjection(),
       serverPort: 4310,
-      settingsPath,
-      readClaudeCommand: () => ['claude'],
+      harness: fakeClaudeHarness(settingsPath, () => ['claude']),
     });
 
     const response = await app.inject({ method: 'GET', url: '/sessions?sinceDays=' });
@@ -217,8 +210,7 @@ describe('GET /sessions', () => {
       tmux: fakeTmux(),
       projection: fakeProjection(),
       serverPort: 4310,
-      settingsPath,
-      readClaudeCommand: () => ['claude'],
+      harness: fakeClaudeHarness(settingsPath, () => ['claude']),
     });
 
     const response = await app.inject({ method: 'GET', url: '/sessions?maxRecapChars=' });
@@ -233,8 +225,7 @@ describe('GET /sessions', () => {
       tmux: fakeTmux(),
       projection: fakeProjection(),
       serverPort: 4310,
-      settingsPath,
-      readClaudeCommand: () => ['claude'],
+      harness: fakeClaudeHarness(settingsPath, () => ['claude']),
     });
 
     const response = await app.inject({ method: 'GET', url: '/sessions?maxRecapChars=0.5' });
@@ -251,8 +242,7 @@ describe('GET /sessions', () => {
       tmux: fakeTmux(),
       projection: fakeProjection(),
       serverPort: 4310,
-      settingsPath,
-      readClaudeCommand: () => ['claude'],
+      harness: fakeClaudeHarness(settingsPath, () => ['claude']),
     });
 
     const response = await app.inject({ method: 'GET', url: '/sessions?sinceDays=5&sinceDays=7' });
@@ -266,8 +256,7 @@ describe('GET /sessions', () => {
       tmux: fakeTmux(),
       projection: fakeProjection(),
       serverPort: 4310,
-      settingsPath,
-      readClaudeCommand: () => ['claude'],
+      harness: fakeClaudeHarness(settingsPath, () => ['claude']),
     });
 
     const response = await app.inject({
@@ -284,8 +273,7 @@ describe('GET /sessions', () => {
       tmux: fakeTmux(),
       projection: fakeProjection(),
       serverPort: 4310,
-      settingsPath,
-      readClaudeCommand: () => ['claude'],
+      harness: fakeClaudeHarness(settingsPath, () => ['claude']),
     });
 
     const response = await app.inject({ method: 'GET', url: '/sessions?live=true&live=false' });
@@ -299,8 +287,7 @@ describe('GET /sessions', () => {
       tmux: fakeTmux(),
       projection: fakeProjection(),
       serverPort: 4310,
-      settingsPath,
-      readClaudeCommand: () => ['claude'],
+      harness: fakeClaudeHarness(settingsPath, () => ['claude']),
     });
 
     const response = await app.inject({
@@ -317,8 +304,7 @@ describe('GET /sessions', () => {
       tmux: fakeTmux(),
       projection: fakeProjection(),
       serverPort: 4310,
-      settingsPath,
-      readClaudeCommand: () => ['claude'],
+      harness: fakeClaudeHarness(settingsPath, () => ['claude']),
     });
 
     const response = await app.inject({ method: 'GET', url: '/sessions?status=bogus' });
@@ -332,8 +318,7 @@ describe('GET /sessions', () => {
       tmux: fakeTmux(),
       projection: fakeProjection([], (filter) => (seenFilter = filter)),
       serverPort: 4310,
-      settingsPath,
-      readClaudeCommand: () => ['claude'],
+      harness: fakeClaudeHarness(settingsPath, () => ['claude']),
     });
 
     const response = await app.inject({ method: 'GET', url: '/sessions?swarm=swarm-1' });
@@ -347,8 +332,7 @@ describe('GET /sessions', () => {
       tmux: fakeTmux(),
       projection: fakeProjection(),
       serverPort: 4310,
-      settingsPath,
-      readClaudeCommand: () => ['claude'],
+      harness: fakeClaudeHarness(settingsPath, () => ['claude']),
     });
 
     const response = await app.inject({
@@ -373,8 +357,7 @@ describe('POST /sessions', () => {
       }),
       projection: fakeProjection(),
       serverPort: 4310,
-      settingsPath,
-      readClaudeCommand: () => ['claude'],
+      harness: fakeClaudeHarness(settingsPath, () => ['claude']),
     });
 
     const response = await app.inject({ method: 'POST', url: '/sessions', payload: {} });
@@ -397,8 +380,7 @@ describe('POST /sessions', () => {
       }),
       projection: fakeProjection(),
       serverPort: 4310,
-      settingsPath,
-      readClaudeCommand: () => ['claude'],
+      harness: fakeClaudeHarness(settingsPath, () => ['claude']),
     });
 
     const response = await app.inject({
@@ -422,8 +404,7 @@ describe('POST /sessions', () => {
       }),
       projection: fakeProjection(),
       serverPort: 4310,
-      settingsPath,
-      readClaudeCommand: () => ['claude'],
+      harness: fakeClaudeHarness(settingsPath, () => ['claude']),
     });
 
     const response = await app.inject({
@@ -443,8 +424,7 @@ describe('POST /sessions', () => {
       tmux: fakeTmux({ newSession: () => Promise.resolve() }),
       projection: fakeProjection(),
       serverPort: 4310,
-      settingsPath,
-      readClaudeCommand: () => ['claude'],
+      harness: fakeClaudeHarness(settingsPath, () => ['claude']),
     });
 
     const response = await app.inject({
@@ -469,8 +449,7 @@ describe('POST /sessions', () => {
           updateOverlay: (mutate) => mutate(emptyOverlay),
         },
         serverPort: 4310,
-        settingsPath,
-        readClaudeCommand: () => ['claude'],
+        harness: fakeClaudeHarness(settingsPath, () => ['claude']),
       },
       logger,
     );
@@ -492,8 +471,7 @@ describe('POST /sessions', () => {
       tmux: fakeTmux({ newSession: () => Promise.reject(new Error('tmux is not installed')) }),
       projection: fakeProjection(),
       serverPort: 4310,
-      settingsPath,
-      readClaudeCommand: () => ['claude'],
+      harness: fakeClaudeHarness(settingsPath, () => ['claude']),
     });
 
     const response = await app.inject({
@@ -513,8 +491,7 @@ describe('POST /sessions', () => {
         tmux: fakeTmux({ newSession: () => Promise.reject(new Error('tmux is not installed')) }),
         projection: fakeProjection(),
         serverPort: 4310,
-        settingsPath,
-        readClaudeCommand: () => ['claude'],
+        harness: fakeClaudeHarness(settingsPath, () => ['claude']),
       },
       logger,
     );
@@ -532,8 +509,7 @@ describe('POST /sessions/:id/resume', () => {
       tmux: fakeTmux(),
       projection: fakeProjection([]),
       serverPort: 4310,
-      settingsPath,
-      readClaudeCommand: () => ['claude'],
+      harness: fakeClaudeHarness(settingsPath, () => ['claude']),
     });
 
     const response = await app.inject({ method: 'POST', url: '/sessions/nope/resume' });
@@ -551,8 +527,7 @@ describe('POST /sessions/:id/resume', () => {
       }),
       projection: fakeProjection([deadSession]),
       serverPort: 4310,
-      settingsPath,
-      readClaudeCommand: () => ['claude'],
+      harness: fakeClaudeHarness(settingsPath, () => ['claude']),
     });
 
     const response = await app.inject({ method: 'POST', url: '/sessions/sid-1/resume' });
@@ -578,8 +553,7 @@ describe('POST /sessions/:id/resume', () => {
       }),
       projection: fakeProjection([deadSession]),
       serverPort: 4310,
-      settingsPath,
-      readClaudeCommand: () => ['claude'],
+      harness: fakeClaudeHarness(settingsPath, () => ['claude']),
     });
 
     const response = await app.inject({
@@ -605,8 +579,7 @@ describe('POST /sessions/:id/resume', () => {
       }),
       projection: fakeProjection([deadSession]),
       serverPort: 4310,
-      settingsPath,
-      readClaudeCommand: () => ['claude'],
+      harness: fakeClaudeHarness(settingsPath, () => ['claude']),
     });
 
     const response = await app.inject({
@@ -632,8 +605,7 @@ describe('POST /sessions/:id/resume', () => {
         aSession({ id: 'sid-2', cwd: '/Users/dev/other', tmuxName: 'other' }),
       ]),
       serverPort: 4310,
-      settingsPath,
-      readClaudeCommand: () => ['claude'],
+      harness: fakeClaudeHarness(settingsPath, () => ['claude']),
     });
 
     const response = await app.inject({
@@ -656,8 +628,7 @@ describe('POST /sessions/:id/resume', () => {
         }),
         projection: fakeProjection([deadSession]),
         serverPort: 4310,
-        settingsPath,
-        readClaudeCommand: () => ['claude'],
+        harness: fakeClaudeHarness(settingsPath, () => ['claude']),
       },
       logger,
     );
@@ -675,8 +646,7 @@ describe('POST /sessions/:id/kill', () => {
       tmux: fakeTmux(),
       projection: fakeProjection([]),
       serverPort: 4310,
-      settingsPath,
-      readClaudeCommand: () => ['claude'],
+      harness: fakeClaudeHarness(settingsPath, () => ['claude']),
     });
 
     const response = await app.inject({ method: 'POST', url: '/sessions/nope/kill' });
@@ -691,8 +661,7 @@ describe('POST /sessions/:id/kill', () => {
       tmux: fakeTmux({ killSession: () => Promise.resolve() }),
       projection: fakeProjection([session]),
       serverPort: 4310,
-      settingsPath,
-      readClaudeCommand: () => ['claude'],
+      harness: fakeClaudeHarness(settingsPath, () => ['claude']),
     });
 
     const response = await app.inject({ method: 'POST', url: '/sessions/sid-1/kill' });
@@ -709,8 +678,7 @@ describe('POST /sessions/:id/kill', () => {
         tmux: fakeTmux({ killSession: () => Promise.reject(new Error('tmux is not installed')) }),
         projection: fakeProjection([session]),
         serverPort: 4310,
-        settingsPath,
-        readClaudeCommand: () => ['claude'],
+        harness: fakeClaudeHarness(settingsPath, () => ['claude']),
       },
       logger,
     );
