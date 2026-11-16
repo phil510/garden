@@ -1,6 +1,8 @@
 import { randomBytes } from 'node:crypto';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { createCodexHarness } from './adapters/codex/index.js';
+import { applyHarnessSignal } from './app/hooks.js';
 import { createClaudeHarness } from './adapters/claude/index.js';
 import { watchFsRoot } from './adapters/fsWatch.js';
 import { ghGet, ghRemoveReviewRequest } from './adapters/gh.js';
@@ -36,6 +38,7 @@ import { createReviewStore } from './app/reviews.js';
 import type {
   ConfigPort,
   HarnessPort,
+  LiveTranscripts,
   FsWatchPort,
   GhPort,
   GitPort,
@@ -175,6 +178,22 @@ async function dispatchSessionNames(
   projection.dispatch({ type: 'session-names-loaded', names });
 }
 
+function drainBindingSpool(
+  harness: HarnessPort,
+  projection: Projection,
+  liveTranscripts: LiveTranscripts,
+  logger: Logger,
+): void {
+  try {
+    for (const signal of harness.replaySpool?.() ?? [])
+      applyHarnessSignal({ projection, liveTranscripts }, signal);
+  } catch (error) {
+    logger.error(
+      `binding spool replay failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
 /**
  * Boot is a replay rather than a restore: the store contributes only the overlay facts
  * garden cannot recompute, and every session fact is re-derived from the events the
@@ -206,6 +225,27 @@ async function replay(
     pipes.replay();
   } catch (error) {
     logger.error(`pipe replay failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  for (const pending of harness.pendingSessions?.() ?? []) {
+    const tmuxName = store.read().tmuxNames[pending.id];
+    if (tmuxName !== undefined)
+      projection.dispatch({
+        type: 'session-registered',
+        ...pending,
+        tmuxName,
+        reported: { status: 'waiting', reason: null },
+      });
+    else
+      projection.dispatch({
+        type: 'harness-signal',
+        signal: {
+          sessionId: pending.id,
+          cwd: pending.cwd,
+          transcriptPath: null,
+          ended: true,
+          conversationCleared: false,
+        },
+      });
   }
   await dispatchTmuxSnapshot(projection, tmux);
   try {
@@ -251,15 +291,25 @@ export async function main(detached: boolean): Promise<void> {
     confPath,
     instanceEnv: instanceEnvironment(config),
   });
-  if (config.harness !== 'claude') throw new Error('Codex harness is not available');
-  const harness: HarnessPort = createClaudeHarness({
-    appDir: config.appDir,
-    logger,
-    readCommand: readClaudeCommand(configAdapter),
-    transcriptsDir: config.transcriptsDir,
-    roots: config.roots,
-    sessionsDir: config.claudeSessionsDir,
-  });
+  const codexHome = process.env.CODEX_HOME ?? join(home, '.codex');
+  const harness: HarnessPort =
+    config.harness === 'codex'
+      ? createCodexHarness({
+          appDir: config.appDir,
+          transcriptRoots: [join(codexHome, 'sessions'), join(codexHome, 'archived_sessions')],
+          logger,
+          ...(process.env.GARDEN_CODEX_COMMAND === undefined
+            ? {}
+            : { command: process.env.GARDEN_CODEX_COMMAND.split(/\s+/).filter(Boolean) }),
+        })
+      : createClaudeHarness({
+          appDir: config.appDir,
+          logger,
+          readCommand: readClaudeCommand(configAdapter),
+          transcriptsDir: config.transcriptsDir,
+          roots: config.roots,
+          sessionsDir: config.claudeSessionsDir,
+        });
   const transcripts: TranscriptPort = createTranscripts(harness.transcripts, logger);
   const git = gitPort();
   const projection = createProjection(store);
@@ -283,6 +333,7 @@ export async function main(detached: boolean): Promise<void> {
     transcriptReplay.live(event);
   });
 
+  drainBindingSpool(harness, projection, watcher, logger);
   await replay(projection, pipes, store, tmux, transcriptReplay, logger, harness, git);
   // Only valid once replay's transcript scan has settled what "known" means — any earlier
   // (store-loaded, or the first tmux snapshot) would prune a live child whose transcript
@@ -320,6 +371,8 @@ export async function main(detached: boolean): Promise<void> {
   const reviewDismisser = createReviewDismisser({ gh: ghPort(), store: reviews, logger });
 
   const poll = setInterval(() => {
+    // A hook can fail between boot replay and listen, or during a transient HTTP failure.
+    drainBindingSpool(harness, projection, watcher, logger);
     // A tmux that fails mid-run leaves liveness stale until the next tick; it does not end the server.
     dispatchTmuxSnapshot(projection, tmux).catch((error: unknown) => {
       logger.error(`tmux poll failed: ${error instanceof Error ? error.message : String(error)}`);

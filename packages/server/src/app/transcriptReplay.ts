@@ -39,8 +39,9 @@ export function createTranscriptReplay(
 
   return {
     live(event) {
-      if (held === null) projection.dispatch(event);
-      else held.push(event);
+      if (held === null) {
+        if (transcripts.isCurrent?.(event.path, event.record) ?? true) projection.dispatch(event);
+      } else held.push(event);
     },
     async run() {
       try {
@@ -58,7 +59,7 @@ export function createTranscriptReplay(
                 if (skipped > 0) {
                   logger.warn(`skipped ${String(skipped)} unparseable line(s) in ${path}`);
                 }
-                return record;
+                return { path, record };
               } catch (error) {
                 // One unreadable transcript is a session garden cannot describe, not a failed boot.
                 logger.error(`failed to read transcript ${path}: ${(error as Error).message}`);
@@ -69,12 +70,17 @@ export function createTranscriptReplay(
         );
         projection.dispatch({
           type: 'transcripts-replayed',
-          records: reads.filter((record) => record !== null),
+          records: reads
+            .filter(
+              (read) => read !== null && (transcripts.isCurrent?.(read.path, read.record) ?? true),
+            )
+            .map((read) => read!.record),
         });
       } finally {
         const queued = held ?? [];
         held = null;
-        for (const event of queued) projection.dispatch(event);
+        for (const event of queued)
+          if (transcripts.isCurrent?.(event.path, event.record) ?? true) projection.dispatch(event);
       }
     },
   };

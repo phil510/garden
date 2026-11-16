@@ -151,6 +151,7 @@ export function reduce(state: GardenState, event: GardenEvent): GardenState {
       const session: SessionState = {
         ...prev,
         cwd: prev.cwd === '' ? signal.cwd : prev.cwd,
+        ...(signal.resetConversation === true ? { title: null, recap: null, lastActivity: 0 } : {}),
       };
       return rederive({
         ...state,

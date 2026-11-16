@@ -1,6 +1,6 @@
 import { stat } from 'node:fs/promises';
 import type { TranscriptParse } from '../domain/transcript.js';
-import type { GardenEvent } from '../domain/types.js';
+import type { GardenEvent, TranscriptRecord } from '../domain/types.js';
 
 /** The slice of `Logger` this adapter needs, declared locally rather than imported —
  *  one adapter per external system, composed together only in main.ts. */
@@ -69,12 +69,14 @@ export interface TranscriptTiming {
 }
 
 export interface TranscriptLayout {
+  isCurrent?(path: string, record: TranscriptRecord): boolean;
   listFiles(): Promise<string[]>;
   accepts(path: string): boolean;
   readRecord(path: string): Promise<(TranscriptParse & { signature: TranscriptSignature }) | null>;
 }
 
 export interface Transcripts {
+  isCurrent(path: string, record: TranscriptRecord): boolean;
   listFiles(): Promise<string[]>;
   readRecord(path: string): Promise<TranscriptParse | null>;
   watch(
@@ -101,6 +103,7 @@ export function createTranscripts(
   const signatures = new Map<string, TranscriptSignature>();
 
   return {
+    isCurrent: (path, record) => layout.isCurrent?.(path, record) ?? true,
     listFiles: () => layout.listFiles(),
     async readRecord(path) {
       const result = await layout.readRecord(path);
@@ -126,7 +129,7 @@ export function createTranscripts(
           logger.error(`failed to read transcript ${path}: ${(error as Error).message}`);
           return;
         }
-        if (parsed === null) return;
+        if (parsed === null || !(layout.isCurrent?.(path, parsed.record) ?? true)) return;
         const { record, skipped, signature } = parsed;
         signatures.set(path, signature);
         if (skipped > 0 && !warnedFiles.has(path)) {
@@ -138,6 +141,11 @@ export function createTranscripts(
 
       async function pollLive(): Promise<void> {
         for (const path of [...live.keys()]) {
+          if (!layout.accepts(path)) {
+            live.delete(path);
+            signatures.delete(path);
+            continue;
+          }
           const now = Date.now();
           if (now - live.get(path)! >= liveIdleMs) {
             live.delete(path);
