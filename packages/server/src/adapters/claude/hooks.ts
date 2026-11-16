@@ -1,4 +1,22 @@
 import type { HookPayload, Status } from '@garden/shared';
+import type { HarnessSignal } from '../../domain/types.js';
+
+export function claudeSignal(payload: HookPayload, gardenSessionId?: string): HarnessSignal {
+  const outcome = hookOutcome(payload);
+  return {
+    sessionId: gardenSessionId ?? payload.session_id,
+    cwd: payload.cwd,
+    transcriptPath: payload.transcript_path,
+    ...(outcome.status === null
+      ? {}
+      : { reported: { status: outcome.status, reason: outcome.reason } }),
+    ended: outcome.ended,
+    conversationCleared:
+      gardenSessionId !== undefined &&
+      payload.hook_event_name === 'SessionStart' &&
+      payload.source === 'clear',
+  };
+}
 
 export interface HookOutcome {
   /** null leaves the session's current status alone. */
@@ -29,4 +47,17 @@ export function hookOutcome(payload: HookPayload): HookOutcome {
     reason: name === 'Notification' ? (payload.message ?? null) : null,
     ended: name === 'SessionEnd' ? true : name === 'SessionStart' ? false : null,
   };
+}
+
+export function parseClaudeHook(body: unknown, gardenSessionId?: string): HarnessSignal | null {
+  if (typeof body !== 'object' || body === null) return null;
+  const { session_id, cwd, transcript_path, hook_event_name } = body as Record<string, unknown>;
+  if (
+    typeof session_id !== 'string' ||
+    typeof cwd !== 'string' ||
+    typeof transcript_path !== 'string' ||
+    typeof hook_event_name !== 'string'
+  )
+    return null;
+  return claudeSignal(body as HookPayload, gardenSessionId);
 }

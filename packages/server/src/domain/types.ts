@@ -1,6 +1,14 @@
-import type { Alert, HookPayload, SessionMap, Status, WatchSummary } from '@garden/shared';
+import type { Alert, SessionMap, Status, WatchSummary } from '@garden/shared';
 
-export type { HookPayload };
+export interface HarnessSignal {
+  readonly sessionId: string;
+  readonly cwd: string;
+  readonly transcriptPath: string;
+  readonly reported?: ReportedStatus;
+  /** null preserves the current ended fact. */
+  readonly ended: boolean | null;
+  readonly conversationCleared: boolean;
+}
 
 export interface TranscriptRecord {
   sessionId: string | null;
@@ -34,10 +42,7 @@ export type GardenEvent =
   | { type: 'transcripts-replayed'; records: TranscriptRecord[] }
   | { type: 'repo-root-resolved'; cwd: string; repoRoot: string }
   | { type: 'branch-resolved'; cwd: string; branch: string | null }
-  /** `gardenSessionId` is the hook process's own `GARDEN_SESSION_ID`. It names the session
-   *  the hook belongs to when present, because `/clear` gives Claude a new payload `session_id`
-   *  while the process, pane and garden session stay the same. */
-  | { type: 'hook'; payload: HookPayload; gardenSessionId?: string | undefined }
+  | { type: 'harness-signal'; signal: HarnessSignal }
   | { type: 'tmux-snapshot'; sessions: TmuxSessionFact[] }
   | { type: 'claude-session-names-loaded'; names: Record<string, string> }
   /** The full, current summary list for one session; an empty list means it has none. */

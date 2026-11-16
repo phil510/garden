@@ -33,6 +33,7 @@ function fakeProjection(): Projection {
 function fakeDeps(): ServerDeps {
   return {
     projection: fakeProjection(),
+    harness: { parseHook: () => null },
     liveTranscripts: { track: () => undefined },
     pipes: {
       connect: () => ({ ack: () => undefined, close: () => undefined }),

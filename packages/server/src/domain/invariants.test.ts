@@ -1,5 +1,5 @@
+import { aHarnessSignal } from './signals.fixture.js';
 import { applyDelta } from '@garden/shared';
-import { aHookEvent } from '@garden/shared/fixtures';
 import { describe, expect, it } from 'vitest';
 import { diff } from './diff.js';
 import { initialState, reduce } from './reduce.js';
@@ -78,7 +78,10 @@ const sequences: GardenEvent[][] = [
   [
     storeLoaded,
     transcript({}, now),
-    { type: 'hook', payload: aHookEvent({ session_id: 'sid-1', hook_event_name: 'Stop' }) },
+    {
+      type: 'harness-signal',
+      signal: aHarnessSignal({ sessionId: 'sid-1', reported: { status: 'waiting', reason: null } }),
+    },
     snapshot(false),
   ],
   [storeLoaded, transcript({}, now), snapshot(true)],
@@ -90,11 +93,10 @@ const sequences: GardenEvent[][] = [
   [
     transcript({}, now),
     {
-      type: 'hook',
-      payload: aHookEvent({
-        session_id: 'sid-1',
-        hook_event_name: 'Notification',
-        message: 'Claude needs your permission to run rm',
+      type: 'harness-signal',
+      signal: aHarnessSignal({
+        sessionId: 'sid-1',
+        reported: { status: 'waiting', reason: 'Claude needs your permission to run rm' },
       }),
     },
   ],
@@ -107,7 +109,10 @@ const sequences: GardenEvent[][] = [
   [pipeChanged, transcript({}, now)],
   [
     transcript({}, now),
-    { type: 'hook', payload: aHookEvent({ session_id: 'sid-3' }) },
+    {
+      type: 'harness-signal',
+      signal: aHarnessSignal({ sessionId: 'sid-3', reported: { status: 'working', reason: null } }),
+    },
     { type: 'session-registered', id: 'sid-3', tmuxName: 'repo-2', cwd: '/Users/dev/repo' },
   ],
   [
@@ -150,8 +155,8 @@ describe('boot replay equals steady state', () => {
 
   it('does not depend on whether a status-bearing hook or the tmux snapshot arrives first', () => {
     const prompt: GardenEvent = {
-      type: 'hook',
-      payload: aHookEvent({ session_id: 'sid-1', hook_event_name: 'UserPromptSubmit' }),
+      type: 'harness-signal',
+      signal: aHarnessSignal({ sessionId: 'sid-1', reported: { status: 'working', reason: null } }),
     };
     const hookFirst = [storeLoaded, prompt, snapshot(false)].reduce(reduce, initialState);
     const snapshotFirst = [storeLoaded, snapshot(false), prompt].reduce(reduce, initialState);
@@ -225,7 +230,10 @@ const everyVariant: Record<GardenEvent['type'], GardenEvent> = {
   },
   'repo-root-resolved': rootResolved,
   'branch-resolved': branchResolved,
-  hook: { type: 'hook', payload: aHookEvent({ session_id: 'sid-1' }) },
+  'harness-signal': {
+    type: 'harness-signal',
+    signal: aHarnessSignal({ sessionId: 'sid-1', reported: { status: 'working', reason: null } }),
+  },
   'tmux-snapshot': snapshot(false),
   'watches-changed': watchesChanged,
   'alert-changed': alertChanged,

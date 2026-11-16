@@ -69,7 +69,8 @@ discarded and `pane_dead_status` never gets set — `exitCode` never arrives (fi
 - **`domain/`** carries most of the suite. Events in, expected state out; no tmux, no
   filesystem, no clock. If a behaviour is hard to test here, a decision has leaked into an
   adapter — fix the leak rather than reaching for a mock.
-- **`adapters/`** is the integration tier: tmux driven on an isolated socket, git driven in a
+- **`adapters/`** tests pure protocol parsers and command builders with ordinary unit tests.
+  Its I/O uses the integration tier: tmux driven on an isolated socket, git driven in a
   temp repo. These tests exist to prove the argument arrays and the real tool's actual
   behaviour, which is the one thing no unit test can reach.
 - **`app/`** tests orchestration order with faked ports. Use cases call the outside world
@@ -148,7 +149,7 @@ deterministic enough to assert on.
   declared interface; mocking `execFile` pretends the process boundary behaved. The test then
   passes because the mock returned what you told it to, while the argument array — the thing
   that decides whether `new-session` got the right `-c`, `-e`, and name — goes untested. To
-  test argument-building logic, extract the decision into a pure function in `domain/` and
+  test argument-building logic, extract argument building into a pure helper beside its adapter and
   test that; let the line that calls `execFile` be proven by an integration test.
 - **tmux** has exactly one legitimate fake: the `TmuxPort` interface, faked at the `app/` tier
   to test orchestration without spawning anything. Adapter tests always drive the real binary

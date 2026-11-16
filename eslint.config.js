@@ -182,7 +182,7 @@ export default tseslint.config(
           patterns: [
             adaptersInward,
             {
-              group: ['../*', '../*/**', '**/adapters/**'],
+              group: ['../[a-zA-Z]*', '../[a-zA-Z]*/**', '**/adapters/**'],
               message:
                 'An adapter directory may import its own files, but not another adapter. One adapter per external system; compose them in main.ts.',
             },

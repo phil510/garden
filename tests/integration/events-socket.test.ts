@@ -1,3 +1,4 @@
+import { parseClaudeHook } from '../../packages/server/src/adapters/claude/hooks.js';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import type { AddressInfo, Socket } from 'node:net';
@@ -73,6 +74,7 @@ function receiveOne(socket: WebSocket): Promise<ServerMessage> {
 
 function serverWithProjection() {
   return createServer({
+    harness: { parseHook: parseClaudeHook },
     liveTranscripts: { track: () => undefined },
     projection: createProjection(fakeStore()),
     repos: {
@@ -101,6 +103,7 @@ describe('WS /events against the real server', () => {
   it('sends a snapshot on connect, then a delta for a dispatch that follows', async () => {
     const projection = createProjection(fakeStore());
     app = createServer({
+      harness: { parseHook: parseClaudeHook },
       liveTranscripts: { track: () => undefined },
       projection,
       repos: {
@@ -224,6 +227,7 @@ describe('WS /events root watches against a real watcher', () => {
     const repos = createRepoCatalog({ git, roots: [dir] });
     const logger = { warn: () => undefined, error: () => undefined };
     app = createServer({
+      harness: { parseHook: parseClaudeHook },
       liveTranscripts: { track: () => undefined },
       projection: createProjection(fakeStore()),
       repos,

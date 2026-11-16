@@ -1,3 +1,4 @@
+import { parseClaudeHook } from '../../packages/server/src/adapters/claude/hooks.js';
 import { execFile } from 'node:child_process';
 import {
   appendFileSync,
@@ -141,6 +142,7 @@ async function withFakeClaudeSession(
     { reconcileMs: 10 * 60_000 },
   ).watch((event) => projection.dispatch(event));
   const app = createGardenServer({
+    harness: { parseHook: parseClaudeHook },
     liveTranscripts: watcher,
     projection,
     pipes: noPipes,

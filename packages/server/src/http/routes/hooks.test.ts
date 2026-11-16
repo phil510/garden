@@ -1,12 +1,11 @@
 import { DEFAULT_UI_STATE } from '@garden/shared';
-import { aHookEvent } from '@garden/shared/fixtures';
-import type { HookPayload } from '@garden/shared';
+import type { HarnessPort } from '../../app/ports.js';
 import Fastify from 'fastify';
 import { describe, expect, it } from 'vitest';
 import type { GardenEvent } from '../../app/ports.js';
 import type { Projection } from '../../app/projection.js';
 import type { OverlayState } from '../../app/ports.js';
-import { hookRoutes } from './hooks.js';
+import { hookRoutes } from '../../http/routes/hooks.js';
 
 const emptyOverlay: OverlayState = {
   version: 2,
@@ -48,10 +47,28 @@ function fakeProjection() {
   return { projection, dispatched, overlayWrites: () => overlayWrites };
 }
 
-function buildApp(projection: Projection) {
+const aHarnessSignal = (
+  overrides: Partial<NonNullable<ReturnType<HarnessPort['parseHook']>>> = {},
+) => ({
+  sessionId: 'sid-1',
+  cwd: '/Users/dev/repo',
+  transcriptPath: '/t.jsonl',
+  ended: null,
+  conversationCleared: false,
+  ...overrides,
+});
+
+function buildApp(
+  projection: Projection,
+  parseHook: HarnessPort['parseHook'] = () => aHarnessSignal(),
+) {
   const app = Fastify();
   app.register((instance) =>
-    hookRoutes(instance, { projection, liveTranscripts: { track: () => undefined } }),
+    hookRoutes(instance, {
+      harness: { parseHook },
+      projection,
+      liveTranscripts: { track: () => undefined },
+    }),
   );
   return app;
 }
@@ -60,66 +77,62 @@ describe('POST /hooks', () => {
   it('dispatches a valid payload and answers 204', async () => {
     const { projection, dispatched } = fakeProjection();
     const app = buildApp(projection);
-    const payload: HookPayload = aHookEvent({ session_id: 'sid-1', hook_event_name: 'Stop' });
+    const payload = { vendorEvent: 'finished' };
 
     const response = await app.inject({ method: 'POST', url: '/hooks', payload });
 
     expect(response.statusCode).toBe(204);
-    expect(dispatched).toEqual([{ type: 'hook', payload }]);
+    expect(dispatched).toMatchObject([
+      {
+        type: 'harness-signal',
+        signal: {
+          sessionId: 'sid-1',
+          cwd: '/Users/dev/repo',
+          transcriptPath: '/t.jsonl',
+        },
+      },
+    ]);
   });
 
   it('stores a hook for a session id it has never seen, rather than rejecting it', async () => {
     const { projection, dispatched } = fakeProjection();
     const app = buildApp(projection);
-    const payload: HookPayload = aHookEvent({ session_id: 'unknown-session' });
+    const payload = { vendorEvent: 'finished' };
 
     const response = await app.inject({ method: 'POST', url: '/hooks', payload });
 
     expect(response.statusCode).toBe(204);
-    expect(dispatched).toEqual([{ type: 'hook', payload }]);
+    expect(dispatched).toMatchObject([
+      {
+        type: 'harness-signal',
+        signal: {
+          sessionId: 'sid-1',
+          cwd: '/Users/dev/repo',
+          transcriptPath: '/t.jsonl',
+        },
+      },
+    ]);
   });
 
-  it('rejects a body missing a required field without dispatching anything', async () => {
+  it('returns 400 when the harness rejects its native body', async () => {
     const { projection, dispatched } = fakeProjection();
-    const app = buildApp(projection);
-
+    const app = buildApp(projection, () => null);
     const response = await app.inject({
       method: 'POST',
       url: '/hooks',
-      payload: { session_id: 'sid-1', hook_event_name: 'Stop' },
-    });
-
-    expect(response.statusCode).toBe(400);
-    expect(dispatched).toEqual([]);
-  });
-
-  it.each([
-    null,
-    [],
-    'hook',
-    { session_id: 7, cwd: '/repo', transcript_path: '/x', hook_event_name: 'Stop' },
-    { session_id: 'sid', cwd: [], transcript_path: '/x', hook_event_name: 'Stop' },
-    { session_id: 'sid', cwd: '/repo', transcript_path: null, hook_event_name: 'Stop' },
-    { session_id: 'sid', cwd: '/repo', transcript_path: '/x', hook_event_name: false },
-  ])('rejects malformed native payload %j without dispatching', async (payload) => {
-    const { projection, dispatched } = fakeProjection();
-    const app = buildApp(projection);
-    const response = await app.inject({
-      method: 'POST',
-      url: '/hooks',
-      headers: { 'content-type': 'application/json' },
-      payload: JSON.stringify(payload),
+      payload: { vendorEvent: 'invalid' },
     });
     expect(response.statusCode).toBe(400);
-    expect(response.json()).toEqual({ error: 'invalid hook payload' });
     expect(dispatched).toEqual([]);
     await app.close();
   });
 
   it('hands a clear with the garden session header to the watch writer, and ignores a missing or empty one', async () => {
     const { projection, overlayWrites } = fakeProjection();
-    const app = buildApp(projection);
-    const payload = aHookEvent({ hook_event_name: 'SessionStart', source: 'clear' });
+    const app = buildApp(projection, (_body, sessionId) =>
+      aHarnessSignal({ conversationCleared: sessionId !== undefined }),
+    );
+    const payload = { vendorEvent: 'cleared' };
     const post = (headers: Record<string, string>) =>
       app.inject({ method: 'POST', url: '/hooks', payload, headers });
 
