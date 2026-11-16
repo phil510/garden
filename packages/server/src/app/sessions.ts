@@ -170,7 +170,6 @@ export async function resumeSession(
     ...(request.effort === undefined ? {} : { effort: request.effort }),
     ...(permissionMode === undefined ? {} : { permissionMode }),
   };
-  const command = harness.resumeCommand(launchRequest);
   const panes = await tmux.listPanes();
   const priorName = session.tmuxName;
 
@@ -180,6 +179,7 @@ export async function resumeSession(
     ? priorName
     : deriveTmuxName(session.cwd, takenTmuxNames(projection, panes, request.id));
   try {
+    const command = harness.resumeCommand(launchRequest);
     if (reusePane) await tmux.respawnPane({ name: tmuxName, command });
     else
       await tmux.newSession({

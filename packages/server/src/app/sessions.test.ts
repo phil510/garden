@@ -133,3 +133,81 @@ describe('launch preparation', () => {
     expect(dispatched[0]).not.toHaveProperty('reported');
   });
 });
+
+describe('resume binding freshness', () => {
+  it('builds the resume command after asynchronous pane discovery and launch preparation', async () => {
+    const { projection } = fakeProjection([
+      aSession({ id: 'garden', cwd: '/repo', tmuxName: 'held', liveness: 'dead' }),
+    ]);
+    let currentNative = 'old';
+    let release:
+      ((panes: { session: string; dead: boolean; exitCode: undefined }[]) => void) | undefined;
+    let entered: (() => void) | undefined;
+    const discovering = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    const launched: unknown[] = [];
+    const pending = resumeSession(
+      {
+        projection,
+        serverPort: 4311,
+        tmux: fakeTmux({
+          listPanes: () => {
+            entered!();
+            return new Promise((resolve) => {
+              release = resolve;
+            });
+          },
+          respawnPane: (request) => {
+            launched.push(request.command);
+            return Promise.resolve();
+          },
+        }),
+        harness: {
+          spawnCommand: () => [],
+          resumeCommand: () => ['codex', 'resume', currentNative],
+          beforeLaunch: () => {
+            currentNative = 'prepared';
+            return { rollback: () => undefined, registrationStatus: () => undefined };
+          },
+        },
+      },
+      { id: 'garden' },
+    );
+    await discovering;
+    currentNative = 'new';
+    release!([{ session: 'held', dead: true, exitCode: undefined }]);
+    await pending;
+    expect(launched).toEqual([['codex', 'resume', 'prepared']]);
+  });
+  it('rolls launch preparation back if building the resume command fails', async () => {
+    const { projection, dispatched } = fakeProjection([
+      aSession({ id: 'garden', cwd: '/repo', liveness: 'dead' }),
+    ]);
+    let rolledBack = false;
+    await expect(
+      resumeSession(
+        {
+          projection,
+          serverPort: 4311,
+          tmux: fakeTmux(),
+          harness: {
+            spawnCommand: () => [],
+            resumeCommand: () => {
+              throw new Error('bad launch options');
+            },
+            beforeLaunch: () => ({
+              rollback: () => {
+                rolledBack = true;
+              },
+              registrationStatus: () => undefined,
+            }),
+          },
+        },
+        { id: 'garden' },
+      ),
+    ).rejects.toThrow('bad launch options');
+    expect(rolledBack).toBe(true);
+    expect(dispatched).toEqual([]);
+  });
+});

@@ -6,6 +6,7 @@ import {
   mkdtempSync,
   readFileSync,
   readdirSync,
+  renameSync,
   realpathSync,
   rmSync,
   writeFileSync,
@@ -247,6 +248,29 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
         expect(readdirSync(spoolDir)).toEqual([]);
         expect((await rows(url)).map((row) => row.id).sort()).toEqual([id, pending.id].sort());
         // Ended bindings remain resumable, and resume addresses the most recent clear id.
+        await stop(child);
+        child = undefined;
+        const beforeOfflineClear = aliases(appDir)[id]!.codexId;
+        await send(tmuxName, '/clear');
+        await until(
+          'offline clear SessionStart to spool',
+          () => Promise.resolve(readdirSync(spoolDir).filter((name) => name.endsWith('.jsonl'))),
+          (names) => names.length === 1,
+        );
+        await send(tmuxName, 'after offline clear');
+        const delayedName = readdirSync(spoolDir).find((name) => name.endsWith('.jsonl'))!;
+        const delayedPath = join(directory, 'delayed-binding.jsonl');
+        renameSync(join(spoolDir, delayedName), delayedPath);
+        child = await start(env, url);
+        expect(aliases(appDir)[id]!.codexId).toBe(beforeOfflineClear);
+        // The same failed real hook arrives after boot has already listed the spool.
+        renameSync(delayedPath, join(spoolDir, delayedName));
+        await until(
+          'periodic spool drain to recover a binding missed by boot',
+          () => rows(url),
+          (list) => list.some((row) => row.id === id && row.title === 'after offline clear'),
+        );
+        expect(readdirSync(spoolDir)).toEqual([]);
         const boundAfterClear = aliases(appDir)[id]!.codexId;
         await send(tmuxName, '/end');
         await until(

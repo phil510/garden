@@ -38,6 +38,7 @@ import { createReviewStore } from './app/reviews.js';
 import type {
   ConfigPort,
   HarnessPort,
+  LiveTranscripts,
   FsWatchPort,
   GhPort,
   GitPort,
@@ -175,6 +176,22 @@ async function dispatchSessionNames(
     logger.warn(`skipped ${String(skipped)} unreadable harness registry file(s)`);
   }
   projection.dispatch({ type: 'session-names-loaded', names });
+}
+
+function drainBindingSpool(
+  harness: HarnessPort,
+  projection: Projection,
+  liveTranscripts: LiveTranscripts,
+  logger: Logger,
+): void {
+  try {
+    for (const signal of harness.replaySpool?.() ?? [])
+      applyHarnessSignal({ projection, liveTranscripts }, signal);
+  } catch (error) {
+    logger.error(
+      `binding spool replay failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
 }
 
 /**
@@ -316,8 +333,7 @@ export async function main(detached: boolean): Promise<void> {
     transcriptReplay.live(event);
   });
 
-  for (const signal of harness.replaySpool?.() ?? [])
-    applyHarnessSignal({ projection, liveTranscripts: watcher }, signal);
+  drainBindingSpool(harness, projection, watcher, logger);
   await replay(projection, pipes, store, tmux, transcriptReplay, logger, harness, git);
   // Only valid once replay's transcript scan has settled what "known" means — any earlier
   // (store-loaded, or the first tmux snapshot) would prune a live child whose transcript
@@ -355,6 +371,8 @@ export async function main(detached: boolean): Promise<void> {
   const reviewDismisser = createReviewDismisser({ gh: ghPort(), store: reviews, logger });
 
   const poll = setInterval(() => {
+    // A hook can fail between boot replay and listen, or during a transient HTTP failure.
+    drainBindingSpool(harness, projection, watcher, logger);
     // A tmux that fails mid-run leaves liveness stale until the next tick; it does not end the server.
     dispatchTmuxSnapshot(projection, tmux).catch((error: unknown) => {
       logger.error(`tmux poll failed: ${error instanceof Error ? error.message : String(error)}`);
