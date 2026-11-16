@@ -23,21 +23,21 @@ describe('sessionIdentityLabel', () => {
 describe('metaLineSegments', () => {
   const now = 1_000_000;
 
-  it('includes the name segment when claudeSessionName is present', () => {
-    const session = aSession({ claudeSessionName: 'scout', lastActivity: now });
+  it('includes the name segment when sessionName is present', () => {
+    const session = aSession({ sessionName: 'scout', lastActivity: now });
     expect(metaLineSegments(session, now)).toEqual([
       { key: 'name', text: 'scout' },
       { key: 'time', text: 'just now' },
     ]);
   });
 
-  it('leaves only the time segment when claudeSessionName is null', () => {
-    const session = aSession({ claudeSessionName: null, lastActivity: now });
+  it('leaves only the time segment when sessionName is null', () => {
+    const session = aSession({ sessionName: null, lastActivity: now });
     expect(metaLineSegments(session, now)).toEqual([{ key: 'time', text: 'just now' }]);
   });
 
-  it('leaves only the time segment when claudeSessionName is an empty string', () => {
-    const session = aSession({ claudeSessionName: '', lastActivity: now });
+  it('leaves only the time segment when sessionName is an empty string', () => {
+    const session = aSession({ sessionName: '', lastActivity: now });
     expect(metaLineSegments(session, now)).toEqual([{ key: 'time', text: 'just now' }]);
   });
 });

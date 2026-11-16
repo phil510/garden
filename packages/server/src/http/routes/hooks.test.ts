@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import type { GardenEvent } from '../../app/ports.js';
 import type { Projection } from '../../app/projection.js';
 import type { OverlayState } from '../../app/ports.js';
-import { hookRoutes } from '../../http/routes/hooks.js';
+import { hookRoutes } from './hooks.js';
 
 const emptyOverlay: OverlayState = {
   version: 2,

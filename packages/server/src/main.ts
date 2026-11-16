@@ -1,8 +1,7 @@
-import { parseClaudeHook } from './adapters/claude/hooks.js';
 import { randomBytes } from 'node:crypto';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { readClaudeSessionNames } from './adapters/claudeSessions.js';
+import { createClaudeHarness } from './adapters/claude/index.js';
 import { watchFsRoot } from './adapters/fsWatch.js';
 import { ghGet, ghRemoveReviewRequest } from './adapters/gh.js';
 import {
@@ -36,6 +35,7 @@ import { createReviewDismisser } from './app/reviewDismiss.js';
 import { createReviewStore } from './app/reviews.js';
 import type {
   ConfigPort,
+  HarnessPort,
   FsWatchPort,
   GhPort,
   GitPort,
@@ -54,7 +54,7 @@ import { watchRepoRoots } from './app/repoRoots.js';
 import { pruneKnownSessions } from './app/swarms.js';
 import { replayWatches } from './app/watches.js';
 import { replayAlerts } from './app/alerts.js';
-import { writeClaudeSettings, writeTmuxConf } from './appdir.js';
+import { writeTmuxConf } from './appdir.js';
 import {
   appDirPath,
   configFilePath,
@@ -163,16 +163,16 @@ async function dispatchTmuxSnapshot(projection: Projection, tmux: TmuxPort): Pro
   projection.dispatch({ type: 'tmux-snapshot', sessions: toSessionFacts(await tmux.listPanes()) });
 }
 
-async function dispatchClaudeSessionNames(
+async function dispatchSessionNames(
   projection: Projection,
-  sessionsDir: string,
+  harness: HarnessPort,
   logger: Logger,
 ): Promise<void> {
-  const { names, skipped } = await readClaudeSessionNames(sessionsDir);
+  const { names, skipped } = await harness.readSessionNames();
   if (skipped > 0) {
-    logger.warn(`skipped ${String(skipped)} unreadable registry file(s) in ${sessionsDir}`);
+    logger.warn(`skipped ${String(skipped)} unreadable harness registry file(s)`);
   }
-  projection.dispatch({ type: 'claude-session-names-loaded', names });
+  projection.dispatch({ type: 'session-names-loaded', names });
 }
 
 /**
@@ -187,7 +187,7 @@ async function replay(
   tmux: TmuxPort,
   transcriptReplay: TranscriptReplay,
   logger: Logger,
-  claudeSessionsDir: string,
+  harness: HarnessPort,
   git: GitPort,
 ): Promise<void> {
   projection.dispatch({ type: 'store-loaded', tmuxNames: { ...store.read().tmuxNames } });
@@ -211,10 +211,10 @@ async function replay(
   try {
     // Same boundary as the poll tick's own try/catch: a registry read failure is a missing
     // display name, not a reason to fail boot.
-    await dispatchClaudeSessionNames(projection, claudeSessionsDir, logger);
+    await dispatchSessionNames(projection, harness, logger);
   } catch (error) {
     logger.error(
-      `claude session registry read failed: ${error instanceof Error ? error.message : String(error)}`,
+      `session registry read failed: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
   await transcriptReplay.run();
@@ -234,7 +234,6 @@ export async function main(detached: boolean): Promise<void> {
   guardStderr();
   const config = loadConfig(process.env, ensureConfigFile(home, logger), home);
   const confPath = writeTmuxConf(config.appDir);
-  const settingsPath = writeClaudeSettings(config.appDir);
 
   // A tmux server that outlives a garden upgrade never re-reads the conf on its own.
   try {
@@ -252,11 +251,16 @@ export async function main(detached: boolean): Promise<void> {
     confPath,
     instanceEnv: instanceEnvironment(config),
   });
-  const transcripts: TranscriptPort = createTranscripts(
-    config.transcriptsDir,
-    config.roots,
+  if (config.harness !== 'claude') throw new Error('Codex harness is not available');
+  const harness: HarnessPort = createClaudeHarness({
+    appDir: config.appDir,
     logger,
-  );
+    readCommand: readClaudeCommand(configAdapter),
+    transcriptsDir: config.transcriptsDir,
+    roots: config.roots,
+    sessionsDir: config.claudeSessionsDir,
+  });
+  const transcripts: TranscriptPort = createTranscripts(harness.transcripts, logger);
   const git = gitPort();
   const projection = createProjection(store);
   const pipes = createPipes({ projection, git });
@@ -279,16 +283,7 @@ export async function main(detached: boolean): Promise<void> {
     transcriptReplay.live(event);
   });
 
-  await replay(
-    projection,
-    pipes,
-    store,
-    tmux,
-    transcriptReplay,
-    logger,
-    config.claudeSessionsDir,
-    git,
-  );
+  await replay(projection, pipes, store, tmux, transcriptReplay, logger, harness, git);
   // Only valid once replay's transcript scan has settled what "known" means — any earlier
   // (store-loaded, or the first tmux snapshot) would prune a live child whose transcript
   // just hasn't been read yet. Isolated like every other boot step above: a stale overlay
@@ -331,13 +326,11 @@ export async function main(detached: boolean): Promise<void> {
     });
     // Its own try/catch, not chained onto the tmux snapshot's promise: a registry read
     // failure must not swallow that tick's liveness dispatch.
-    dispatchClaudeSessionNames(projection, config.claudeSessionsDir, logger).catch(
-      (error: unknown) => {
-        logger.error(
-          `claude session registry poll failed: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      },
-    );
+    dispatchSessionNames(projection, harness, logger).catch((error: unknown) => {
+      logger.error(
+        `session registry poll failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    });
     // Its own catch too, for the same reason as above — see the first sweep after listen for what
     // this actually guards, since tick() resolves per-cwd git failures internally rather than rejecting.
     branches.tick().catch((error: unknown) => {
@@ -361,7 +354,6 @@ export async function main(detached: boolean): Promise<void> {
     {
       projection,
       liveTranscripts: watcher,
-      harness: { parseHook: parseClaudeHook },
       pipes,
       tmux,
       git,
@@ -371,8 +363,7 @@ export async function main(detached: boolean): Promise<void> {
       reviews,
       reviewDismisser,
       serverPort: config.port,
-      settingsPath,
-      readClaudeCommand: readClaudeCommand(configAdapter),
+      harness,
       permissionMode: config.permissionMode,
       deadSessionCap: config.deadSessionCap,
       configPort: configAdapter,

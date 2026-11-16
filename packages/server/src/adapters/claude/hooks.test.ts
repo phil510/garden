@@ -1,4 +1,4 @@
-import { aHookEvent } from '@garden/shared/fixtures';
+import { aHookEvent } from './hooks.fixture.js';
 import { describe, expect, it } from 'vitest';
 import { hookOutcome, parseClaudeHook } from './hooks.js';
 

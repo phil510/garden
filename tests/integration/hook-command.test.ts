@@ -1,12 +1,12 @@
-import { parseClaudeHook } from '../../packages/server/src/adapters/claude/hooks.js';
+import { fakeClaudeHarness } from './support/claudeHarness.js';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import type { AddressInfo, Socket } from 'node:net';
-import { aHookEvent } from '@garden/shared/fixtures';
+import { aHookEvent } from '../../packages/server/src/adapters/claude/hooks.fixture.js';
 import { describe, expect, it } from 'vitest';
 import { updateWatches } from '../../packages/server/src/app/watches.js';
 import { createProjection, type Projection } from '../../packages/server/src/app/projection.js';
-import { claudeSettings } from '../../packages/server/src/appdir.js';
+import { claudeSettings } from '../../packages/server/src/adapters/claude/index.js';
 import { createServer as createGardenServer } from '../../packages/server/src/http/server.js';
 import { fakeStore } from './support/fakeStore.js';
 import { noPipes } from './support/noPipes.js';
@@ -109,7 +109,6 @@ describe('the generated hook command', () => {
 
 function realServer(projection: Projection) {
   return createGardenServer({
-    harness: { parseHook: parseClaudeHook },
     liveTranscripts: { track: () => undefined },
     projection,
     pipes: noPipes,
@@ -145,9 +144,8 @@ function realServer(projection: Projection) {
       resolveRoot: () => Promise.reject(new Error('not used by this test')),
     },
     serverPort: 4310,
-    settingsPath: '/home/.garden/claude-settings.json',
-    readClaudeCommand: () => ['claude'],
     deadSessionCap: 10,
+    harness: fakeClaudeHarness('/home/.garden/claude-settings.json', () => ['claude']),
   });
 }
 

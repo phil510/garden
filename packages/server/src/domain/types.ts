@@ -3,7 +3,7 @@ import type { Alert, SessionMap, Status, WatchSummary } from '@garden/shared';
 export interface HarnessSignal {
   readonly sessionId: string;
   readonly cwd: string;
-  readonly transcriptPath: string;
+  readonly transcriptPath: string | null;
   readonly reported?: ReportedStatus;
   /** null preserves the current ended fact. */
   readonly ended: boolean | null;
@@ -34,7 +34,13 @@ export interface ReportedStatus {
 
 export type GardenEvent =
   | { type: 'store-loaded'; tmuxNames: Record<string, string> }
-  | { type: 'session-registered'; id: string; tmuxName: string; cwd: string }
+  | {
+      type: 'session-registered';
+      id: string;
+      tmuxName: string;
+      cwd: string;
+      reported?: ReportedStatus;
+    }
   | { type: 'session-unregistered'; id: string }
   | { type: 'transcript-changed'; path: string; record: TranscriptRecord }
   /** Boot's whole transcript scan as one event, in listing order; folds like the same records
@@ -44,7 +50,7 @@ export type GardenEvent =
   | { type: 'branch-resolved'; cwd: string; branch: string | null }
   | { type: 'harness-signal'; signal: HarnessSignal }
   | { type: 'tmux-snapshot'; sessions: TmuxSessionFact[] }
-  | { type: 'claude-session-names-loaded'; names: Record<string, string> }
+  | { type: 'session-names-loaded'; names: Record<string, string> }
   /** The full, current summary list for one session; an empty list means it has none. */
   | { type: 'watches-changed'; sessionId: string; watches: WatchSummary[] }
   /** A session's current alert; null clears it. */
@@ -74,7 +80,7 @@ export interface GardenState {
   /** The latest status-bearing hook per session, by session id. */
   reported: Record<string, ReportedStatus>;
   /** The Claude session registry's latest snapshot, session id to Claude-side name. */
-  claudeSessionNames: Record<string, string>;
+  sessionNames: Record<string, string>;
   /** Watch summaries by session id, keyed like `repoRoots` so an entry that lands before its
    *  session is still waiting when the session appears. A session with no watches has no key. */
   watches: Record<string, WatchSummary[]>;

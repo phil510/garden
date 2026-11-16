@@ -52,7 +52,9 @@ export function createTranscriptReplay(
           paths.map((path) =>
             limit(async () => {
               try {
-                const { record, skipped } = await transcripts.readRecord(path);
+                const parsed = await transcripts.readRecord(path);
+                if (parsed === null) return null;
+                const { record, skipped } = parsed;
                 if (skipped > 0) {
                   logger.warn(`skipped ${String(skipped)} unparseable line(s) in ${path}`);
                 }

@@ -3,8 +3,8 @@ import { formatRelativeTime } from './relativeTime';
 
 /** `''` reaches here the same as `null` would — a registry entry can name a session with an
  *  empty string, and the sidebar has nothing useful to show either way. */
-export function sessionIdentityLabel(claudeSessionName: string | null): string | null {
-  return claudeSessionName === null || claudeSessionName === '' ? null : claudeSessionName;
+export function sessionIdentityLabel(sessionName: string | null): string | null {
+  return sessionName === null || sessionName === '' ? null : sessionName;
 }
 
 export interface MetaLineSegment {
@@ -15,11 +15,11 @@ export interface MetaLineSegment {
 /** The meta line's segments, in display order, with absent fields dropped rather than
  *  rendered empty, so the caller never lays out a blank segment. */
 export function metaLineSegments(
-  session: Pick<SessionState, 'claudeSessionName' | 'lastActivity'>,
+  session: Pick<SessionState, 'sessionName' | 'lastActivity'>,
   now: number,
 ): MetaLineSegment[] {
   const segments: MetaLineSegment[] = [];
-  const name = sessionIdentityLabel(session.claudeSessionName);
+  const name = sessionIdentityLabel(session.sessionName);
   if (name !== null) segments.push({ key: 'name', text: name });
   segments.push({ key: 'time', text: formatRelativeTime(session.lastActivity, now) });
   return segments;

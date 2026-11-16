@@ -45,7 +45,7 @@ describe('diff', () => {
       exitCode: 130,
       tmuxName: 'other',
       lastActivity: before.lastActivity + 1,
-      claudeSessionName: 'garden-7a',
+      sessionName: 'garden-7a',
       watches: [
         {
           repo: 'o/n',

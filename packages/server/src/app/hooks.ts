@@ -16,7 +16,7 @@ export function handleHook(
 ): boolean {
   const signal = deps.harness.parseHook(body, gardenSessionId);
   if (signal === null) return false;
-  deps.liveTranscripts.track(signal.transcriptPath);
+  if (signal.transcriptPath !== null) deps.liveTranscripts.track(signal.transcriptPath);
   deps.projection.dispatch({ type: 'harness-signal', signal });
   if (signal.conversationCleared)
     updateWatches(deps, (watches) => dropSessionWatches(watches, signal.sessionId), Date.now());

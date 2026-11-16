@@ -1,3 +1,4 @@
+import { fakeHarness } from '../../app/harness.fixture.js';
 import { createReviewStore } from '../../app/reviews.js';
 import { memoryOverlay } from '../../app/reviews.fixture.js';
 import { describe, expect, it } from 'vitest';
@@ -46,7 +47,6 @@ function fakeConfigPort(overrides: Partial<ConfigPort> = {}): ConfigPort {
 function fakeDeps(overrides: Partial<ServerDeps> = {}): ServerDeps {
   return {
     projection: fakeProjection(),
-    harness: { parseHook: () => null },
     liveTranscripts: { track: () => undefined },
     pipes: {
       connect: () => ({ ack: () => undefined, close: () => undefined }),
@@ -78,10 +78,9 @@ function fakeDeps(overrides: Partial<ServerDeps> = {}): ServerDeps {
       resolveRoot: () => Promise.reject(new Error('not used by this test')),
     },
     serverPort: 4310,
-    settingsPath: '/home/.garden/claude-settings.json',
-    readClaudeCommand: () => ['claude'],
     deadSessionCap: 25,
     ...overrides,
+    harness: fakeHarness(),
   };
 }
 

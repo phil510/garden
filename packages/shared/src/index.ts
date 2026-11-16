@@ -69,7 +69,7 @@ export interface SessionState {
   lastActivity: number;
   /** The Claude-side addressable name (e.g. `garden-7a`) read from the Claude session
    *  registry. Null when the registry carries no entry for this session's id. */
-  claudeSessionName: string | null;
+  sessionName: string | null;
   /** The session's PR watches, derived from the overlay by `reduce` so a change reaches clients
    *  as an ordinary session delta. Empty when the session has none. */
   watches: WatchSummary[];
@@ -171,21 +171,6 @@ export interface RenameSwarmRequest {
 }
 export interface PlacementRequest {
   placement: Placement;
-}
-
-/** Claude Code's hook payload, verbatim snake_case. `permission_mode` is absent on
- *  SessionStart and SessionEnd. */
-export interface HookPayload {
-  session_id: string;
-  cwd: string;
-  transcript_path: string;
-  hook_event_name: string;
-  permission_mode?: string;
-  last_assistant_message?: string;
-  message?: string;
-  notification_type?: string;
-  /** Present only on SessionStart payloads: how the session came to start. */
-  source?: 'startup' | 'resume' | 'clear' | 'compact' | 'fork';
 }
 
 export interface SessionsResponse {

@@ -1,4 +1,4 @@
-import { parseClaudeHook } from '../../packages/server/src/adapters/claude/hooks.js';
+import { fakeClaudeHarness } from './support/claudeHarness.js';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import type { AddressInfo, Socket } from 'node:net';
@@ -74,7 +74,6 @@ function receiveOne(socket: WebSocket): Promise<ServerMessage> {
 
 function serverWithProjection() {
   return createServer({
-    harness: { parseHook: parseClaudeHook },
     liveTranscripts: { track: () => undefined },
     projection: createProjection(fakeStore()),
     repos: {
@@ -82,10 +81,9 @@ function serverWithProjection() {
       resolveRoot: () => Promise.reject(new Error('not used by this test')),
     },
     serverPort: 4310,
-    settingsPath: '/home/.garden/claude-settings.json',
-    readClaudeCommand: () => ['claude'],
     deadSessionCap: 10,
     ...unusedPorts(),
+    harness: fakeClaudeHarness('/home/.garden/claude-settings.json', () => ['claude']),
   });
 }
 
@@ -103,7 +101,6 @@ describe('WS /events against the real server', () => {
   it('sends a snapshot on connect, then a delta for a dispatch that follows', async () => {
     const projection = createProjection(fakeStore());
     app = createServer({
-      harness: { parseHook: parseClaudeHook },
       liveTranscripts: { track: () => undefined },
       projection,
       repos: {
@@ -111,10 +108,9 @@ describe('WS /events against the real server', () => {
         resolveRoot: () => Promise.reject(new Error('not used by this test')),
       },
       serverPort: 4310,
-      settingsPath: '/home/.garden/claude-settings.json',
-      readClaudeCommand: () => ['claude'],
       deadSessionCap: 10,
       ...unusedPorts(),
+      harness: fakeClaudeHarness('/home/.garden/claude-settings.json', () => ['claude']),
     });
     await app.listen({ port: 0, host: '127.0.0.1' });
     const { port } = app.server.address() as AddressInfo;
@@ -227,13 +223,10 @@ describe('WS /events root watches against a real watcher', () => {
     const repos = createRepoCatalog({ git, roots: [dir] });
     const logger = { warn: () => undefined, error: () => undefined };
     app = createServer({
-      harness: { parseHook: parseClaudeHook },
       liveTranscripts: { track: () => undefined },
       projection: createProjection(fakeStore()),
       repos,
       serverPort: 4310,
-      settingsPath: '/home/.garden/claude-settings.json',
-      readClaudeCommand: () => ['claude'],
       deadSessionCap: 10,
       ...unusedPorts(),
       git,
@@ -245,6 +238,7 @@ describe('WS /events root watches against a real watcher', () => {
       }),
       reviews: noReviews,
       reviewDismisser: noReviewDismisser,
+      harness: fakeClaudeHarness('/home/.garden/claude-settings.json', () => ['claude']),
     });
     await app.listen({ port: 0, host: '127.0.0.1' });
     const { port } = app.server.address() as AddressInfo;

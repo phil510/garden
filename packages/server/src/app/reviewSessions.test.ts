@@ -1,3 +1,4 @@
+import { fakeHarness } from './harness.fixture.js';
 import { DEFAULT_UI_STATE } from '@garden/shared';
 import { aSession } from '@garden/shared/fixtures';
 import type { ReviewItem, SessionState } from '@garden/shared';
@@ -74,8 +75,6 @@ function harness(
     tmux,
     projection,
     serverPort: 4310,
-    settingsPath: '/home/.garden/claude-settings.json',
-    readClaudeCommand: () => ['claude'],
     reviews: reviewsFor?.(known) ?? {
       item: (key) => {
         const found = items.find((candidate) => candidate.key === key);
@@ -86,6 +85,7 @@ function harness(
       },
       link: (key, sessionId) => links.set(key, sessionId),
     },
+    harness: fakeHarness(),
   });
   return { sessions, spawned, links };
 }

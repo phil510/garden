@@ -1,3 +1,4 @@
+import { fakeClaudeHarness } from './support/claudeHarness.js';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -34,14 +35,11 @@ describe('spawn provenance', () => {
           tmux: tmuxPort(target),
           projection,
           serverPort: 4310,
-          settingsPath: '/nonexistent/claude-settings.json',
-          // Proves the process itself observes the value, not just tmux's own record of it —
-          // mirrors tmux-adapter.test.ts's GARDEN_PORT check.
-          readClaudeCommand: () => [
+          harness: fakeClaudeHarness('/nonexistent/claude-settings.json', () => [
             'sh',
             '-c',
             'printenv GARDEN_SESSION_ID > session-id.txt; sleep 30',
-          ],
+          ]),
         },
         { cwd },
       );
@@ -75,8 +73,7 @@ describe('spawn provenance', () => {
         store: fakeStore(),
         projection,
         serverPort: 4310,
-        settingsPath: '/nonexistent/claude-settings.json',
-        readClaudeCommand: () => sleeper,
+        harness: fakeClaudeHarness('/nonexistent/claude-settings.json', () => sleeper),
       };
 
       const caller = await createSession(deps, { cwd: callerCwd });
@@ -106,8 +103,7 @@ describe('spawn provenance', () => {
         store: fakeStore(),
         projection,
         serverPort: 4310,
-        settingsPath: '/nonexistent/claude-settings.json',
-        readClaudeCommand: () => sleeper,
+        harness: fakeClaudeHarness('/nonexistent/claude-settings.json', () => sleeper),
       };
 
       const caller = await createSession(deps, { cwd: callerCwd });
@@ -134,8 +130,7 @@ describe('spawn provenance', () => {
           tmux: tmuxPort(target),
           projection,
           serverPort: 4310,
-          settingsPath: '/nonexistent/claude-settings.json',
-          readClaudeCommand: () => sleeper,
+          harness: fakeClaudeHarness('/nonexistent/claude-settings.json', () => sleeper),
         },
         { cwd, callerSessionId: 'no-such-session' },
       );

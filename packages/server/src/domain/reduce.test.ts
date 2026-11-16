@@ -53,8 +53,8 @@ const signalEvent = (
   }),
 });
 
-const claudeSessionNames = (names: Record<string, string>): GardenEvent => ({
-  type: 'claude-session-names-loaded',
+const sessionNames = (names: Record<string, string>): GardenEvent => ({
+  type: 'session-names-loaded',
   names,
 });
 
@@ -444,31 +444,27 @@ describe('reduce', () => {
   });
 
   it('picks up a Claude-side name for a session the registry snapshot names', () => {
-    const state = fold([transcript(), claudeSessionNames({ 'sid-1': 'garden-7a' })]);
-    expect(state.sessions['sid-1']?.claudeSessionName).toBe('garden-7a');
+    const state = fold([transcript(), sessionNames({ 'sid-1': 'garden-7a' })]);
+    expect(state.sessions['sid-1']?.sessionName).toBe('garden-7a');
   });
 
   it('leaves a session the registry snapshot does not name at null', () => {
     const state = fold([
       transcript(),
       transcript({ sessionId: 'sid-2' }),
-      claudeSessionNames({ 'sid-1': 'garden-7a' }),
+      sessionNames({ 'sid-1': 'garden-7a' }),
     ]);
-    expect(state.sessions['sid-2']?.claudeSessionName).toBeNull();
+    expect(state.sessions['sid-2']?.sessionName).toBeNull();
   });
 
   it('reverts to null when a name present in one snapshot is absent from the next', () => {
-    const state = fold([
-      transcript(),
-      claudeSessionNames({ 'sid-1': 'garden-7a' }),
-      claudeSessionNames({}),
-    ]);
-    expect(state.sessions['sid-1']?.claudeSessionName).toBeNull();
+    const state = fold([transcript(), sessionNames({ 'sid-1': 'garden-7a' }), sessionNames({})]);
+    expect(state.sessions['sid-1']?.sessionName).toBeNull();
   });
 
   it('lands a Claude-side name that arrived before the session was otherwise known', () => {
-    const state = fold([claudeSessionNames({ 'sid-1': 'garden-7a' }), transcript()]);
-    expect(state.sessions['sid-1']?.claudeSessionName).toBe('garden-7a');
+    const state = fold([sessionNames({ 'sid-1': 'garden-7a' }), transcript()]);
+    expect(state.sessions['sid-1']?.sessionName).toBe('garden-7a');
   });
 
   describe('watches', () => {
