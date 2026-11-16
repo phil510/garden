@@ -59,6 +59,7 @@ import {
   configFilePath,
   ensureConfigFile,
   loadConfig,
+  instanceEnvironment,
   patchConfigFile,
   readConfigFile,
   resolveClaudeCommand,
@@ -245,7 +246,11 @@ export async function main(detached: boolean): Promise<void> {
 
   const store = storePort(config.appDir, logger);
   const configAdapter = configPort(home);
-  const tmux = tmuxPort({ socket: config.tmuxSocket, confPath });
+  const tmux = tmuxPort({
+    socket: config.tmuxSocket,
+    confPath,
+    instanceEnv: instanceEnvironment(config),
+  });
   const transcripts: TranscriptPort = createTranscripts(
     config.transcriptsDir,
     config.roots,

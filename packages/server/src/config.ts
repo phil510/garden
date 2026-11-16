@@ -7,6 +7,8 @@ import { createLogger, type Logger } from './adapters/logger.js';
  *  `'bypassPermissions'` skips its permission prompts; `'default'` passes no flag. */
 export type PermissionMode = 'default' | 'bypassPermissions';
 
+export type Harness = 'claude' | 'codex';
+
 function isPermissionMode(value: unknown): value is PermissionMode {
   return value === 'default' || value === 'bypassPermissions';
 }
@@ -23,6 +25,7 @@ export interface ConfigFile {
   readonly pollIntervalMinutes: number;
 }
 export interface Config {
+  readonly harness: Harness;
   readonly port: number;
   readonly host: string;
   readonly roots: readonly string[];
@@ -51,6 +54,20 @@ const HOST = '127.0.0.1';
 /** Every garden tmux session lives on this socket, so `tmux -L garden` reaches them
  *  and nothing garden does can disturb a user's own tmux server. */
 export const TMUX_SOCKET = 'garden';
+export const CODEX_TMUX_SOCKET = 'garden-codex';
+
+function resolveHarness(env: Record<string, string | undefined>): Harness {
+  const raw = envString(env, 'GARDEN_HARNESS');
+  if (raw === undefined || raw === 'claude') return 'claude';
+  if (raw === 'codex') return 'codex';
+  throw new Error(`GARDEN_HARNESS must be "claude" or "codex", got "${raw}"`);
+}
+
+function defaultConfigFile(env: Record<string, string | undefined>): ConfigFile {
+  return resolveHarness(env) === 'codex'
+    ? { ...DEFAULT_CONFIG_FILE, port: 4311 }
+    : DEFAULT_CONFIG_FILE;
+}
 
 function isPort(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 65535;
@@ -128,7 +145,11 @@ function expandHome(path: string, home: string): string {
   return path.startsWith('~/') ? join(home, path.slice(2)) : path;
 }
 
-export function parseConfigFile(text: string, source: string): ConfigFile {
+export function parseConfigFile(
+  text: string,
+  source: string,
+  defaults: ConfigFile = DEFAULT_CONFIG_FILE,
+): ConfigFile {
   let raw: unknown;
   try {
     raw = JSON.parse(text);
@@ -185,7 +206,7 @@ export function parseConfigFile(text: string, source: string): ConfigFile {
     throw new Error(`${source}: "pollIntervalMinutes" must be a positive integer`);
   }
   return {
-    port: port ?? DEFAULT_CONFIG_FILE.port,
+    port: port ?? defaults.port,
     roots: (roots as readonly string[] | undefined) ?? DEFAULT_CONFIG_FILE.roots,
     permissionMode: permissionMode ?? DEFAULT_CONFIG_FILE.permissionMode,
     deadSessionCap: deadSessionCap ?? DEFAULT_CONFIG_FILE.deadSessionCap,
@@ -197,7 +218,11 @@ export function parseConfigFile(text: string, source: string): ConfigFile {
 }
 
 export function appDirPath(home: string, env: Record<string, string | undefined>): string {
-  return envString(env, 'GARDEN_APP_DIR') ?? join(home, '.garden');
+  const harness = resolveHarness(env);
+  return (
+    envString(env, 'GARDEN_APP_DIR') ??
+    join(home, harness === 'codex' ? '.garden-codex' : '.garden')
+  );
 }
 
 export function configFilePath(appDir: string): string {
@@ -207,19 +232,35 @@ export function configFilePath(appDir: string): string {
 /** Resolves the effective config. `GARDEN_PORT` outranks the file; roots come back absolute. */
 export function loadConfig(
   env: Record<string, string | undefined> = process.env,
-  file: ConfigFile = DEFAULT_CONFIG_FILE,
+  file: ConfigFile = defaultConfigFile(env),
   home: string = homedir(),
 ): Config {
+  const harness = resolveHarness(env);
   return {
+    harness,
     port: envPort(env) ?? file.port,
     host: HOST,
     roots: file.roots.map((root) => expandHome(root, home)),
     appDir: appDirPath(home, env),
-    tmuxSocket: envString(env, 'GARDEN_TMUX_SOCKET') ?? TMUX_SOCKET,
+    tmuxSocket:
+      envString(env, 'GARDEN_TMUX_SOCKET') ??
+      (harness === 'codex' ? CODEX_TMUX_SOCKET : TMUX_SOCKET),
     transcriptsDir: envString(env, 'GARDEN_TRANSCRIPTS_DIR') ?? join(home, '.claude', 'projects'),
     claudeSessionsDir: join(home, '.claude', 'sessions'),
     permissionMode: file.permissionMode,
     deadSessionCap: file.deadSessionCap,
+  };
+}
+
+/** Carries the effective instance across process boundaries, including file-derived values. */
+export function instanceEnvironment(
+  config: Pick<Config, 'harness' | 'port' | 'tmuxSocket' | 'appDir'>,
+): Record<string, string> {
+  return {
+    GARDEN_HARNESS: config.harness,
+    GARDEN_PORT: String(config.port),
+    GARDEN_TMUX_SOCKET: config.tmuxSocket,
+    GARDEN_APP_DIR: config.appDir,
   };
 }
 
@@ -234,20 +275,21 @@ export function ensureConfigFile(
   home: string,
   logger: Pick<Logger, 'warn'> = createLogger(),
 ): ConfigFile {
+  const defaults = defaultConfigFile(process.env);
   const dir = appDirPath(home, process.env);
   mkdirSync(dir, { recursive: true });
   const path = configFilePath(dir);
   try {
-    return parseConfigFile(readFileSync(path, 'utf8'), path);
+    return parseConfigFile(readFileSync(path, 'utf8'), path, defaults);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
       // parseConfigFile's thrown message already names `path` (it's the `source` argument), so
       // this doesn't repeat it — the message alone carries which file and why.
       logger.warn(`config unusable, falling back to defaults: ${(error as Error).message}`);
-      return DEFAULT_CONFIG_FILE;
+      return defaults;
     }
-    writeFileSync(path, `${JSON.stringify(DEFAULT_CONFIG_FILE, null, 2)}\n`, 'utf8');
-    return DEFAULT_CONFIG_FILE;
+    writeFileSync(path, `${JSON.stringify(defaults, null, 2)}\n`, 'utf8');
+    return defaults;
   }
 }
 

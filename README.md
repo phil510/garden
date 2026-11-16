@@ -32,9 +32,16 @@ there is no separate step. If the hook ever goes missing, `pnpm rebuild lefthook
 
 ## Configuration
 
-garden reads `~/.garden/config.json` on startup, writing a default one on first run. Fields:
+`GARDEN_HARNESS` selects the instance for every command, including `stop` and `stop --all`.
+Unset or `claude` uses port `4310`, tmux socket `garden`, and app dir `~/.garden`.
+`codex` uses port `4311`, socket `garden-codex`, and app dir `~/.garden-codex`.
+`GARDEN_PORT`, `GARDEN_TMUX_SOCKET`, and `GARDEN_APP_DIR` override the selected instance's
+values individually. Spawned and resumed panes inherit the full effective instance, so
+commands inside them reach their own server even with overrides.
 
-- `port` — the port the server listens on. Default `4310`.
+garden reads `<appDir>/config.json` on startup, writing a default one on first run. Fields:
+
+- `port` — the port the server listens on. Default `4310` for Claude or `4311` for Codex; `GARDEN_PORT` takes precedence.
 - `roots` — the repo roots garden scans for sessions. Default `["~/Desktop/Extend"]`. Each repo
   directly under a root is listed with its worktrees, found under `<repo>/.worktrees/` or, for a
   bare clone kept in `<repo>/.bare/` with a `.git` file pointing at it, beside the clone.

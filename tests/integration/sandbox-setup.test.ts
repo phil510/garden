@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
-import { TMUX_SOCKET } from '../../packages/server/src/config.js';
+import { CODEX_TMUX_SOCKET, TMUX_SOCKET } from '../../packages/server/src/config.js';
 import { listPanes, newSession } from '../../packages/server/src/adapters/tmux.js';
 import { withTmuxServer } from './support/tmux-server.js';
 
@@ -91,16 +91,19 @@ describe('scripts/setup-sandbox.ts', () => {
     });
   });
 
-  it('refuses the production socket without running any tmux command', async () => {
-    const appDir = mkdtempSync(join(tmpdir(), 'garden-sandbox-appdir-'));
-    try {
-      const error = await rejection(
-        runSetupSandbox({ GARDEN_TMUX_SOCKET: TMUX_SOCKET, GARDEN_APP_DIR: appDir }),
-      );
-      expect(error.code).not.toBe(0);
-      expect(error.stderr).toContain("garden's production socket");
-    } finally {
-      rmSync(appDir, { recursive: true, force: true });
-    }
-  });
+  it.each([TMUX_SOCKET, CODEX_TMUX_SOCKET])(
+    'refuses production socket %s without running any tmux command',
+    async (socket) => {
+      const appDir = mkdtempSync(join(tmpdir(), 'garden-sandbox-appdir-'));
+      try {
+        const error = await rejection(
+          runSetupSandbox({ GARDEN_TMUX_SOCKET: socket, GARDEN_APP_DIR: appDir }),
+        );
+        expect(error.code).not.toBe(0);
+        expect(error.stderr).toContain("garden's production socket");
+      } finally {
+        rmSync(appDir, { recursive: true, force: true });
+      }
+    },
+  );
 });

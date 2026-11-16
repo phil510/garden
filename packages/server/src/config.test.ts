@@ -34,6 +34,47 @@ describe('loadConfig', () => {
   });
 });
 
+describe('instance selection', () => {
+  it('keeps file and environment port overrides within the selected namespace', () => {
+    const file = { ...DEFAULT_CONFIG_FILE, port: 4500 };
+    const codex = loadConfig({ GARDEN_HARNESS: 'codex' }, file, '/h');
+    const claude = loadConfig({}, file, '/h');
+    expect(codex.appDir).not.toBe(claude.appDir);
+    expect(codex.tmuxSocket).not.toBe(claude.tmuxSocket);
+    expect(codex.port).toBe(4500);
+    expect(loadConfig({ GARDEN_HARNESS: 'codex', GARDEN_PORT: '4600' }, file).port).toBe(4600);
+  });
+
+  it('lets explicit instance overrides win together', () => {
+    const config = loadConfig({
+      GARDEN_HARNESS: 'codex',
+      GARDEN_PORT: '4600',
+      GARDEN_TMUX_SOCKET: 'isolated-socket',
+      GARDEN_APP_DIR: '/tmp/isolated-app',
+    });
+    expect(config).toMatchObject({
+      harness: 'codex',
+      port: 4600,
+      tmuxSocket: 'isolated-socket',
+      appDir: '/tmp/isolated-app',
+    });
+  });
+
+  it.each(['typo', 'Claude', ' '])(
+    'rejects an unknown harness before touching state (%j)',
+    (raw) => {
+      expect(() => appDirPath('/h', { GARDEN_HARNESS: raw })).toThrow(/GARDEN_HARNESS/);
+      expect(() => loadConfig({ GARDEN_HARNESS: raw })).toThrow(/GARDEN_HARNESS/);
+    },
+  );
+
+  it('treats an empty harness as the default instance', () => {
+    expect(loadConfig({ GARDEN_HARNESS: '' }, DEFAULT_CONFIG_FILE, '/h')).toEqual(
+      loadConfig({}, DEFAULT_CONFIG_FILE, '/h'),
+    );
+  });
+});
+
 describe('loadConfig precedence and root expansion', () => {
   it('prefers GARDEN_PORT over the port in the config file', () => {
     expect(
@@ -281,6 +322,26 @@ describe('ensureConfigFile', () => {
 
   afterEach(() => {
     rmSync(home, { recursive: true, force: true });
+  });
+
+  it('creates and reads each harness config independently under one home', () => {
+    vi.stubEnv('GARDEN_HARNESS', 'claude');
+    vi.stubEnv('GARDEN_APP_DIR', '');
+    try {
+      const claude = ensureConfigFile(home);
+      vi.stubEnv('GARDEN_HARNESS', 'codex');
+      const codex = ensureConfigFile(home);
+      expect(codex.port).not.toBe(claude.port);
+      const codexPath = join(appDirPath(home, process.env), 'config.json');
+      writeFileSync(codexPath, JSON.stringify({ roots: ['/codex'] }));
+      expect(ensureConfigFile(home)).toMatchObject({ port: codex.port, roots: ['/codex'] });
+      writeFileSync(codexPath, JSON.stringify({ port: 4700 }));
+      expect(loadConfig(process.env, ensureConfigFile(home), home).port).toBe(4700);
+      vi.stubEnv('GARDEN_HARNESS', 'claude');
+      expect(ensureConfigFile(home)).toEqual(claude);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it('writes and returns the default config when no file is present', () => {

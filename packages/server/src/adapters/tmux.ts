@@ -37,6 +37,7 @@ function formatVersion(version: TmuxVersion): string {
 export interface TmuxTarget {
   readonly socket: string;
   readonly confPath: string;
+  readonly instanceEnv?: Readonly<Record<string, string>>;
 }
 export interface TmuxPane {
   readonly session: string;
@@ -145,9 +146,17 @@ export async function socketHasLivePanes(socket: string): Promise<boolean> {
     .some((line) => line !== '1');
 }
 
+function environmentArgs(target: TmuxTarget): string[] {
+  return Object.entries(target.instanceEnv ?? {}).flatMap(([key, value]) => [
+    '-e',
+    `${key}=${value}`,
+  ]);
+}
+
 export async function newSession(target: TmuxTarget, request: NewSessionRequest): Promise<void> {
   await run(target, [
     'new-session',
+    ...environmentArgs(target),
     '-d',
     '-s',
     request.name,
@@ -164,7 +173,15 @@ export async function newSession(target: TmuxTarget, request: NewSessionRequest)
 
 /** Replaces the pane's process, reusing the tmux name and any attached client. */
 export async function respawnPane(target: TmuxTarget, request: RespawnRequest): Promise<void> {
-  await run(target, ['respawn-pane', '-k', '-t', request.name, '--', ...request.command]);
+  await run(target, [
+    'respawn-pane',
+    ...environmentArgs(target),
+    '-k',
+    '-t',
+    request.name,
+    '--',
+    ...request.command,
+  ]);
 }
 
 export async function killSession(target: TmuxTarget, name: string): Promise<void> {
