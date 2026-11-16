@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { createCodexHarness } from './adapters/codex.js';
+import { createCodexHarness } from './adapters/codex/index.js';
 import { applyHarnessSignal } from './app/hooks.js';
 import { createClaudeHarness } from './adapters/claude/index.js';
 import { watchFsRoot } from './adapters/fsWatch.js';

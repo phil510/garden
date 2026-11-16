@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { codexHook, codexSignal } from './codexHooks.js';
+import { codexHook, codexSignal } from './hooks.js';
 const hook = {
   session_id: '01999999-aaaa-7777-bbbb-0123456789ab',
   cwd: '/repo',

@@ -1,4 +1,4 @@
-import type { TranscriptParse } from './transcript.js';
+import type { TranscriptParse } from '../../domain/transcript.js';
 
 function object(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null && !Array.isArray(value)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseCodexTranscript } from './codexTranscript.js';
+import { parseCodexTranscript } from './transcript.js';
 const line = (type: string, payload: unknown, timestamp = '2026-11-15T00:00:00Z') =>
   JSON.stringify({ type, payload, timestamp });
 

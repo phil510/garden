@@ -14,10 +14,10 @@ import {
 import { readFile, stat } from 'node:fs/promises';
 import { isAbsolute, join, relative, sep } from 'node:path';
 import type { EffortLevel } from '@garden/shared';
-import type { PermissionMode } from '../config.js';
-import { codexHook, codexSignal } from '../domain/codexHooks.js';
-import { parseCodexTranscript } from '../domain/codexTranscript.js';
-import type { HarnessSignal, TranscriptRecord } from '../domain/types.js';
+import type { PermissionMode } from '../../config.js';
+import { codexHook, codexSignal } from './hooks.js';
+import { parseCodexTranscript } from './transcript.js';
+import type { HarnessSignal, TranscriptRecord } from '../../domain/types.js';
 
 interface Alias {
   cwd: string;

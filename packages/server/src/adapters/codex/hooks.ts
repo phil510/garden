@@ -1,4 +1,4 @@
-import type { HarnessSignal, ReportedStatus } from './types.js';
+import type { HarnessSignal, ReportedStatus } from '../../domain/types.js';
 
 export interface CodexHook {
   session_id: string;

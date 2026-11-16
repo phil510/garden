@@ -282,7 +282,7 @@ session had a pipe connected, and the review requests a session was started for.
 client's `UiState`, next to `tmuxNames` and the non-UI records, and a version 1 file is migrated on
 read. It does **not** hold a `SessionState` snapshot. Session facts are derived at boot —
 liveness and exit code from tmux, conversation facts from transcripts, branch from a live git
-lookup keyed by cwd, and status from hooks. Separately, `adapters/codex.ts` persists identity
+lookup keyed by cwd, and status from hooks. Separately, `adapters/codex/index.ts` persists identity
 bindings and pending launch cwd under `appDir`; replaying pending aliases preserves sessions
 that have never produced a transcript, including their initial `waiting` report.
 

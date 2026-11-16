@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSyn
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { createCodexHarness } from './codex.js';
+import { createCodexHarness } from './index.js';
 
 const nativeA = '01999999-aaaa-7777-bbbb-0123456789ab';
 const nativeB = '01999999-aaaa-7777-bbbb-0123456789ac';
