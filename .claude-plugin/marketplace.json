@@ -8,6 +8,10 @@
     {
       "name": "garden",
       "source": "./plugins/garden"
+    },
+    {
+      "name": "garden-codex",
+      "source": "./plugins/garden-codex"
     }
   ]
 }

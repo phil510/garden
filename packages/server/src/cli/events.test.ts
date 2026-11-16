@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { runEventsFollow, type PipeSocket } from './events.js';
+import { runEventsFollow, type PipeSocket, type EventsFollowDeps } from './events.js';
 import type { WritableLike } from './io.js';
 
 type Listener = (event: { data?: unknown }) => void;
@@ -45,7 +45,10 @@ function sink(log: string[], label: string, failWith?: Error): WritableLike & { 
   };
 }
 
-function setup(env: NodeJS.ProcessEnv = { GARDEN_SESSION_ID: 's1', CLAUDE_CODE_SESSION_ID: 's1' }) {
+function setup(
+  env: NodeJS.ProcessEnv = { GARDEN_SESSION_ID: 's1', CLAUDE_CODE_SESSION_ID: 's1' },
+  forward?: EventsFollowDeps['forward'],
+) {
   const log: string[] = [];
   const out = sink(log, 'out');
   const stderr = sink(log, 'err');
@@ -69,7 +72,15 @@ function setup(env: NodeJS.ProcessEnv = { GARDEN_SESSION_ID: 's1', CLAUDE_CODE_S
         });
       }),
   );
-  const run = runEventsFollow({ env, out, stderr, gone, connect, sleep });
+  const run = runEventsFollow({
+    env,
+    out,
+    stderr,
+    gone,
+    connect,
+    sleep,
+    ...(forward ? { forward } : {}),
+  });
   const state = { returned: false };
   void run.then(() => {
     state.returned = true;
@@ -264,4 +275,86 @@ describe('runEventsFollow', () => {
       await t.run;
     },
   );
+});
+
+describe('digest forwarding', () => {
+  it('acknowledges only after enqueue succeeds and writes no digest to stdout', async () => {
+    let accept!: () => void;
+    const forward = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          accept = resolve;
+        }),
+    );
+    const t = setup(undefined, forward);
+    t.sockets[0]!.digest('d1', 'hello');
+    await flush();
+    expect(forward).toHaveBeenCalledWith('s1', 'hello', expect.any(AbortSignal));
+    expect(t.sockets[0]!.sent).toEqual([]);
+    expect(t.out.text).toEqual([]);
+    accept();
+    await flush();
+    expect(t.sockets[0]!.sent).toEqual([JSON.stringify({ type: 'ack', id: 'd1' })]);
+    t.resolveGone();
+    await t.run;
+  });
+
+  it('reconnects without acknowledging a failed enqueue or forwarding later buffered digests', async () => {
+    const forward = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValue(undefined);
+    const t = setup(undefined, forward);
+    t.sockets[0]!.digest('d1', 'hello');
+    t.sockets[0]!.digest('d2', 'later');
+    await flush();
+    expect(t.sockets[0]!.sent).toEqual([]);
+    expect(forward).toHaveBeenCalledTimes(1);
+    expect(t.sockets[0]!.closed).toBe(true);
+    await vi.advanceTimersByTimeAsync(500);
+    t.sockets[1]!.digest('d1', 'hello');
+    await flush();
+    expect(forward).toHaveBeenCalledTimes(2);
+    expect(t.sockets[1]!.sent).toEqual([JSON.stringify({ type: 'ack', id: 'd1' })]);
+    t.resolveGone();
+    await t.run;
+  });
+
+  it('does not ack a forward that completes after its connection closed', async () => {
+    let accept!: () => void;
+    const t = setup(
+      undefined,
+      () =>
+        new Promise<void>((resolve) => {
+          accept = resolve;
+        }),
+    );
+    t.sockets[0]!.digest('d1', 'hello');
+    await flush();
+    t.sockets[0]!.emit('close');
+    accept();
+    await flush();
+    expect(t.sockets[0]!.sent).toEqual([]);
+    t.resolveGone();
+    await t.run;
+  });
+
+  it('aborts an in-flight enqueue and does not ack after shutdown', async () => {
+    let signal!: AbortSignal;
+    let accept!: () => void;
+    const t = setup(undefined, (_id, _line, stopping) => {
+      signal = stopping;
+      return new Promise<void>((resolve) => {
+        accept = resolve;
+      });
+    });
+    t.sockets[0]!.digest('d1', 'hello');
+    await flush();
+    t.resolveGone();
+    await t.run;
+    expect(signal.aborted).toBe(true);
+    accept();
+    await flush();
+    expect(t.sockets[0]!.sent).toEqual([]);
+  });
 });

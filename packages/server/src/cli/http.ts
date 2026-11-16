@@ -52,6 +52,22 @@ export function pipeUrl(sessionId: string): string {
   return `ws://${hostPort()}${pipeStreamPath(sessionId)}`;
 }
 
+/** Resolves the current conversation on the server, keeping native harness ids private. */
+export function sendSessionMessage(
+  sessionId: string,
+  message: string,
+  signal?: AbortSignal,
+): Promise<OkResponse> {
+  return request(`/sessions/${encodeURIComponent(sessionId)}/messages`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ message }),
+    signal: signal
+      ? AbortSignal.any([signal, AbortSignal.timeout(30_000)])
+      : AbortSignal.timeout(30_000),
+  });
+}
+
 /** `describeError` words an error body that carries no `error` field. */
 async function request<T>(
   path: string,

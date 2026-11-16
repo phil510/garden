@@ -13,6 +13,7 @@ import {
   listSessions,
   placeSession,
   resumeSession,
+  sendSessionMessage,
   unwatch,
   watch,
   watches,
@@ -299,5 +300,28 @@ describe('review requests', () => {
     await expect(claimReview('acme', 'widgets', 7, 's1')).rejects.toThrow(
       'no review request acme/widgets#7',
     );
+  });
+});
+
+describe('sendSessionMessage', () => {
+  it('sends quoted multiline text as JSON to the encoded garden id', async () => {
+    const message = 'A "quoted" note\nnext line';
+    await startServer((request, response) => {
+      void readBody(request).then((body) => {
+        expect(request.method).toBe('POST');
+        expect(request.url).toBe('/sessions/s%2F1/messages');
+        expect(request.headers['content-type']).toBe('application/json');
+        expect(JSON.parse(body)).toEqual({ message });
+        sendJson(response, 200, { ok: true });
+      });
+    });
+    await expect(sendSessionMessage('s/1', message)).resolves.toEqual({ ok: true });
+  });
+
+  it('rejects a refused enqueue so the caller can retain the digest', async () => {
+    await startServer((_request, response) =>
+      sendJson(response, 409, { error: 'session is dead' }),
+    );
+    await expect(sendSessionMessage('s1', 'hello')).rejects.toThrow('session is dead');
   });
 });

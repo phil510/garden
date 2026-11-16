@@ -1,0 +1,7 @@
+{
+  "name": "garden-codex",
+  "description": "Create and oversee Codex garden sessions, send messages by garden id, and manage alerts and PR watches.",
+  "author": {
+    "name": "phil510"
+  }
+}
