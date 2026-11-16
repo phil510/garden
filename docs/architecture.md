@@ -9,8 +9,8 @@ boundaries and the invariants behind them, not features: what garden does is in 
 garden has four sources of truth about the outside world:
 
 - **tmux** — which sessions exist, which panes are alive, exit codes.
-- **transcripts** — `<transcriptsDir>/*/*.jsonl` (default `~/.claude/projects`), appended live by Claude Code.
-- **hooks** — Claude Code POSTs its hook events to the server.
+- **transcripts** — the selected harness's conversation files: Claude project JSONL files or bound Codex rollouts.
+- **hooks** — the selected harness POSTs native events, translated to garden signals at the boundary.
 - **clients** — the browser and the CLI issue commands.
 
 All four fold into one thing: a map of session id to session state. That map streams to
@@ -38,19 +38,18 @@ protecting it.
 Three decisions shape the whole system and are expensive to reverse. Check the reason before
 changing one.
 
-- **tmux is the supervisor; garden is disposable.** Every Claude Code process runs in a tmux
+- **tmux is the supervisor; garden is disposable.** Every harness process runs in a tmux
   session on garden's own socket (`tmux -L garden`, started with the conf `appdir.ts` writes).
   Killing the server or closing the browser never touches a session. Had garden owned the ptys,
   every session would die with the server, and you could not reach a session from another
   terminal with `tmux -L garden attach -t <name>`. Reversing this rewrites the process model,
   resume and the liveness derivation.
-- **Pure overlay on Claude Code.** The garden server reads transcripts and receives hook calls,
-  but writes nothing under `~/.claude/`; everything it writes lives in `appDir`. Its hooks reach
-  Claude Code per process, through `--settings <appDir>/claude-settings.json` on the spawn
-  command, rather than through `~/.claude/settings.json`, so they stay out of sessions garden did
-  not start. The opt-in plugin in `plugins/garden`, whose hooks run in every session once enabled,
-  is installed by Claude Code and is separate from this. If a server task seems to need a write
-  under `~/.claude/`, stop and ask — there is no silent fallback.
+- **Per-process overlay.** Garden writes its configuration and identity state under `appDir`,
+  and injects hooks into each process rather than editing the user's harness configuration.
+  Claude receives `--settings <appDir>/claude-settings.json`; its `~/.claude/` tree stays read-only.
+  Codex receives per-process configuration. Its hook-trust bypass has an accepted exception:
+  Codex itself can write plugin hook trust records into `~/.codex/config.toml`. The bypass also
+  applies to other enabled hooks in that process. The separately installed plugins remain opt-in.
 - **Loopback only, no auth.** The server listens on `127.0.0.1`; `HOST` in `config.ts` is a
   constant, not a setting. Nothing authenticates a request, and the `/fs` endpoints serve file
   contents scoped only by session cwd, which is not strong enough to expose to a network.
@@ -67,10 +66,10 @@ merges them; nothing else computes a session fact.
 | tmux name                            | the id-to-name map in `state.json`, written by `dispatch` when a session is (un)registered                  |
 | liveness, exit code                  | tmux pane facts (`pane_dead`, `pane_dead_status`), overridden to dead by `ended`                            |
 | `ended`                              | hooks: `SessionEnd` sets it, `SessionStart` clears it; `session-registered` also clears it                  |
-| status, reason                       | hooks (`domain/status.ts` holds the event-to-status mapping)                                                |
+| status, reason                       | harness-neutral signals (pure harness parsers hold the native event-to-status mappings)                     |
 | branch                               | a live git lookup by cwd (`app/branches.ts`), re-asked each tick for live sessions                          |
 | repo root                            | `git rev-parse --git-common-dir` on the cwd (`app/repoRoots.ts`), so worktrees fold into their main repo    |
-| Claude-side name                     | Claude Code's session registry, `~/.claude/sessions` (read only)                                            |
+| Session display name                 | selected harness; Claude reads `~/.claude/sessions`, Codex supplies no name                                 |
 | watches                              | the watch records in `state.json`, projected onto the session by a `watches-changed` event                  |
 | alert                                | `garden alert` or the web Dismiss, persisted in `state.json` and projected by an `alert-changed` event      |
 | pipe connected                       | the registry in `app/pipes.ts` (open pipe streams), projected onto the session by a `pipe-changed` event    |
@@ -148,8 +147,8 @@ packages/server/src/
     types.ts       GardenEvent, GardenState, TranscriptRecord, TmuxSessionFact, ReportedStatus
     reduce.ts      reduce(state, event) -> state
     sessions.ts    deriveLiveness(fact) -> liveness, exit code
-    transcript.ts  jsonl line -> session record
-    status.ts      hook event -> status
+    claudeTranscript.ts / codexTranscript.ts  native transcript -> garden record
+    claudeHooks.ts / codexHooks.ts  native hook -> garden signal
     stage.ts       slot arithmetic across preset changes
     watches.ts     watch rules: kind normalisation, upsert/remove, 7-day digest pruning, summaries
     pipes.ts       ack a digest, end watches with no pipe for 7 days, prune stale pipe times
@@ -162,14 +161,15 @@ packages/server/src/
     tmux.ts        execFile wrapper: list, new-session, respawn-pane, kill, version check
     git.ts         git-common-dir, branch (read from HEAD, no spawn), status --porcelain, worktree prefix, origin URL
     gh.ts          a conditional `gh api` GET (ETag in, `--include` output parsed, rate-limit resume time, classified result out) and one DELETE that removes a review request
-    transcripts.ts bounded read; polls live transcript paths, scans for the rest
+    transcripts.ts generic polling over a harness-supplied layout and record reader
+    claude.ts / codex.ts  command, hook overlay, transcript layout and display-name adapters
     fsWatch.ts     native recursive fs.watch on one root, debounced, .git/ filtered
     pty.ts         node-pty attach
     store.ts       <appDir>/state.json, atomic writes (overlay only)
     logger.ts
   app/
     ports.ts       interfaces app requires: TmuxPort, StorePort, TranscriptPort, PtyPort, GitPort,
-                   GhPort, FsWatchPort
+                   GhPort, FsWatchPort, HarnessPort
     projection.ts  owns current state; dispatch(event); subscribe(fn)
     sessions.ts    create / resume / kill use cases
     hooks.ts
@@ -189,7 +189,7 @@ packages/server/src/
     server.ts      fastify factory
   config.ts        resolves appDir, transcriptsDir, tmuxSocket, claudeCommand from GARDEN_*
                    env vars, else their ~/.garden / ~/.claude / claude defaults
-  appdir.ts        writes tmux.conf and the Claude hook-settings overlay under appDir
+  appdir.ts        writes tmux.conf under appDir
   main.ts          composition root
   cli/             the garden bin
 ```
@@ -207,6 +207,34 @@ The server ships as a single esbuild bundle, and `node-pty`'s native addon canno
 `garden` bin linked from it (README, "Dev loop"). Nothing copies `prebuilds/` into `dist/`, so a
 relocatable install would have to. The version is pinned exactly; `pnpm-workspace.yaml` says why.
 
+### Harness boundary
+
+One harness is selected once at boot by `GARDEN_HARNESS` (`claude` by default, or `codex`).
+The selection resolves the port, tmux socket and app directory together: Claude defaults to
+`4310`, `garden`, `~/.garden`; Codex to `4311`, `garden-codex`, `~/.garden-codex`. Explicit
+instance overrides retain precedence. CLI commands and spawned panes use that full resolution.
+
+`HarnessPort` in `app/ports.ts` is selected in `main.ts`. It owns spawn and resume argv
+(including model, effort and permission mode), the per-process hook overlay, native hook
+validation and translation, transcript listing/path acceptance/record reading, display names,
+and the status to register at launch. Pure native parsers live in flat `domain/claude*.ts` and
+`domain/codex*.ts` modules; I/O stays in flat `adapters/claude.ts` and `adapters/codex.ts`.
+Adapters satisfy consumer ports structurally, without importing `app/`.
+
+The reducer sees only a `HarnessSignal`: garden id, cwd, transcript path, optional reported
+status/reason, an ended update (`null` means unchanged), and whether the conversation cleared.
+No native harness id crosses this boundary. Signals without a status preserve the last report.
+The hook route keeps `/hooks` and `X-Garden-Session` and delegates validation to the harness.
+
+Garden's id remains the primary key. The Codex adapter persists pending and bound aliases in
+its app directory and binds native ids and rollout paths from `SessionStart`, including after
+clear or fork. Pending aliases preserve never-prompted sessions; ended sessions keep their
+aliases for resume. Spool replay recovers bindings posted while garden was down. Codex reads
+only bound rollouts, and invalidates reads when a binding changes, including reads during boot.
+It never discovers identities by scanning rollouts. Claude retains its project-slug discovery
+and bounded head/tail reads. Generic polling receives the selected layout instead of knowing
+either native format.
+
 ### 4.1 The projection is the spine
 
 `app/projection.ts` owns the session state map and is the **only** writer of it.
@@ -219,7 +247,7 @@ subscribe(fn); // the events WebSocket subscribes; so does anything else that ca
 Adapters never touch state. They emit events:
 
 - the transcript watcher emits `{ type: 'transcript-changed', path, record }`
-- the hook route emits `{ type: 'hook', payload }`
+- the harness adapter translates a hook into `{ type: 'harness-signal', signal }`
 - a tmux poll emits `{ type: 'tmux-snapshot', sessions }`
 
 `/events` carries the projection's deltas plus the global `ui-state` and `reviews` messages, and
@@ -269,7 +297,7 @@ So the startup sequence is a replay, not a restore:
    likewise logged on failure, and `pipes.replay()` dispatches a `pipe-changed` (not connected)
    for every persisted pipe time, likewise logged on failure.
 4. Dispatch a full `tmux-snapshot`.
-5. Scan `<transcriptsDir>/**`, reading files with bounded concurrency, and dispatch one
+5. List the selected harness's transcript paths, reading files with bounded concurrency, and dispatch one
    `transcripts-replayed` holding every record in listing order. Its fold equals one
    `transcript-changed` per file but derives session state once, which is what keeps boot from
    growing quadratically with the corpus. Live transcript events arriving during the scan are held
@@ -544,6 +572,13 @@ where you are putting it.
 
 ## 10. Rejected, so they are not reintroduced
 
+- **Mixed harnesses in one instance.** A single selection keeps swarms and config coherent
+  without per-session harness state or a UI picker.
+- **Native harness ids as garden keys.** Native ids can change on clear; stable garden ids keep
+  the projection, persistence and CLI contract independent of those changes.
+- **Discovering Codex identities by scanning rollouts.** Matching cwd and time can adopt an
+  internal thread or the wrong conversation. SessionStart binds both ids directly; spooling
+  handles downtime without a competing discovery path.
 - **DDD entities, aggregates, repositories.** Nothing here has invariants to defend.
 - **A DI container.** One composition root in `main.ts` is enough.
 - **garden-owned ptys, or hooks installed in `~/.claude/settings.json`.** See §1.1.
