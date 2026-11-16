@@ -1,4 +1,5 @@
 import type { HookPayload } from '@garden/shared';
+import { claudeSignal } from '../domain/claudeHooks.js';
 import { dropSessionWatches } from '../domain/watches.js';
 import type { LiveTranscripts } from './ports.js';
 import type { Projection } from './projection.js';
@@ -24,7 +25,10 @@ export function handleHook(
   gardenSessionId: string | undefined,
 ): void {
   deps.liveTranscripts.track(payload.transcript_path);
-  deps.projection.dispatch({ type: 'hook', payload, gardenSessionId });
+  deps.projection.dispatch({
+    type: 'harness-signal',
+    signal: claudeSignal(payload, gardenSessionId),
+  });
   if (
     payload.hook_event_name === 'SessionStart' &&
     payload.source === 'clear' &&

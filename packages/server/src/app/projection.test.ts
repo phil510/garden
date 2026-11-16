@@ -1,3 +1,4 @@
+import { claudeSignal } from '../domain/claudeHooks.js';
 import { DEFAULT_UI_STATE } from '@garden/shared';
 import { aHookEvent } from '@garden/shared/fixtures';
 import type { Delta, UiState } from '@garden/shared';
@@ -46,8 +47,8 @@ const transcript = (): GardenEvent => ({
 });
 
 const hook = (name: string, id = 'sid-1'): GardenEvent => ({
-  type: 'hook',
-  payload: aHookEvent({ session_id: id, hook_event_name: name }),
+  type: 'harness-signal',
+  signal: claudeSignal(aHookEvent({ session_id: id, hook_event_name: name })),
 });
 
 /** No tmux snapshot ever arrives for this session, so `deriveLiveness` reads it as dead —

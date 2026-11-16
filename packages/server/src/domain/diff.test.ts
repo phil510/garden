@@ -1,3 +1,4 @@
+import { claudeSignal } from './claudeHooks.js';
 import { aHookEvent, aSession } from '@garden/shared/fixtures';
 import { describe, expect, it } from 'vitest';
 import { diff } from './diff.js';
@@ -74,7 +75,10 @@ describe('diff', () => {
 
   it('emits nothing for a session whose watches are unchanged when an unrelated event is folded', () => {
     const prev = reduce(
-      reduce(initialState, { type: 'hook', payload: aHookEvent({ session_id: 'sid-1' }) }),
+      reduce(initialState, {
+        type: 'harness-signal',
+        signal: claudeSignal(aHookEvent({ session_id: 'sid-1' })),
+      }),
       { type: 'watches-changed', sessionId: 'sid-2', watches: [] },
     );
     const next = reduce(prev, { type: 'branch-resolved', cwd: '/elsewhere', branch: 'main' });

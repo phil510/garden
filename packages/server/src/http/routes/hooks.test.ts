@@ -65,7 +65,16 @@ describe('POST /hooks', () => {
     const response = await app.inject({ method: 'POST', url: '/hooks', payload });
 
     expect(response.statusCode).toBe(204);
-    expect(dispatched).toEqual([{ type: 'hook', payload }]);
+    expect(dispatched).toMatchObject([
+      {
+        type: 'harness-signal',
+        signal: {
+          sessionId: payload.session_id,
+          cwd: payload.cwd,
+          transcriptPath: payload.transcript_path,
+        },
+      },
+    ]);
   });
 
   it('stores a hook for a session id it has never seen, rather than rejecting it', async () => {
@@ -76,7 +85,16 @@ describe('POST /hooks', () => {
     const response = await app.inject({ method: 'POST', url: '/hooks', payload });
 
     expect(response.statusCode).toBe(204);
-    expect(dispatched).toEqual([{ type: 'hook', payload }]);
+    expect(dispatched).toMatchObject([
+      {
+        type: 'harness-signal',
+        signal: {
+          sessionId: payload.session_id,
+          cwd: payload.cwd,
+          transcriptPath: payload.transcript_path,
+        },
+      },
+    ]);
   });
 
   it('rejects a body missing a required field without dispatching anything', async () => {

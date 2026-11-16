@@ -1,6 +1,5 @@
 import type { SessionMap, SessionState, WatchSummary } from '@garden/shared';
 import { deriveLiveness } from './sessions.js';
-import { hookOutcome } from './status.js';
 import type { GardenEvent, GardenState, TmuxSessionFact, TranscriptRecord } from './types.js';
 
 export const initialState: GardenState = {
@@ -140,23 +139,23 @@ export function reduce(state: GardenState, event: GardenEvent): GardenState {
         branches: { ...state.branches, [event.cwd]: event.branch },
       });
     }
-    case 'hook': {
-      const id = event.gardenSessionId ?? event.payload.session_id;
+    case 'harness-signal': {
+      const { signal } = event;
+      const id = signal.sessionId;
       if (id === '') return state;
       const prev = state.sessions[id] ?? blank(id);
-      const outcome = hookOutcome(event.payload);
       const session: SessionState = {
         ...prev,
-        cwd: prev.cwd === '' ? event.payload.cwd : prev.cwd,
+        cwd: prev.cwd === '' ? signal.cwd : prev.cwd,
       };
       return rederive({
         ...state,
         sessions: { ...state.sessions, [id]: session },
-        ended: outcome.ended === null ? state.ended : { ...state.ended, [id]: outcome.ended },
+        ended: signal.ended === null ? state.ended : { ...state.ended, [id]: signal.ended },
         reported:
-          outcome.status === null
+          signal.reported === undefined
             ? state.reported
-            : { ...state.reported, [id]: { status: outcome.status, reason: outcome.reason } },
+            : { ...state.reported, [id]: signal.reported },
       });
     }
     case 'tmux-snapshot': {
