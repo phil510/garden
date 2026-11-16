@@ -18,8 +18,10 @@ exit; stop the owned task when the run ends. This lifecycle limitation is delibe
 scope and requires a live garden/Codex smoke test before the notification acceptance criterion
 can be marked complete.
 
-The manifests omit `version`. Codex 0.169 accepts a missing version, but its legacy plugin store
-uses a default version rather than Claude's commit-SHA fallback. Do not infer Claude's update
-behavior from that omission: verify a marketplace update reaches a new session when testing a
-release. See the pinned upstream [manifest parser](https://github.com/openai/codex/blob/rust-v0.169.0/codex-rs/core-plugins/src/manifest.rs)
-and [store version resolution](https://github.com/openai/codex/blob/rust-v0.169.0/codex-rs/core-plugins/src/store.rs).
+The manifests omit `version`. Codex CLI 0.169.0 installs this unversioned legacy plugin as
+`local`. For a Git marketplace, explicit `codex plugin marketplace upgrade garden` refreshes
+the installed contents after a Git revision change even when the version and cache path stay
+`local`. This was verified with changed skill discovery in a new app-server; live-session
+reloading and automatic update timing were not tested. See the pinned upstream
+[marketplace upgrade](https://github.com/openai/codex/blob/rust-v0.169.0/codex-rs/core-plugins/src/manager.rs)
+and [cache replacement](https://github.com/openai/codex/blob/rust-v0.169.0/codex-rs/core-plugins/src/store.rs).
