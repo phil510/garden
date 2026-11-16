@@ -8,6 +8,7 @@ export interface HarnessSignal {
   /** null preserves the current ended fact. */
   readonly ended: boolean | null;
   readonly conversationCleared: boolean;
+  readonly resetConversation?: boolean;
 }
 
 export interface TranscriptRecord {

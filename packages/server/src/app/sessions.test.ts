@@ -76,3 +76,60 @@ describe('createSession harness boundary', () => {
     expect(dispatch).not.toHaveBeenCalled();
   });
 });
+
+describe('launch preparation', () => {
+  it('prepares persistence before tmux and rolls it back without a projected orphan if tmux fails', async () => {
+    const { projection, dispatched } = fakeProjection();
+    const calls: string[] = [];
+    await expect(
+      createSession(
+        {
+          projection,
+          serverPort: 4311,
+          tmux: fakeTmux({
+            newSession: () => {
+              calls.push('tmux');
+              return Promise.reject(new Error('failed'));
+            },
+          }),
+          harness: {
+            spawnCommand: () => ['codex'],
+            resumeCommand: () => ['codex'],
+            beforeLaunch: () => {
+              calls.push('prepare');
+              return {
+                rollback: () => {
+                  calls.push('rollback');
+                },
+                registrationStatus: () => ({ status: 'waiting', reason: null }),
+              };
+            },
+          },
+        },
+        { cwd: '/repo' },
+      ),
+    ).rejects.toThrow('failed');
+    expect(calls).toEqual(['prepare', 'tmux', 'rollback']);
+    expect(dispatched).toEqual([]);
+  });
+
+  it('registers after success without overriding a status-bearing hook observed during launch', async () => {
+    const { projection, dispatched } = fakeProjection();
+    await createSession(
+      {
+        projection,
+        serverPort: 4311,
+        tmux: fakeTmux({ newSession: () => Promise.resolve() }),
+        harness: {
+          spawnCommand: () => ['codex'],
+          resumeCommand: () => ['codex'],
+          initialStatus: { status: 'waiting', reason: null },
+          beforeLaunch: () => ({ rollback: () => undefined, registrationStatus: () => undefined }),
+        },
+      },
+      { cwd: '/repo' },
+    );
+    expect(dispatched).toHaveLength(1);
+    expect(dispatched[0]).not.toHaveProperty('reported');
+  });
+});

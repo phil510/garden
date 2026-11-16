@@ -159,6 +159,7 @@ export default tseslint.config(
                 '!./store.js',
                 '!./transcripts.js',
                 '!./tmux.js',
+                '!./codex.js',
                 '!./fsWatch.js',
                 '!./gh.js',
                 '!./git.js',
