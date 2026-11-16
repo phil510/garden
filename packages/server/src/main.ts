@@ -1,3 +1,4 @@
+import { parseClaudeHook } from './adapters/claude/hooks.js';
 import { randomBytes } from 'node:crypto';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -360,6 +361,7 @@ export async function main(detached: boolean): Promise<void> {
     {
       projection,
       liveTranscripts: watcher,
+      harness: { parseHook: parseClaudeHook },
       pipes,
       tmux,
       git,

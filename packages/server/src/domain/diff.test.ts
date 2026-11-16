@@ -1,5 +1,5 @@
-import { claudeSignal } from './claudeHooks.js';
-import { aHookEvent, aSession } from '@garden/shared/fixtures';
+import { aHarnessSignal } from './signals.fixture.js';
+import { aSession } from '@garden/shared/fixtures';
 import { describe, expect, it } from 'vitest';
 import { diff } from './diff.js';
 import { initialState, reduce } from './reduce.js';
@@ -77,7 +77,10 @@ describe('diff', () => {
     const prev = reduce(
       reduce(initialState, {
         type: 'harness-signal',
-        signal: claudeSignal(aHookEvent({ session_id: 'sid-1' })),
+        signal: aHarnessSignal({
+          sessionId: 'sid-1',
+          reported: { status: 'working', reason: null },
+        }),
       }),
       { type: 'watches-changed', sessionId: 'sid-2', watches: [] },
     );

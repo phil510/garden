@@ -1,6 +1,6 @@
 import { aHookEvent } from '@garden/shared/fixtures';
 import { describe, expect, it } from 'vitest';
-import { hookOutcome } from './status.js';
+import { hookOutcome, parseClaudeHook } from './hooks.js';
 
 describe('hookOutcome', () => {
   it('carries a Notification message through as the status reason', () => {
@@ -95,5 +95,20 @@ describe('hookOutcome', () => {
   it('returns no status for an unrecognised event name rather than throwing', () => {
     const outcome = hookOutcome(aHookEvent({ hook_event_name: 'SomeFutureHook' }));
     expect(outcome).toEqual({ status: null, reason: null, ended: null });
+  });
+});
+
+describe('parseClaudeHook', () => {
+  it.each([
+    null,
+    [],
+    'hook',
+    { session_id: 'sid', hook_event_name: 'Stop' },
+    { session_id: 7, cwd: '/repo', transcript_path: '/x', hook_event_name: 'Stop' },
+    { session_id: 'sid', cwd: [], transcript_path: '/x', hook_event_name: 'Stop' },
+    { session_id: 'sid', cwd: '/repo', transcript_path: null, hook_event_name: 'Stop' },
+    { session_id: 'sid', cwd: '/repo', transcript_path: '/x', hook_event_name: false },
+  ])('rejects malformed native payload %j', (body) => {
+    expect(parseClaudeHook(body)).toBeNull();
   });
 });

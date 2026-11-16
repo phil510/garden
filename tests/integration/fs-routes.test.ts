@@ -1,3 +1,4 @@
+import { parseClaudeHook } from '../../packages/server/src/adapters/claude/hooks.js';
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -32,6 +33,7 @@ describe('/fs routes against a real temp repo', () => {
     const projection = createProjection(fakeStore());
     projection.dispatch({ type: 'session-registered', id: 'sid', tmuxName: 'x', cwd });
     const app = createServer({
+      harness: { parseHook: parseClaudeHook },
       liveTranscripts: { track: () => undefined },
       projection,
       pipes: noPipes,

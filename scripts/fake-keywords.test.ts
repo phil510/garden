@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hookOutcome } from '../packages/server/src/domain/status.js';
+import { hookOutcome } from '../packages/server/src/adapters/claude/hooks.js';
 import { aHookEvent } from '../packages/shared/src/fixtures.js';
 import { keywordOutcome } from './fake-keywords.js';
 

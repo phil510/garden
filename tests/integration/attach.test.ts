@@ -1,3 +1,4 @@
+import { parseClaudeHook } from '../../packages/server/src/adapters/claude/hooks.js';
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -126,6 +127,7 @@ describe('WS /attach/:id against a real tmux pane and a real pty', () => {
       projection.dispatch({ type: 'session-registered', id, tmuxName, cwd });
 
       const app = createServer({
+        harness: { parseHook: parseClaudeHook },
         liveTranscripts: { track: () => undefined },
         pipes: noPipes,
         rootWatches: noRootWatches,
@@ -218,6 +220,7 @@ describe('WS /attach/:id against a real tmux pane and a real pty', () => {
       projection.dispatch({ type: 'session-registered', id, tmuxName, cwd });
 
       const app = createServer({
+        harness: { parseHook: parseClaudeHook },
         liveTranscripts: { track: () => undefined },
         pipes: noPipes,
         rootWatches: noRootWatches,

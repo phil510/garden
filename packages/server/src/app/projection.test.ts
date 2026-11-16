@@ -1,6 +1,5 @@
-import { claudeSignal } from '../domain/claudeHooks.js';
+import { aHarnessSignal } from '../domain/signals.fixture.js';
 import { DEFAULT_UI_STATE } from '@garden/shared';
-import { aHookEvent } from '@garden/shared/fixtures';
 import type { Delta, UiState } from '@garden/shared';
 import { describe, expect, it } from 'vitest';
 import type { GardenEvent } from '../domain/types.js';
@@ -46,9 +45,9 @@ const transcript = (): GardenEvent => ({
   },
 });
 
-const hook = (name: string, id = 'sid-1'): GardenEvent => ({
+const signalEvent = (id = 'sid-1'): GardenEvent => ({
   type: 'harness-signal',
-  signal: claudeSignal(aHookEvent({ session_id: id, hook_event_name: name })),
+  signal: aHarnessSignal({ sessionId: id }),
 });
 
 /** No tmux snapshot ever arrives for this session, so `deriveLiveness` reads it as dead —
@@ -72,7 +71,7 @@ describe('dispatch', () => {
     const seen: Delta[][] = [];
     projection.subscribe((deltas) => seen.push(deltas));
 
-    projection.dispatch(hook('UserPromptSubmit'));
+    projection.dispatch(signalEvent());
 
     expect(seen).toHaveLength(1);
     expect(seen[0]).toHaveLength(1);
@@ -94,7 +93,7 @@ describe('dispatch', () => {
 
   it('sends only the changed fields once a session exists', () => {
     const projection = createProjection(fakeStore().port);
-    projection.dispatch(hook('UserPromptSubmit'));
+    projection.dispatch(signalEvent());
     const seen: Delta[][] = [];
     projection.subscribe((deltas) => seen.push(deltas));
 
@@ -118,9 +117,9 @@ describe('dispatch', () => {
     const unsubscribe = projection.subscribe((deltas) => first.push(deltas));
     projection.subscribe((deltas) => second.push(deltas));
 
-    projection.dispatch(hook('UserPromptSubmit', 'sid-1'));
+    projection.dispatch(signalEvent('sid-1'));
     unsubscribe();
-    projection.dispatch(hook('UserPromptSubmit', 'sid-2'));
+    projection.dispatch(signalEvent('sid-2'));
 
     expect(first).toHaveLength(1);
     expect(second).toHaveLength(2);
@@ -128,8 +127,8 @@ describe('dispatch', () => {
 
   it('exposes the folded sessions', () => {
     const projection = createProjection(fakeStore().port);
-    projection.dispatch(hook('UserPromptSubmit', 'sid-1'));
-    projection.dispatch(hook('UserPromptSubmit', 'sid-2'));
+    projection.dispatch(signalEvent('sid-1'));
+    projection.dispatch(signalEvent('sid-2'));
 
     expect(projection.sessions().map((s) => s.id)).toEqual(['sid-1', 'sid-2']);
   });
@@ -138,7 +137,7 @@ describe('dispatch', () => {
 describe('sessions(filter)', () => {
   it('stays unfiltered when called with no argument, dead and stale sessions included', () => {
     const projection = createProjection(fakeStore().port);
-    projection.dispatch(hook('UserPromptSubmit', 'sid-1'));
+    projection.dispatch(signalEvent('sid-1'));
     projection.dispatch(staleTranscript('sid-1'));
 
     expect(projection.sessions().map((s) => s.id)).toEqual(['sid-1']);
@@ -146,7 +145,7 @@ describe('sessions(filter)', () => {
 
   it('applies the domain filter when one is passed', () => {
     const projection = createProjection(fakeStore().port);
-    projection.dispatch(hook('UserPromptSubmit', 'sid-1'));
+    projection.dispatch(signalEvent('sid-1'));
     projection.dispatch(staleTranscript('sid-1'));
 
     expect(projection.sessions({ sinceDays: 7 })).toEqual([]);
@@ -566,7 +565,7 @@ describe('swarms and placements', () => {
       ui: { ...DEFAULT_UI_STATE, placements: { 'sid-1': { swarmId: 'swarm-1' } } },
     });
     const projection = createProjection(store.port);
-    projection.dispatch(hook('UserPromptSubmit', 'sid-1'));
+    projection.dispatch(signalEvent('sid-1'));
 
     expect(projection.sessions().find((s) => s.id === 'sid-1')).toMatchObject({
       swarmId: 'swarm-1',

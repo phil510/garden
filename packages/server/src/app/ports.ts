@@ -1,7 +1,7 @@
 import type { ConfigFile } from '../config.js';
 import type { GhResult, GhWriteResult } from '../domain/github.js';
 import type { TranscriptParse } from '../domain/transcript.js';
-import type { GardenEvent } from '../domain/types.js';
+import type { GardenEvent, HarnessSignal } from '../domain/types.js';
 import type { OverlayState } from '../domain/overlay.js';
 
 export type { GardenEvent, OverlayState };
@@ -129,4 +129,8 @@ export interface GitPort {
 export interface Logger {
   warn(message: string): void;
   error(message: string): void;
+}
+
+export interface HarnessPort {
+  parseHook(body: unknown, gardenSessionId?: string): HarnessSignal | null;
 }

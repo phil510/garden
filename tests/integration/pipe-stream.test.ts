@@ -1,3 +1,4 @@
+import { parseClaudeHook } from '../../packages/server/src/adapters/claude/hooks.js';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { createServer as createNetServer } from 'node:net';
 import type { AddressInfo } from 'node:net';
@@ -84,6 +85,7 @@ describe('garden events --follow against the real server', () => {
       const projection = createProjection(store);
       const deps = { projection, git: { remoteUrl: () => Promise.resolve(null) } };
       const server = createServer({
+        harness: { parseHook: parseClaudeHook },
         liveTranscripts: { track: () => undefined },
         projection,
         pipes: createPipes(deps),

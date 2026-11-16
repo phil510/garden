@@ -46,6 +46,7 @@ function fakeConfigPort(overrides: Partial<ConfigPort> = {}): ConfigPort {
 function fakeDeps(overrides: Partial<ServerDeps> = {}): ServerDeps {
   return {
     projection: fakeProjection(),
+    harness: { parseHook: () => null },
     liveTranscripts: { track: () => undefined },
     pipes: {
       connect: () => ({ ack: () => undefined, close: () => undefined }),

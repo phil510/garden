@@ -110,8 +110,10 @@ one transcript. That is rare, and the user's discipline to keep.
 
 ## 2. Shape
 
-Hexagonal, lightly applied: a pure core with I/O pushed to the edges, plus an explicit state
-projection at the centre.
+Hexagonal, lightly applied: garden rules in a pure core, external protocols at the edges,
+plus an explicit state projection at the centre. Purity alone does not make a function domain
+logic: native harness hooks, transcript formats and command arguments belong to that harness
+adapter, including their pure parsers and builders. The domain folds normalized garden facts.
 
 Two things this deliberately is _not_. It is not DDD — there are no entities, aggregates, or
 repositories, because nothing in garden has invariants worth defending. And there is no
@@ -148,8 +150,6 @@ packages/server/src/
     types.ts       GardenEvent, GardenState, TranscriptRecord, TmuxSessionFact, ReportedStatus
     reduce.ts      reduce(state, event) -> state
     sessions.ts    deriveLiveness(fact) -> liveness, exit code
-    claudeTranscript.ts / codexTranscript.ts  native transcript -> garden record
-    claudeHooks.ts / codexHooks.ts  native hook -> garden signal
     stage.ts       slot arithmetic across preset changes
     watches.ts     watch rules: kind normalisation, upsert/remove, 7-day digest pruning, summaries
     pipes.ts       ack a digest, end watches with no pipe for 7 days, prune stale pipe times
@@ -163,7 +163,7 @@ packages/server/src/
     git.ts         git-common-dir, branch (read from HEAD, no spawn), status --porcelain, worktree prefix, origin URL
     gh.ts          a conditional `gh api` GET (ETag in, `--include` output parsed, rate-limit resume time, classified result out) and one DELETE that removes a review request
     transcripts.ts generic polling over a harness-supplied layout and record reader
-    claude.ts / codex.ts  command, hook overlay, transcript layout and display-name adapters
+    claude/ / codex/  native hook/transcript translation, command builders, overlay and display names
     fsWatch.ts     native recursive fs.watch on one root, debounced, .git/ filtered
     pty.ts         node-pty attach
     store.ts       <appDir>/state.json, atomic writes (overlay only)
@@ -220,8 +220,8 @@ instance overrides retain precedence. CLI commands and spawned panes use that fu
 `HarnessPort` in `app/ports.ts` is selected in `main.ts`. It owns spawn and resume argv
 (including model, effort and permission mode), the per-process hook overlay, native hook
 validation and translation, transcript listing/path acceptance/record reading, display names,
-and the status to register at launch. Pure native parsers live in flat `domain/claude*.ts` and
-`domain/codex*.ts` modules; I/O stays in flat `adapters/claude.ts` and `adapters/codex.ts`.
+and the status to register at launch. Native protocol translation belongs to the selected harness adapter, including pure parsers
+and command builders. App code sees only its `HarnessPort`; `main.ts` supplies the adapter.
 Adapters satisfy consumer ports structurally, without importing `app/`.
 
 The reducer consumes Garden-facing keys in transcript records and `HarnessSignal`s without
@@ -527,9 +527,9 @@ that means and `http/` maps it to a status code.
 
 `reduce` never throws. A hook for an unknown session id is stored under that id anyway,
 because the transcript may not exist yet. An unparseable transcript line is skipped — the pure
-parser in `domain/transcript.ts` returns the lines it could read plus a count of the ones it
+parser in the harness adapter returns the lines it could read plus a count of the ones it
 could not, and `adapters/transcripts.ts` owns the logging and the once-per-file dedup that goes
-with it. Reporting a problem is I/O; deciding a line is unusable is not. Together these are the
+with it. Reporting a problem is I/O; interpreting a native transcript line is protocol translation. Together these are the
 rules that keep one malformed file from taking the whole console down.
 
 The client renders degraded state rather than error dialogs — `unknown` status, a session

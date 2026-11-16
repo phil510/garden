@@ -1,3 +1,4 @@
+import { parseClaudeHook } from '../../packages/server/src/adapters/claude/hooks.js';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import type { AddressInfo, Socket } from 'node:net';
@@ -108,6 +109,7 @@ describe('the generated hook command', () => {
 
 function realServer(projection: Projection) {
   return createGardenServer({
+    harness: { parseHook: parseClaudeHook },
     liveTranscripts: { track: () => undefined },
     projection,
     pipes: noPipes,
