@@ -3,7 +3,13 @@ import { DEFAULT_UI_STATE } from '@garden/shared';
 import { aSession } from '@garden/shared/fixtures';
 import type { SessionsFilter, SessionState } from '@garden/shared';
 import { describe, expect, it } from 'vitest';
-import type { Logger, OverlayState, TmuxNewSessionRequest, TmuxPort } from '../../app/ports.js';
+import type {
+  GardenEvent,
+  Logger,
+  OverlayState,
+  TmuxNewSessionRequest,
+  TmuxPort,
+} from '../../app/ports.js';
 import type { Projection } from '../../app/projection.js';
 import type { SessionsDeps } from '../../app/sessions.js';
 import { createApp } from '../server.js';
@@ -346,6 +352,51 @@ describe('GET /sessions', () => {
 });
 
 describe('POST /sessions', () => {
+  it('keeps the generated id authoritative and ignores undeclared launch fields', async () => {
+    const spawned: TmuxNewSessionRequest[] = [];
+    const dispatched: GardenEvent[] = [];
+    const app = buildApp({
+      tmux: fakeTmux({
+        newSession: (request) => {
+          spawned.push(request);
+          return Promise.resolve();
+        },
+      }),
+      projection: {
+        ...fakeProjection(),
+        dispatch: (event) => {
+          dispatched.push(event);
+        },
+      },
+      serverPort: 4310,
+      harness: fakeClaudeHarness(settingsPath),
+    });
+    try {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/sessions',
+        payload: { cwd: '/work/repo', id: 'caller-chosen-id', permissionMode: 'bypassPermissions' },
+      });
+      expect(response.statusCode).toBe(200);
+      const body = response.json<{ id: string; tmuxName: string }>();
+      expect(body.id).not.toBe('caller-chosen-id');
+      expect(spawned).toEqual([
+        {
+          name: body.tmuxName,
+          cwd: '/work/repo',
+          port: 4310,
+          sessionId: body.id,
+          command: ['claude', '--session-id', body.id, '--settings', settingsPath],
+        },
+      ]);
+      expect(dispatched).toEqual([
+        { type: 'session-registered', id: body.id, tmuxName: body.tmuxName, cwd: '/work/repo' },
+      ]);
+    } finally {
+      await app.close();
+    }
+  });
+
   it('rejects a body missing cwd without touching tmux', async () => {
     const calls: TmuxNewSessionRequest[] = [];
     const app = buildApp({
@@ -504,6 +555,38 @@ describe('POST /sessions', () => {
 });
 
 describe('POST /sessions/:id/resume', () => {
+  it('takes resume identity and permissions from the session and instance', async () => {
+    const spawned: TmuxNewSessionRequest[] = [];
+    const app = buildApp({
+      tmux: fakeTmux({
+        newSession: (request) => {
+          spawned.push(request);
+          return Promise.resolve();
+        },
+      }),
+      projection: fakeProjection([
+        aSession({ id: 'sid-1', cwd: '/work/repo', liveness: 'dead', tmuxName: null }),
+      ]),
+      serverPort: 4310,
+      harness: fakeClaudeHarness(settingsPath),
+    });
+    try {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/sessions/sid-1/resume',
+        payload: { id: 'caller-chosen-id', cwd: '/other', permissionMode: 'bypassPermissions' },
+      });
+      expect(response.statusCode).toBe(200);
+      expect(spawned[0]).toMatchObject({
+        sessionId: 'sid-1',
+        cwd: '/work/repo',
+        command: ['claude', '--resume', 'sid-1', '--settings', settingsPath],
+      });
+    } finally {
+      await app.close();
+    }
+  });
+
   it('maps an unknown session id to 404', async () => {
     const app = buildApp({
       tmux: fakeTmux(),

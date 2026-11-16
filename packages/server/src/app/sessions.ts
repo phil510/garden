@@ -99,7 +99,9 @@ export async function createSession(
     sessionId: id,
     command: harness.spawnCommand({
       id,
-      ...request,
+      cwd: request.cwd,
+      ...(request.model === undefined ? {} : { model: request.model }),
+      ...(request.effort === undefined ? {} : { effort: request.effort }),
       ...(permissionMode === undefined ? {} : { permissionMode }),
     }),
   });
@@ -150,8 +152,10 @@ export async function resumeSession(
   const { tmux, projection, serverPort, harness, permissionMode } = deps;
   const session = findSession(projection, request.id);
   const command = harness.resumeCommand({
-    ...request,
+    id: request.id,
     cwd: session.cwd,
+    ...(request.model === undefined ? {} : { model: request.model }),
+    ...(request.effort === undefined ? {} : { effort: request.effort }),
     ...(permissionMode === undefined ? {} : { permissionMode }),
   });
   const panes = await tmux.listPanes();
