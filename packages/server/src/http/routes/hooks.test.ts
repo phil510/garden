@@ -93,6 +93,29 @@ describe('POST /hooks', () => {
     expect(dispatched).toEqual([]);
   });
 
+  it.each([
+    null,
+    [],
+    'hook',
+    { session_id: 7, cwd: '/repo', transcript_path: '/x', hook_event_name: 'Stop' },
+    { session_id: 'sid', cwd: [], transcript_path: '/x', hook_event_name: 'Stop' },
+    { session_id: 'sid', cwd: '/repo', transcript_path: null, hook_event_name: 'Stop' },
+    { session_id: 'sid', cwd: '/repo', transcript_path: '/x', hook_event_name: false },
+  ])('rejects malformed native payload %j without dispatching', async (payload) => {
+    const { projection, dispatched } = fakeProjection();
+    const app = buildApp(projection);
+    const response = await app.inject({
+      method: 'POST',
+      url: '/hooks',
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify(payload),
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: 'invalid hook payload' });
+    expect(dispatched).toEqual([]);
+    await app.close();
+  });
+
   it('hands a clear with the garden session header to the watch writer, and ignores a missing or empty one', async () => {
     const { projection, overlayWrites } = fakeProjection();
     const app = buildApp(projection);
