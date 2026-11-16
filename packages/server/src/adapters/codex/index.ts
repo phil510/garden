@@ -1,3 +1,5 @@
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { randomUUID } from 'node:crypto';
 import {
   closeSync,
@@ -18,6 +20,8 @@ import type { PermissionMode } from '../../config.js';
 import { codexHook, codexSignal } from './hooks.js';
 import { parseCodexTranscript } from './transcript.js';
 import type { HarnessSignal, TranscriptRecord } from '../../domain/types.js';
+
+const execFileAsync = promisify(execFile);
 
 interface Alias {
   cwd: string;
@@ -267,6 +271,27 @@ export function createCodexHarness(options: Options) {
         }
       }
       return signals;
+    },
+    async sendMessage(
+      id: string,
+      message: string,
+      submitPending: () => Promise<void>,
+    ): Promise<void> {
+      const alias = aliases[id];
+      if (alias === undefined) throw new Error(`no Codex binding for ${id}`);
+      if (alias.codexId === null) {
+        await submitPending();
+        return;
+      }
+      try {
+        await execFileAsync(
+          command[0]!,
+          [...command.slice(1), 'queue', '--thread', alias.codexId, `--message=${message}`],
+          { timeout: 15_000, maxBuffer: 1024 * 1024 },
+        );
+      } catch (cause) {
+        throw new Error('Codex could not queue the message', { cause });
+      }
     },
     transcripts: {
       isCurrent(path: string, record: TranscriptRecord): boolean {

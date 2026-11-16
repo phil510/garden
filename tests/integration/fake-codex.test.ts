@@ -173,7 +173,7 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
           ]),
         );
         expect(launched).not.toContain('--no-daemon');
-        await send(tmuxName, 'first prompt');
+        await post(url, `/sessions/${id}/messages`, { message: 'first prompt' });
         await until(
           'bound rollout to supply title and recap',
           () => rows(url),
@@ -184,6 +184,19 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
                 row.title === 'first prompt' &&
                 row.recap === 'Response to first prompt',
             ),
+        );
+        await post(url, `/sessions/${id}/messages`, { message: 'bound delivery' });
+        await until(
+          'queue command to reach the loaded native conversation',
+          () => rows(url),
+          (list) => list.some((row) => row.id === id && row.title === 'bound delivery'),
+        );
+        writeFileSync(
+          join(codexHome, 'sessions', 'unbound-internal.jsonl'),
+          JSON.stringify({
+            type: 'event_msg',
+            payload: { type: 'user_message', message: 'internal thread' },
+          }),
         );
         const firstNative = aliases(appDir)[id]!.codexId;
         expect(firstNative).not.toBe(id);
@@ -209,7 +222,7 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
         expect(cleared.title).toBeNull();
         expect(cleared.recap).toBeNull();
         expect(cleared.status).toBe('needs-approval');
-        await send(tmuxName, 'new conversation');
+        await post(url, `/sessions/${id}/messages`, { message: 'new conversation' });
         await until(
           'cleared rollout to reach same garden row',
           () => rows(url),
@@ -271,6 +284,32 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
           (list) => list.some((row) => row.id === id && row.title === 'after offline clear'),
         );
         expect(readdirSync(spoolDir)).toEqual([]);
+        const never = (await (await post(url, '/sessions', { cwd })).json()) as {
+          id: string;
+          tmuxName: string;
+        };
+        await ready(never.tmuxName);
+        await post(url, `/sessions/${never.id}/kill`, {});
+        expect(aliases(appDir)[never.id]?.codexId).toBeNull();
+        await post(url, `/sessions/${never.id}/resume`, { effort: 'medium' });
+        await until(
+          'never-prompted resume to start a fresh Codex process with same garden id',
+          () =>
+            Promise.resolve(
+              JSON.parse(
+                readFileSync(join(codexHome, `launch-${never.id}.json`), 'utf8'),
+              ) as string[],
+            ),
+          (args) =>
+            args.some((arg) => arg === 'model_reasoning_effort="medium"') &&
+            !args.includes('resume'),
+        );
+        await post(url, `/sessions/${never.id}/messages`, { message: 'first after resume' });
+        await until(
+          'resumed pending session to bind',
+          () => rows(url),
+          (list) => list.some((row) => row.id === never.id && row.title === 'first after resume'),
+        );
         const boundAfterClear = aliases(appDir)[id]!.codexId;
         await send(tmuxName, '/end');
         await until(

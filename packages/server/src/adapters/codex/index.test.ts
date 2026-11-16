@@ -232,6 +232,44 @@ describe('actual generated Codex hook commands', () => {
   });
 });
 
+describe('message delivery', () => {
+  it('passes message bytes as one queue argument without running shell metacharacters', async () => {
+    const f = fixture();
+    try {
+      const recorder = join(f.directory, 'record.cjs');
+      const output = join(f.directory, 'args.json');
+      writeFileSync(
+        recorder,
+        'require("node:fs").writeFileSync(process.argv[2],JSON.stringify(process.argv.slice(3)))',
+      );
+      const harness = createCodexHarness({
+        ...f.options,
+        command: [process.execPath, recorder, output],
+      });
+      harness.beforeLaunch({ id: 'garden', cwd: f.directory });
+      let pending = false;
+      await harness.sendMessage('garden', 'hello', () => {
+        pending = true;
+        return Promise.resolve();
+      });
+      expect(pending).toBe(true);
+      harness.parseHook(f.hook(), 'garden');
+      const message = "literal `touch nope` $(touch nope) ' \n Enter";
+      await harness.sendMessage('garden', message, () =>
+        Promise.reject(new Error('bound must queue')),
+      );
+      expect(JSON.parse(readFileSync(output, 'utf8'))).toEqual([
+        'queue',
+        '--thread',
+        nativeA,
+        `--message=${message}`,
+      ]);
+    } finally {
+      f.close();
+    }
+  });
+});
+
 describe('launch status ordering', () => {
   it('resets stale status on resume but preserves a hook observed during the new launch', () => {
     const f = fixture();

@@ -38,6 +38,7 @@ export interface TmuxPort {
   newSession(request: TmuxNewSessionRequest): Promise<void>;
   respawnPane(request: TmuxRespawnRequest): Promise<void>;
   killSession(name: string): Promise<void>;
+  submitMessage?(name: string, message: string): Promise<void>;
 }
 
 export interface StorePort {
@@ -161,6 +162,7 @@ export interface HarnessLaunch {
 }
 
 export interface HarnessPort {
+  sendMessage?(id: string, message: string, submitPending: () => Promise<void>): Promise<void>;
   beforeLaunch?(request: HarnessLaunchRequest): HarnessLaunch;
   pendingSessions?(): { id: string; cwd: string }[];
   replaySpool?(): HarnessSignal[];

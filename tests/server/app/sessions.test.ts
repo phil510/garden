@@ -16,6 +16,7 @@ import {
   createSession,
   killSession,
   resumeSession,
+  sendSessionMessage,
 } from '../../../packages/server/src/app/sessions.js';
 
 const baseUiState: UiState = DEFAULT_UI_STATE;
@@ -1034,5 +1035,57 @@ describe('resume binding freshness', () => {
     ).rejects.toThrow('bad launch options');
     expect(rolledBack).toBe(true);
     expect(dispatched).toEqual([]);
+  });
+});
+
+describe('session message delivery', () => {
+  it('uses the live pending pane only when the harness asks for its first-prompt fallback', async () => {
+    const { projection } = fakeProjection([
+      aSession({ id: 'garden', tmuxName: 'pane', liveness: 'live' }),
+    ]);
+    const sent: unknown[] = [];
+    const deps = {
+      projection,
+      serverPort: 4311,
+      tmux: fakeTmux({
+        listPanes: () => Promise.resolve([{ session: 'pane', dead: false, exitCode: undefined }]),
+        submitMessage: (name, message) => {
+          sent.push([name, message]);
+          return Promise.resolve();
+        },
+      }),
+      harness: {
+        spawnCommand: () => [],
+        resumeCommand: () => [],
+        sendMessage: (_id: string, _message: string, pending: () => Promise<void>) => pending(),
+      },
+    };
+    await sendSessionMessage(deps, 'garden', 'first prompt');
+    expect(sent).toEqual([['pane', 'first prompt']]);
+  });
+  it('rejects sending a first prompt to a dead pending pane and rejects unsupported harnesses', async () => {
+    const { projection } = fakeProjection([aSession({ id: 'garden', liveness: 'dead' })]);
+    const deps = {
+      projection,
+      serverPort: 4311,
+      tmux: fakeTmux(),
+      harness: fakeClaudeHarness('/settings', () => ['claude']),
+    };
+    await expect(sendSessionMessage(deps, 'garden', 'hello')).rejects.toThrow(
+      'not supported by the selected harness',
+    );
+    await expect(
+      sendSessionMessage(
+        {
+          ...deps,
+          harness: {
+            ...deps.harness,
+            sendMessage: (_id: string, _message: string, pending: () => Promise<void>) => pending(),
+          },
+        },
+        'garden',
+        'hello',
+      ),
+    ).rejects.toThrow('Resume this pending session');
   });
 });

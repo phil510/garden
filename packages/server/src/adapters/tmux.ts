@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
@@ -235,4 +236,43 @@ export async function checkTmuxVersion(): Promise<void> {
     throw new Error(`could not run tmux: ${(error as Error).message}`, { cause: error });
   }
   assertTmuxVersion(stdout);
+}
+
+/** The buffer preserves literal multiline input; one command list keeps its paste and Enter
+ *  together across concurrent senders. */
+export async function submitMessage(
+  target: TmuxTarget,
+  name: string,
+  message: string,
+): Promise<void> {
+  const buffer = `garden-send-${randomUUID()}`;
+  const argv = ['-L', target.socket, '-f', target.confPath, 'load-buffer', '-b', buffer, '-'];
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const child = execFile('tmux', argv, { timeout: 5000 }, (error, _stdout, stderr) => {
+        if (error) reject(new TmuxError(argv, stderr, error));
+        else resolve();
+      });
+      child.stdin!.on('error', () => {});
+      child.stdin!.end(message);
+    });
+    await run(target, [
+      'paste-buffer',
+      '-p',
+      '-r',
+      '-d',
+      '-b',
+      buffer,
+      '-t',
+      name,
+      ';',
+      'send-keys',
+      '-t',
+      name,
+      'Enter',
+    ]);
+  } catch (error) {
+    await run(target, ['delete-buffer', '-b', buffer]).catch(() => {});
+    throw error;
+  }
 }
