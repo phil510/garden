@@ -1,12 +1,18 @@
 import { execFile, spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 import { listPanes, newSession } from '../../packages/server/src/adapters/tmux.js';
+import {
+  DEFAULT_OVERLAY_STATE,
+  readOverlayState,
+  writeOverlayState,
+} from '../../packages/server/src/adapters/store.js';
+import { loadConfig, readConfigFile } from '../../packages/server/src/config.js';
 import { withTmuxServer } from './support/tmux-server.js';
 
 const execFileAsync = promisify(execFile);
@@ -50,6 +56,43 @@ async function withApi(
 }
 
 describe('CLI instance isolation', () => {
+  it('reads copied Claude config and overlay while retaining the legacy state for rollback', () => {
+    const home = mkdtempSync(join(tmpdir(), 'garden-migration-'));
+    try {
+      const legacy = join(home, '.garden');
+      const destination = loadConfig({}, undefined, home).appDir;
+      mkdirSync(legacy);
+      mkdirSync(destination);
+      const saved = {
+        ...DEFAULT_OVERLAY_STATE,
+        tmuxNames: { saved: 'old-pane' },
+        ui: { ...DEFAULT_OVERLAY_STATE.ui, groupOrder: ['saved-project'] },
+      };
+      writeFileSync(
+        join(legacy, 'config.json'),
+        JSON.stringify({ roots: ['/saved'], port: 48123, claudeCommand: 'custom-claude' }),
+      );
+      writeOverlayState(legacy, saved);
+      writeFileSync(join(legacy, 'server.pid'), 'obsolete runtime file');
+      for (const file of ['config.json', 'state.json']) {
+        copyFileSync(join(legacy, file), join(destination, file));
+        expect(readFileSync(join(destination, file))).toEqual(readFileSync(join(legacy, file)));
+      }
+      const migrated = loadConfig({}, readConfigFile(join(destination, 'config.json')), home);
+      expect(migrated).toMatchObject({
+        appDir: join(home, '.garden-claude'),
+        tmuxSocket: 'garden-claude',
+        port: 48123,
+        roots: ['/saved'],
+      });
+      expect(readConfigFile(join(destination, 'config.json')).claudeCommand).toBe('custom-claude');
+      expect(readOverlayState(destination, { warn: () => {} })).toEqual(saved);
+      writeOverlayState(destination, DEFAULT_OVERLAY_STATE);
+      expect(readOverlayState(legacy, { warn: () => {} })).toEqual(saved);
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
   it.each(['stop', 'stop --all'])('%s and ls affect only the selected harness', async (stop) => {
     const home = mkdtempSync(join(tmpdir(), 'garden-instance-selection-'));
     try {
@@ -58,7 +101,7 @@ describe('CLI instance isolation', () => {
           await withApi('claude-session', async (claude) =>
             withApi('codex-session', async (codex) => {
               for (const [app, server, target] of [
-                ['.garden', claude, claudeTarget],
+                ['.garden-claude', claude, claudeTarget],
                 ['.garden-codex', codex, codexTarget],
               ] as const) {
                 const appDir = join(home, app);

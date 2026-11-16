@@ -10,7 +10,7 @@ export interface ReviewsOverlay {
 
 export type PersistedAlert = Alert & { readonly sessionId: string };
 
-/** `~/.garden/state.json`. Overlay facts only — what garden decided and cannot
+/** `<appDir>/state.json`. Overlay facts only — what garden decided and cannot
  *  recompute from tmux and the transcripts. */
 export interface OverlayState {
   readonly version: 2;

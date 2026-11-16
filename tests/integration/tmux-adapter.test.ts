@@ -58,21 +58,23 @@ describe('the tmux adapter', () => {
     }
   });
 
-  it('pins the effective instance in new and respawned panes despite a stale tmux environment', async () => {
-    const cwd = mkdtempSync(join(tmpdir(), 'garden-instance-env-'));
-    try {
-      await withTmuxServer(async (target) => {
-        const config = loadConfig({
-          GARDEN_HARNESS: 'codex',
-          GARDEN_PORT: '49123',
-          GARDEN_TMUX_SOCKET: target.socket,
-          GARDEN_APP_DIR: join(cwd, 'app dir'),
-        });
-        const effective = { ...target, instanceEnv: instanceEnvironment(config) };
-        const command = (file: string) => [
-          process.execPath,
-          '-e',
-          `
+  it.each(['claude', 'codex'])(
+    'pins %s in new and respawned panes despite a stale tmux environment',
+    async (harness) => {
+      const cwd = mkdtempSync(join(tmpdir(), 'garden-instance-env-'));
+      try {
+        await withTmuxServer(async (target) => {
+          const config = loadConfig({
+            GARDEN_HARNESS: harness,
+            GARDEN_PORT: '49123',
+            GARDEN_TMUX_SOCKET: target.socket,
+            GARDEN_APP_DIR: join(cwd, 'app dir'),
+          });
+          const effective = { ...target, instanceEnv: instanceEnvironment(config) };
+          const command = (file: string) => [
+            process.execPath,
+            '-e',
+            `
           const fs = require('node:fs');
           const env = Object.fromEntries(${JSON.stringify([
             'GARDEN_HARNESS',
@@ -83,59 +85,60 @@ describe('the tmux adapter', () => {
           ])}.map(key => [key, process.env[key]]));
           fs.writeFileSync(${JSON.stringify(file)}, JSON.stringify(env));
         `,
-        ];
-        await newSession(target, {
-          name: 'stale',
-          cwd,
-          port: 1,
-          sessionId: 'stale-id',
-          command: sleeper,
-        });
-        await newSession(effective, {
-          name: 'instance',
-          cwd,
-          port: config.port,
-          sessionId: 'instance-id',
-          command: command('created.json'),
-        });
-        const readEnvironment = async (file: string) =>
-          until(
-            `pane environment in ${file}`,
-            () => {
-              try {
-                return Promise.resolve(
-                  JSON.parse(readFileSync(join(cwd, file), 'utf8')) as unknown,
-                );
-              } catch {
-                return Promise.resolve(null);
-              }
-            },
-            (env) => env !== null,
-          );
-        const expected = { ...instanceEnvironment(config), GARDEN_SESSION_ID: 'instance-id' };
-        expect(await readEnvironment('created.json')).toEqual(expected);
-        await until(
-          'instance pane to exit',
-          () => listPanes(target),
-          (list) => list.some((p) => p.session === 'instance' && p.dead),
-        );
-        const moved = { ...config, port: 49124, appDir: join(cwd, 'moved app dir') };
-        await respawnPane(
-          { ...target, instanceEnv: instanceEnvironment(moved) },
-          {
+          ];
+          await newSession(target, {
+            name: 'stale',
+            cwd,
+            port: 1,
+            sessionId: 'stale-id',
+            command: sleeper,
+          });
+          await newSession(effective, {
             name: 'instance',
-            command: command('resumed.json'),
-          },
-        );
-        expect(await readEnvironment('resumed.json')).toEqual({
-          ...instanceEnvironment(moved),
-          GARDEN_SESSION_ID: 'instance-id',
+            cwd,
+            port: config.port,
+            sessionId: 'instance-id',
+            command: command('created.json'),
+          });
+          const readEnvironment = async (file: string) =>
+            until(
+              `pane environment in ${file}`,
+              () => {
+                try {
+                  return Promise.resolve(
+                    JSON.parse(readFileSync(join(cwd, file), 'utf8')) as unknown,
+                  );
+                } catch {
+                  return Promise.resolve(null);
+                }
+              },
+              (env) => env !== null,
+            );
+          const expected = { ...instanceEnvironment(config), GARDEN_SESSION_ID: 'instance-id' };
+          expect(await readEnvironment('created.json')).toEqual(expected);
+          await until(
+            'instance pane to exit',
+            () => listPanes(target),
+            (list) => list.some((p) => p.session === 'instance' && p.dead),
+          );
+          const moved = { ...config, port: 49124, appDir: join(cwd, 'moved app dir') };
+          await respawnPane(
+            { ...target, instanceEnv: instanceEnvironment(moved) },
+            {
+              name: 'instance',
+              command: command('resumed.json'),
+            },
+          );
+          expect(await readEnvironment('resumed.json')).toEqual({
+            ...instanceEnvironment(moved),
+            GARDEN_SESSION_ID: 'instance-id',
+          });
         });
-      });
-    } finally {
-      rmSync(cwd, { recursive: true, force: true });
-    }
-  });
+      } finally {
+        rmSync(cwd, { recursive: true, force: true });
+      }
+    },
+  );
 
   it('kills a session by name and fails with a TmuxError on an unknown name', async () => {
     await withTmuxServer(async (target) => {

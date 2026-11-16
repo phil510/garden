@@ -91,7 +91,7 @@ describe('scripts/setup-sandbox.ts', () => {
     });
   });
 
-  it.each([TMUX_SOCKET, CODEX_TMUX_SOCKET])(
+  it.each(['garden', TMUX_SOCKET, CODEX_TMUX_SOCKET])(
     'refuses production socket %s without running any tmux command',
     async (socket) => {
       const appDir = mkdtempSync(join(tmpdir(), 'garden-sandbox-appdir-'));

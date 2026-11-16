@@ -55,15 +55,15 @@ describe('instance selection', () => {
     expect(loadConfig({ GARDEN_HARNESS: 'codex', GARDEN_PORT: '4600' }, file).port).toBe(4600);
   });
 
-  it('lets explicit instance overrides win together', () => {
+  it.each(['claude', 'codex'])('lets explicit %s instance overrides win together', (harness) => {
     const config = loadConfig({
-      GARDEN_HARNESS: 'codex',
+      GARDEN_HARNESS: harness,
       GARDEN_PORT: '4600',
       GARDEN_TMUX_SOCKET: 'isolated-socket',
       GARDEN_APP_DIR: '/tmp/isolated-app',
     });
     expect(config).toMatchObject({
-      harness: 'codex',
+      harness,
       port: 4600,
       tmuxSocket: 'isolated-socket',
       appDir: '/tmp/isolated-app',
@@ -326,8 +326,8 @@ describe('ensureConfigFile', () => {
 
   beforeEach(() => {
     home = mkdtempSync(join(tmpdir(), 'garden-config-'));
-    configPath = join(home, '.garden', 'config.json');
-    mkdirSync(join(home, '.garden'), { recursive: true });
+    configPath = join(home, '.garden-claude', 'config.json');
+    mkdirSync(join(home, '.garden-claude'), { recursive: true });
   });
 
   afterEach(() => {

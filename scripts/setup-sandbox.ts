@@ -74,7 +74,7 @@ function rootsInclude(path: string, root: string): boolean {
 /** Refuses to kill the socket garden's real tmux server runs on, so a bug in sandbox socket
  *  resolution fails loudly here instead of disturbing the developer's own sessions. */
 function assertNotProductionSocket(socket: string): void {
-  if (socket === TMUX_SOCKET || socket === CODEX_TMUX_SOCKET) {
+  if (socket === 'garden' || socket === TMUX_SOCKET || socket === CODEX_TMUX_SOCKET) {
     throw new Error(
       `sandbox tmux socket resolved to "${socket}", which is garden's production socket — refusing to kill it`,
     );

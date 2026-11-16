@@ -13,7 +13,7 @@ function isPermissionMode(value: unknown): value is PermissionMode {
   return value === 'default' || value === 'bypassPermissions';
 }
 
-/** What `~/.garden/config.json` may contain. Omitted keys fall back to the defaults below. */
+/** What `<appDir>/config.json` may contain. Omitted keys fall back to the defaults below. */
 export interface ConfigFile {
   readonly port: number;
   readonly roots: readonly string[];
@@ -51,9 +51,8 @@ export const DEFAULT_CONFIG_FILE: ConfigFile = {
 /** Loopback-only, and deliberately not configurable: garden is not a remote-access tool. */
 const HOST = '127.0.0.1';
 
-/** Every garden tmux session lives on this socket, so `tmux -L garden` reaches them
- *  and nothing garden does can disturb a user's own tmux server. */
-export const TMUX_SOCKET = 'garden';
+/** Dedicated sockets keep each harness separate from the user's own tmux server. */
+export const TMUX_SOCKET = 'garden-claude';
 export const CODEX_TMUX_SOCKET = 'garden-codex';
 
 function resolveHarness(env: Record<string, string | undefined>): Harness {
@@ -221,7 +220,7 @@ export function appDirPath(home: string, env: Record<string, string | undefined>
   const harness = resolveHarness(env);
   return (
     envString(env, 'GARDEN_APP_DIR') ??
-    join(home, harness === 'codex' ? '.garden-codex' : '.garden')
+    join(home, harness === 'codex' ? '.garden-codex' : '.garden-claude')
   );
 }
 

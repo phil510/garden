@@ -39,10 +39,10 @@ Three decisions shape the whole system and are expensive to reverse. Check the r
 changing one.
 
 - **tmux is the supervisor; garden is disposable.** Every harness process runs in a tmux
-  session on garden's own socket (`tmux -L garden`, started with the conf `appdir.ts` writes).
+  session on garden's own socket (`tmux -L garden-claude`, started with the conf `appdir.ts` writes).
   Killing the server or closing the browser never touches a session. Had garden owned the ptys,
   every session would die with the server, and you could not reach a session from another
-  terminal with `tmux -L garden attach -t <name>`. Reversing this rewrites the process model,
+  terminal with `tmux -L garden-claude attach -t <name>`. Reversing this rewrites the process model,
   resume and the liveness derivation.
 - **Per-process overlay.** Garden writes its configuration and identity state under `appDir`,
   and injects hooks into each process rather than editing the user's harness configuration.
@@ -189,7 +189,7 @@ packages/server/src/
     errors.ts      error-class-to-status table and the fastify error handler
     server.ts      fastify factory
   config.ts        resolves appDir, transcriptsDir, tmuxSocket, claudeCommand from GARDEN_*
-                   env vars, else their ~/.garden / ~/.claude / claude defaults
+                   env vars, else their ~/.garden-claude / ~/.claude / claude defaults
   appdir.ts        writes tmux.conf under appDir
   main.ts          composition root
   cli/             the garden bin
@@ -214,7 +214,7 @@ For now, one harness is selected once at boot by `GARDEN_HARNESS` (`claude` by d
 `codex`). This simplifies instance configuration; mixed-harness instances remain a possible
 future extension, not a rejected architecture.
 The selection resolves the port, tmux socket and app directory together: Claude defaults to
-`4310`, `garden`, `~/.garden`; Codex to `4311`, `garden-codex`, `~/.garden-codex`. Explicit
+`4310`, `garden-claude`, `~/.garden-claude`; Codex to `4311`, `garden-codex`, `~/.garden-codex`. Explicit
 instance overrides retain precedence. CLI commands and spawned panes use that full resolution.
 
 `HarnessPort` in `app/ports.ts` is selected in `main.ts`. It owns spawn and resume argv

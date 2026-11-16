@@ -33,7 +33,8 @@ there is no separate step. If the hook ever goes missing, `pnpm rebuild lefthook
 ## Configuration
 
 `GARDEN_HARNESS` selects the instance for every command, including `stop` and `stop --all`.
-Unset or `claude` uses port `4310`, tmux socket `garden`, and app dir `~/.garden`.
+Unset or `claude` uses port `4310`, tmux socket `garden-claude`, and app dir `~/.garden-claude`.
+Existing Claude installs need the [coordinated migration](docs/2026-11-16-claude-instance-migration.md) before adopting these defaults.
 `codex` uses port `4311`, socket `garden-codex`, and app dir `~/.garden-codex`.
 `GARDEN_PORT`, `GARDEN_TMUX_SOCKET`, and `GARDEN_APP_DIR` override the selected instance's
 values individually. Spawned and resumed panes inherit the full effective instance, so
