@@ -111,6 +111,31 @@ describe('Codex rollout projection', () => {
     expect(parsed.record).toMatchObject({ lastPrompt: 'prompt', recap: 'final response' });
   });
 
+  it('ignores phased legacy progress before and after an answer while preserving unphased answers', () => {
+    const progress = ['commentary', 'partial_answer'].flatMap((phase) => [
+      line('response_item', {
+        type: 'message',
+        role: 'assistant',
+        phase,
+        content: [{ type: 'output_text', text: 'working' }],
+      }),
+      line('event_msg', { type: 'agent_message', phase, message: 'working' }),
+    ]);
+    expect(parseCodexTranscript(progress.join('\n'), 'garden').record.recap).toBeNull();
+    for (const phase of ['final_answer', null, undefined]) {
+      expect(
+        parseCodexTranscript(
+          [
+            ...progress,
+            line('event_msg', { type: 'agent_message', phase, message: 'answer' }),
+            ...progress,
+          ].join('\n'),
+          'garden',
+        ).record.recap,
+      ).toBe('answer');
+    }
+  });
+
   it('accepts messages without optional phase or input annotations from older rollouts', () => {
     expect(
       parseCodexTranscript(

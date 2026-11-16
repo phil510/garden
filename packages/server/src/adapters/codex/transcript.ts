@@ -56,19 +56,17 @@ export function parseCodexTranscript(contents: string, sessionId: string): Trans
     if (line['type'] === 'session_meta' || line['type'] === 'turn_context') {
       cwd = text(payload['cwd']) ?? cwd;
     }
+    const phase = payload['phase'];
+    const isAnswer = phase === 'final_answer' || phase === undefined || phase === null;
     if (line['type'] === 'event_msg') {
       if (payload['type'] === 'user_message')
         legacyPrompt = text(payload['message']) ?? legacyPrompt;
-      if (payload['type'] === 'agent_message')
+      if (payload['type'] === 'agent_message' && isAnswer)
         legacyRecap = text(payload['message']) ?? legacyRecap;
     }
     if (line['type'] === 'response_item' && payload['type'] === 'message') {
       if (payload['role'] === 'user') lastPrompt = messageText(payload, 'user') ?? lastPrompt;
-      const phase = payload['phase'];
-      if (
-        payload['role'] === 'assistant' &&
-        (phase === 'final_answer' || phase === undefined || phase === null)
-      ) {
+      if (payload['role'] === 'assistant' && isAnswer) {
         recap = messageText(payload, 'assistant') ?? recap;
       }
     }
