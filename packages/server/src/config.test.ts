@@ -16,6 +16,16 @@ import {
   TMUX_SOCKET,
 } from './config.js';
 
+beforeEach(() => {
+  for (const name of ['GARDEN_HARNESS', 'GARDEN_PORT', 'GARDEN_TMUX_SOCKET', 'GARDEN_APP_DIR']) {
+    vi.stubEnv(name, undefined);
+  }
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
 describe('loadConfig', () => {
   it('reads the port from GARDEN_PORT', () => {
     expect(loadConfig({ GARDEN_PORT: '5000' }, DEFAULT_CONFIG_FILE, '/h').port).toBe(5000);
@@ -325,23 +335,30 @@ describe('ensureConfigFile', () => {
   });
 
   it('creates and reads each harness config independently under one home', () => {
+    const claude = ensureConfigFile(home);
+    vi.stubEnv('GARDEN_HARNESS', 'codex');
+    const codex = ensureConfigFile(home);
+    expect(codex.port).not.toBe(claude.port);
+    const codexPath = join(appDirPath(home, process.env), 'config.json');
+    writeFileSync(codexPath, JSON.stringify({ roots: ['/codex'] }));
+    expect(ensureConfigFile(home)).toMatchObject({ port: codex.port, roots: ['/codex'] });
+    writeFileSync(codexPath, JSON.stringify({ port: 4700 }));
+    expect(loadConfig(process.env, ensureConfigFile(home), home).port).toBe(4700);
     vi.stubEnv('GARDEN_HARNESS', 'claude');
-    vi.stubEnv('GARDEN_APP_DIR', '');
-    try {
-      const claude = ensureConfigFile(home);
-      vi.stubEnv('GARDEN_HARNESS', 'codex');
-      const codex = ensureConfigFile(home);
-      expect(codex.port).not.toBe(claude.port);
-      const codexPath = join(appDirPath(home, process.env), 'config.json');
-      writeFileSync(codexPath, JSON.stringify({ roots: ['/codex'] }));
-      expect(ensureConfigFile(home)).toMatchObject({ port: codex.port, roots: ['/codex'] });
-      writeFileSync(codexPath, JSON.stringify({ port: 4700 }));
-      expect(loadConfig(process.env, ensureConfigFile(home), home).port).toBe(4700);
-      vi.stubEnv('GARDEN_HARNESS', 'claude');
-      expect(ensureConfigFile(home)).toEqual(claude);
-    } finally {
-      vi.unstubAllEnvs();
-    }
+    expect(ensureConfigFile(home)).toEqual(claude);
+  });
+
+  it('keeps Codex routing when a settings save recreates its missing config', () => {
+    vi.stubEnv('GARDEN_HARNESS', 'codex');
+    const config = loadConfig(process.env, ensureConfigFile(home), home);
+    const path = configFilePath(config.appDir);
+    rmSync(path);
+
+    patchConfigFile(path, { quietWindowMinutes: 4 });
+
+    const recreated = loadConfig(process.env, ensureConfigFile(home), home);
+    expect(recreated).toEqual(config);
+    expect(ensureConfigFile(home).quietWindowMinutes).toBe(4);
   });
 
   it('writes and returns the default config when no file is present', () => {
@@ -476,7 +493,7 @@ describe('readConfigFile', () => {
 });
 
 describe('patchConfigFile', () => {
-  it('round-trips a patch against a missing file, merged over the defaults, with no stray .tmp', () => {
+  it('persists only a patch against a missing file, with no stray .tmp', () => {
     withTempAppDir((appDir) => {
       mkdirSync(appDir, { recursive: true });
       const path = configFilePath(appDir);
@@ -484,7 +501,6 @@ describe('patchConfigFile', () => {
       patchConfigFile(path, { claudeCommand: 'ec bedrock launch claude --' });
 
       expect(JSON.parse(readFileSync(path, 'utf8'))).toEqual({
-        ...DEFAULT_CONFIG_FILE,
         claudeCommand: 'ec bedrock launch claude --',
       });
       expect(existsSync(`${path}.tmp`)).toBe(false);

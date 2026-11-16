@@ -366,7 +366,7 @@ export class ConfigWriteRefusedError extends Error {}
 
 /**
  * Merges `patch` over `path`'s on-disk file and writes it back atomically. ENOENT is fine —
- * there is nothing to clobber, so the patch merges over `DEFAULT_CONFIG_FILE` instead. An
+ * there is nothing to clobber, so only the patch is persisted and reads supply defaults. An
  * existing file that fails to parse or validate throws `ConfigWriteRefusedError` rather than
  * writing anything. On success, the patch merges over the *raw* parsed object, not
  * `parseConfigFile`'s defaulted return — merging onto the defaulted return would inject every
@@ -378,7 +378,7 @@ export function patchConfigFile(path: string, patch: Partial<ConfigFile>): void 
     text = readFileSync(path, 'utf8');
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-    writeConfigFile(path, { ...DEFAULT_CONFIG_FILE, ...patch });
+    writeConfigFile(path, { ...patch });
     return;
   }
   try {
