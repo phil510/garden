@@ -824,7 +824,9 @@ describe('POST session messages', () => {
       payload: { message: 'hello' },
     });
     expect(response.statusCode).toBe(409);
-    expect(response.json<{ error: string }>().error).toContain('supported only by the Codex');
+    expect(response.json<{ error: string }>().error).toContain(
+      'not supported by the selected harness',
+    );
     expect(
       (
         await app.inject({

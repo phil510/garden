@@ -231,7 +231,7 @@ export async function sendSessionMessage(
 ): Promise<void> {
   findSession(deps.projection, id);
   if (deps.harness.sendMessage === undefined)
-    throw new SessionMessagingError('garden send is supported only by the Codex harness');
+    throw new SessionMessagingError('garden send is not supported by the selected harness');
   await deps.harness.sendMessage(id, message, async () => {
     const current = findSession(deps.projection, id);
     const panes = await deps.tmux.listPanes();

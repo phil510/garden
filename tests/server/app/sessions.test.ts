@@ -1072,7 +1072,7 @@ describe('session message delivery', () => {
       harness: fakeClaudeHarness('/settings', () => ['claude']),
     };
     await expect(sendSessionMessage(deps, 'garden', 'hello')).rejects.toThrow(
-      'supported only by the Codex',
+      'not supported by the selected harness',
     );
     await expect(
       sendSessionMessage(
