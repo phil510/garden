@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Io } from './commands.js';
 import {
   describeStartupFailure,
@@ -34,10 +34,14 @@ function collectingIo(): { io: Io; stdout: string[]; stderr: string[] } {
 let home: string;
 
 beforeEach(() => {
+  for (const name of ['GARDEN_HARNESS', 'GARDEN_PORT', 'GARDEN_TMUX_SOCKET', 'GARDEN_APP_DIR']) {
+    vi.stubEnv(name, undefined);
+  }
   home = mkdtempSync(join(tmpdir(), 'garden-cli-start-'));
 });
 
 afterEach(() => {
+  vi.unstubAllEnvs();
   rmSync(home, { recursive: true, force: true });
 });
 

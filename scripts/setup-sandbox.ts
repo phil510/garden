@@ -7,7 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { loadConfig, TMUX_SOCKET } from '../packages/server/src/config.js';
+import { CODEX_TMUX_SOCKET, loadConfig, TMUX_SOCKET } from '../packages/server/src/config.js';
 import { socketHasLivePanes } from '../packages/server/src/adapters/tmux.js';
 
 const appDir = process.env.GARDEN_APP_DIR ?? join(homedir(), '.garden-sandbox');
@@ -74,7 +74,7 @@ function rootsInclude(path: string, root: string): boolean {
 /** Refuses to kill the socket garden's real tmux server runs on, so a bug in sandbox socket
  *  resolution fails loudly here instead of disturbing the developer's own sessions. */
 function assertNotProductionSocket(socket: string): void {
-  if (socket === TMUX_SOCKET) {
+  if (socket === TMUX_SOCKET || socket === CODEX_TMUX_SOCKET) {
     throw new Error(
       `sandbox tmux socket resolved to "${socket}", which is garden's production socket — refusing to kill it`,
     );

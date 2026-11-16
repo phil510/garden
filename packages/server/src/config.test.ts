@@ -16,6 +16,16 @@ import {
   TMUX_SOCKET,
 } from './config.js';
 
+beforeEach(() => {
+  for (const name of ['GARDEN_HARNESS', 'GARDEN_PORT', 'GARDEN_TMUX_SOCKET', 'GARDEN_APP_DIR']) {
+    vi.stubEnv(name, undefined);
+  }
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
 describe('loadConfig', () => {
   it('reads the port from GARDEN_PORT', () => {
     expect(loadConfig({ GARDEN_PORT: '5000' }, DEFAULT_CONFIG_FILE, '/h').port).toBe(5000);
@@ -30,6 +40,47 @@ describe('loadConfig', () => {
   it.each(['0', '65536', '4310.5', 'abc'])('rejects GARDEN_PORT=%s', (raw) => {
     expect(() => loadConfig({ GARDEN_PORT: raw }, DEFAULT_CONFIG_FILE, '/h')).toThrow(
       /GARDEN_PORT/,
+    );
+  });
+});
+
+describe('instance selection', () => {
+  it('keeps file and environment port overrides within the selected namespace', () => {
+    const file = { ...DEFAULT_CONFIG_FILE, port: 4500 };
+    const codex = loadConfig({ GARDEN_HARNESS: 'codex' }, file, '/h');
+    const claude = loadConfig({}, file, '/h');
+    expect(codex.appDir).not.toBe(claude.appDir);
+    expect(codex.tmuxSocket).not.toBe(claude.tmuxSocket);
+    expect(codex.port).toBe(4500);
+    expect(loadConfig({ GARDEN_HARNESS: 'codex', GARDEN_PORT: '4600' }, file).port).toBe(4600);
+  });
+
+  it('lets explicit instance overrides win together', () => {
+    const config = loadConfig({
+      GARDEN_HARNESS: 'codex',
+      GARDEN_PORT: '4600',
+      GARDEN_TMUX_SOCKET: 'isolated-socket',
+      GARDEN_APP_DIR: '/tmp/isolated-app',
+    });
+    expect(config).toMatchObject({
+      harness: 'codex',
+      port: 4600,
+      tmuxSocket: 'isolated-socket',
+      appDir: '/tmp/isolated-app',
+    });
+  });
+
+  it.each(['typo', 'Claude', ' '])(
+    'rejects an unknown harness before touching state (%j)',
+    (raw) => {
+      expect(() => appDirPath('/h', { GARDEN_HARNESS: raw })).toThrow(/GARDEN_HARNESS/);
+      expect(() => loadConfig({ GARDEN_HARNESS: raw })).toThrow(/GARDEN_HARNESS/);
+    },
+  );
+
+  it('treats an empty harness as the default instance', () => {
+    expect(loadConfig({ GARDEN_HARNESS: '' }, DEFAULT_CONFIG_FILE, '/h')).toEqual(
+      loadConfig({}, DEFAULT_CONFIG_FILE, '/h'),
     );
   });
 });
@@ -283,6 +334,33 @@ describe('ensureConfigFile', () => {
     rmSync(home, { recursive: true, force: true });
   });
 
+  it('creates and reads each harness config independently under one home', () => {
+    const claude = ensureConfigFile(home);
+    vi.stubEnv('GARDEN_HARNESS', 'codex');
+    const codex = ensureConfigFile(home);
+    expect(codex.port).not.toBe(claude.port);
+    const codexPath = join(appDirPath(home, process.env), 'config.json');
+    writeFileSync(codexPath, JSON.stringify({ roots: ['/codex'] }));
+    expect(ensureConfigFile(home)).toMatchObject({ port: codex.port, roots: ['/codex'] });
+    writeFileSync(codexPath, JSON.stringify({ port: 4700 }));
+    expect(loadConfig(process.env, ensureConfigFile(home), home).port).toBe(4700);
+    vi.stubEnv('GARDEN_HARNESS', 'claude');
+    expect(ensureConfigFile(home)).toEqual(claude);
+  });
+
+  it('keeps Codex routing when a settings save recreates its missing config', () => {
+    vi.stubEnv('GARDEN_HARNESS', 'codex');
+    const config = loadConfig(process.env, ensureConfigFile(home), home);
+    const path = configFilePath(config.appDir);
+    rmSync(path);
+
+    patchConfigFile(path, { quietWindowMinutes: 4 });
+
+    const recreated = loadConfig(process.env, ensureConfigFile(home), home);
+    expect(recreated).toEqual(config);
+    expect(ensureConfigFile(home).quietWindowMinutes).toBe(4);
+  });
+
   it('writes and returns the default config when no file is present', () => {
     const logger = { warn: vi.fn() };
     expect(ensureConfigFile(home, logger)).toEqual(DEFAULT_CONFIG_FILE);
@@ -415,7 +493,7 @@ describe('readConfigFile', () => {
 });
 
 describe('patchConfigFile', () => {
-  it('round-trips a patch against a missing file, merged over the defaults, with no stray .tmp', () => {
+  it('persists only a patch against a missing file, with no stray .tmp', () => {
     withTempAppDir((appDir) => {
       mkdirSync(appDir, { recursive: true });
       const path = configFilePath(appDir);
@@ -423,7 +501,6 @@ describe('patchConfigFile', () => {
       patchConfigFile(path, { claudeCommand: 'ec bedrock launch claude --' });
 
       expect(JSON.parse(readFileSync(path, 'utf8'))).toEqual({
-        ...DEFAULT_CONFIG_FILE,
         claudeCommand: 'ec bedrock launch claude --',
       });
       expect(existsSync(`${path}.tmp`)).toBe(false);
