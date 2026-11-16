@@ -75,6 +75,10 @@ function recordingClient(
       calls.push(`resume:${id}${spawnSuffix(options)}`);
       return Promise.resolve(created);
     },
+    sendSessionMessage: (id, message) => {
+      calls.push(`send:${id}:${message}`);
+      return Promise.resolve(ok);
+    },
     killSession: (id) => {
       calls.push(`kill:${id}`);
       return Promise.resolve(ok);
@@ -527,6 +531,36 @@ describe('runCli', () => {
 
       expect(calls).toEqual([]);
       expect(stderr).toEqual(['garden: usage: garden events --follow\n']);
+    },
+  );
+
+  it.each([{}, { GARDEN_HARNESS: 'claude', GARDEN_SESSION_ID: 's1' }, { GARDEN_HARNESS: 'codex' }])(
+    'rejects digest forwarding outside a Codex garden session: %j',
+    async (env) => {
+      const { io, stderr } = collectingIo();
+      const { client } = recordingClient();
+      expect(
+        await runCli('events', ['--follow', '--forward-to-session'], io, client, undefined, env),
+      ).toBe(1);
+      expect(stderr.join('')).toContain('requires a Codex garden session');
+    },
+  );
+
+  it('sends one multiline argument to the garden id without changing its text', async () => {
+    const { io, stdout } = collectingIo();
+    const { client, calls } = recordingClient();
+    expect(await runCli('send', ['s1', 'hello\nworld', '--json'], io, client)).toBe(0);
+    expect(calls).toEqual(['send:s1:hello\nworld']);
+    expect(stdout).toEqual(['{"ok":true}\n']);
+  });
+
+  it.each([[], ['s1'], ['s1', ' '], ['s1', 'hello', 'extra']])(
+    'rejects malformed send arguments: %j',
+    async (...args) => {
+      const { io } = collectingIo();
+      const { client, calls } = recordingClient();
+      expect(await runCli('send', args, io, client)).toBe(1);
+      expect(calls).toEqual([]);
     },
   );
 

@@ -19,6 +19,7 @@ import {
   runLs,
   runNew,
   runResume,
+  runSend,
   runReviewsClaim,
   runReviewsDismiss,
   runReviewsList,
@@ -39,6 +40,7 @@ const CLI_COMMANDS = [
   'ls',
   'kill',
   'resume',
+  'send',
   'adopt',
   'watch',
   'unwatch',
@@ -58,9 +60,9 @@ export function isCliCommand(command: string | undefined): command is CliCommand
 
 export function usageLines(): string {
   return (
-    'usage: garden [new <dir> | ls | kill <id> | resume <id> | adopt <id> | ' +
+    'usage: garden [new <dir> | ls | kill <id> | resume <id> | send <id> <message> | adopt <id> | ' +
     'watch <pr> | unwatch <pr> | unwatch --all | watches | alert <text> | alert clear | digest <id> | ' +
-    'reviews list | reviews start <owner/name#N> | reviews claim <owner/name#N> | reviews dismiss <owner/name#N> | events --follow | ' +
+    'reviews list | reviews start <owner/name#N> | reviews claim <owner/name#N> | reviews dismiss <owner/name#N> | events --follow [--forward-to-session] | ' +
     'stop [--all] | uninstall]\n'
   );
 }
@@ -256,6 +258,7 @@ export async function runCli(
       'unignore-check': { type: 'string', multiple: true },
       session: { type: 'string' },
       follow: { type: 'boolean', default: false },
+      'forward-to-session': { type: 'boolean', default: false },
     },
     allowPositionals: true,
   });
@@ -281,6 +284,10 @@ export async function runCli(
       });
       return parsed.ok ? runLs(io, json, client, parsed.filter) : usage(io, parsed.message);
     }
+    case 'send':
+      return positionals.length !== 2 || !positionals[0] || !positionals[1]?.trim()
+        ? usage(io, 'garden send <id> <message>')
+        : runSend(io, positionals[0], positionals[1], json, client);
     case 'kill':
       return positionals[0] === undefined
         ? usage(io, 'garden kill <id>')
@@ -365,8 +372,24 @@ export async function runCli(
     case 'events': {
       if (!values.follow || values.session !== undefined)
         return usage(io, 'garden events --follow');
+      if (
+        values['forward-to-session'] &&
+        (env.GARDEN_HARNESS !== 'codex' || !env.GARDEN_SESSION_ID)
+      )
+        return usage(
+          io,
+          'garden events --follow --forward-to-session requires a Codex garden session',
+        );
       const { out, gone } = openLifeline();
-      return runEventsFollow({ env, out, stderr: io.stderr, gone });
+      return runEventsFollow({
+        env,
+        out,
+        stderr: io.stderr,
+        gone,
+        ...(values['forward-to-session']
+          ? { forward: (id, line, signal) => client.sendSessionMessage(id, line, signal) }
+          : {}),
+      });
     }
     case 'stop':
       return values.all === true

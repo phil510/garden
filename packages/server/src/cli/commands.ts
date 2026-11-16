@@ -39,6 +39,7 @@ export interface CliClient {
   ): Promise<CreateSessionResponse>;
   resumeSession(id: string, options?: SpawnOptions): Promise<CreateSessionResponse>;
   killSession(id: string): Promise<OkResponse>;
+  sendSessionMessage(id: string, message: string, signal?: AbortSignal): Promise<OkResponse>;
   placeSession(id: string, placement: Placement): Promise<OkResponse>;
   watch(
     sessionId: string,
@@ -67,6 +68,21 @@ export interface CliClient {
 }
 
 export const defaultClient: CliClient = http;
+
+export function runSend(
+  io: Io,
+  id: string,
+  message: string,
+  json: boolean,
+  client: CliClient = defaultClient,
+): Promise<0 | 1> {
+  return runCommand(
+    io,
+    json,
+    () => client.sendSessionMessage(id, message),
+    () => 'sent',
+  );
+}
 
 function printResult(io: Io, json: boolean, data: unknown, line: () => string): Promise<void> {
   return writeAll(io.stdout, json ? `${JSON.stringify(data)}\n` : `${line()}\n`);

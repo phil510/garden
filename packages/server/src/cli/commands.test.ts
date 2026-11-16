@@ -77,6 +77,7 @@ function throwingClient(error: Error): CliClient {
     createSession: () => Promise.reject(error),
     resumeSession: () => Promise.reject(error),
     killSession: () => Promise.reject(error),
+    sendSessionMessage: () => Promise.reject(error),
     placeSession: () => Promise.reject(error),
     watch: () => Promise.reject(error),
     unwatch: () => Promise.reject(error),
