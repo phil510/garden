@@ -36,7 +36,7 @@ const nodeBuiltinPattern = (message) => ({ group: nodeBuiltinGroup, message });
 const adaptersInward = {
   group: ['**/app/**', '**/http/**', '**/cli/**'],
   message:
-    'adapters/ may import shared, domain/ types, and its own library only. Adapters emit events; they do not call inward.',
+    'adapters/ may import shared, pure domain/ functions and types, and its own library only. Adapters emit events; they do not call inward.',
 };
 
 export default tseslint.config(
