@@ -97,12 +97,22 @@ async function turn(message: string) {
     started = true;
     await hook('SessionStart');
   }
-  append('event_msg', { type: 'user_message', message });
+  append('response_item', {
+    type: 'message',
+    role: 'user',
+    content: [{ type: 'input_text', text: message }],
+    internal_chat_message_metadata_passthrough: { content_item_kinds: ['user.text'] },
+  });
   if (message === '/work') {
     await hook('PreToolUse');
     return;
   }
-  append('event_msg', { type: 'agent_message', message: `Response to ${message}` });
+  append('response_item', {
+    type: 'message',
+    role: 'assistant',
+    phase: 'final_answer',
+    content: [{ type: 'output_text', text: `Response to ${message}` }],
+  });
   await hook('Stop');
 }
 
