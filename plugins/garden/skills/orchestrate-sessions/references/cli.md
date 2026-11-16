@@ -42,7 +42,8 @@ error before anything spawns. Output:
 { "id": "...", "tmuxName": "..." }
 ```
 
-Permission mode comes from `permissionMode` in `~/.garden/config.json`: `default` (the shipped
+Permission mode comes from `permissionMode` in `<appDir>/config.json` (`GARDEN_APP_DIR`, or
+`~/.garden-claude` by default): `default` (the shipped
 value) passes no flag, so the peer's own Claude Code settings decide; `bypassPermissions` passes `--permission-mode bypassPermissions`. Check the
 `claude` process's flags to see which is in effect. Without `--model` or `--effort` the session
 gets whatever the local `claude` would use on its own. `GARDEN_CLAUDE_COMMAND` pins the whole command

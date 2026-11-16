@@ -27,7 +27,8 @@ The one thing to hold onto: **a garden session is a peer, not a subagent.** It h
 context window, its own permission boundary, and its own user. You cannot await it, you do not
 see its transcript by default, and it inherits nothing from you — not your permission mode, not
 your model or effort. The permission mode is set by garden's server config (`permissionMode` in
-`~/.garden/config.json`, read at server start): `bypassPermissions` passes the flag, while `default`
+`<appDir>/config.json`, read at server start; `GARDEN_APP_DIR` overrides the Claude default
+`~/.garden-claude`): `bypassPermissions` passes the flag, while `default`
 passes none, so the peer falls back to its own Claude Code settings. Either way it never comes from
 you. The model and effort are whatever the local `claude` would use alone unless you pass `--model`
 or `--effort` to `garden new`.
