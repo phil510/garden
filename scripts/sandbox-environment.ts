@@ -19,7 +19,7 @@ export function sandboxEnvironment(
     ...env,
     GARDEN_SERVER_PROCESS: '1',
     GARDEN_HARNESS: harness,
-    GARDEN_PORT: env.GARDEN_SANDBOX_PORT || '4311',
+    GARDEN_PORT: env.GARDEN_SANDBOX_PORT || '4312',
     GARDEN_TMUX_SOCKET: env.GARDEN_SANDBOX_SOCKET || 'garden-sandbox',
     GARDEN_APP_DIR: appDir,
     GARDEN_TRANSCRIPTS_DIR: join(appDir, 'transcripts'),

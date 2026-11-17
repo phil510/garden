@@ -5,8 +5,8 @@ The six specialist reviewer prompts in `agents/` and the `review-pr` workflow de
 revision `fd30cee3ecd5a8ee772733c5d20c0f2bae2da2f0` (version 1.0.1), retrieved 2026-11-16.
 They are distributed under the [Apache License 2.0](licenses/pr-review-toolkit-LICENSE).
 
-These are editable Garden forks: reviewer formatting and the workflow are adapted for this
-package, including findings-only review and native agent dispatch. Each plugin owns one working
+These are editable Garden forks: reviewer prompts and the workflow are adapted for this
+package, including repository-specific conventions, findings-only review and native agent dispatch. Each plugin owns one working
 copy of each reviewer. Changes require [semantic parity review](../maintaining.md), not byte
 identity with upstream or the other harness.
 

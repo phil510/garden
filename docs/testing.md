@@ -178,6 +178,7 @@ a fake harness in place of a live model. Use `pnpm dev:sandbox:server --claude` 
 or `pnpm dev:sandbox:server --codex` to select `scripts/fake-claude.ts` or
 `scripts/fake-codex.ts`. The Codex sandbox keeps its home under the sandbox app directory.
 These flags select Garden's harness and its fake process; they do not test native plugin loading.
+The sandbox server defaults to port `4312`; `pnpm dev:sandbox:web` proxies to that port.
 An isolated sandbox runs beside
 the user's real `garden` without either seeing the other's sessions, which makes it safe for an agent
 to start one for a manual or visual check. Never start, stop, signal or reconfigure the real instance (the

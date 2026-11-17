@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { loadConfig } from '../packages/server/src/config.js';
 import { sandboxEnvironment } from './sandbox-environment.js';
 
 describe('sandbox harness selection', () => {
@@ -36,6 +37,17 @@ describe('sandbox harness selection', () => {
       expect(inherited.CODEX_HOME).toBe('/live/codex');
     },
   );
+
+  it.each(['claude', 'codex'])('keeps the default %s sandbox off both live ports', (harness) => {
+    const env = sandboxEnvironment([`--${harness}`], {
+      ...inherited,
+      GARDEN_SANDBOX_PORT: undefined,
+    });
+    const livePorts = ['claude', 'codex'].map(
+      (liveHarness) => loadConfig({ GARDEN_HARNESS: liveHarness }).port,
+    );
+    expect(livePorts).not.toContain(Number(env.GARDEN_PORT));
+  });
 
   it.each([['--claude', '--codex'], ['--codex', '--codex'], ['--other']])(
     'rejects ambiguous or unsupported arguments %j',
