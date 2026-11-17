@@ -245,8 +245,10 @@ export interface ReposResponse {
 }
 /** Body of the server's `GET /settings` response — the client-side settings from `config.json`. */
 export interface SettingsResponse {
+  harness: 'claude' | 'codex';
   deadSessionCap: number;
   claudeCommand: string;
+  codexCommand: string;
   /** PR comment/review authors whose activity a watch does not report. */
   ignoreAuthors: string[];
   /** Minutes of PR quiet required before a digest is delivered. */
@@ -258,7 +260,11 @@ export interface SettingsResponse {
 export type SettingsRequest = Partial<
   Pick<
     SettingsResponse,
-    'claudeCommand' | 'ignoreAuthors' | 'quietWindowMinutes' | 'pollIntervalMinutes'
+    | 'claudeCommand'
+    | 'codexCommand'
+    | 'ignoreAuthors'
+    | 'quietWindowMinutes'
+    | 'pollIntervalMinutes'
   >
 >;
 export const WATCH_KINDS = [

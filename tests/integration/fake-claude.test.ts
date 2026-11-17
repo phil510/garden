@@ -168,6 +168,7 @@ async function withFakeClaudeSession(
     attach: { attach: unused },
     repos: { list: unused, resolveRoot: unused },
     serverPort: 0,
+    harnessName: 'claude' as const,
     deadSessionCap: 10,
     harness: fakeClaudeHarness(SETTINGS_PATH, () => claudeCommand),
   });

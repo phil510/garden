@@ -10,7 +10,12 @@ const request = {
   quietWindowMinutes: 3,
   pollIntervalMinutes: 5,
 };
-const reread: SettingsResponse = { deadSessionCap: 10, ...request };
+const reread: SettingsResponse = {
+  harness: 'claude',
+  codexCommand: 'codex',
+  deadSessionCap: 10,
+  ...request,
+};
 
 beforeEach(() => {
   useToastStore.setState({ message: null, kind: 'error', token: 0 });

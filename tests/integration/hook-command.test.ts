@@ -144,6 +144,7 @@ function realServer(projection: Projection) {
       resolveRoot: () => Promise.reject(new Error('not used by this test')),
     },
     serverPort: 4310,
+    harnessName: 'claude' as const,
     deadSessionCap: 10,
     harness: fakeClaudeHarness('/home/.garden/claude-settings.json', () => ['claude']),
   });

@@ -2,7 +2,8 @@ import type { SettingsRequest, SettingsResponse } from '@garden/shared';
 
 /** The modal's editable fields as the strings the inputs hold. */
 export interface SettingsFields {
-  claudeCommand: string;
+  harness: SettingsResponse['harness'];
+  launchCommand: string;
   ignoreAuthors: string;
   quietWindowMinutes: string;
   pollIntervalMinutes: string;
@@ -10,7 +11,8 @@ export interface SettingsFields {
 
 export function fieldsFromSettings(settings: SettingsResponse): SettingsFields {
   return {
-    claudeCommand: settings.claudeCommand,
+    harness: settings.harness,
+    launchCommand: settings.harness === 'codex' ? settings.codexCommand : settings.claudeCommand,
     ignoreAuthors: settings.ignoreAuthors.join(', '),
     quietWindowMinutes: String(settings.quietWindowMinutes),
     pollIntervalMinutes: String(settings.pollIntervalMinutes),
@@ -32,7 +34,7 @@ export function parseMinutes(text: string, min: number): number | null {
 
 /** The message naming the invalid field, or null when every field is valid. */
 export function settingsProblem(fields: SettingsFields): string | null {
-  if (fields.claudeCommand.trim() === '') return 'Claude command must not be blank.';
+  if (fields.launchCommand.trim() === '') return 'Launch command must not be blank.';
   if (
     parseMinutes(fields.quietWindowMinutes, 0) === null ||
     parseMinutes(fields.pollIntervalMinutes, 1) === null
@@ -43,13 +45,13 @@ export function settingsProblem(fields: SettingsFields): string | null {
 }
 
 /** The request the fields describe, or null when any field is invalid. */
-export function toSettingsRequest(fields: SettingsFields): Required<SettingsRequest> | null {
+export function toSettingsRequest(fields: SettingsFields): SettingsRequest | null {
   const quietWindowMinutes = parseMinutes(fields.quietWindowMinutes, 0);
   const pollIntervalMinutes = parseMinutes(fields.pollIntervalMinutes, 1);
-  if (fields.claudeCommand.trim() === '') return null;
+  if (fields.launchCommand.trim() === '') return null;
   if (quietWindowMinutes === null || pollIntervalMinutes === null) return null;
   return {
-    claudeCommand: fields.claudeCommand,
+    [fields.harness === 'codex' ? 'codexCommand' : 'claudeCommand']: fields.launchCommand,
     ignoreAuthors: parseAuthors(fields.ignoreAuthors),
     quietWindowMinutes,
     pollIntervalMinutes,

@@ -64,6 +64,7 @@ describe('/fs routes against a real temp repo', () => {
         roots,
       }),
       serverPort: 4310,
+      harnessName: 'claude' as const,
       deadSessionCap: 10,
       harness: fakeClaudeHarness('/home/.garden/claude-settings.json', () => ['claude']),
     });

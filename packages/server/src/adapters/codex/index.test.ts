@@ -290,3 +290,21 @@ describe('launch status ordering', () => {
     }
   });
 });
+
+it('reads the current command for every new and resumed launch', () => {
+  const f = fixture();
+  try {
+    let command = ['initial-codex'];
+    const harness = createCodexHarness({ ...f.options, readCommand: () => command });
+    const request = { id: 'garden', cwd: f.directory };
+    harness.beforeLaunch(request);
+    expect(harness.spawnCommand(request)[0]).toBe('initial-codex');
+    command = ['updated-codex', '--flag'];
+    expect(harness.spawnCommand(request).slice(0, 2)).toEqual(command);
+    expect(harness.resumeCommand(request).slice(0, 2)).toEqual(command);
+    harness.parseHook(f.hook(), 'garden');
+    expect(harness.resumeCommand(request).slice(0, 3)).toEqual([...command, 'resume']);
+  } finally {
+    f.close();
+  }
+});

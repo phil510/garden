@@ -13,6 +13,7 @@ import {
   patchConfigFile,
   readConfigFile,
   resolveClaudeCommand,
+  resolveCodexCommand,
   TMUX_SOCKET,
 } from './config.js';
 
@@ -550,5 +551,32 @@ describe('patchConfigFile', () => {
         claudeCommand: 'claude',
       });
     });
+  });
+});
+
+describe('Codex launch command', () => {
+  it('uses the saved command unless a nonblank environment override is set', () => {
+    const file = parseConfigFile(
+      '{"codexCommand":"codex wrapper","claudeCommand":"claude other"}',
+      'test',
+    );
+    expect(resolveCodexCommand({}, file)).toEqual(['codex', 'wrapper']);
+    expect(resolveCodexCommand({ GARDEN_CODEX_COMMAND: 'override --flag' }, file)).toEqual([
+      'override',
+      '--flag',
+    ]);
+    expect(resolveCodexCommand({ GARDEN_CODEX_COMMAND: '  ' }, file)).toEqual(['codex', 'wrapper']);
+    expect(() => parseConfigFile('{"codexCommand":" "}', 'test')).toThrow(/codexCommand/);
+  });
+
+  it('recovers the saved command when another config field is invalid', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'garden-codex-command-'));
+    try {
+      const path = join(dir, 'config.json');
+      writeFileSync(path, '{"port":99999,"codexCommand":"custom codex"}');
+      expect(readConfigFile(path).codexCommand).toBe('custom codex');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

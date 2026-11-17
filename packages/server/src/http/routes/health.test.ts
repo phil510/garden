@@ -72,6 +72,7 @@ function fakeDeps(): ServerDeps {
       resolveRoot: () => Promise.reject(new Error('not used by this test')),
     },
     serverPort: 4310,
+    harnessName: 'claude' as const,
     deadSessionCap: 10,
     harness: fakeHarness(),
   };

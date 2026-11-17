@@ -90,6 +90,7 @@ describe('garden events --follow against the real server', () => {
         pipes: createPipes(deps),
         repos: { list: () => Promise.resolve([]), resolveRoot: notUsed },
         serverPort: port,
+        harnessName: 'claude' as const,
         deadSessionCap: 10,
         rootWatches: noRootWatches,
         reviews: noReviews,

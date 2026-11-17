@@ -9,7 +9,8 @@ import {
 } from './settingsFields';
 
 const valid: SettingsFields = {
-  claudeCommand: 'claude',
+  harness: 'claude',
+  launchCommand: 'claude',
   ignoreAuthors: 'dependabot, renovate',
   quietWindowMinutes: '3',
   pollIntervalMinutes: '5',
@@ -51,7 +52,7 @@ describe('toSettingsRequest', () => {
   });
 
   it.each<Partial<SettingsFields>>([
-    { claudeCommand: '  ' },
+    { launchCommand: '  ' },
     { quietWindowMinutes: '-1' },
     { pollIntervalMinutes: '0' },
   ])('is null when a field is invalid (%j)', (override) => {
@@ -65,7 +66,7 @@ describe('settingsProblem', () => {
   });
 
   it('blames the command, not the minutes, when only the command is blank', () => {
-    expect(settingsProblem({ ...valid, claudeCommand: ' ' })).toMatch(/command/i);
+    expect(settingsProblem({ ...valid, launchCommand: ' ' })).toMatch(/command/i);
   });
 
   it.each<Partial<SettingsFields>>([{ quietWindowMinutes: '-1' }, { pollIntervalMinutes: '0' }])(
@@ -79,6 +80,8 @@ describe('settingsProblem', () => {
 describe('fieldsFromSettings', () => {
   it('round-trips through toSettingsRequest', () => {
     const settings = {
+      harness: 'claude' as const,
+      codexCommand: 'codex',
       deadSessionCap: 10,
       claudeCommand: 'claude',
       ignoreAuthors: ['a', 'b'],
@@ -89,6 +92,27 @@ describe('fieldsFromSettings', () => {
       claudeCommand: 'claude',
       ignoreAuthors: ['a', 'b'],
       quietWindowMinutes: 0,
+      pollIntervalMinutes: 5,
+    });
+  });
+});
+
+describe('Codex command settings', () => {
+  it('round-trips the saved Codex command without writing the Claude command', () => {
+    const fields = fieldsFromSettings({
+      harness: 'codex',
+      deadSessionCap: 10,
+      claudeCommand: 'claude wrapper',
+      codexCommand: 'codex wrapper',
+      ignoreAuthors: [],
+      quietWindowMinutes: 3,
+      pollIntervalMinutes: 5,
+    });
+    expect(fields.launchCommand).toBe('codex wrapper');
+    expect(toSettingsRequest({ ...fields, launchCommand: 'updated codex' })).toEqual({
+      codexCommand: 'updated codex',
+      ignoreAuthors: [],
+      quietWindowMinutes: 3,
       pollIntervalMinutes: 5,
     });
   });

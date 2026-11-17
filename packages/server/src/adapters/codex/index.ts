@@ -41,6 +41,7 @@ interface Options {
   /** Read-only Codex session roots; never recursively scanned. */
   transcriptRoots: readonly string[];
   command?: readonly string[];
+  readCommand?: () => readonly string[];
   logger: { warn(message: string): void };
   /** The real read can be delayed independently of a rebind in tests. */
   readText?: (path: string) => Promise<string>;
@@ -66,7 +67,8 @@ export function createCodexHarness(options: Options) {
   const aliasPath = join(options.appDir, 'codex-aliases.json');
   const spoolDir = join(options.appDir, 'codex-session-start-spool');
   const hookArguments = codexHookArguments(options.appDir);
-  const command = options.command?.length ? options.command : ['codex'];
+  const readCommand =
+    options.readCommand ?? (() => (options.command?.length ? options.command : ['codex']));
   const readText = options.readText ?? ((path: string) => readFile(path, 'utf8'));
   const recordBindings = new WeakMap<
     TranscriptRecord,
@@ -229,14 +231,14 @@ export function createCodexHarness(options: Options) {
       };
     },
     spawnCommand(request: Launch): readonly string[] {
-      return [...command, ...flags(request)];
+      return [...readCommand(), ...flags(request)];
     },
     resumeCommand(request: Launch): readonly string[] {
       const alias = aliases[request.id];
       if (alias === undefined) throw new Error(`no Codex binding for ${request.id}`);
       return alias.codexId === null
-        ? [...command, ...flags(request)]
-        : [...command, 'resume', ...flags(request), alias.codexId];
+        ? [...readCommand(), ...flags(request)]
+        : [...readCommand(), 'resume', ...flags(request), alias.codexId];
     },
     parseHook,
     pendingSessions() {
@@ -284,6 +286,7 @@ export function createCodexHarness(options: Options) {
         return;
       }
       try {
+        const command = readCommand();
         await execFileAsync(
           command[0]!,
           [...command.slice(1), 'queue', '--thread', alias.codexId, `--message=${message}`],

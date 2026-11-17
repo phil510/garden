@@ -20,6 +20,7 @@ export interface ConfigFile {
   readonly permissionMode: PermissionMode;
   readonly deadSessionCap: number;
   readonly claudeCommand: string;
+  readonly codexCommand: string;
   readonly ignoreAuthors: readonly string[];
   readonly quietWindowMinutes: number;
   readonly pollIntervalMinutes: number;
@@ -43,6 +44,7 @@ export const DEFAULT_CONFIG_FILE: ConfigFile = {
   permissionMode: 'default',
   deadSessionCap: 10,
   claudeCommand: 'claude',
+  codexCommand: 'codex',
   ignoreAuthors: [],
   quietWindowMinutes: 3,
   pollIntervalMinutes: 5,
@@ -76,7 +78,7 @@ function isDeadSessionCap(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 1000;
 }
 
-export function isClaudeCommand(value: unknown): value is string {
+export function isLaunchCommand(value: unknown): value is string {
   return typeof value === 'string' && value.trim() !== '';
 }
 
@@ -96,7 +98,7 @@ export function isPollIntervalMinutes(value: unknown): value is number {
  *  nothing survives — a value of only whitespace names no command. Shared by the env var
  *  and the config-file field, which resolve to the same argv shape but validate differently:
  *  the env var falls back silently (see `envClaudeCommand`), the file field rejects loudly
- *  (see `isClaudeCommand`). */
+ *  (see `isLaunchCommand`). */
 function splitCommand(raw: string): readonly string[] | undefined {
   const parts = raw.split(/\s+/).filter(Boolean);
   return parts.length === 0 ? undefined : parts;
@@ -139,6 +141,16 @@ export function resolveClaudeCommand(
   return envClaudeCommand(env) ?? splitCommand(file.claudeCommand) ?? ['claude'];
 }
 
+/** Resolves the Codex command against a fresh config read at launch time. */
+export function resolveCodexCommand(
+  env: Record<string, string | undefined>,
+  file: Pick<ConfigFile, 'codexCommand'>,
+): readonly string[] {
+  return (
+    splitCommand(env.GARDEN_CODEX_COMMAND ?? '') ?? splitCommand(file.codexCommand) ?? ['codex']
+  );
+}
+
 function expandHome(path: string, home: string): string {
   if (path === '~') return home;
   return path.startsWith('~/') ? join(home, path.slice(2)) : path;
@@ -164,6 +176,7 @@ export function parseConfigFile(
     permissionMode,
     deadSessionCap,
     claudeCommand,
+    codexCommand,
     ignoreAuthors,
     quietWindowMinutes,
     pollIntervalMinutes,
@@ -173,6 +186,7 @@ export function parseConfigFile(
     permissionMode?: unknown;
     deadSessionCap?: unknown;
     claudeCommand?: unknown;
+    codexCommand?: unknown;
     ignoreAuthors?: unknown;
     quietWindowMinutes?: unknown;
     pollIntervalMinutes?: unknown;
@@ -192,8 +206,11 @@ export function parseConfigFile(
   if (deadSessionCap !== undefined && !isDeadSessionCap(deadSessionCap)) {
     throw new Error(`${source}: "deadSessionCap" must be an integer between 1 and 1000`);
   }
-  if (claudeCommand !== undefined && !isClaudeCommand(claudeCommand)) {
+  if (claudeCommand !== undefined && !isLaunchCommand(claudeCommand)) {
     throw new Error(`${source}: "claudeCommand" must be a non-empty string`);
+  }
+  if (codexCommand !== undefined && !isLaunchCommand(codexCommand)) {
+    throw new Error(`${source}: "codexCommand" must be a non-empty string`);
   }
   if (ignoreAuthors !== undefined && !isIgnoreAuthors(ignoreAuthors)) {
     throw new Error(`${source}: "ignoreAuthors" must be an array of strings`);
@@ -210,6 +227,7 @@ export function parseConfigFile(
     permissionMode: permissionMode ?? DEFAULT_CONFIG_FILE.permissionMode,
     deadSessionCap: deadSessionCap ?? DEFAULT_CONFIG_FILE.deadSessionCap,
     claudeCommand: claudeCommand ?? DEFAULT_CONFIG_FILE.claudeCommand,
+    codexCommand: codexCommand ?? DEFAULT_CONFIG_FILE.codexCommand,
     ignoreAuthors: ignoreAuthors ?? DEFAULT_CONFIG_FILE.ignoreAuthors,
     quietWindowMinutes: quietWindowMinutes ?? DEFAULT_CONFIG_FILE.quietWindowMinutes,
     pollIntervalMinutes: pollIntervalMinutes ?? DEFAULT_CONFIG_FILE.pollIntervalMinutes,
@@ -308,7 +326,7 @@ export function writeConfigFile(path: string, contents: Record<string, unknown>)
  *  writing anything or logging — a `GET /settings` re-read isn't the boot-time warning path.
  *
  *  A file that parses as JSON but fails `parseConfigFile`'s validation on some field (e.g. a
- *  hand-edited `"port"`) recovers `claudeCommand`, `ignoreAuthors`, `quietWindowMinutes` and
+ *  hand-edited `"port"`) recovers `claudeCommand`, `codexCommand`, `ignoreAuthors`, `quietWindowMinutes` and
  *  `pollIntervalMinutes` individually — each keeps its on-disk value when it validates on its
  *  own, and takes its default only when it is itself invalid or absent — rather than reporting
  *  defaults for values that are actually sitting on disk. Every other key falls back to its
@@ -337,15 +355,14 @@ function recoverValidKeys(text: string): ConfigFile {
     return DEFAULT_CONFIG_FILE;
   }
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return DEFAULT_CONFIG_FILE;
-  const { claudeCommand, ignoreAuthors, quietWindowMinutes, pollIntervalMinutes } = raw as Record<
-    string,
-    unknown
-  >;
+  const { claudeCommand, codexCommand, ignoreAuthors, quietWindowMinutes, pollIntervalMinutes } =
+    raw as Record<string, unknown>;
   return {
     ...DEFAULT_CONFIG_FILE,
-    claudeCommand: isClaudeCommand(claudeCommand)
+    claudeCommand: isLaunchCommand(claudeCommand)
       ? claudeCommand
       : DEFAULT_CONFIG_FILE.claudeCommand,
+    codexCommand: isLaunchCommand(codexCommand) ? codexCommand : DEFAULT_CONFIG_FILE.codexCommand,
     ignoreAuthors: isIgnoreAuthors(ignoreAuthors)
       ? ignoreAuthors
       : DEFAULT_CONFIG_FILE.ignoreAuthors,

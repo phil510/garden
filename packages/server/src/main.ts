@@ -68,6 +68,7 @@ import {
   patchConfigFile,
   readConfigFile,
   resolveClaudeCommand,
+  resolveCodexCommand,
 } from './config.js';
 import type { TmuxSessionFact } from './domain/types.js';
 import { createServer } from './http/server.js';
@@ -300,9 +301,7 @@ export async function main(detached: boolean): Promise<void> {
           appDir: config.appDir,
           transcriptRoots: [join(codexHome, 'sessions'), join(codexHome, 'archived_sessions')],
           logger,
-          ...(process.env.GARDEN_CODEX_COMMAND === undefined
-            ? {}
-            : { command: process.env.GARDEN_CODEX_COMMAND.split(/\s+/).filter(Boolean) }),
+          readCommand: () => resolveCodexCommand(process.env, configAdapter.read()),
         })
       : createClaudeHarness({
           appDir: config.appDir,
@@ -420,6 +419,7 @@ export async function main(detached: boolean): Promise<void> {
       serverPort: config.port,
       harness,
       permissionMode: config.permissionMode,
+      harnessName: config.harness,
       deadSessionCap: config.deadSessionCap,
       configPort: configAdapter,
     },
