@@ -1,7 +1,7 @@
-import { aHookEvent } from '@garden/shared/fixtures';
+import { aHookEvent } from './adapters/claude/hooks.fixture.js';
 import { describe, expect, it } from 'vitest';
-import { claudeSettings } from './appdir.js';
-import { hookOutcome } from './domain/status.js';
+import { claudeSettings } from './adapters/claude/index.js';
+import { hookOutcome } from './adapters/claude/hooks.js';
 
 describe('claudeSettings', () => {
   it('registers a hook only for events that status derivation actually understands', () => {

@@ -1,3 +1,4 @@
+import { fakeClaudeHarness } from './support/claudeHarness.js';
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -63,9 +64,9 @@ describe('/fs routes against a real temp repo', () => {
         roots,
       }),
       serverPort: 4310,
-      settingsPath: '/home/.garden/claude-settings.json',
-      readClaudeCommand: () => ['claude'],
+      harnessName: 'claude' as const,
       deadSessionCap: 10,
+      harness: fakeClaudeHarness('/home/.garden/claude-settings.json', () => ['claude']),
     });
     return app;
   }

@@ -7,22 +7,26 @@ import { createLogger, type Logger } from './adapters/logger.js';
  *  `'bypassPermissions'` skips its permission prompts; `'default'` passes no flag. */
 export type PermissionMode = 'default' | 'bypassPermissions';
 
+export type Harness = 'claude' | 'codex';
+
 function isPermissionMode(value: unknown): value is PermissionMode {
   return value === 'default' || value === 'bypassPermissions';
 }
 
-/** What `~/.garden/config.json` may contain. Omitted keys fall back to the defaults below. */
+/** What `<appDir>/config.json` may contain. Omitted keys fall back to the defaults below. */
 export interface ConfigFile {
   readonly port: number;
   readonly roots: readonly string[];
   readonly permissionMode: PermissionMode;
   readonly deadSessionCap: number;
   readonly claudeCommand: string;
+  readonly codexCommand: string;
   readonly ignoreAuthors: readonly string[];
   readonly quietWindowMinutes: number;
   readonly pollIntervalMinutes: number;
 }
 export interface Config {
+  readonly harness: Harness;
   readonly port: number;
   readonly host: string;
   readonly roots: readonly string[];
@@ -40,6 +44,7 @@ export const DEFAULT_CONFIG_FILE: ConfigFile = {
   permissionMode: 'default',
   deadSessionCap: 10,
   claudeCommand: 'claude',
+  codexCommand: 'codex',
   ignoreAuthors: [],
   quietWindowMinutes: 3,
   pollIntervalMinutes: 5,
@@ -48,9 +53,22 @@ export const DEFAULT_CONFIG_FILE: ConfigFile = {
 /** Loopback-only, and deliberately not configurable: garden is not a remote-access tool. */
 const HOST = '127.0.0.1';
 
-/** Every garden tmux session lives on this socket, so `tmux -L garden` reaches them
- *  and nothing garden does can disturb a user's own tmux server. */
-export const TMUX_SOCKET = 'garden';
+/** Dedicated sockets keep each harness separate from the user's own tmux server. */
+export const TMUX_SOCKET = 'garden-claude';
+export const CODEX_TMUX_SOCKET = 'garden-codex';
+
+function resolveHarness(env: Record<string, string | undefined>): Harness {
+  const raw = envString(env, 'GARDEN_HARNESS');
+  if (raw === undefined || raw === 'claude') return 'claude';
+  if (raw === 'codex') return 'codex';
+  throw new Error(`GARDEN_HARNESS must be "claude" or "codex", got "${raw}"`);
+}
+
+function defaultConfigFile(env: Record<string, string | undefined>): ConfigFile {
+  return resolveHarness(env) === 'codex'
+    ? { ...DEFAULT_CONFIG_FILE, port: 4311 }
+    : DEFAULT_CONFIG_FILE;
+}
 
 function isPort(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 65535;
@@ -60,7 +78,7 @@ function isDeadSessionCap(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 1000;
 }
 
-export function isClaudeCommand(value: unknown): value is string {
+export function isLaunchCommand(value: unknown): value is string {
   return typeof value === 'string' && value.trim() !== '';
 }
 
@@ -80,7 +98,7 @@ export function isPollIntervalMinutes(value: unknown): value is number {
  *  nothing survives — a value of only whitespace names no command. Shared by the env var
  *  and the config-file field, which resolve to the same argv shape but validate differently:
  *  the env var falls back silently (see `envClaudeCommand`), the file field rejects loudly
- *  (see `isClaudeCommand`). */
+ *  (see `isLaunchCommand`). */
 function splitCommand(raw: string): readonly string[] | undefined {
   const parts = raw.split(/\s+/).filter(Boolean);
   return parts.length === 0 ? undefined : parts;
@@ -123,12 +141,26 @@ export function resolveClaudeCommand(
   return envClaudeCommand(env) ?? splitCommand(file.claudeCommand) ?? ['claude'];
 }
 
+/** Resolves the Codex command against a fresh config read at launch time. */
+export function resolveCodexCommand(
+  env: Record<string, string | undefined>,
+  file: Pick<ConfigFile, 'codexCommand'>,
+): readonly string[] {
+  return (
+    splitCommand(env.GARDEN_CODEX_COMMAND ?? '') ?? splitCommand(file.codexCommand) ?? ['codex']
+  );
+}
+
 function expandHome(path: string, home: string): string {
   if (path === '~') return home;
   return path.startsWith('~/') ? join(home, path.slice(2)) : path;
 }
 
-export function parseConfigFile(text: string, source: string): ConfigFile {
+export function parseConfigFile(
+  text: string,
+  source: string,
+  defaults: ConfigFile = DEFAULT_CONFIG_FILE,
+): ConfigFile {
   let raw: unknown;
   try {
     raw = JSON.parse(text);
@@ -144,6 +176,7 @@ export function parseConfigFile(text: string, source: string): ConfigFile {
     permissionMode,
     deadSessionCap,
     claudeCommand,
+    codexCommand,
     ignoreAuthors,
     quietWindowMinutes,
     pollIntervalMinutes,
@@ -153,6 +186,7 @@ export function parseConfigFile(text: string, source: string): ConfigFile {
     permissionMode?: unknown;
     deadSessionCap?: unknown;
     claudeCommand?: unknown;
+    codexCommand?: unknown;
     ignoreAuthors?: unknown;
     quietWindowMinutes?: unknown;
     pollIntervalMinutes?: unknown;
@@ -172,8 +206,11 @@ export function parseConfigFile(text: string, source: string): ConfigFile {
   if (deadSessionCap !== undefined && !isDeadSessionCap(deadSessionCap)) {
     throw new Error(`${source}: "deadSessionCap" must be an integer between 1 and 1000`);
   }
-  if (claudeCommand !== undefined && !isClaudeCommand(claudeCommand)) {
+  if (claudeCommand !== undefined && !isLaunchCommand(claudeCommand)) {
     throw new Error(`${source}: "claudeCommand" must be a non-empty string`);
+  }
+  if (codexCommand !== undefined && !isLaunchCommand(codexCommand)) {
+    throw new Error(`${source}: "codexCommand" must be a non-empty string`);
   }
   if (ignoreAuthors !== undefined && !isIgnoreAuthors(ignoreAuthors)) {
     throw new Error(`${source}: "ignoreAuthors" must be an array of strings`);
@@ -185,11 +222,12 @@ export function parseConfigFile(text: string, source: string): ConfigFile {
     throw new Error(`${source}: "pollIntervalMinutes" must be a positive integer`);
   }
   return {
-    port: port ?? DEFAULT_CONFIG_FILE.port,
+    port: port ?? defaults.port,
     roots: (roots as readonly string[] | undefined) ?? DEFAULT_CONFIG_FILE.roots,
     permissionMode: permissionMode ?? DEFAULT_CONFIG_FILE.permissionMode,
     deadSessionCap: deadSessionCap ?? DEFAULT_CONFIG_FILE.deadSessionCap,
     claudeCommand: claudeCommand ?? DEFAULT_CONFIG_FILE.claudeCommand,
+    codexCommand: codexCommand ?? DEFAULT_CONFIG_FILE.codexCommand,
     ignoreAuthors: ignoreAuthors ?? DEFAULT_CONFIG_FILE.ignoreAuthors,
     quietWindowMinutes: quietWindowMinutes ?? DEFAULT_CONFIG_FILE.quietWindowMinutes,
     pollIntervalMinutes: pollIntervalMinutes ?? DEFAULT_CONFIG_FILE.pollIntervalMinutes,
@@ -197,7 +235,11 @@ export function parseConfigFile(text: string, source: string): ConfigFile {
 }
 
 export function appDirPath(home: string, env: Record<string, string | undefined>): string {
-  return envString(env, 'GARDEN_APP_DIR') ?? join(home, '.garden');
+  const harness = resolveHarness(env);
+  return (
+    envString(env, 'GARDEN_APP_DIR') ??
+    join(home, harness === 'codex' ? '.garden-codex' : '.garden-claude')
+  );
 }
 
 export function configFilePath(appDir: string): string {
@@ -207,19 +249,35 @@ export function configFilePath(appDir: string): string {
 /** Resolves the effective config. `GARDEN_PORT` outranks the file; roots come back absolute. */
 export function loadConfig(
   env: Record<string, string | undefined> = process.env,
-  file: ConfigFile = DEFAULT_CONFIG_FILE,
+  file: ConfigFile = defaultConfigFile(env),
   home: string = homedir(),
 ): Config {
+  const harness = resolveHarness(env);
   return {
+    harness,
     port: envPort(env) ?? file.port,
     host: HOST,
     roots: file.roots.map((root) => expandHome(root, home)),
     appDir: appDirPath(home, env),
-    tmuxSocket: envString(env, 'GARDEN_TMUX_SOCKET') ?? TMUX_SOCKET,
+    tmuxSocket:
+      envString(env, 'GARDEN_TMUX_SOCKET') ??
+      (harness === 'codex' ? CODEX_TMUX_SOCKET : TMUX_SOCKET),
     transcriptsDir: envString(env, 'GARDEN_TRANSCRIPTS_DIR') ?? join(home, '.claude', 'projects'),
     claudeSessionsDir: join(home, '.claude', 'sessions'),
     permissionMode: file.permissionMode,
     deadSessionCap: file.deadSessionCap,
+  };
+}
+
+/** Carries the effective instance across process boundaries, including file-derived values. */
+export function instanceEnvironment(
+  config: Pick<Config, 'harness' | 'port' | 'tmuxSocket' | 'appDir'>,
+): Record<string, string> {
+  return {
+    GARDEN_HARNESS: config.harness,
+    GARDEN_PORT: String(config.port),
+    GARDEN_TMUX_SOCKET: config.tmuxSocket,
+    GARDEN_APP_DIR: config.appDir,
   };
 }
 
@@ -234,20 +292,21 @@ export function ensureConfigFile(
   home: string,
   logger: Pick<Logger, 'warn'> = createLogger(),
 ): ConfigFile {
+  const defaults = defaultConfigFile(process.env);
   const dir = appDirPath(home, process.env);
   mkdirSync(dir, { recursive: true });
   const path = configFilePath(dir);
   try {
-    return parseConfigFile(readFileSync(path, 'utf8'), path);
+    return parseConfigFile(readFileSync(path, 'utf8'), path, defaults);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
       // parseConfigFile's thrown message already names `path` (it's the `source` argument), so
       // this doesn't repeat it — the message alone carries which file and why.
       logger.warn(`config unusable, falling back to defaults: ${(error as Error).message}`);
-      return DEFAULT_CONFIG_FILE;
+      return defaults;
     }
-    writeFileSync(path, `${JSON.stringify(DEFAULT_CONFIG_FILE, null, 2)}\n`, 'utf8');
-    return DEFAULT_CONFIG_FILE;
+    writeFileSync(path, `${JSON.stringify(defaults, null, 2)}\n`, 'utf8');
+    return defaults;
   }
 }
 
@@ -267,7 +326,7 @@ export function writeConfigFile(path: string, contents: Record<string, unknown>)
  *  writing anything or logging — a `GET /settings` re-read isn't the boot-time warning path.
  *
  *  A file that parses as JSON but fails `parseConfigFile`'s validation on some field (e.g. a
- *  hand-edited `"port"`) recovers `claudeCommand`, `ignoreAuthors`, `quietWindowMinutes` and
+ *  hand-edited `"port"`) recovers `claudeCommand`, `codexCommand`, `ignoreAuthors`, `quietWindowMinutes` and
  *  `pollIntervalMinutes` individually — each keeps its on-disk value when it validates on its
  *  own, and takes its default only when it is itself invalid or absent — rather than reporting
  *  defaults for values that are actually sitting on disk. Every other key falls back to its
@@ -296,15 +355,14 @@ function recoverValidKeys(text: string): ConfigFile {
     return DEFAULT_CONFIG_FILE;
   }
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return DEFAULT_CONFIG_FILE;
-  const { claudeCommand, ignoreAuthors, quietWindowMinutes, pollIntervalMinutes } = raw as Record<
-    string,
-    unknown
-  >;
+  const { claudeCommand, codexCommand, ignoreAuthors, quietWindowMinutes, pollIntervalMinutes } =
+    raw as Record<string, unknown>;
   return {
     ...DEFAULT_CONFIG_FILE,
-    claudeCommand: isClaudeCommand(claudeCommand)
+    claudeCommand: isLaunchCommand(claudeCommand)
       ? claudeCommand
       : DEFAULT_CONFIG_FILE.claudeCommand,
+    codexCommand: isLaunchCommand(codexCommand) ? codexCommand : DEFAULT_CONFIG_FILE.codexCommand,
     ignoreAuthors: isIgnoreAuthors(ignoreAuthors)
       ? ignoreAuthors
       : DEFAULT_CONFIG_FILE.ignoreAuthors,
@@ -324,7 +382,7 @@ export class ConfigWriteRefusedError extends Error {}
 
 /**
  * Merges `patch` over `path`'s on-disk file and writes it back atomically. ENOENT is fine —
- * there is nothing to clobber, so the patch merges over `DEFAULT_CONFIG_FILE` instead. An
+ * there is nothing to clobber, so only the patch is persisted and reads supply defaults. An
  * existing file that fails to parse or validate throws `ConfigWriteRefusedError` rather than
  * writing anything. On success, the patch merges over the *raw* parsed object, not
  * `parseConfigFile`'s defaulted return — merging onto the defaulted return would inject every
@@ -336,7 +394,7 @@ export function patchConfigFile(path: string, patch: Partial<ConfigFile>): void 
     text = readFileSync(path, 'utf8');
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-    writeConfigFile(path, { ...DEFAULT_CONFIG_FILE, ...patch });
+    writeConfigFile(path, { ...patch });
     return;
   }
   try {

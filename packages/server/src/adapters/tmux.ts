@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
@@ -37,6 +38,7 @@ function formatVersion(version: TmuxVersion): string {
 export interface TmuxTarget {
   readonly socket: string;
   readonly confPath: string;
+  readonly instanceEnv?: Readonly<Record<string, string>>;
 }
 export interface TmuxPane {
   readonly session: string;
@@ -145,9 +147,17 @@ export async function socketHasLivePanes(socket: string): Promise<boolean> {
     .some((line) => line !== '1');
 }
 
+function environmentArgs(target: TmuxTarget): string[] {
+  return Object.entries(target.instanceEnv ?? {}).flatMap(([key, value]) => [
+    '-e',
+    `${key}=${value}`,
+  ]);
+}
+
 export async function newSession(target: TmuxTarget, request: NewSessionRequest): Promise<void> {
   await run(target, [
     'new-session',
+    ...environmentArgs(target),
     '-d',
     '-s',
     request.name,
@@ -164,7 +174,15 @@ export async function newSession(target: TmuxTarget, request: NewSessionRequest)
 
 /** Replaces the pane's process, reusing the tmux name and any attached client. */
 export async function respawnPane(target: TmuxTarget, request: RespawnRequest): Promise<void> {
-  await run(target, ['respawn-pane', '-k', '-t', request.name, '--', ...request.command]);
+  await run(target, [
+    'respawn-pane',
+    ...environmentArgs(target),
+    '-k',
+    '-t',
+    request.name,
+    '--',
+    ...request.command,
+  ]);
 }
 
 export async function killSession(target: TmuxTarget, name: string): Promise<void> {
@@ -218,4 +236,43 @@ export async function checkTmuxVersion(): Promise<void> {
     throw new Error(`could not run tmux: ${(error as Error).message}`, { cause: error });
   }
   assertTmuxVersion(stdout);
+}
+
+/** The buffer preserves literal multiline input; one command list keeps its paste and Enter
+ *  together across concurrent senders. */
+export async function submitMessage(
+  target: TmuxTarget,
+  name: string,
+  message: string,
+): Promise<void> {
+  const buffer = `garden-send-${randomUUID()}`;
+  const argv = ['-L', target.socket, '-f', target.confPath, 'load-buffer', '-b', buffer, '-'];
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const child = execFile('tmux', argv, { timeout: 5000 }, (error, _stdout, stderr) => {
+        if (error) reject(new TmuxError(argv, stderr, error));
+        else resolve();
+      });
+      child.stdin!.on('error', () => {});
+      child.stdin!.end(message);
+    });
+    await run(target, [
+      'paste-buffer',
+      '-p',
+      '-r',
+      '-d',
+      '-b',
+      buffer,
+      '-t',
+      name,
+      ';',
+      'send-keys',
+      '-t',
+      name,
+      'Enter',
+    ]);
+  } catch (error) {
+    await run(target, ['delete-buffer', '-b', buffer]).catch(() => {});
+    throw error;
+  }
 }

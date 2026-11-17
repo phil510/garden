@@ -17,3 +17,5 @@ export class ReviewNotFoundError extends Error {}
 
 /** No local clone of the review request's repo is known, so there is nowhere to start a session. */
 export class NoLocalCloneError extends Error {}
+
+export class SessionMessagingError extends Error {}

@@ -1,7 +1,13 @@
-import type { ConfigFile } from '../config.js';
+import type { EffortLevel } from '@garden/shared';
+import type { ConfigFile, PermissionMode } from '../config.js';
 import type { GhResult, GhWriteResult } from '../domain/github.js';
 import type { TranscriptParse } from '../domain/transcript.js';
-import type { GardenEvent } from '../domain/types.js';
+import type {
+  GardenEvent,
+  HarnessSignal,
+  ReportedStatus,
+  TranscriptRecord,
+} from '../domain/types.js';
 import type { OverlayState } from '../domain/overlay.js';
 
 export type { GardenEvent, OverlayState };
@@ -32,6 +38,7 @@ export interface TmuxPort {
   newSession(request: TmuxNewSessionRequest): Promise<void>;
   respawnPane(request: TmuxRespawnRequest): Promise<void>;
   killSession(name: string): Promise<void>;
+  submitMessage?(name: string, message: string): Promise<void>;
 }
 
 export interface StorePort {
@@ -61,8 +68,9 @@ export interface TranscriptWatcher extends LiveTranscripts {
 }
 
 export interface TranscriptPort {
+  isCurrent?(path: string, record: TranscriptRecord): boolean;
   listFiles(): Promise<string[]>;
-  readRecord(path: string): Promise<TranscriptParse>;
+  readRecord(path: string): Promise<TranscriptParse | null>;
   watch(
     onEvent: (event: Extract<GardenEvent, { type: 'transcript-changed' }>) => void,
   ): TranscriptWatcher;
@@ -129,4 +137,40 @@ export interface GitPort {
 export interface Logger {
   warn(message: string): void;
   error(message: string): void;
+}
+
+export interface HarnessLaunchRequest {
+  readonly id: string;
+  readonly cwd: string;
+  readonly model?: string;
+  readonly effort?: EffortLevel;
+  readonly permissionMode?: PermissionMode;
+}
+
+export interface TranscriptLayout {
+  isCurrent?(path: string, record: TranscriptRecord): boolean;
+  listFiles(): Promise<string[]>;
+  accepts(path: string): boolean;
+  readRecord(
+    path: string,
+  ): Promise<(TranscriptParse & { signature: { size: number; mtimeMs: number } }) | null>;
+}
+
+export interface HarnessLaunch {
+  rollback(): void;
+  registrationStatus(): ReportedStatus | undefined;
+}
+
+export interface HarnessPort {
+  observeStatus?(onSignal: (signal: HarnessSignal) => void): { close(): void };
+  sendMessage?(id: string, message: string, submitPending: () => Promise<void>): Promise<void>;
+  beforeLaunch?(request: HarnessLaunchRequest): HarnessLaunch;
+  pendingSessions?(): { id: string; cwd: string }[];
+  replaySpool?(): HarnessSignal[];
+  spawnCommand(request: HarnessLaunchRequest): readonly string[];
+  resumeCommand(request: HarnessLaunchRequest): readonly string[];
+  parseHook(body: unknown, gardenSessionId?: string): HarnessSignal | null;
+  readonly initialStatus?: ReportedStatus;
+  readonly transcripts: TranscriptLayout;
+  readSessionNames(): Promise<{ names: Record<string, string>; skipped: number }>;
 }

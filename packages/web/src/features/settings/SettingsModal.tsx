@@ -16,11 +16,14 @@ interface SettingsModalProps {
 
 export function SettingsModal({ onClose }: SettingsModalProps) {
   const [fields, setFields] = useState<SettingsFields>({
-    claudeCommand: '',
+    harness: 'claude',
+    launchCommand: '',
     ignoreAuthors: '',
     quietWindowMinutes: '',
     pollIntervalMinutes: '',
   });
+  const commandName = fields.harness === 'codex' ? 'Codex' : 'Claude Code';
+  const commandEnv = fields.harness === 'codex' ? 'GARDEN_CODEX_COMMAND' : 'GARDEN_CLAUDE_COMMAND';
   const request = toSettingsRequest(fields);
   const problem = settingsProblem(fields);
   const setField = (key: keyof SettingsFields) => (event: ChangeEvent<HTMLInputElement>) =>
@@ -94,20 +97,23 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           Settings
         </h2>
         <div className="settings-field">
-          <label htmlFor="settings-claude-command">Claude Code launch command</label>
+          <label htmlFor="settings-launch-command">
+            {loaded ? `${commandName} launch command` : 'Launch command'}
+          </label>
           <input
-            id="settings-claude-command"
+            id="settings-launch-command"
             type="text"
             autoComplete="off"
             autoFocus
             disabled={!loaded || saving}
-            value={fields.claudeCommand}
-            onChange={setField('claudeCommand')}
+            placeholder={loaded ? (fields.harness === 'codex' ? 'codex' : 'claude') : ''}
+            value={fields.launchCommand}
+            onChange={setField('launchCommand')}
           />
         </div>
         <div className="settings-note faint">
           A saved command applies to the next new or resumed session, no restart required.
-          GARDEN_CLAUDE_COMMAND still overrides a saved value when set.
+          {loaded && ` ${commandEnv} still overrides a saved value when set.`}
         </div>
         <div className="settings-field">
           <label htmlFor="settings-ignore-authors">Ignored PR authors</label>

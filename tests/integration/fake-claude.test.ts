@@ -1,3 +1,4 @@
+import { fakeClaudeHarness } from './support/claudeHarness.js';
 import { execFile } from 'node:child_process';
 import {
   appendFileSync,
@@ -16,10 +17,24 @@ import { promisify } from 'node:util';
 import type { SessionState } from '@garden/shared';
 import { describe, expect, it } from 'vitest';
 import { listPanes, type TmuxTarget } from '../../packages/server/src/adapters/tmux.js';
-import { createTranscripts } from '../../packages/server/src/adapters/transcripts.js';
+import {
+  createTranscripts as createPoller,
+  type TranscriptLogger,
+  type TranscriptTiming,
+} from '../../packages/server/src/adapters/transcripts.js';
+import { createClaudeLayout } from '../../packages/server/src/adapters/claude/index.js';
+
+function createTranscripts(
+  dir: string,
+  roots: readonly string[],
+  logger: TranscriptLogger,
+  timing: TranscriptTiming = {},
+) {
+  return createPoller(createClaudeLayout(dir, roots, logger), logger, timing);
+}
 import { createProjection, type Projection } from '../../packages/server/src/app/projection.js';
 import { createSession } from '../../packages/server/src/app/sessions.js';
-import { slugify } from '../../packages/server/src/domain/slug.js';
+import { slugify } from '../../packages/server/src/adapters/claude/slug.js';
 import type { GardenEvent } from '../../packages/server/src/domain/types.js';
 import { createServer as createGardenServer } from '../../packages/server/src/http/server.js';
 import { fakeStore } from './support/fakeStore.js';
@@ -153,9 +168,9 @@ async function withFakeClaudeSession(
     attach: { attach: unused },
     repos: { list: unused, resolveRoot: unused },
     serverPort: 0,
-    settingsPath: SETTINGS_PATH,
-    readClaudeCommand: () => claudeCommand,
+    harnessName: 'claude' as const,
     deadSessionCap: 10,
+    harness: fakeClaudeHarness(SETTINGS_PATH, () => claudeCommand),
   });
 
   try {
@@ -167,8 +182,7 @@ async function withFakeClaudeSession(
         tmux: tmuxPort(target),
         projection,
         serverPort: port,
-        settingsPath: SETTINGS_PATH,
-        readClaudeCommand: () => claudeCommand,
+        harness: fakeClaudeHarness(SETTINGS_PATH, () => claudeCommand),
       },
       { cwd },
     );

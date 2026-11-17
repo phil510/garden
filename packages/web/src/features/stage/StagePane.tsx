@@ -214,9 +214,9 @@ export function StagePane(props: IDockviewPanelProps) {
           <MetaRow
             label="session"
             value={
-              session.claudeSessionName === null || session.claudeSessionName === ''
+              session.sessionName === null || session.sessionName === ''
                 ? 'No name yet.'
-                : session.claudeSessionName
+                : session.sessionName
             }
           />
         </div>

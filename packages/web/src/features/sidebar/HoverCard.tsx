@@ -16,7 +16,7 @@ interface HoverCardProps {
 
 export function HoverCard({ title, session, anchor, now }: HoverCardProps) {
   const pipeFaulted = usePipeGraceStore((state) => state.faulted.has(session.id));
-  const name = sessionIdentityLabel(session.claudeSessionName);
+  const name = sessionIdentityLabel(session.sessionName);
   const cardRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
 

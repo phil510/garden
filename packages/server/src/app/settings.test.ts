@@ -24,10 +24,13 @@ describe('getSettings', () => {
       configPort: fakeConfigPort({
         read: () => ({ ...DEFAULT_CONFIG_FILE, claudeCommand: 'ec bedrock launch claude --' }),
       }),
+      harnessName: 'claude' as const,
       deadSessionCap: 25,
     });
 
     expect(result).toEqual({
+      harness: 'claude',
+      codexCommand: 'codex',
       deadSessionCap: 25,
       claudeCommand: 'ec bedrock launch claude --',
       ignoreAuthors: [],
@@ -42,6 +45,7 @@ describe('getSettings watch settings', () => {
     let file = { ...DEFAULT_CONFIG_FILE };
     const deps = {
       configPort: fakeConfigPort({ read: () => file }),
+      harnessName: 'claude' as const,
       deadSessionCap: 10,
     };
 
@@ -70,6 +74,7 @@ describe('settings round trip', () => {
           read: () => readConfigFile(path),
           write: (patch: Parameters<typeof patchConfigFile>[1]) => patchConfigFile(path, patch),
         },
+        harnessName: 'claude' as const,
         deadSessionCap: 10,
       };
 
@@ -93,6 +98,7 @@ describe('updateSettings', () => {
             writes.push(patch);
           },
         }),
+        harnessName: 'claude' as const,
         deadSessionCap: 10,
       },
     };
@@ -127,6 +133,7 @@ describe('updateSettings', () => {
           writes.push(patch);
         },
       }),
+      harnessName: 'claude' as const,
       deadSessionCap: 10,
     };
 
@@ -144,6 +151,7 @@ describe('updateSettings', () => {
           writes.push(patch);
         },
       }),
+      harnessName: 'claude' as const,
       deadSessionCap: 10,
     };
 
@@ -159,6 +167,7 @@ describe('updateSettings', () => {
           throw new Error('existing file is invalid');
         },
       }),
+      harnessName: 'claude' as const,
       deadSessionCap: 10,
     };
 
@@ -166,4 +175,28 @@ describe('updateSettings', () => {
       'existing file is invalid',
     );
   });
+});
+
+it('persists and reports the Codex command without changing the Claude command', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'garden-codex-settings-'));
+  try {
+    const path = join(dir, 'config.json');
+    const deps = {
+      harnessName: 'codex' as const,
+      deadSessionCap: 10,
+      configPort: {
+        read: () => readConfigFile(path),
+        write: (patch: Parameters<typeof patchConfigFile>[1]) => patchConfigFile(path, patch),
+      },
+    };
+    updateSettings(deps, { codexCommand: 'custom-codex --flag' });
+    expect(getSettings(deps)).toMatchObject({
+      harness: 'codex',
+      codexCommand: 'custom-codex --flag',
+      claudeCommand: 'claude',
+    });
+    expect(() => updateSettings(deps, { codexCommand: ' ' })).toThrow(/codexCommand/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

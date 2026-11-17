@@ -1,3 +1,4 @@
+import { fakeClaudeHarness } from './support/claudeHarness.js';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { createServer as createNetServer } from 'node:net';
 import type { AddressInfo } from 'node:net';
@@ -89,8 +90,7 @@ describe('garden events --follow against the real server', () => {
         pipes: createPipes(deps),
         repos: { list: () => Promise.resolve([]), resolveRoot: notUsed },
         serverPort: port,
-        settingsPath: '/home/.garden/claude-settings.json',
-        readClaudeCommand: () => ['claude'],
+        harnessName: 'claude' as const,
         deadSessionCap: 10,
         rootWatches: noRootWatches,
         reviews: noReviews,
@@ -115,6 +115,7 @@ describe('garden events --follow against the real server', () => {
             throw new Error('not used by this test');
           },
         },
+        harness: fakeClaudeHarness('/home/.garden/claude-settings.json', () => ['claude']),
       });
       await server.listen({ port, host: '127.0.0.1' });
       return { server, deps };

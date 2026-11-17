@@ -1,4 +1,5 @@
-import { aHookEvent, aSession } from '@garden/shared/fixtures';
+import { aHarnessSignal } from './signals.fixture.js';
+import { aSession } from '@garden/shared/fixtures';
 import { describe, expect, it } from 'vitest';
 import { diff } from './diff.js';
 import { initialState, reduce } from './reduce.js';
@@ -44,7 +45,7 @@ describe('diff', () => {
       exitCode: 130,
       tmuxName: 'other',
       lastActivity: before.lastActivity + 1,
-      claudeSessionName: 'garden-7a',
+      sessionName: 'garden-7a',
       watches: [
         {
           repo: 'o/n',
@@ -74,7 +75,13 @@ describe('diff', () => {
 
   it('emits nothing for a session whose watches are unchanged when an unrelated event is folded', () => {
     const prev = reduce(
-      reduce(initialState, { type: 'hook', payload: aHookEvent({ session_id: 'sid-1' }) }),
+      reduce(initialState, {
+        type: 'harness-signal',
+        signal: aHarnessSignal({
+          sessionId: 'sid-1',
+          reported: { status: 'working', reason: null },
+        }),
+      }),
       { type: 'watches-changed', sessionId: 'sid-2', watches: [] },
     );
     const next = reduce(prev, { type: 'branch-resolved', cwd: '/elsewhere', branch: 'main' });

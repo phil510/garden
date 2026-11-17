@@ -1,6 +1,5 @@
 import type { SessionMap, SessionState, WatchSummary } from '@garden/shared';
 import { deriveLiveness } from './sessions.js';
-import { hookOutcome } from './status.js';
 import type { GardenEvent, GardenState, TmuxSessionFact, TranscriptRecord } from './types.js';
 
 export const initialState: GardenState = {
@@ -11,7 +10,7 @@ export const initialState: GardenState = {
   branches: {},
   ended: {},
   reported: {},
-  claudeSessionNames: {},
+  sessionNames: {},
   watches: {},
   alerts: {},
   pipes: {},
@@ -35,7 +34,7 @@ function blank(id: string): SessionState {
     exitCode: null,
     tmuxName: null,
     lastActivity: 0,
-    claudeSessionName: null,
+    sessionName: null,
     watches: NO_WATCHES,
     alert: null,
     pipeConnected: false,
@@ -61,7 +60,7 @@ function rederive(state: GardenState): GardenState {
       // `?? null` here covers only "never swept yet" — a swept-and-failed cwd is already
       // `null` in the map, not absent from it. See `branches`' own doc comment.
       branch: state.branches[session.cwd] ?? null,
-      claudeSessionName: state.claudeSessionNames[id] ?? null,
+      sessionName: state.sessionNames[id] ?? null,
       watches: state.watches[id] ?? NO_WATCHES,
       alert: state.alerts[id] ?? null,
       pipeConnected: state.pipes[id]?.connected ?? false,
@@ -106,6 +105,10 @@ export function reduce(state: GardenState, event: GardenEvent): GardenState {
         // Registering means a process was just started under this id, whether by create or
         // by resume. Whatever ended the previous run no longer describes the session.
         ended: { ...state.ended, [event.id]: false },
+        reported:
+          event.reported === undefined
+            ? state.reported
+            : { ...state.reported, [event.id]: event.reported },
       });
     }
     case 'session-unregistered': {
@@ -140,23 +143,24 @@ export function reduce(state: GardenState, event: GardenEvent): GardenState {
         branches: { ...state.branches, [event.cwd]: event.branch },
       });
     }
-    case 'hook': {
-      const id = event.gardenSessionId ?? event.payload.session_id;
+    case 'harness-signal': {
+      const { signal } = event;
+      const id = signal.sessionId;
       if (id === '') return state;
       const prev = state.sessions[id] ?? blank(id);
-      const outcome = hookOutcome(event.payload);
       const session: SessionState = {
         ...prev,
-        cwd: prev.cwd === '' ? event.payload.cwd : prev.cwd,
+        cwd: prev.cwd === '' ? signal.cwd : prev.cwd,
+        ...(signal.resetConversation === true ? { title: null, recap: null, lastActivity: 0 } : {}),
       };
       return rederive({
         ...state,
         sessions: { ...state.sessions, [id]: session },
-        ended: outcome.ended === null ? state.ended : { ...state.ended, [id]: outcome.ended },
+        ended: signal.ended === null ? state.ended : { ...state.ended, [id]: signal.ended },
         reported:
-          outcome.status === null
+          signal.reported === undefined
             ? state.reported
-            : { ...state.reported, [id]: { status: outcome.status, reason: outcome.reason } },
+            : { ...state.reported, [id]: signal.reported },
       });
     }
     case 'tmux-snapshot': {
@@ -164,10 +168,10 @@ export function reduce(state: GardenState, event: GardenEvent): GardenState {
       for (const fact of event.sessions) tmux[fact.name] = fact;
       return rederive({ ...state, tmux });
     }
-    case 'claude-session-names-loaded':
+    case 'session-names-loaded':
       // A full snapshot, replacing rather than merging: a registry entry can outlive its
       // process, so a name that drops out of one snapshot must drop out of state too.
-      return rederive({ ...state, claudeSessionNames: event.names });
+      return rederive({ ...state, sessionNames: event.names });
     case 'watches-changed': {
       const watches = { ...state.watches };
       if (event.watches.length === 0) delete watches[event.sessionId];

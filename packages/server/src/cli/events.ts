@@ -16,6 +16,8 @@ export interface EventsFollowDeps {
   /** Resolves when the process holding the other end of `out` is gone. */
   readonly gone: Promise<void>;
   readonly connect?: (sessionId: string) => PipeSocket;
+  /** When supplied, acknowledge only after the message has been accepted for delivery. */
+  readonly forward?: (sessionId: string, line: string, signal: AbortSignal) => Promise<unknown>;
   /** Resolves after `ms`, or as soon as `signal` aborts. */
   readonly sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
 }
@@ -59,11 +61,8 @@ function parseDigest(data: unknown): { id: string; line: string } | null {
 }
 
 /**
- * Prints each digest line the server pushes for this pipe's own session, acking it only after
- * the line is written, and reconnects for ever when the connection drops. It returns only when
- * `gone` resolves or a write to `out` or `stderr` fails, both of which mean the Claude process
- * holding the other end is gone. A monitor whose command exits stays dead until Claude
- * restarts, so nothing else ends it. `out` carries digest lines and nothing else.
+ * Delivers digests to stdout or the supplied forwarder before acknowledging them. Failed
+ * forwards reconnect without an ack so the server retains the digest for another attempt.
  */
 export async function runEventsFollow(deps: EventsFollowDeps): Promise<0> {
   const { env, out, stderr, gone } = deps;
@@ -92,9 +91,14 @@ export async function runEventsFollow(deps: EventsFollowDeps): Promise<0> {
     }
   }
 
-  function attempt(socket: PipeSocket): Promise<'closed'> {
+  function attempt(socket: PipeSocket, id: string): Promise<'closed'> {
     return new Promise((resolve) => {
-      // Messages are handled one at a time so a digest is printed, then acked, in order.
+      let active = true;
+      const closed = () => {
+        active = false;
+        resolve('closed');
+      };
+      // Serial delivery keeps an enqueue failure from acknowledging later digests.
       let queue: Promise<void> = Promise.resolve();
       socket.addEventListener('open', () => {
         backoff = MIN_BACKOFF_MS;
@@ -103,9 +107,18 @@ export async function runEventsFollow(deps: EventsFollowDeps): Promise<0> {
       socket.addEventListener('message', (event) => {
         queue = queue.then(async () => {
           const digest = parseDigest(event.data);
-          if (digest === null) return;
-          await print(`${digest.line}\n`);
-          if (stopping.signal.aborted) return;
+          if (digest === null || !active || stopping.signal.aborted) return;
+          if (deps.forward) {
+            try {
+              await deps.forward(id, digest.line, stopping.signal);
+            } catch {
+              closed();
+              return;
+            }
+          } else {
+            await print(`${digest.line}\n`);
+          }
+          if (!active || stopping.signal.aborted) return;
           try {
             socket.send(JSON.stringify({ type: 'ack', id: digest.id }));
           } catch {
@@ -113,8 +126,8 @@ export async function runEventsFollow(deps: EventsFollowDeps): Promise<0> {
           }
         });
       });
-      socket.addEventListener('close', () => resolve('closed'));
-      socket.addEventListener('error', () => resolve('closed'));
+      socket.addEventListener('close', closed);
+      socket.addEventListener('error', closed);
     });
   }
 
@@ -124,7 +137,7 @@ export async function runEventsFollow(deps: EventsFollowDeps): Promise<0> {
     let socket: PipeSocket | undefined;
     try {
       socket = connect(sessionId);
-      const outcome = await Promise.race([attempt(socket), stopped]);
+      const outcome = await Promise.race([attempt(socket, sessionId), stopped]);
       if (outcome === 'stopped') break;
     } catch {
       // A connect that throws (no config, no server) is an outage like any other.

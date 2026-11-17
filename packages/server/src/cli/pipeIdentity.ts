@@ -8,5 +8,6 @@
 export function ownPipeSession(env: NodeJS.ProcessEnv): string | null {
   const gardenId = env.GARDEN_SESSION_ID;
   if (gardenId === undefined || gardenId === '') return null;
+  if (env.GARDEN_HARNESS === 'codex') return gardenId;
   return gardenId === env.CLAUDE_CODE_SESSION_ID ? gardenId : null;
 }

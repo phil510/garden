@@ -1,5 +1,5 @@
-import { aHookEvent } from '@garden/shared/fixtures';
-import type { Alert, HookPayload, WatchSummary } from '@garden/shared';
+import { aHarnessSignal } from './signals.fixture.js';
+import type { Alert, Status, WatchSummary } from '@garden/shared';
 import { describe, expect, it } from 'vitest';
 import { initialState, reduce } from './reduce.js';
 import type { GardenEvent, TranscriptRecord } from './types.js';
@@ -40,17 +40,21 @@ const resolvedBranch = (cwd: string, branch: string | null): GardenEvent => ({
   branch,
 });
 
-const hook = (name: string, id = 'sid-1', source?: HookPayload['source']): GardenEvent => ({
-  type: 'hook',
-  payload: aHookEvent({
-    session_id: id,
-    hook_event_name: name,
-    ...(source !== undefined ? { source } : {}),
+const signalEvent = (
+  status: Status | null,
+  id = 'sid-1',
+  ended: boolean | null = null,
+): GardenEvent => ({
+  type: 'harness-signal',
+  signal: aHarnessSignal({
+    sessionId: id,
+    reported: status === null ? undefined : { status, reason: null },
+    ended,
   }),
 });
 
-const claudeSessionNames = (names: Record<string, string>): GardenEvent => ({
-  type: 'claude-session-names-loaded',
+const sessionNames = (names: Record<string, string>): GardenEvent => ({
+  type: 'session-names-loaded',
   names,
 });
 
@@ -85,7 +89,7 @@ const alertChanged = (alert: Alert | null, sessionId = 'sid-1'): GardenEvent => 
 
 describe('reduce', () => {
   it('creates a session from a hook alone, under the hook id and with the hook cwd', () => {
-    const state = fold([hook('UserPromptSubmit', 'sid-9')]);
+    const state = fold([signalEvent('working', 'sid-9')]);
     expect(state.sessions['sid-9']).toMatchObject({ id: 'sid-9', cwd: '/Users/dev/repo' });
   });
 
@@ -94,7 +98,7 @@ describe('reduce', () => {
       mapped,
       transcript(),
       resolvedBranch('/Users/dev/repo', 'main'),
-      hook('UserPromptSubmit'),
+      signalEvent('working'),
       snapshot(false),
     ]);
     expect(state.sessions['sid-1']).toMatchObject({
@@ -109,11 +113,10 @@ describe('reduce', () => {
 
   it('keeps a notification reason a hook set before the tmux snapshot confirmed the pane', () => {
     const notification: GardenEvent = {
-      type: 'hook',
-      payload: aHookEvent({
-        session_id: 'sid-1',
-        hook_event_name: 'Notification',
-        message: 'Claude needs your permission to run rm',
+      type: 'harness-signal',
+      signal: aHarnessSignal({
+        sessionId: 'sid-1',
+        reported: { status: 'waiting', reason: 'Claude needs your permission to run rm' },
       }),
     };
     expect(fold([mapped, notification, snapshot(false)]).sessions['sid-1']).toMatchObject({
@@ -123,7 +126,7 @@ describe('reduce', () => {
   });
 
   it('reports dead and drops the status when a hook says working after the pane died', () => {
-    const state = fold([mapped, transcript(), snapshot(true), hook('UserPromptSubmit')]);
+    const state = fold([mapped, transcript(), snapshot(true), signalEvent('working')]);
     expect(state.sessions['sid-1']).toMatchObject({
       liveness: 'dead',
       exitCode: 1,
@@ -159,12 +162,8 @@ describe('reduce', () => {
 
   it('leaves the recap to the transcript when a hook carries a last assistant message', () => {
     const stop: GardenEvent = {
-      type: 'hook',
-      payload: aHookEvent({
-        session_id: 'sid-1',
-        hook_event_name: 'Stop',
-        last_assistant_message: 'From the hook.',
-      }),
+      type: 'harness-signal',
+      signal: aHarnessSignal({ sessionId: 'sid-1', reported: { status: 'waiting', reason: null } }),
     };
     expect(
       fold([transcript({ recap: 'From the transcript.' }), stop]).sessions['sid-1']?.recap,
@@ -295,21 +294,23 @@ describe('reduce', () => {
   });
 
   it('brings a session back to live when a genuine SessionStart follows SessionEnd on the same pane', () => {
-    const ended = [mapped, snapshot(false), hook('SessionEnd')];
+    const ended = [mapped, snapshot(false), signalEvent(null, 'sid-1', true)];
     expect(fold(ended).sessions['sid-1']?.liveness).toBe('dead');
-    expect(fold([...ended, hook('SessionStart')]).sessions['sid-1']).toMatchObject({
+    expect(
+      fold([...ended, signalEvent('waiting', 'sid-1', false)]).sessions['sid-1'],
+    ).toMatchObject({
       liveness: 'live',
       status: 'waiting',
     });
   });
 
   it('leaves a resumed session waiting until a prompt is submitted', () => {
-    const resumed = [mapped, snapshot(false), hook('SessionStart', 'sid-1', 'resume')];
+    const resumed = [mapped, snapshot(false), signalEvent('waiting', 'sid-1', false)];
     expect(fold(resumed).sessions['sid-1']).toMatchObject({
       liveness: 'live',
       status: 'waiting',
     });
-    expect(fold([...resumed, hook('UserPromptSubmit')]).sessions['sid-1']?.status).toBe('working');
+    expect(fold([...resumed, signalEvent('working')]).sessions['sid-1']?.status).toBe('working');
   });
 
   it('records a tmux name for a session created before its transcript exists', () => {
@@ -367,7 +368,7 @@ describe('reduce', () => {
   });
 
   it('clears the ended flag when a resumed session is registered again', () => {
-    const ended = [mapped, snapshot(false), hook('SessionEnd')];
+    const ended = [mapped, snapshot(false), signalEvent(null, 'sid-1', true)];
     expect(fold(ended).sessions['sid-1']?.liveness).toBe('dead');
     const resumed: GardenEvent = {
       type: 'session-registered',
@@ -382,28 +383,17 @@ describe('reduce', () => {
   });
 
   describe('a hook carrying the garden session id', () => {
-    const keyed = (
-      name: string,
-      claudeId: string,
-      source?: HookPayload['source'],
-    ): GardenEvent => ({
-      type: 'hook',
-      payload: aHookEvent({
-        session_id: claudeId,
-        hook_event_name: name,
-        ...(source !== undefined ? { source } : {}),
-      }),
-      gardenSessionId: 'sid-1',
-    });
+    const keyed = (status: Status | null, ended: boolean | null = null): GardenEvent =>
+      signalEvent(status, 'sid-1', ended);
 
     it('keeps the session live across /clear, though every payload id after it is new', () => {
       const state = fold([
         mapped,
         snapshot(false),
-        keyed('SessionStart', 'sid-1', 'startup'),
-        keyed('SessionEnd', 'sid-1'),
-        keyed('SessionStart', 'claude-after-clear', 'clear'),
-        keyed('UserPromptSubmit', 'claude-after-clear'),
+        keyed('waiting', false),
+        keyed(null, true),
+        keyed('waiting', false),
+        keyed('working'),
       ]);
 
       expect(state.sessions['sid-1']).toMatchObject({ liveness: 'live', status: 'working' });
@@ -411,22 +401,25 @@ describe('reduce', () => {
     });
 
     it('keys on the payload session id when the header is absent', () => {
-      expect(Object.keys(fold([hook('Stop', 'claude-x')]).sessions)).toEqual(['claude-x']);
+      expect(Object.keys(fold([signalEvent('waiting', 'claude-x')]).sessions)).toEqual([
+        'claude-x',
+      ]);
     });
   });
 
   it('leaves a session at needs-approval when the delayed permission_prompt notification arrives', () => {
     const permissionRequest: GardenEvent = {
-      type: 'hook',
-      payload: aHookEvent({ session_id: 'sid-1', hook_event_name: 'PermissionRequest' }),
+      type: 'harness-signal',
+      signal: aHarnessSignal({
+        sessionId: 'sid-1',
+        reported: { status: 'needs-approval', reason: null },
+      }),
     };
     const notification: GardenEvent = {
-      type: 'hook',
-      payload: aHookEvent({
-        session_id: 'sid-1',
-        hook_event_name: 'Notification',
-        notification_type: 'permission_prompt',
-        message: 'Claude needs your permission to run rm',
+      type: 'harness-signal',
+      signal: aHarnessSignal({
+        sessionId: 'sid-1',
+        reported: { status: 'needs-approval', reason: 'Claude needs your permission to run rm' },
       }),
     };
     expect(
@@ -451,31 +444,27 @@ describe('reduce', () => {
   });
 
   it('picks up a Claude-side name for a session the registry snapshot names', () => {
-    const state = fold([transcript(), claudeSessionNames({ 'sid-1': 'garden-7a' })]);
-    expect(state.sessions['sid-1']?.claudeSessionName).toBe('garden-7a');
+    const state = fold([transcript(), sessionNames({ 'sid-1': 'garden-7a' })]);
+    expect(state.sessions['sid-1']?.sessionName).toBe('garden-7a');
   });
 
   it('leaves a session the registry snapshot does not name at null', () => {
     const state = fold([
       transcript(),
       transcript({ sessionId: 'sid-2' }),
-      claudeSessionNames({ 'sid-1': 'garden-7a' }),
+      sessionNames({ 'sid-1': 'garden-7a' }),
     ]);
-    expect(state.sessions['sid-2']?.claudeSessionName).toBeNull();
+    expect(state.sessions['sid-2']?.sessionName).toBeNull();
   });
 
   it('reverts to null when a name present in one snapshot is absent from the next', () => {
-    const state = fold([
-      transcript(),
-      claudeSessionNames({ 'sid-1': 'garden-7a' }),
-      claudeSessionNames({}),
-    ]);
-    expect(state.sessions['sid-1']?.claudeSessionName).toBeNull();
+    const state = fold([transcript(), sessionNames({ 'sid-1': 'garden-7a' }), sessionNames({})]);
+    expect(state.sessions['sid-1']?.sessionName).toBeNull();
   });
 
   it('lands a Claude-side name that arrived before the session was otherwise known', () => {
-    const state = fold([claudeSessionNames({ 'sid-1': 'garden-7a' }), transcript()]);
-    expect(state.sessions['sid-1']?.claudeSessionName).toBe('garden-7a');
+    const state = fold([sessionNames({ 'sid-1': 'garden-7a' }), transcript()]);
+    expect(state.sessions['sid-1']?.sessionName).toBe('garden-7a');
   });
 
   describe('watches', () => {
@@ -526,7 +515,7 @@ describe('reduce', () => {
     });
 
     it('leaves status untouched by raising and clearing', () => {
-      const before = fold([mapped, transcript(), hook('UserPromptSubmit'), snapshot(false)]);
+      const before = fold([mapped, transcript(), signalEvent('working'), snapshot(false)]);
       const raised = reduce(before, alertChanged(anAlert()));
       const cleared = reduce(raised, alertChanged(null));
       expect(raised.sessions['sid-1']?.status).toBe('working');
@@ -542,9 +531,9 @@ describe('reduce', () => {
 
     it('keeps the alert when the session ends, its pane dies, and it is resumed', () => {
       const alert = anAlert();
-      const live = fold([mapped, transcript(), hook('UserPromptSubmit'), snapshot(false)]);
+      const live = fold([mapped, transcript(), signalEvent('working'), snapshot(false)]);
       const raised = reduce(live, alertChanged(alert));
-      const ended = reduce(raised, hook('SessionEnd'));
+      const ended = reduce(raised, signalEvent(null, 'sid-1', true));
       expect(ended.sessions['sid-1']).toMatchObject({ liveness: 'dead', alert });
       const dead = reduce(ended, snapshot(true));
       expect(dead.sessions['sid-1']).toMatchObject({ liveness: 'dead', alert });
@@ -597,6 +586,37 @@ describe('reduce', () => {
         pipeConnected: false,
         pipeLastConnectedAt: null,
       });
+    });
+  });
+});
+
+describe('harness-neutral signals', () => {
+  it('preserves the reported status and reason when the signal has no status', () => {
+    const working: GardenEvent = {
+      type: 'harness-signal',
+      signal: {
+        sessionId: 'sid-1',
+        cwd: '/repo',
+        transcriptPath: '/t',
+        reported: { status: 'needs-approval', reason: 'Allow tool' },
+        ended: null,
+        conversationCleared: false,
+      },
+    };
+    const rebound: GardenEvent = {
+      type: 'harness-signal',
+      signal: {
+        sessionId: 'sid-1',
+        cwd: '/repo',
+        transcriptPath: '/new',
+        ended: false,
+        conversationCleared: false,
+      },
+    };
+    const state = fold([mapped, snapshot(false), working, rebound]);
+    expect(state.sessions['sid-1']).toMatchObject({
+      status: 'needs-approval',
+      statusReason: 'Allow tool',
     });
   });
 });

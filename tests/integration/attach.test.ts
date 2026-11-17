@@ -1,3 +1,4 @@
+import { fakeClaudeHarness } from './support/claudeHarness.js';
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -134,8 +135,7 @@ describe('WS /attach/:id against a real tmux pane and a real pty', () => {
         tmux: tmuxPort(target),
         projection,
         serverPort: 4310,
-        settingsPath: '/nonexistent/claude-settings.json',
-        readClaudeCommand: () => ['claude'],
+        harnessName: 'claude' as const,
         deadSessionCap: 10,
         git: unusedGitPort(),
         configPort: unusedConfigPort(),
@@ -144,6 +144,7 @@ describe('WS /attach/:id against a real tmux pane and a real pty', () => {
           resolveRoot: () => Promise.reject(new Error('not used by this test')),
         },
         attach: createAttachRegistry({ pty: ptyPort(target), projection }),
+        harness: fakeClaudeHarness('/nonexistent/claude-settings.json', () => ['claude']),
       });
       await app.listen({ port: 0, host: '127.0.0.1' });
       const { port } = app.server.address() as AddressInfo;
@@ -226,8 +227,7 @@ describe('WS /attach/:id against a real tmux pane and a real pty', () => {
         tmux: tmuxPort(target),
         projection,
         serverPort: 4310,
-        settingsPath: '/nonexistent/claude-settings.json',
-        readClaudeCommand: () => ['claude'],
+        harnessName: 'claude' as const,
         deadSessionCap: 10,
         git: unusedGitPort(),
         configPort: unusedConfigPort(),
@@ -236,6 +236,7 @@ describe('WS /attach/:id against a real tmux pane and a real pty', () => {
           resolveRoot: () => Promise.reject(new Error('not used by this test')),
         },
         attach: createAttachRegistry({ pty: ptyPort(target), projection }),
+        harness: fakeClaudeHarness('/nonexistent/claude-settings.json', () => ['claude']),
       });
       await app.listen({ port: 0, host: '127.0.0.1' });
       const { port } = app.server.address() as AddressInfo;

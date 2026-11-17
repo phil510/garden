@@ -1,6 +1,6 @@
 import type { SettingsRequest, SettingsResponse } from '@garden/shared';
 import {
-  isClaudeCommand,
+  isLaunchCommand,
   isIgnoreAuthors,
   isPollIntervalMinutes,
   isQuietWindowMinutes,
@@ -11,20 +11,18 @@ import type { ConfigPort } from './ports.js';
  *  through the `ConfigPort` for a live read. */
 export interface SettingsDeps {
   readonly configPort: ConfigPort;
+  readonly harnessName: 'claude' | 'codex';
   readonly deadSessionCap: number;
 }
 
-/**
- * Reads `configPort.read()`'s raw `ConfigFile.claudeCommand` string — never the value resolved
- * through `GARDEN_CLAUDE_COMMAND` that `readClaudeCommand()` gives session spawning. Displaying
- * (and, on save, round-tripping) the resolved value would leak an active override into
- * `config.json`.
- */
+/** Returns saved commands rather than environment overrides, so saving never persists an override. */
 export function getSettings(deps: SettingsDeps): SettingsResponse {
   const file = deps.configPort.read();
   return {
+    harness: deps.harnessName,
     deadSessionCap: deps.deadSessionCap,
     claudeCommand: file.claudeCommand,
+    codexCommand: file.codexCommand,
     ignoreAuthors: [...file.ignoreAuthors],
     quietWindowMinutes: file.quietWindowMinutes,
     pollIntervalMinutes: file.pollIntervalMinutes,
@@ -33,13 +31,15 @@ export function getSettings(deps: SettingsDeps): SettingsResponse {
 
 const WRITABLE_KEYS = [
   'claudeCommand',
+  'codexCommand',
   'ignoreAuthors',
   'quietWindowMinutes',
   'pollIntervalMinutes',
 ] as const;
 
 const VALID_VALUE: Record<(typeof WRITABLE_KEYS)[number], (value: unknown) => boolean> = {
-  claudeCommand: isClaudeCommand,
+  claudeCommand: isLaunchCommand,
+  codexCommand: isLaunchCommand,
   ignoreAuthors: isIgnoreAuthors,
   quietWindowMinutes: isQuietWindowMinutes,
   pollIntervalMinutes: isPollIntervalMinutes,

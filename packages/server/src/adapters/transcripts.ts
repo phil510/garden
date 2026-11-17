@@ -1,81 +1,12 @@
-import { open, readdir, readFile, stat } from 'node:fs/promises';
-import { join, relative, sep } from 'node:path';
-import { inScopeDirs } from '../domain/slug.js';
-import { parseTranscript } from '../domain/transcript.js';
+import { stat } from 'node:fs/promises';
 import type { TranscriptParse } from '../domain/transcript.js';
-import type { GardenEvent } from '../domain/types.js';
+import type { GardenEvent, TranscriptRecord } from '../domain/types.js';
 
 /** The slice of `Logger` this adapter needs, declared locally rather than imported —
  *  one adapter per external system, composed together only in main.ts. */
 export interface TranscriptLogger {
   warn(message: string): void;
   error(message: string): void;
-}
-
-/** Large enough to hold many lines of an ordinary conversation, small enough that
- *  a multi-megabyte transcript is never read whole. */
-export const WINDOW_BYTES = 64 * 1024;
-
-/** Every in-scope `*.jsonl` path under `<transcriptsDir>/<slug>/`, one level deep. */
-export async function listTranscriptFiles(
-  transcriptsDir: string,
-  roots: readonly string[],
-): Promise<string[]> {
-  let dirNames: string[];
-  try {
-    dirNames = await readdir(transcriptsDir);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
-    throw error;
-  }
-  const files: string[] = [];
-  for (const dir of inScopeDirs(dirNames, roots)) {
-    const dirPath = join(transcriptsDir, dir);
-    for (const entry of await readdir(dirPath)) {
-      if (entry.endsWith('.jsonl')) files.push(join(dirPath, entry));
-    }
-  }
-  return files;
-}
-
-async function readWindow(path: string, position: number, length: number): Promise<string> {
-  const handle = await open(path, 'r');
-  try {
-    const buffer = Buffer.alloc(length);
-    const { bytesRead } = await handle.read({ buffer, position, length });
-    return buffer.toString('utf8', 0, bytesRead);
-  } finally {
-    await handle.close();
-  }
-}
-
-/**
- * Reads a bounded head and a bounded tail of a transcript file and hands the complete
- * lines within each to the pure parser. The window boundary can fall mid-line, so the
- * first line of the tail read and the last line of the head read are each discarded as
- * possibly cut off — a single line longer than a window is dropped entirely, which is
- * why a returned record can be missing a title or a recap without that being an error.
- *
- * The returned `signature` is the `stat()` taken here, before anything is read, so a write
- * landing after this call only makes it stale — never ahead of what was actually parsed.
- */
-export async function readTranscriptRecord(
-  path: string,
-  windowBytes = WINDOW_BYTES,
-): Promise<TranscriptParse & { signature: TranscriptSignature }> {
-  const { size, mtimeMs } = await stat(path);
-  const signature: TranscriptSignature = { size, mtimeMs };
-  const tailStart = Math.max(0, size - windowBytes);
-  // The two windows would overlap once the whole file fits in either one, so read it
-  // once instead: every line is then known complete and nothing needs discarding.
-  if (tailStart <= windowBytes) {
-    return { ...parseTranscript(await readFile(path, 'utf8')), signature };
-  }
-  const headText = await readWindow(path, 0, windowBytes);
-  const tailText = await readWindow(path, tailStart, size - tailStart);
-  const headLines = headText.split('\n').slice(0, -1);
-  const tailLines = tailText.split('\n').slice(1);
-  return { ...parseTranscript([...headLines, ...tailLines].join('\n')), signature };
 }
 
 /** How often the live transcript paths are polled for a changed signature. */
@@ -100,13 +31,12 @@ export interface TranscriptSignature {
  * a file. A vanished-file stat (`ENOENT`) is silent; any other stat failure is logged.
  */
 export async function reconcileTranscripts(
-  transcriptsDir: string,
-  roots: readonly string[],
+  layout: TranscriptLayout,
   signatures: Map<string, TranscriptSignature>,
   onStale: (path: string) => Promise<void>,
   logger: TranscriptLogger,
 ): Promise<void> {
-  for (const path of await listTranscriptFiles(transcriptsDir, roots)) {
+  for (const path of await layout.listFiles()) {
     let size: number;
     let mtimeMs: number;
     try {
@@ -127,8 +57,7 @@ export async function reconcileTranscripts(
 
 export interface TranscriptWatcher {
   /** Marks a transcript path live, or refreshes its idle clock. Synchronous and I/O-free: it
-   *  runs on every hook. A path outside `<transcriptsDir>/<in-scope slug>/<name>.jsonl` is
-   *  ignored. */
+   *  runs on every hook. The harness layout decides which paths are accepted. */
   track(path: string): void;
   close(): Promise<void>;
 }
@@ -139,9 +68,17 @@ export interface TranscriptTiming {
   liveIdleMs?: number;
 }
 
-export interface Transcripts {
+export interface TranscriptLayout {
+  isCurrent?(path: string, record: TranscriptRecord): boolean;
   listFiles(): Promise<string[]>;
-  readRecord(path: string): Promise<TranscriptParse>;
+  accepts(path: string): boolean;
+  readRecord(path: string): Promise<(TranscriptParse & { signature: TranscriptSignature }) | null>;
+}
+
+export interface Transcripts {
+  isCurrent(path: string, record: TranscriptRecord): boolean;
+  listFiles(): Promise<string[]>;
+  readRecord(path: string): Promise<TranscriptParse | null>;
   watch(
     onEvent: (event: Extract<GardenEvent, { type: 'transcript-changed' }>) => void,
   ): TranscriptWatcher;
@@ -158,8 +95,7 @@ export interface Transcripts {
  * the first reconciliation tick incremental. An unparseable line is logged once per file.
  */
 export function createTranscripts(
-  transcriptsDir: string,
-  roots: readonly string[],
+  layout: TranscriptLayout,
   logger: TranscriptLogger,
   timing: TranscriptTiming = {},
 ): Transcripts {
@@ -167,15 +103,17 @@ export function createTranscripts(
   const signatures = new Map<string, TranscriptSignature>();
 
   return {
-    listFiles: () => listTranscriptFiles(transcriptsDir, roots),
+    isCurrent: (path, record) => layout.isCurrent?.(path, record) ?? true,
+    listFiles: () => layout.listFiles(),
     async readRecord(path) {
-      const { signature, ...parsed } = await readTranscriptRecord(path);
+      const result = await layout.readRecord(path);
+      if (result === null) return null;
+      const { signature, ...parsed } = result;
       signatures.set(path, signature);
       return parsed;
     },
     watch(onEvent) {
       const warnedFiles = new Set<string>();
-      let warnedOutside = false;
       /** Live path → last time it was tracked or seen changed. */
       const live = new Map<string, number>();
 
@@ -184,13 +122,14 @@ export function createTranscripts(
       // and a throwing `onEvent` can't skip it. A failed read records nothing, so a later tick
       // retries.
       async function reread(path: string): Promise<void> {
-        let parsed: TranscriptParse & { signature: TranscriptSignature };
+        let parsed: (TranscriptParse & { signature: TranscriptSignature }) | null;
         try {
-          parsed = await readTranscriptRecord(path);
+          parsed = await layout.readRecord(path);
         } catch (error) {
           logger.error(`failed to read transcript ${path}: ${(error as Error).message}`);
           return;
         }
+        if (parsed === null || !(layout.isCurrent?.(path, parsed.record) ?? true)) return;
         const { record, skipped, signature } = parsed;
         signatures.set(path, signature);
         if (skipped > 0 && !warnedFiles.has(path)) {
@@ -202,6 +141,11 @@ export function createTranscripts(
 
       async function pollLive(): Promise<void> {
         for (const path of [...live.keys()]) {
+          if (!layout.accepts(path)) {
+            live.delete(path);
+            signatures.delete(path);
+            continue;
+          }
           const now = Date.now();
           if (now - live.get(path)! >= liveIdleMs) {
             live.delete(path);
@@ -227,8 +171,7 @@ export function createTranscripts(
 
       async function reconcile(): Promise<void> {
         await reconcileTranscripts(
-          transcriptsDir,
-          roots,
+          layout,
           signatures,
           async (path) => {
             live.set(path, Date.now());
@@ -264,22 +207,8 @@ export function createTranscripts(
 
       return {
         track(path) {
-          const segments = relative(transcriptsDir, path).split(sep);
-          if (segments[0] === '..' || segments[0] === '') {
-            if (!warnedOutside) {
-              warnedOutside = true;
-              logger.warn(`ignoring transcript path outside ${transcriptsDir}: ${path}`);
-            }
-            return;
-          }
-          const [dir, name] = segments;
-          if (
-            segments.length !== 2 ||
-            !name!.endsWith('.jsonl') ||
-            inScopeDirs([dir!], roots).length === 0
-          )
-            return;
-          live.set(join(transcriptsDir, dir!, name!), Date.now());
+          if (!layout.accepts(path)) return;
+          live.set(path, Date.now());
         },
         async close() {
           clearInterval(pollTimer);

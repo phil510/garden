@@ -230,6 +230,7 @@ function fakeClient(overrides: Partial<CliClient> = {}): { client: CliClient; ca
     createSession: () => Promise.reject(new Error('not used by this test')),
     resumeSession: () => Promise.reject(new Error('not used by this test')),
     killSession: () => Promise.reject(new Error('not used by this test')),
+    sendSessionMessage: () => Promise.reject(new Error('not used by this test')),
     placeSession: () => Promise.reject(new Error('not used by this test')),
     watch: () => Promise.reject(new Error('not used by this test')),
     unwatch: () => Promise.reject(new Error('not used by this test')),
@@ -297,7 +298,8 @@ describe('runStopAll', () => {
 
     expect(seenMessage).toMatch(/2 live sessions/);
     // Plural possessive takes a trailing apostrophe only, not another "s".
-    expect(seenMessage).toContain("losing 2 live sessions' in-flight Claude work");
+    expect(seenMessage).toContain("losing 2 live sessions' in-flight work");
+    expect(seenMessage).toContain(`${deps.appDir} is kept`);
   });
 
   it('uses singular possessive grammar for exactly one live session', async () => {
@@ -318,7 +320,7 @@ describe('runStopAll', () => {
 
     await runStopAll(io, false, client, deps);
 
-    expect(seenMessage).toContain("losing 1 live session's in-flight Claude work");
+    expect(seenMessage).toContain("losing 1 live session's in-flight work");
   });
 
   it('falls back to an uncounted prompt when the server is unreachable', async () => {
@@ -337,9 +339,7 @@ describe('runStopAll', () => {
     await runStopAll(io, false, client, deps);
 
     expect(seenMessage).toMatch(/uncounted number of live sessions/);
-    expect(seenMessage).toContain(
-      "losing an uncounted number of live sessions' in-flight Claude work",
-    );
+    expect(seenMessage).toContain("losing an uncounted number of live sessions' in-flight work");
   });
 
   it('skips the confirmation prompt and the session count fetch when told to', async () => {

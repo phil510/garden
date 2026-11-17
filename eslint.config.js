@@ -36,7 +36,7 @@ const nodeBuiltinPattern = (message) => ({ group: nodeBuiltinGroup, message });
 const adaptersInward = {
   group: ['**/app/**', '**/http/**', '**/cli/**'],
   message:
-    'adapters/ may import shared, domain/ types, and its own library only. Adapters emit events; they do not call inward.',
+    'adapters/ may import shared, pure domain/ functions and types, and its own library only. Adapters emit events; they do not call inward.',
 };
 
 export default tseslint.config(
@@ -159,7 +159,6 @@ export default tseslint.config(
                 '!./store.js',
                 '!./transcripts.js',
                 '!./tmux.js',
-                '!./claudeSessions.js',
                 '!./fsWatch.js',
                 '!./gh.js',
                 '!./git.js',
@@ -182,7 +181,7 @@ export default tseslint.config(
           patterns: [
             adaptersInward,
             {
-              group: ['../*', '../*/**', '**/adapters/**'],
+              group: ['../[a-zA-Z]*', '../[a-zA-Z]*/**', '**/adapters/**'],
               message:
                 'An adapter directory may import its own files, but not another adapter. One adapter per external system; compose them in main.ts.',
             },
@@ -265,8 +264,12 @@ export default tseslint.config(
   // Type-aware rules need a tsconfig that includes the file. These are the only
   // ones no tsconfig covers; anything else lints with type information.
   {
-    files: ['**/vitest*.config.ts', 'eslint.config.js'],
+    files: ['**/vitest*.config.ts', 'eslint.config.js', 'plugins/garden-codex/hooks/**/*.mjs'],
     extends: [tseslint.configs.disableTypeChecked],
+  },
+  {
+    files: ['plugins/garden-codex/hooks/**/*.mjs'],
+    languageOptions: { globals: { process: 'readonly' } },
   },
   prettierConfig,
   {

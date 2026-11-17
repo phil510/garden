@@ -1,0 +1,50 @@
+import type { HarnessSignal } from '../../domain/types.js';
+
+export interface CodexHook {
+  session_id: string;
+  cwd: string;
+  transcript_path: string | null;
+  hook_event_name: string;
+  source?: string;
+  _garden_order?: string;
+  _garden_generation?: string;
+}
+
+export function codexHook(body: unknown): CodexHook | null {
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) return null;
+  const value = body as Record<string, unknown>;
+  if (
+    typeof value['session_id'] !== 'string' ||
+    !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value['session_id']) ||
+    typeof value['cwd'] !== 'string' ||
+    (typeof value['transcript_path'] !== 'string' && value['transcript_path'] !== null) ||
+    typeof value['hook_event_name'] !== 'string' ||
+    (value['source'] !== undefined && typeof value['source'] !== 'string') ||
+    (value['_garden_generation'] !== undefined &&
+      (typeof value['_garden_generation'] !== 'string' ||
+        !/^[a-z0-9-]{1,128}$/i.test(value['_garden_generation']))) ||
+    (value['_garden_order'] !== undefined &&
+      (typeof value['_garden_order'] !== 'string' || !/^\d{1,30}$/.test(value['_garden_order'])))
+  )
+    return null;
+  return value as unknown as CodexHook;
+}
+
+export function codexSignal(
+  hook: CodexHook,
+  sessionId: string,
+  conversationCleared = false,
+): HarnessSignal {
+  return {
+    sessionId,
+    cwd: hook.cwd,
+    transcriptPath: hook.transcript_path,
+    ended:
+      hook.hook_event_name === 'SessionEnd'
+        ? true
+        : hook.hook_event_name === 'SessionStart'
+          ? false
+          : null,
+    conversationCleared,
+  };
+}

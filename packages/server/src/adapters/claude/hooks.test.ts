@@ -1,0 +1,114 @@
+import { aHookEvent } from './hooks.fixture.js';
+import { describe, expect, it } from 'vitest';
+import { hookOutcome, parseClaudeHook } from './hooks.js';
+
+describe('hookOutcome', () => {
+  it('carries a Notification message through as the status reason', () => {
+    const outcome = hookOutcome(
+      aHookEvent({ hook_event_name: 'Notification', message: 'Claude needs your permission' }),
+    );
+    expect(outcome).toEqual({
+      status: 'waiting',
+      reason: 'Claude needs your permission',
+      ended: null,
+    });
+  });
+
+  it('does not report a reason for events other than Notification', () => {
+    expect(
+      hookOutcome(aHookEvent({ hook_event_name: 'Stop', message: 'ignored' })).reason,
+    ).toBeNull();
+  });
+
+  it('marks a session needs-approval on a PermissionRequest hook', () => {
+    expect(hookOutcome(aHookEvent({ hook_event_name: 'PermissionRequest' })).status).toBe(
+      'needs-approval',
+    );
+  });
+
+  it('marks a session needs-approval on a permission_prompt Notification, so it cannot downgrade an existing needs-approval', () => {
+    const outcome = hookOutcome(
+      aHookEvent({
+        hook_event_name: 'Notification',
+        notification_type: 'permission_prompt',
+        message: 'Claude needs your permission',
+      }),
+    );
+    expect(outcome).toEqual({
+      status: 'needs-approval',
+      reason: 'Claude needs your permission',
+      ended: null,
+    });
+  });
+
+  it('still marks waiting for a Notification with a different notification_type', () => {
+    const outcome = hookOutcome(
+      aHookEvent({
+        hook_event_name: 'Notification',
+        notification_type: 'idle_timeout',
+        message: 'Claude is waiting for your input',
+      }),
+    );
+    expect(outcome).toEqual({
+      status: 'waiting',
+      reason: 'Claude is waiting for your input',
+      ended: null,
+    });
+  });
+
+  it('still marks waiting for a Notification with no notification_type', () => {
+    const outcome = hookOutcome(
+      aHookEvent({ hook_event_name: 'Notification', message: 'Claude needs your permission' }),
+    );
+    expect(outcome.status).toBe('waiting');
+  });
+
+  it('ends the session on SessionEnd without asserting a status', () => {
+    const outcome = hookOutcome(aHookEvent({ hook_event_name: 'SessionEnd' }));
+    expect(outcome.ended).toBe(true);
+    expect(outcome.status).toBeNull();
+  });
+
+  it('un-ends the session on SessionStart, so a respawned pane comes back live', () => {
+    expect(hookOutcome(aHookEvent({ hook_event_name: 'SessionStart' })).ended).toBe(false);
+  });
+
+  it.each(['startup', 'resume', 'clear', 'compact', 'fork'] as const)(
+    'reports waiting for a %s-source SessionStart, so a fresh session waits for its first prompt',
+    (source) => {
+      const outcome = hookOutcome(aHookEvent({ hook_event_name: 'SessionStart', source }));
+      expect(outcome.status).toBe('waiting');
+      expect(outcome.ended).toBe(false);
+    },
+  );
+
+  it('reports waiting for a SessionStart with no source', () => {
+    const outcome = hookOutcome(aHookEvent({ hook_event_name: 'SessionStart' }));
+    expect(outcome.status).toBe('waiting');
+    expect(outcome.ended).toBe(false);
+  });
+
+  it('transitions to working on a session’s first UserPromptSubmit', () => {
+    expect(hookOutcome(aHookEvent({ hook_event_name: 'UserPromptSubmit' })).status).toBe('working');
+  });
+
+  it('returns no status for an unrecognised event name rather than throwing', () => {
+    const outcome = hookOutcome(aHookEvent({ hook_event_name: 'SomeFutureHook' }));
+    expect(outcome).toEqual({ status: null, reason: null, ended: null });
+  });
+});
+
+describe('parseClaudeHook', () => {
+  it.each([
+    null,
+    [],
+    'hook',
+    { session_id: 'sid', hook_event_name: 'Stop' },
+    { session_id: 7, cwd: '/repo', transcript_path: '/x', hook_event_name: 'Stop' },
+    { session_id: 'sid', cwd: [], transcript_path: '/x', hook_event_name: 'Stop' },
+    { session_id: 'sid', cwd: '/repo', transcript_path: null, hook_event_name: 'Stop' },
+    { session_id: 'sid', cwd: '/repo', transcript_path: '/x', hook_event_name: false },
+  ])('rejects malformed native payload %j', (body) => {
+    expect(parseClaudeHook(body)).toBeNull();
+  });
+});

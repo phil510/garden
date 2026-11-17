@@ -1,3 +1,4 @@
+import { fakeHarness } from '../../app/harness.fixture.js';
 import { createReviewStore } from '../../app/reviews.js';
 import { memoryOverlay } from '../../app/reviews.fixture.js';
 import { describe, expect, it } from 'vitest';
@@ -77,10 +78,10 @@ function fakeDeps(overrides: Partial<ServerDeps> = {}): ServerDeps {
       resolveRoot: () => Promise.reject(new Error('not used by this test')),
     },
     serverPort: 4310,
-    settingsPath: '/home/.garden/claude-settings.json',
-    readClaudeCommand: () => ['claude'],
+    harnessName: 'claude' as const,
     deadSessionCap: 25,
     ...overrides,
+    harness: fakeHarness(),
   };
 }
 
@@ -98,6 +99,8 @@ describe('GET /settings', () => {
 
       expect(response.statusCode).toBe(200);
       expect(response.json()).toEqual({
+        harness: 'claude',
+        codexCommand: 'codex',
         deadSessionCap: 25,
         claudeCommand: 'ec bedrock launch claude --',
         ignoreAuthors: [],
@@ -235,4 +238,33 @@ describe('PUT /settings', () => {
       await app.close();
     }
   });
+});
+
+it('serves the active Codex harness and accepts its saved launch command', async () => {
+  let file = { ...DEFAULT_CONFIG_FILE, codexCommand: 'saved-codex' };
+  const app = createServer(
+    fakeDeps({
+      harnessName: 'codex',
+      configPort: fakeConfigPort({
+        read: () => file,
+        write: (patch) => {
+          file = { ...file, ...patch };
+        },
+      }),
+    }),
+  );
+  try {
+    const before = await app.inject({ method: 'GET', url: '/settings' });
+    expect(before.json()).toMatchObject({ harness: 'codex', codexCommand: 'saved-codex' });
+    const saved = await app.inject({
+      method: 'PUT',
+      url: '/settings',
+      payload: { codexCommand: 'updated-codex' },
+    });
+    expect(saved.statusCode).toBe(200);
+    const after = await app.inject({ method: 'GET', url: '/settings' });
+    expect(after.json()).toMatchObject({ codexCommand: 'updated-codex', claudeCommand: 'claude' });
+  } finally {
+    await app.close();
+  }
 });

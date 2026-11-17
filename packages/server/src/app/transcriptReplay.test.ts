@@ -101,3 +101,70 @@ describe('transcript replay', () => {
     expect(dispatched.at(-1)).toEqual(liveEvent('later'));
   });
 });
+
+describe('invalidated transcript reads', () => {
+  it('omits an invalidated read from the boot batch', async () => {
+    const dispatched: GardenEvent[] = [];
+    const transcripts: TranscriptPort = {
+      listFiles: () => Promise.resolve(['/old']),
+      readRecord: () => Promise.resolve(null),
+      watch: () => ({ track: () => undefined, close: () => Promise.resolve() }),
+    };
+    await createTranscriptReplay(
+      {
+        projection: {
+          dispatch: (event) => {
+            dispatched.push(event);
+          },
+        },
+        transcripts,
+      },
+      silent,
+    ).run();
+    expect(dispatched).toEqual([{ type: 'transcripts-replayed', records: [] }]);
+  });
+});
+
+it('drops a completed old read and held live event if clear happens while another boot read is pending', async () => {
+  const dispatched: GardenEvent[] = [];
+  let current = true;
+  let entered: (() => void) | undefined;
+  let release: (() => void) | undefined;
+  const pending = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  const oldRecord = record('sid-a', 'old');
+  const transcripts: TranscriptPort = {
+    listFiles: () => Promise.resolve(['/a.jsonl', '/slow']),
+    readRecord: async (path) => {
+      if (path === '/a.jsonl') return { record: oldRecord, skipped: 0 };
+      entered!();
+      await new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      return { record: record('sid-b', 'other'), skipped: 0 };
+    },
+    isCurrent: (_path, candidate) => candidate.sessionId !== 'sid-a' || current,
+    watch: () => ({ track: () => undefined, close: () => Promise.resolve() }),
+  };
+  const replay = createTranscriptReplay(
+    {
+      projection: {
+        dispatch: (event) => {
+          dispatched.push(event);
+        },
+      },
+      transcripts,
+    },
+    silent,
+  );
+  const running = replay.run();
+  await pending;
+  replay.live({ type: 'transcript-changed', path: '/a.jsonl', record: oldRecord });
+  current = false;
+  release!();
+  await running;
+  expect(dispatched).toEqual([
+    { type: 'transcripts-replayed', records: [record('sid-b', 'other')] },
+  ]);
+});

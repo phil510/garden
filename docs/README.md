@@ -6,6 +6,7 @@ This folder holds design and engineering documentation for garden. Two kinds of 
 
 - `architecture.md` — living. Where code goes: the layering, the dependency rules between layers, and the state projection at the centre of the server. Read before adding or moving code.
 - `testing.md` — living, current testing approach and tooling.
+- `2026-11-16-claude-instance-migration.md` — living cutover and rollback procedure for existing Claude installs.
 
 ## Where does my new doc go?
 

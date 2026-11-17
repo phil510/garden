@@ -130,7 +130,7 @@ async function liveSessionCount(client: CliClient): Promise<number | null> {
   }
 }
 
-function confirmMessage(liveCount: number | null): string {
+function confirmMessage(liveCount: number | null, appDir: string): string {
   // Built as a possessive already, since "session's" (singular) and "sessions'" (plural)
   // take the apostrophe in different places — a suffix appended after the fact can't do both.
   const sessionsPossessive =
@@ -141,12 +141,12 @@ function confirmMessage(liveCount: number | null): string {
         : `${String(liveCount)} live sessions'`;
   return (
     `This stops garden and kills every tmux session it manages, losing ${sessionsPossessive} ` +
-    `in-flight Claude work. ~/.garden is kept. Continue? [y/N] `
+    `in-flight work. ${appDir} is kept. Continue? [y/N] `
   );
 }
 
 /** `garden stop --all` — stop the server, then kill the garden tmux server. Unlike plain
- *  `garden stop`, this is a hard stop: every session's in-flight Claude work is lost. */
+ *  `garden stop`, this is a hard stop: every session's in-flight work is lost. */
 export async function runStopAll(
   io: Io,
   skipConfirm: boolean,
@@ -155,7 +155,7 @@ export async function runStopAll(
 ): Promise<0 | 1> {
   if (!skipConfirm) {
     const liveCount = await liveSessionCount(client);
-    if (!(await deps.confirm(confirmMessage(liveCount)))) {
+    if (!(await deps.confirm(confirmMessage(liveCount, deps.appDir)))) {
       await writeAll(io.stdout, 'aborted\n');
       return 0;
     }

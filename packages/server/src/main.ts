@@ -1,7 +1,9 @@
 import { randomBytes } from 'node:crypto';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { readClaudeSessionNames } from './adapters/claudeSessions.js';
+import { createCodexHarness } from './adapters/codex/index.js';
+import { applyHarnessSignal } from './app/hooks.js';
+import { createClaudeHarness } from './adapters/claude/index.js';
 import { watchFsRoot } from './adapters/fsWatch.js';
 import { ghGet, ghRemoveReviewRequest } from './adapters/gh.js';
 import {
@@ -24,6 +26,7 @@ import {
   listPanes,
   newSession,
   respawnPane,
+  submitMessage,
 } from './adapters/tmux.js';
 import type { TmuxTarget } from './adapters/tmux.js';
 import { createAttachRegistry, type AttachRegistry } from './app/attach.js';
@@ -35,6 +38,8 @@ import { createReviewDismisser } from './app/reviewDismiss.js';
 import { createReviewStore } from './app/reviews.js';
 import type {
   ConfigPort,
+  HarnessPort,
+  LiveTranscripts,
   FsWatchPort,
   GhPort,
   GitPort,
@@ -53,15 +58,17 @@ import { watchRepoRoots } from './app/repoRoots.js';
 import { pruneKnownSessions } from './app/swarms.js';
 import { replayWatches } from './app/watches.js';
 import { replayAlerts } from './app/alerts.js';
-import { writeClaudeSettings, writeTmuxConf } from './appdir.js';
+import { writeTmuxConf } from './appdir.js';
 import {
   appDirPath,
   configFilePath,
   ensureConfigFile,
   loadConfig,
+  instanceEnvironment,
   patchConfigFile,
   readConfigFile,
   resolveClaudeCommand,
+  resolveCodexCommand,
 } from './config.js';
 import type { TmuxSessionFact } from './domain/types.js';
 import { createServer } from './http/server.js';
@@ -80,6 +87,7 @@ function tmuxPort(target: TmuxTarget): TmuxPort {
     newSession: (request) => newSession(target, request),
     respawnPane: (request) => respawnPane(target, request),
     killSession: (name) => killSession(target, name),
+    submitMessage: (name, message) => submitMessage(target, name, message),
   };
 }
 
@@ -161,16 +169,32 @@ async function dispatchTmuxSnapshot(projection: Projection, tmux: TmuxPort): Pro
   projection.dispatch({ type: 'tmux-snapshot', sessions: toSessionFacts(await tmux.listPanes()) });
 }
 
-async function dispatchClaudeSessionNames(
+async function dispatchSessionNames(
   projection: Projection,
-  sessionsDir: string,
+  harness: HarnessPort,
   logger: Logger,
 ): Promise<void> {
-  const { names, skipped } = await readClaudeSessionNames(sessionsDir);
+  const { names, skipped } = await harness.readSessionNames();
   if (skipped > 0) {
-    logger.warn(`skipped ${String(skipped)} unreadable registry file(s) in ${sessionsDir}`);
+    logger.warn(`skipped ${String(skipped)} unreadable harness registry file(s)`);
   }
-  projection.dispatch({ type: 'claude-session-names-loaded', names });
+  projection.dispatch({ type: 'session-names-loaded', names });
+}
+
+function drainBindingSpool(
+  harness: HarnessPort,
+  projection: Projection,
+  liveTranscripts: LiveTranscripts,
+  logger: Logger,
+): void {
+  try {
+    for (const signal of harness.replaySpool?.() ?? [])
+      applyHarnessSignal({ projection, liveTranscripts }, signal);
+  } catch (error) {
+    logger.error(
+      `binding spool replay failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
 }
 
 /**
@@ -185,7 +209,7 @@ async function replay(
   tmux: TmuxPort,
   transcriptReplay: TranscriptReplay,
   logger: Logger,
-  claudeSessionsDir: string,
+  harness: HarnessPort,
   git: GitPort,
 ): Promise<void> {
   projection.dispatch({ type: 'store-loaded', tmuxNames: { ...store.read().tmuxNames } });
@@ -205,14 +229,35 @@ async function replay(
   } catch (error) {
     logger.error(`pipe replay failed: ${error instanceof Error ? error.message : String(error)}`);
   }
+  for (const pending of harness.pendingSessions?.() ?? []) {
+    const tmuxName = store.read().tmuxNames[pending.id];
+    if (tmuxName !== undefined)
+      projection.dispatch({
+        type: 'session-registered',
+        ...pending,
+        tmuxName,
+        reported: { status: 'waiting', reason: null },
+      });
+    else
+      projection.dispatch({
+        type: 'harness-signal',
+        signal: {
+          sessionId: pending.id,
+          cwd: pending.cwd,
+          transcriptPath: null,
+          ended: true,
+          conversationCleared: false,
+        },
+      });
+  }
   await dispatchTmuxSnapshot(projection, tmux);
   try {
     // Same boundary as the poll tick's own try/catch: a registry read failure is a missing
     // display name, not a reason to fail boot.
-    await dispatchClaudeSessionNames(projection, claudeSessionsDir, logger);
+    await dispatchSessionNames(projection, harness, logger);
   } catch (error) {
     logger.error(
-      `claude session registry read failed: ${error instanceof Error ? error.message : String(error)}`,
+      `session registry read failed: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
   await transcriptReplay.run();
@@ -232,7 +277,6 @@ export async function main(detached: boolean): Promise<void> {
   guardStderr();
   const config = loadConfig(process.env, ensureConfigFile(home, logger), home);
   const confPath = writeTmuxConf(config.appDir);
-  const settingsPath = writeClaudeSettings(config.appDir);
 
   // A tmux server that outlives a garden upgrade never re-reads the conf on its own.
   try {
@@ -245,12 +289,29 @@ export async function main(detached: boolean): Promise<void> {
 
   const store = storePort(config.appDir, logger);
   const configAdapter = configPort(home);
-  const tmux = tmuxPort({ socket: config.tmuxSocket, confPath });
-  const transcripts: TranscriptPort = createTranscripts(
-    config.transcriptsDir,
-    config.roots,
-    logger,
-  );
+  const tmux = tmuxPort({
+    socket: config.tmuxSocket,
+    confPath,
+    instanceEnv: instanceEnvironment(config),
+  });
+  const codexHome = process.env.CODEX_HOME ?? join(home, '.codex');
+  const harness: HarnessPort =
+    config.harness === 'codex'
+      ? createCodexHarness({
+          appDir: config.appDir,
+          transcriptRoots: [join(codexHome, 'sessions'), join(codexHome, 'archived_sessions')],
+          logger,
+          readCommand: () => resolveCodexCommand(process.env, configAdapter.read()),
+        })
+      : createClaudeHarness({
+          appDir: config.appDir,
+          logger,
+          readCommand: readClaudeCommand(configAdapter),
+          transcriptsDir: config.transcriptsDir,
+          roots: config.roots,
+          sessionsDir: config.claudeSessionsDir,
+        });
+  const transcripts: TranscriptPort = createTranscripts(harness.transcripts, logger);
   const git = gitPort();
   const projection = createProjection(store);
   const pipes = createPipes({ projection, git });
@@ -273,16 +334,11 @@ export async function main(detached: boolean): Promise<void> {
     transcriptReplay.live(event);
   });
 
-  await replay(
-    projection,
-    pipes,
-    store,
-    tmux,
-    transcriptReplay,
-    logger,
-    config.claudeSessionsDir,
-    git,
-  );
+  drainBindingSpool(harness, projection, watcher, logger);
+  await replay(projection, pipes, store, tmux, transcriptReplay, logger, harness, git);
+  const statusObserver = harness.observeStatus?.((signal) => {
+    applyHarnessSignal({ projection, liveTranscripts: watcher }, signal);
+  });
   // Only valid once replay's transcript scan has settled what "known" means — any earlier
   // (store-loaded, or the first tmux snapshot) would prune a live child whose transcript
   // just hasn't been read yet. Isolated like every other boot step above: a stale overlay
@@ -319,19 +375,19 @@ export async function main(detached: boolean): Promise<void> {
   const reviewDismisser = createReviewDismisser({ gh: ghPort(), store: reviews, logger });
 
   const poll = setInterval(() => {
+    // A hook can fail between boot replay and listen, or during a transient HTTP failure.
+    drainBindingSpool(harness, projection, watcher, logger);
     // A tmux that fails mid-run leaves liveness stale until the next tick; it does not end the server.
     dispatchTmuxSnapshot(projection, tmux).catch((error: unknown) => {
       logger.error(`tmux poll failed: ${error instanceof Error ? error.message : String(error)}`);
     });
     // Its own try/catch, not chained onto the tmux snapshot's promise: a registry read
     // failure must not swallow that tick's liveness dispatch.
-    dispatchClaudeSessionNames(projection, config.claudeSessionsDir, logger).catch(
-      (error: unknown) => {
-        logger.error(
-          `claude session registry poll failed: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      },
-    );
+    dispatchSessionNames(projection, harness, logger).catch((error: unknown) => {
+      logger.error(
+        `session registry poll failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    });
     // Its own catch too, for the same reason as above — see the first sweep after listen for what
     // this actually guards, since tick() resolves per-cwd git failures internally rather than rejecting.
     branches.tick().catch((error: unknown) => {
@@ -364,15 +420,16 @@ export async function main(detached: boolean): Promise<void> {
       reviews,
       reviewDismisser,
       serverPort: config.port,
-      settingsPath,
-      readClaudeCommand: readClaudeCommand(configAdapter),
+      harness,
       permissionMode: config.permissionMode,
+      harnessName: config.harness,
       deadSessionCap: config.deadSessionCap,
       configPort: configAdapter,
     },
     logger,
   );
   app.addHook('onClose', () => {
+    statusObserver?.close();
     clearInterval(poll);
     clearInterval(pipeSweep);
     stopRepoRoots();

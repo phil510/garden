@@ -12,6 +12,7 @@ import {
   NoLocalCloneError,
   RepoUnresolvedError,
   ReviewNotFoundError,
+  SessionMessagingError,
   WatchNotFoundError,
 } from '../app/errors.js';
 import { ConfigWriteRefusedError } from '../app/ports.js';
@@ -23,6 +24,7 @@ type ErrorClass = new (...args: never[]) => Error;
 
 const STATUS_BY_ERROR: readonly (readonly [ErrorClass, number])[] = [
   [SessionNotFoundError, 404],
+  [SessionMessagingError, 409],
   [SwarmNotFoundError, 404],
   [PathNotFoundError, 404],
   [WatchNotFoundError, 404],

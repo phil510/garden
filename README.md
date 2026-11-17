@@ -1,6 +1,6 @@
 # garden
 
-A local web console for running many Claude Code sessions at once across many repos and worktrees. tmux owns the Claude Code processes; garden is a viewport and control surface over them, so closing garden or restarting its server never touches a running session.
+A local web console for running many Claude Code or Codex sessions at once across many repos and worktrees. Each instance runs one harness. tmux owns its processes; garden is a viewport and control surface over them, so closing garden or restarting its server never touches a running session.
 
 ## Packages
 
@@ -32,15 +32,24 @@ there is no separate step. If the hook ever goes missing, `pnpm rebuild lefthook
 
 ## Configuration
 
-garden reads `~/.garden/config.json` on startup, writing a default one on first run. Fields:
+`GARDEN_HARNESS` selects the instance for every command, including `stop` and `stop --all`.
+Unset or `claude` uses port `4310`, tmux socket `garden-claude`, and app dir `~/.garden-claude`.
+Existing Claude installs need the [coordinated migration](docs/2026-11-16-claude-instance-migration.md) before adopting these defaults.
+`codex` uses port `4311`, socket `garden-codex`, and app dir `~/.garden-codex`.
+`GARDEN_PORT`, `GARDEN_TMUX_SOCKET`, and `GARDEN_APP_DIR` override the selected instance's
+values individually. Spawned and resumed panes inherit the full effective instance, so
+commands inside them reach their own server even with overrides.
 
-- `port` — the port the server listens on. Default `4310`.
+garden reads `<appDir>/config.json` on startup, writing a default one on first run. Fields:
+
+- `port` — the port the server listens on. Default `4310` for Claude or `4311` for Codex; `GARDEN_PORT` takes precedence.
 - `roots` — the repo roots garden scans for sessions. Default `["~/Desktop/Extend"]`. Each repo
   directly under a root is listed with its worktrees, found under `<repo>/.worktrees/` or, for a
   bare clone kept in `<repo>/.bare/` with a `.git` file pointing at it, beside the clone.
   Applies after a restart.
 - `permissionMode` — `"default"` or `"bypassPermissions"`. Default `"default"`. `"bypassPermissions"`
-  skips Claude Code's permission prompts for every session garden spawns or resumes.
+  applies to new Codex sessions and to new or resumed Claude sessions. Codex resumes retain
+  the conversation's saved permissions; use `/permissions` in its terminal to change them.
 - `deadSessionCap` — dead sessions shown per repo group, swarm group and Solo block before "Show N more"; a whole number
   1–1000. Default `10`. Applies after a restart and a page reload.
 - `claudeCommand` — the command used to launch Claude Code. Default `"claude"`. Split on
@@ -49,6 +58,8 @@ garden reads `~/.garden/config.json` on startup, writing a default one on first 
   settings panel in the app (the gear icon in the topbar); `GARDEN_CLAUDE_COMMAND` still takes
   precedence when set. A saved change applies to the next new or resumed session — no restart
   required — but leaves already-running sessions on whatever command spawned them.
+- `codexCommand` — the Codex launch command, default `"codex"`, with the same argv splitting
+  and live settings behavior as `claudeCommand`. `GARDEN_CODEX_COMMAND` takes precedence.
 - `ignoreAuthors` — PR comment and review authors whose activity a watch does not report. Default
   `[]`.
 - `quietWindowMinutes` — minutes of PR quiet required before a digest is delivered; a whole
@@ -57,6 +68,16 @@ garden reads `~/.garden/config.json` on startup, writing a default one on first 
 
   These three are also editable from the settings panel, and a saved change is read on the next
   use — no restart required.
+
+## Codex sessions
+
+On first use, review and trust Garden's hooks in Codex's native hook review or `/hooks` UI.
+Codex saves consent for unchanged hook definitions; changes to the hook declaration, Node
+executable path or Garden app directory can require another review. Garden does not approve
+hooks on your behalf. See [Codex hook trust](https://learn.chatgpt.com/docs/hooks#review-and-trust-hooks).
+
+For process lifecycle, status observation and session identity, see the
+[architecture's harness boundary](docs/architecture.md#harness-boundary).
 
 ## Dev loop
 

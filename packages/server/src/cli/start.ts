@@ -1,6 +1,6 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { ensureConfigFile, loadConfig } from '../config.js';
+import { ensureConfigFile, instanceEnvironment, loadConfig } from '../config.js';
 import { chromeInstalled, openChromeWindow } from './browser.js';
 import type { Io } from './commands.js';
 import { writeAll } from './io.js';
@@ -108,7 +108,7 @@ export async function runStart(io: Io, deps: StartDeps = defaultStartDeps): Prom
     const result = await deps.spawnServer(
       deps.scriptPath,
       [SERVER_DETACHED_FLAG],
-      { ...process.env, [SERVER_PROCESS_ENV]: '1' },
+      { ...process.env, ...instanceEnvironment(config), [SERVER_PROCESS_ENV]: '1' },
       healthUrl,
     );
     if (result.kind !== 'ready') {

@@ -1,3 +1,4 @@
+import { fakeHarness } from '../../app/harness.fixture.js';
 import { createReviewStore } from '../../app/reviews.js';
 import { memoryOverlay } from '../../app/reviews.fixture.js';
 import { describe, expect, it } from 'vitest';
@@ -71,9 +72,9 @@ function fakeDeps(): ServerDeps {
       resolveRoot: () => Promise.reject(new Error('not used by this test')),
     },
     serverPort: 4310,
-    settingsPath: '/home/.garden/claude-settings.json',
-    readClaudeCommand: () => ['claude'],
+    harnessName: 'claude' as const,
     deadSessionCap: 10,
+    harness: fakeHarness(),
   };
 }
 
