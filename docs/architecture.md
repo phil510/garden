@@ -211,12 +211,9 @@ relocatable install would have to. The version is pinned exactly; `pnpm-workspac
 
 ### Harness boundary
 
-For now, one harness is selected once at boot by `GARDEN_HARNESS` (`claude` by default, or
-`codex`). This simplifies instance configuration; mixed-harness instances remain a possible
-future extension, not a rejected architecture.
-The selection resolves the port, tmux socket and app directory together: Claude defaults to
-`4310`, `garden-claude`, `~/.garden-claude`; Codex to `4311`, `garden-codex`, `~/.garden-codex`. Explicit
-instance overrides retain precedence. CLI commands and spawned panes use that full resolution.
+Each instance selects one harness at boot. The selection resolves the port, tmux socket and
+app directory together; CLI commands and spawned panes use that full resolution. See
+[Configuration](../README.md#configuration) for selection, defaults and overrides.
 
 `HarnessPort` in `app/ports.ts` is selected in `main.ts`. It owns spawn and resume argv
 (including model, effort and permission mode), the per-process hook overlay, native hook
@@ -243,19 +240,18 @@ either native format.
 
 Codex's terminal and backend run as a pair under a tmux-owned launcher. Each backend has
 its own private Unix socket and inherits that session's environment and hook overlay, so hook
-identity cannot leak between sessions. The launcher owns readiness and pair cleanup; Garden
-disconnects its status observer on shutdown without stopping a backend or terminal.
+identity stays scoped to the session. The launcher waits for the backend before starting the
+terminal and stops the pair when either exits. Garden disconnects its status observer on
+shutdown without stopping either process.
 Message delivery uses the same backend through native `codex queue`.
 
 The observer reconciles the alias-bound thread's status on connect and follows native status
 notifications. Internal threads are ignored. Pending approvals remain pending until the native
 status clears them; tool hooks cannot overwrite that report. Connection loss invalidates the
 report, and reconnect obtains a fresh snapshot. Binding changes and endpoint generations reject
-late events. Embedded sessions predating this launch mode have no native status endpoint.
-
-Codex remote resume keeps saved permissions rather than applying Garden's launch override.
-The user changes a running conversation's permissions through the native terminal. Hook trust
-is separate and persists for unchanged definitions through Codex's review UI.
+late events. The observer never answers approval requests; those belong to the native terminal.
+A bound session without a matching backend endpoint reports `unknown`. Sessions launched without a
+backend must be ended and resumed to acquire one.
 
 ### 4.1 The projection is the spine
 
@@ -343,7 +339,7 @@ So the startup sequence is a replay, not a restore:
 
 Steps 4 and 5 feed the same projection events used during normal operation; `main.ts` owns
 the replay sequence. Transcript-recovered live sessions have `unknown` status until a status-bearing
-hook; pending Codex sessions retain their replayed `waiting` report.
+signal; pending Codex sessions retain their replayed `waiting` report.
 
 Transcripts are kept current by polling, not by native file watching: one `fs.watch` per file
 costs more as the corpus grows (and hits `EMFILE`), and a scan is needed regardless because
@@ -366,7 +362,7 @@ binding. `adapters/claude/` and `adapters/codex/` own these policies.
 Garden does not derive a transcript path at spawn: hooks and the selected layout supply it.
 A live path unchanged for 5 minutes leaves the live set; hooks re-track it, and a scan promotes
 it on its next change. A Claude session garden did not start and has not heard a hook from
-can take up to ~10s to appear through discovery. Codex requires a binding first. Hooks own
+can take up to ~10s to appear through discovery. Codex requires a binding first. Hooks and native status observation update
 status independently of transcript polling.
 
 `readRecord`, which boot replay uses, and the watcher share one signature map, and each read

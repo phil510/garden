@@ -71,21 +71,13 @@ garden reads `<appDir>/config.json` on startup, writing a default one on first r
 
 ## Codex sessions
 
-Codex sessions run the native terminal UI and a private native backend together under tmux.
-Garden observes backend status without answering approval requests. Closing Garden leaves
-both processes running; exiting the terminal stops its backend. Existing embedded sessions
-need to be ended and resumed to use native status observation.
-
 On first use, review and trust Garden's hooks in Codex's native hook review or `/hooks` UI.
-Codex saves trust in its own configuration and reuses it across sessions for unchanged hook
-definitions. Changing the hook declaration, Node executable path or Garden app directory can
-require another review. Garden does not approve hooks on your behalf. See
-[Codex hook trust](https://learn.chatgpt.com/docs/hooks#review-and-trust-hooks).
+Codex saves consent for unchanged hook definitions; changes to the hook declaration, Node
+executable path or Garden app directory can require another review. Garden does not approve
+hooks on your behalf. See [Codex hook trust](https://learn.chatgpt.com/docs/hooks#review-and-trust-hooks).
 
-A resumed conversation keeps its saved permissions. To change them, use `/permissions` in
-Codex; selecting Full Access does not require having started the session in that mode.
-Native backend compatibility is exercised against Codex 0.169.0; the opt-in probes described
-in [testing](docs/testing.md) check the installed version separately from the fake harness.
+For process lifecycle, status observation and session identity, see the
+[architecture's harness boundary](docs/architecture.md#harness-boundary).
 
 ## Dev loop
 
