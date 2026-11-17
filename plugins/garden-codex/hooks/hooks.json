@@ -1,0 +1,30 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [{ "type": "command", "command": "node \"${PLUGIN_ROOT}/hooks/compaction.mjs\"" }]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [{ "type": "command", "command": "node \"${PLUGIN_ROOT}/hooks/compaction.mjs\"" }]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [{ "type": "command", "command": "node \"${PLUGIN_ROOT}/hooks/compaction.mjs\"" }]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [{ "type": "command", "command": "node \"${PLUGIN_ROOT}/hooks/compaction.mjs\"" }]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [{ "type": "command", "command": "node \"${PLUGIN_ROOT}/hooks/compaction.mjs\"" }]
+      }
+    ]
+  }
+}

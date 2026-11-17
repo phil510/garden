@@ -4,7 +4,7 @@ Runbook for Claude Code sessions working in this repo. Read this first; load oth
 
 ## About this project
 
-garden is a local web console for running many Claude Code sessions at once across many repos and worktrees. tmux owns the Claude Code processes; garden is a viewport and control surface over them — it never becomes the thing keeping a session alive.
+garden is a local web console for running many Claude Code or Codex sessions at once across many repos and worktrees. Each instance runs one harness. tmux owns its processes; garden is a viewport and control surface over them — it never becomes the thing keeping a session alive.
 
 `docs/architecture.md` is canonical for where code goes — the layering, the dependency rules between layers, the state projection at the centre of the server — and for the design invariants and rejected alternatives behind them. Read it before writing server or web code, not only when a task is explicitly about structure. Its boundaries are enforced by scoped `no-restricted-imports` rules, so crossing one fails `pnpm lint` instead of starting a design conversation — when that happens, the layering is what's wrong, not the lint config. Planned and in-flight work lives in GitHub issues.
 
@@ -16,6 +16,11 @@ Node 22 (`.nvmrc`) and pnpm 10 via corepack. `.npmrc` pins the public registry o
 
 Tests come in two tiers, and the split matters: `pnpm test` is the unit tier only. The integration tier is `pnpm test:integration`, it drives real tmux, and it needs tmux installed locally — which is why pre-commit skips it and CI runs it as its own job. A clean commit is a good signal, not a guarantee. `docs/testing.md` is canonical for how to write either tier.
 
+Plugin test files, suite labels and temporary-directory prefixes identify their harness:
+use `claude-*` or `codex-*`, keeping unqualified names for shared checks. Keep compaction
+suites named for compaction and fixtures with their harness; only shared filesystem helpers
+belong in shared support modules. Tests and fixtures stay outside the shipped plugin packages.
+
 A concurrent sandbox needs its own port, tmux socket and app dir — see `docs/testing.md` for the `GARDEN_SANDBOX_*` variable names.
 
 ## Conventions
@@ -25,9 +30,10 @@ A concurrent sandbox needs its own port, tmux socket and app dir — see `docs/t
 - Commit messages: descriptive sentences, in logical chunks that each stand on their own. No conventional-commits prefixes (`feat:`, `fix:`, etc.).
 - PRs follow `.github/pull_request_template.md` and include `Closes #N`.
 - Use the `gh` CLI for issues and PRs. Issue templates live in `.github/ISSUE_TEMPLATE/`.
-- The Claude Code plugin lives in `plugins/garden/`. Its manifest deliberately declares no
-  `version`, and the marketplace entry no `description` — `plugins/garden/README.md` says why, and
-  adding either back is what makes plugin updates silently stop landing.
+- The plugins live in `plugins/garden-claude/` and `plugins/garden-codex/`. Read each package
+  README for its manifest and update behavior, and `plugins/maintaining.md` for parity review.
+  Keep outer manifests versionless. Claude marketplace entries omit `description`; the native
+  Codex catalog includes it. Both plugin manifests retain their own descriptions.
 - A diff that reads fine can still render wrong, so a UI-visible change (anything that alters what
   the browser renders) carries before/after screenshots, captured with the `garden-sandbox` skill
   and listed in the PR's `## Visual evidence` section. A capture that can't be made is reported in

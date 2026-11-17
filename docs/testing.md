@@ -37,15 +37,24 @@ in `tests/integration/support/`, under the root `vitest.integration.config.ts` w
 CI runners are what that config prevents. The tier is repo-level because it is the only one that
 drives real tmux and that constraint is machine-wide, so it isn't any one package's concern.
 
-A script that isn't a package and isn't dev-tooling — the garden plugin's hook scripts, say —
-still needs somewhere to be tested that isn't `packages/server`, which has no relationship to
-it, and isn't inside `plugins/garden/` itself, since that whole directory is copied into every
-user's plugin cache and would ship its tests and fixtures along with it. Repo-level `tests/`
-(also collected by the root `vitest.config.ts`) is that place. Whether such a test belongs in
-the unit or integration tier still follows the line above, not the tier its neighbours happen
-to use: the plugin's hook scripts need only `bash` and `jq`, not a tmux server, so their tests
-run in the unit tier even though they spawn a real subprocess — "`execFile` is never mocked"
-governs how a subprocess is exercised, not which tier gets to exercise it.
+Plugin tests live in `tests/plugin/`, collected by the root unit config. Keep tests and fixtures
+outside both `plugins/garden-claude/` and `plugins/garden-codex/`: each package is copied whole
+into the user's plugin cache. These tests run real subprocesses against isolated temporary
+files. Claude's shell hooks and pipeline scripts require `bash`, `jq` and, for pipeline state,
+`git`; Codex's compaction hook uses Node 22. Neither needs a tmux server, so they run in the
+unit tier. “`execFile` is never mocked” governs how a subprocess is exercised, not which tier
+gets to exercise it.
+
+Claude plugin suites use `claude-*` filenames and `support/claude-plugin.ts` fixtures;
+Codex suites use `codex-*` filenames with fixtures beside their tests. Both use
+`support/temp-directories.ts` for temporary-directory creation and cleanup.
+
+Run `pnpm exec vitest run tests/plugin` for both packages. Script tests establish behavior for
+supplied hook payloads and fixture transcripts; packaging tests check installed paths and
+reviewer references within each independently installed package. Neither proves native plugin discovery, hook scheduling, warning
+feedback delivery, compaction timing or model compliance with skills. Those need an explicitly
+recorded live check with the relevant harness version. The fake-harness integrations below
+exercise Garden's lifecycle wiring, not native plugin loading.
 
 Each package's `vitest.config.ts` collects only its own `src/**/*.test.ts`, and the root config
 only `scripts/**/*.test.ts` plus repo-level `tests/**/*.test.ts` except `tests/integration/**`, so
@@ -135,15 +144,12 @@ one place that needs a default.
 ## Real versus faked
 
 Fake as little as possible, and never fake the thing this project is most exposed to getting
-wrong. A real Claude session is not an exception: driving a session through its status
-transitions is not itself something to fake, and it does not need a real Claude either.
-`scripts/fake-claude.ts` is the default for exercising that path, in both the integration tier
-and manual sandbox use (`pnpm dev:sandbox:server` with `GARDEN_CLAUDE_COMMAND` pointed at it) —
-a real spawned process behind a real tmux pane, moved between `working`, `needs-approval`,
-`waiting` and `ended` by typed keywords (`/approve`, `/wait`, `/end`) rather than by waiting on
-a live model's actual output. The process boundary, the pane, the hook POSTs and the transcript
-file it writes are all still real; only the model's judgment is replaced, by a keyword mapping
-deterministic enough to assert on.
+wrong. Session transitions do not need a live model: `scripts/fake-claude.ts` and
+`scripts/fake-codex.ts` replace its judgment with deterministic input handling while retaining
+a real process in a real tmux pane, real hook delivery and real transcript files. Use the fake
+matching the instance's harness; their payloads, transcript formats and launch protocols differ.
+The integration suites `tests/integration/fake-claude.test.ts` and `fake-codex.test.ts` exercise
+those boundaries. They do not establish how an installed Claude or Codex version behaves.
 
 - **`execFile` is never mocked, anywhere.** Faking a port substitutes one implementation of a
   declared interface; mocking `execFile` pretends the process boundary behaved. The test then
@@ -158,8 +164,8 @@ deterministic enough to assert on.
 - **Transcripts** use real files in a temp directory throughout: the parser, the reconciliation
   scan, and the live poll all do plain fs reads. The poll tests fake only `setInterval`,
   `clearInterval` and the clock, so the ticks are driven by hand while the reads still complete on
-  the real event loop. `tests/integration/fake-claude.test.ts` runs the same adapter against real
-  files with short intervals, and drives it end to end through the hook route.
+  the real event loop. The fake-Claude and fake-Codex integration suites drive real
+  transcript files through their respective lifecycle and hook paths.
 - **Hook payloads** are the cheap case: plain JSON over HTTP. Use a builder, not a fake.
 - If a unit test reaches for `vi.mock`, treat it as a signal rather than a tool — either the
   code under test imported an adapter it should not have, or the test belongs in the other
@@ -168,9 +174,14 @@ deterministic enough to assert on.
 ## Running a sandbox
 
 `pnpm dev:sandbox:server` boots an isolated garden: its own port, tmux socket and app dir, with
-`scripts/fake-claude.ts` in place of Claude. It runs beside the user's real `garden` without
-either seeing the other's sessions, which is what makes it safe for an agent to start one on its
-own for a manual or visual check. Never start, stop, signal or reconfigure the real instance (the
+a fake harness in place of a live model. Use `pnpm dev:sandbox:server --claude` (the default)
+or `pnpm dev:sandbox:server --codex` to select `scripts/fake-claude.ts` or
+`scripts/fake-codex.ts`. The Codex sandbox keeps its home under the sandbox app directory.
+These flags select Garden's harness and its fake process; they do not test native plugin loading.
+The sandbox server defaults to port `4312`; `pnpm dev:sandbox:web` proxies to that port.
+An isolated sandbox runs beside
+the user's real `garden` without either seeing the other's sessions, which makes it safe for an agent
+to start one for a manual or visual check. Never start, stop, signal or reconfigure the real instance (the
 default port, socket and app dir) to do the same job, because that is the user's live work.
 
 A second sandbox needs its own port, tmux socket and app dir. The scripts take them as
@@ -255,16 +266,13 @@ or mutates it is both wrong and destructive. Create the temp repo, use it, remov
 following this shape: name the resource explicitly, never inherit it from the environment, tear
 it down whether the test passed or not.
 
-**The fake-Claude composition.** `tests/integration/fake-claude.test.ts` stacks a fourth real
-thing on top of the socket fixture above: a long-lived spawned `tsx` process
-(`scripts/fake-claude.ts`) running inside a pane on that socket, a live HTTP server, and a real
-transcript watcher over a temp directory, all at once. Nothing else in the suite composes
-a real pane, a real long-lived process and a live server together — every other adapter test
-drives one real resource at a time, which is why this one took iteration to get stable. The fake
-prints a `READY` marker the instant its read loop actually attaches to stdin; the test polls for
-that line with `until` before sending its first keyword, because `tmux send-keys` against a pane
-whose process hasn't reached its read loop yet succeeds and delivers the keystroke nowhere, with
-no error to catch it.
+**The fake-harness compositions.** Both `tests/integration/fake-claude.test.ts` and
+`fake-codex.test.ts` combine a long-lived fake process in a real pane, a live HTTP server and
+real transcript files. Claude's suite assembles the server and watcher; Codex's suite starts
+the actual server entrypoint and exercises generated hooks, binding and restart recovery.
+Each fake prints a `READY` marker when its stdin loop is attached. Poll for it before sending
+input: `tmux send-keys` can succeed before the process is ready and lose the input without an
+error. Keep the process, server and files isolated and tear them down with the socket.
 
 ## Flake policy
 

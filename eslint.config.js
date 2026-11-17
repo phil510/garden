@@ -264,8 +264,12 @@ export default tseslint.config(
   // Type-aware rules need a tsconfig that includes the file. These are the only
   // ones no tsconfig covers; anything else lints with type information.
   {
-    files: ['**/vitest*.config.ts', 'eslint.config.js'],
+    files: ['**/vitest*.config.ts', 'eslint.config.js', 'plugins/garden-codex/hooks/**/*.mjs'],
     extends: [tseslint.configs.disableTypeChecked],
+  },
+  {
+    files: ['plugins/garden-codex/hooks/**/*.mjs'],
+    languageOptions: { globals: { process: 'readonly' } },
   },
   prettierConfig,
   {
