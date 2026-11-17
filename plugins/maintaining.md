@@ -20,10 +20,10 @@ for discovery and source resolution.
 | PR digests                                        | Plugin monitor                             | Explicitly owned foreground forwarder                   |
 | Specialist reviews                                | Registered bundled Markdown agents         | Bundled prompts read by fresh native subagents          |
 | Compaction note                                   | Claude scratchpad and transcript occupancy | Private temporary directory and Codex rollout occupancy |
-| Ship-it                                           | Existing background workflow               | Not yet ported                                          |
+| Ship-it                                           | Existing background workflow               | Native worker workflow with matching stages and policy  |
 
 Review every change for semantic parity and record intentional differences in the affected
-package README. Ship-it's stages and policy remain the reference for its eventual Codex port;
+package README. Claude ship-it's stages and policy remain the reference for the Codex implementation;
 only harness dispatch, waiting and recovery mechanics should differ unless the user chooses a
 policy change. User instructions take precedence over workflow defaults, including already
 authorized publication. Do not install personal configuration or named roles to make parity work.
@@ -35,8 +35,8 @@ real-subprocess unit tests and check warning, recovery and cleanup behavior inde
 ship-it state. Both harnesses assume a user-managed 200K compaction threshold and warn at 175K;
 review counting semantics against the harness version before changing either implementation.
 
-Review loops are an optional integration: Claude ship-it defaults to `none`. If injected
+Review loops are an optional integration: both ship-it implementations default to `none`. If injected
 instructions select a skill, that skill becomes a required gate for that run; an unavailable
 selected skill blocks clearly instead of silently skipping the gate. Garden does not require
 personal bot-loop or comment-fetching skills. User-level conventions may independently require
-them. The same boundary should hold when ship-it is ported to Codex.
+them. Both implementations preserve this boundary.

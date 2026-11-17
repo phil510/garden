@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanupTempDirs, tempScratchpad } from './support/plugin-hooks.js';
+import { cleanupTempDirs, tempDirectory } from './support/temp-directories.js';
 
 const scripts = join(import.meta.dirname, '../..', 'plugins/garden-codex/skills/ship-it/scripts');
 const PIPELINE_INIT_SH = join(scripts, 'pipeline-init.sh');
@@ -42,7 +42,7 @@ function gitEnv(): NodeJS.ProcessEnv {
 }
 
 function tempRepo(): string {
-  const dir = tempScratchpad();
+  const dir = tempDirectory('garden-codex-ship-it-test-');
   execFileSync('git', ['init', '-q', dir], { env: gitEnv() });
   return dir;
 }
@@ -87,7 +87,7 @@ function finish(worktree: string, branch: string) {
   };
 }
 
-describe('ship-it pipeline-init.sh', () => {
+describe('Codex ship-it pipeline-init.sh', () => {
   afterEach(() => {
     cleanupTempDirs();
   });
@@ -131,7 +131,7 @@ describe('ship-it pipeline-init.sh', () => {
   });
 });
 
-describe('ship-it pipeline-status.sh review_loop.outcome', () => {
+describe('Codex ship-it pipeline-status.sh review_loop.outcome', () => {
   afterEach(() => {
     cleanupTempDirs();
   });
@@ -181,7 +181,7 @@ describe('ship-it pipeline-status.sh review_loop.outcome', () => {
   });
 });
 
-describe('ship-it pipeline-status.sh JSON', () => {
+describe('Codex ship-it pipeline-status.sh JSON', () => {
   afterEach(() => {
     cleanupTempDirs();
   });
@@ -199,7 +199,7 @@ describe('ship-it pipeline-status.sh JSON', () => {
   });
 });
 
-describe('ship-it pipeline-finish.sh', () => {
+describe('Codex ship-it pipeline-finish.sh', () => {
   afterEach(() => {
     cleanupTempDirs();
   });
@@ -259,7 +259,7 @@ describe('ship-it pipeline-finish.sh', () => {
   });
 });
 
-describe('Codex pipeline recovery', () => {
+describe('Codex ship-it pipeline recovery', () => {
   afterEach(() => cleanupTempDirs());
 
   it('recovers an unresolved decision and an unfinished fix round from disk', () => {
