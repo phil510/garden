@@ -103,8 +103,8 @@ Existing `.ship-it/` state remains in the worktree and can be resumed with
 ## Reviewers and parity
 
 `review-pr` and ship-it use the bundled reviewers; a separate `pr-review-toolkit` plugin is not
-required. The [source and license record](vendor/README.md) explains the unchanged upstream copy
-and the invocation wrapper. Review loops remain optional (default `none`); a configured but missing
+required. The [source and license record](THIRD_PARTY.md) describes the editable Garden forks in `agents/`
+and their review workflow. Review loops remain optional (default `none`); a configured but missing
 loop skill blocks its run explicitly. No personal bot-loop or comment-fetching skill is bundled
 or required by default.
 

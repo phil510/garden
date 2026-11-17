@@ -14,14 +14,14 @@ required. This skill authorizes delegation for this review.
    unstaged, and relevant untracked changes for a local review. Read applicable project instructions.
 2. Select requested lenses, or all applicable lenses by default:
 
-   | Lens                                       | Prompt under `../../vendor/pr-review-toolkit/agents/` |
-   | ------------------------------------------ | ----------------------------------------------------- |
-   | General correctness and project guidelines | `code-reviewer.md`                                    |
-   | Test quality and behavioral coverage       | `pr-test-analyzer.md`                                 |
-   | Error handling and silent failures         | `silent-failure-hunter.md`                            |
-   | Type design and invariants                 | `type-design-analyzer.md`                             |
-   | Comment accuracy                           | `comment-analyzer.md`                                 |
-   | Simplification                             | `code-simplifier.md`                                  |
+   | Lens                                       | Prompt under `../../agents/` |
+   | ------------------------------------------ | ---------------------------- |
+   | General correctness and project guidelines | `code-reviewer.md`           |
+   | Test quality and behavioral coverage       | `pr-test-analyzer.md`        |
+   | Error handling and silent failures         | `silent-failure-hunter.md`   |
+   | Type design and invariants                 | `type-design-analyzer.md`    |
+   | Comment accuracy                           | `comment-analyzer.md`        |
+   | Simplification                             | `code-simplifier.md`         |
 
    Paths are relative to this skill's directory, not the project working directory. Resolve the
    installed skill directory before dispatch and pass the absolute prompt path. Use general review
@@ -45,5 +45,5 @@ required. This skill authorizes delegation for this review.
    suggestions, strengths, and recommended actions. Disclose missing lenses or incomplete reviews.
    A review alone does not authorize fixes or publishing its results.
 
-The source, license and update procedure are in `../../vendor/README.md`. Keep the prompts intact;
-harness-specific behavior belongs in this dispatcher.
+The source, license and fork update policy are in `../../THIRD_PARTY.md`. Reviewer prompts are
+editable; review the Claude counterpart for semantic parity when changing them.

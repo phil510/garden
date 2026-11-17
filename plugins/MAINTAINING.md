@@ -20,7 +20,9 @@ only harness dispatch, waiting and recovery mechanics should differ unless the u
 policy change. User instructions take precedence over workflow defaults, including already
 authorized publication. Do not install personal configuration or named roles to make parity work.
 
-For upstream review prompt updates, use each package's `vendor/README.md`. For hooks, run the
+Reviewer prompts are editable forks in each package's `agents/` directory; review semantic parity,
+not byte identity. For upstream updates, manually review and apply relevant diffs following each
+package's `THIRD_PARTY.md`. For hooks, run the
 real-subprocess unit tests and check warning, recovery and cleanup behavior independently of any
 ship-it state. Both harnesses assume a user-managed 200K compaction threshold and warn at 175K;
 review counting semantics against the harness version before changing either implementation.

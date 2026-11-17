@@ -55,7 +55,7 @@ cleanup live in `support/temp-directories.ts`.
 
 Run `pnpm exec vitest run tests/plugin` for both packages. Script tests establish behavior for
 supplied hook payloads and fixture transcripts; packaging tests check installed paths and
-upstream prompt integrity. Neither proves native plugin discovery, hook scheduling, warning
+reviewer references within each independently installed package. Neither proves native plugin discovery, hook scheduling, warning
 feedback delivery, compaction timing or model compliance with skills. Those need an explicitly
 recorded live check with the relevant harness version. The fake-harness integrations below
 exercise Garden's lifecycle wiring, not native plugin loading.

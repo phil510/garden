@@ -31,7 +31,7 @@ and [cache replacement](https://github.com/openai/codex/blob/rust-v0.169.0/codex
 It resolves paths from the installed skill, passes the diff scope and project instructions, and
 aggregates findings. The prompt files are not automatically registered native roles; there is no
 TOML installation or user configuration change. See the [upstream source, license and update
-procedure](vendor/README.md). Review requests constrain the simplifier to findings; explicit
+procedure](THIRD_PARTY.md). Review requests constrain the simplifier to findings; explicit
 simplification requests may authorize edits.
 
 ## Compaction notes
