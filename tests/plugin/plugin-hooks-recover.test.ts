@@ -1,4 +1,4 @@
-// Exercises plugins/garden/hooks/scripts/recover.sh as a real subprocess — see
+// Exercises plugins/garden-claude/hooks/scripts/recover.sh as a real subprocess — see
 // plugin-hooks-warn.test.ts and docs/testing.md for why these run as subprocesses rather than
 // through a mocked execFile.
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
@@ -29,7 +29,7 @@ function runWarn(input: Record<string, unknown>) {
   return runScript(WARN_SH, { hook_event_name: 'PostToolUse', ...input });
 }
 
-describe('plugins/garden/hooks/scripts/recover.sh', () => {
+describe('plugins/garden-claude/hooks/scripts/recover.sh', () => {
   afterEach(() => {
     cleanupTempDirs();
   });

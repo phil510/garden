@@ -1,4 +1,4 @@
-// Exercises plugins/garden/monitors/events.sh as a real subprocess — see docs/testing.md for why
+// Exercises plugins/garden-claude/monitors/events.sh as a real subprocess — see docs/testing.md for why
 // the plugin scripts are never run through a mocked execFile.
 import { spawn } from 'node:child_process';
 import { chmodSync, readFileSync, writeFileSync } from 'node:fs';
@@ -34,7 +34,7 @@ function stubGarden(dir: string): string {
 
 const cleanups: Array<() => void> = [];
 
-describe('plugins/garden/monitors/events.sh', () => {
+describe('plugins/garden-claude/monitors/events.sh', () => {
   afterEach(() => {
     while (cleanups.length > 0) cleanups.pop()?.();
     cleanupTempDirs();

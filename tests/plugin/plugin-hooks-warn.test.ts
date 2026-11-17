@@ -1,4 +1,4 @@
-// Exercises plugins/garden/hooks/scripts/warn.sh as a real subprocess against fixture
+// Exercises plugins/garden-claude/hooks/scripts/warn.sh as a real subprocess against fixture
 // transcripts and a per-test temp scratchpad — see docs/testing.md: execFile is never mocked,
 // so the argument-building and guard logic here can only be proven by actually running it.
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
@@ -30,7 +30,7 @@ const HOOKS_JSON = join(
   '..',
   '..',
   'plugins',
-  'garden',
+  'garden-claude',
   'hooks',
   'hooks.json',
 );
@@ -48,7 +48,7 @@ function warnEvents(): string[] {
     .map(([event]) => event);
 }
 
-describe('plugins/garden/hooks/scripts/warn.sh', () => {
+describe('plugins/garden-claude/hooks/scripts/warn.sh', () => {
   afterEach(() => {
     cleanupTempDirs();
   });

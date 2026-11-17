@@ -3,11 +3,11 @@
   "owner": {
     "name": "phil510"
   },
-  "description": "Plugins for garden, a local web console for running many Claude Code sessions across many repos and worktrees.",
+  "description": "Separate Claude Code and Codex plugins for garden, a local console for agent sessions.",
   "plugins": [
     {
-      "name": "garden",
-      "source": "./plugins/garden"
+      "name": "garden-claude",
+      "source": "./plugins/garden-claude"
     },
     {
       "name": "garden-codex",

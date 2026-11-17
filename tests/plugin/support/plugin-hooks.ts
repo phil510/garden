@@ -1,5 +1,5 @@
 // Shared fixture helpers for exercising the garden plugin's compaction-status hooks
-// (plugins/garden/hooks/scripts/{warn,recover}.sh) as real subprocesses — per docs/testing.md,
+// (plugins/garden-claude/hooks/scripts/{warn,recover}.sh) as real subprocesses — per docs/testing.md,
 // execFile is never mocked, so the only way to prove these scripts' behaviour is to run them.
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -8,22 +8,35 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
-const HOOKS_SCRIPTS_DIR = join(REPO_ROOT, 'plugins', 'garden', 'hooks', 'scripts');
+const HOOKS_SCRIPTS_DIR = join(REPO_ROOT, 'plugins', 'garden-claude', 'hooks', 'scripts');
 
 export const WARN_SH = join(HOOKS_SCRIPTS_DIR, 'warn.sh');
-export const EVENTS_MONITOR_SH = join(REPO_ROOT, 'plugins', 'garden', 'monitors', 'events.sh');
+export const EVENTS_MONITOR_SH = join(
+  REPO_ROOT,
+  'plugins',
+  'garden-claude',
+  'monitors',
+  'events.sh',
+);
 export const RECOVER_SH = join(HOOKS_SCRIPTS_DIR, 'recover.sh');
 export const CONTEXT_TOKENS_SH = join(
   REPO_ROOT,
   'plugins',
-  'garden',
+  'garden-claude',
   'skills',
   'orchestrate-sessions',
   'scripts',
   'context_tokens.sh',
 );
 
-const SHIP_IT_SCRIPTS_DIR = join(REPO_ROOT, 'plugins', 'garden', 'skills', 'ship-it', 'scripts');
+const SHIP_IT_SCRIPTS_DIR = join(
+  REPO_ROOT,
+  'plugins',
+  'garden-claude',
+  'skills',
+  'ship-it',
+  'scripts',
+);
 
 export const PIPELINE_INIT_SH = join(SHIP_IT_SCRIPTS_DIR, 'pipeline-init.sh');
 export const PIPELINE_STATUS_SH = join(SHIP_IT_SCRIPTS_DIR, 'pipeline-status.sh');
@@ -40,7 +53,7 @@ export function tempScratchpad(): string {
 }
 
 /** Env var name the scripts check to override their default `/private/tmp` glob root — see
- * plugins/garden/hooks/scripts/{warn,recover}.sh. */
+ * plugins/garden-claude/hooks/scripts/{warn,recover}.sh. */
 export const GLOB_ROOT_ENV = 'GARDEN_HOOKS_GLOB_ROOT';
 
 /** A hermetic stand-in for the scripts' default `/private/tmp` glob root, so the glob-fallback

@@ -1,1 +1,10 @@
 pnpm-lock.yaml
+
+# Preserve the vendored upstream toolkit bytes, including registered Claude agent copies.
+plugins/*/vendor/pr-review-toolkit/
+plugins/garden-claude/agents/code-reviewer.md
+plugins/garden-claude/agents/silent-failure-hunter.md
+plugins/garden-claude/agents/code-simplifier.md
+plugins/garden-claude/agents/comment-analyzer.md
+plugins/garden-claude/agents/pr-test-analyzer.md
+plugins/garden-claude/agents/type-design-analyzer.md

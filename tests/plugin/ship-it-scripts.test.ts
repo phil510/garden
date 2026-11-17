@@ -1,4 +1,4 @@
-// Exercises the ship-it pipeline scripts (plugins/garden/skills/ship-it/scripts/) as real
+// Exercises the ship-it pipeline scripts (plugins/garden-claude/skills/ship-it/scripts/) as real
 // subprocesses against temp git repos — see docs/testing.md for why execFile is never mocked.
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';

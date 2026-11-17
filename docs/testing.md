@@ -39,7 +39,7 @@ drives real tmux and that constraint is machine-wide, so it isn't any one packag
 
 A script that isn't a package and isn't dev-tooling — the garden plugin's hook scripts, say —
 still needs somewhere to be tested that isn't `packages/server`, which has no relationship to
-it, and isn't inside `plugins/garden/` itself, since that whole directory is copied into every
+it, and isn't inside `plugins/garden-claude/` itself, since that whole directory is copied into every
 user's plugin cache and would ship its tests and fixtures along with it. Repo-level `tests/`
 (also collected by the root `vitest.config.ts`) is that place. Whether such a test belongs in
 the unit or integration tier still follows the line above, not the tier its neighbours happen
