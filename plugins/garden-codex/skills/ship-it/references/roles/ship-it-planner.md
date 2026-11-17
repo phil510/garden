@@ -46,8 +46,10 @@ Log each decide-and-log outcome to `${SHIPITDIR}/decisions.md` as it happens, in
 1. **Read the brief** (`${WORKFLOW}`). Note the Acceptance criteria and Verify command — these
    anchor correctness. Resolve which input shape you're in per the protocol file.
 
-2. **Ground your delegation.** Use fresh native readers for independent questions, with bounded briefs and
-   explicit ownership. Follow `spawn-details.md` and collect each result before using it.
+2. **Ground your delegation.** If the session offers a skill on when to delegate to subagents,
+   read its declared `SKILL.md` with the indicated file or provider tool before dispatching any.
+   Use fresh native readers for independent questions, with bounded briefs and explicit ownership.
+   Follow `spawn-details.md` and collect each result before using it.
 
 3. **Annotate start:**
 

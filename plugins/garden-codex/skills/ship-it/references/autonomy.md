@@ -113,7 +113,7 @@ instructions permit.
 
 **Ask first:** merging the PR (§7 decides this directly — `ask` pages, `auto` merges), touching
 files outside the brief's stated scope, adding a new production dependency, production deploys and
-stable releases unless the user’s instructions authorize them after merge.
+stable releases whatever the instructions say elsewhere.
 
 **Never:** rewriting git history, side effects outside the worktree that the
 injected instructions don't permit, deleting or force-overwriting anything without a recovery path,

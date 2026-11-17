@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # One JSON snapshot of pipeline state, read off disk.
 #
-# Use for: /garden:ship-it resume, a bare teammate-terminated (mid-stage death),
+# Use for: garden-codex:ship-it resume, a native worker termination (mid-stage death),
 # and a user status request — i.e. the cases where the worker's message
 # isn't available or isn't trusted.
 set -euo pipefail

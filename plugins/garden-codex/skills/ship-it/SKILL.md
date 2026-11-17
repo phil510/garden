@@ -20,7 +20,7 @@ Each reads its bundled role prompt in a fresh context and reports back with one 
 of this file fixes every name, path, opener variable and report shape they share; when a reference
 or a worker definition seems to disagree with it, the Contract wins.
 
-Set `SKILLDIR` from the base directory announced when this skill loaded, before anything else —
+Set `SKILLDIR` to the directory containing this skill's declared `SKILL.md`, before anything else —
 every script and reference path below is built from it.
 
 ## Invariants
@@ -438,8 +438,8 @@ changing every reader.
 
 ### Paths
 
-- **`${SKILLDIR}`** is this skill's base directory — the directory announced when the skill
-  loaded. Every path into the skill is built from it: scripts are `${SKILLDIR}/scripts/pipeline-*.sh`,
+- **`${SKILLDIR}`** is the directory containing this skill's declared `SKILL.md`. Every path into
+  the skill is built from it: scripts are `${SKILLDIR}/scripts/pipeline-*.sh`,
   references `${SKILLDIR}/references/<name>.md`. The working directory is the project, so a bare
   `scripts/…` or `references/…` either fails or hits a file the project ships.
 - **Every worker reads `${SKILLDIR}/references/worker-protocol.md` first**, then its own role

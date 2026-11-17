@@ -77,7 +77,9 @@ without a working environment.
    picks up where the last worker left off. If you instead wake from an escalation you sent, you
    already hold that context: read the Resolution block (authoritative over the message that woke
    you), apply it, and continue — don't re-run these steps.
-3. Use native subagents with bounded briefs and explicit ownership per `spawn-details.md`.
+3. If the session offers a skill on when to delegate to subagents, read its declared `SKILL.md`
+   with the indicated file or provider tool. Use native subagents with bounded briefs and explicit
+   ownership per `spawn-details.md`.
 4. Flip `- [ ]` → `- [x]` on success in the same atomic write as your final `> NOTE`, then signal
    and stop. **Never flip stage 3** — that's the reviewer's job, on a clean round only.
 

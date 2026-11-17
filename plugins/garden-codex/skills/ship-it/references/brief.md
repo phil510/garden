@@ -92,7 +92,7 @@ final `> NOTE`, so nobody sees a completed stage without its annotation. Annotat
 
 When a user resolution changes scope:
 
-1. Edit the brief field in place with the `Edit` tool.
+1. Edit the brief field in place with the available file-edit operation.
 2. Append an audit annotation, flat at the end of `## Annotations`:
    ```
    > RESOLVED <iso> — orchestrator: edited AC3 per user decision in escalation <iso>;

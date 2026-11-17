@@ -126,8 +126,8 @@ and the user decides whether a fix round runs at all.
      added a mechanism needs the second question asked. Brief it to report findings and change
      nothing on disk — a simplifier assumes it may edit, and you may not.
    - **Slot 3 — one specialist, for the claim step 2's tracing left least settled.** Pick whichever
-     names the actual blind spot in a sentence: from pr-review-toolkit, `pr-test-analyzer` (test
-     files changed), `silent-failure-hunter` (error handling changed), `type-design-analyzer`
+     names the actual blind spot in a sentence: from the bundled toolkit, `pr-test-analyzer.md` (test
+     files changed), `silent-failure-hunter.md` (error handling changed), `type-design-analyzer.md`
      (types added or modified); or a persona agent the session offers for that blind spot —
      assumptions the others take as given, correctness and invariants, data models and migrations,
      test strategy, system boundaries, prose clarity, the right mental model. Leave the slot empty
