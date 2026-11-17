@@ -1,41 +1,41 @@
 // Exercises plugins/garden-claude/hooks/scripts/recover.sh as a real subprocess — see
-// plugin-hooks-warn.test.ts and docs/testing.md for why these run as subprocesses rather than
+// claude-compaction-warn.test.ts and docs/testing.md for why these run as subprocesses rather than
 // through a mocked execFile.
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { cleanupTempDirs } from './support/temp-directories.js';
 import {
-  cleanupTempDirs,
   GLOB_ROOT_ENV,
   markerExists,
   markerPath,
   parseHookOutput,
   pathWithoutJq,
   RECOVER_SH,
-  runScript,
+  runClaudeHook,
   statusFilePath,
   tempGlobRoot,
-  tempScratchpad,
-  usageLine,
+  tempClaudeDir,
+  claudeUsageLine,
   WARN_SH,
-  writeTranscript,
-} from './support/plugin-hooks.js';
+  writeClaudeTranscript,
+} from './support/claude-plugin.js';
 
 function runRecover(input: Record<string, unknown>, envOverrides: NodeJS.ProcessEnv = {}) {
-  return runScript(RECOVER_SH, input, envOverrides);
+  return runClaudeHook(RECOVER_SH, input, envOverrides);
 }
 
 function runWarn(input: Record<string, unknown>) {
-  return runScript(WARN_SH, { hook_event_name: 'PostToolUse', ...input });
+  return runClaudeHook(WARN_SH, { hook_event_name: 'PostToolUse', ...input });
 }
 
-describe('plugins/garden-claude/hooks/scripts/recover.sh', () => {
+describe('Claude compaction recovery hook', () => {
   afterEach(() => {
     cleanupTempDirs();
   });
 
   it('prints the fallback pointer and verify-before-acting guidance when no status file exists', () => {
-    const scratchpad = tempScratchpad();
+    const scratchpad = tempClaudeDir();
 
     const result = runRecover({ session_id: 's-no-status', scratchpad_dir: scratchpad });
 
@@ -47,7 +47,7 @@ describe('plugins/garden-claude/hooks/scripts/recover.sh', () => {
   });
 
   it('points at the status file with read-first guidance and does not print its content', () => {
-    const scratchpad = tempScratchpad();
+    const scratchpad = tempClaudeDir();
     writeFileSync(statusFilePath(scratchpad), 'Goal: ship the hooks\nNext step: open the PR\n');
 
     const result = runRecover({ session_id: 's-with-status', scratchpad_dir: scratchpad });
@@ -64,7 +64,7 @@ describe('plugins/garden-claude/hooks/scripts/recover.sh', () => {
   });
 
   it('deletes the marker when a status file was found', () => {
-    const scratchpad = tempScratchpad();
+    const scratchpad = tempClaudeDir();
     writeFileSync(markerPath(scratchpad), '');
     writeFileSync(statusFilePath(scratchpad), 'Goal: test marker reset\n');
 
@@ -74,7 +74,7 @@ describe('plugins/garden-claude/hooks/scripts/recover.sh', () => {
   });
 
   it('deletes the marker when no status file was found', () => {
-    const scratchpad = tempScratchpad();
+    const scratchpad = tempClaudeDir();
     writeFileSync(markerPath(scratchpad), '');
 
     runRecover({ session_id: 's-marker-not-found', scratchpad_dir: scratchpad });
@@ -83,7 +83,7 @@ describe('plugins/garden-claude/hooks/scripts/recover.sh', () => {
   });
 
   it('exits 0 silently when jq is not installed', () => {
-    const scratchpad = tempScratchpad();
+    const scratchpad = tempClaudeDir();
     writeFileSync(statusFilePath(scratchpad), 'Goal: test jq guard\n');
     const binDir = pathWithoutJq();
 
@@ -104,7 +104,7 @@ describe('plugins/garden-claude/hooks/scripts/recover.sh', () => {
   });
 
   it('falls back to globbing <root>/claude-*/*/<session_id>/scratchpad when scratchpad_dir is absent', () => {
-    // Mirrors plugin-hooks-warn.test.ts's positive glob-fallback test: recover.sh carries its
+    // Mirrors claude-compaction-warn.test.ts's positive glob-fallback test: recover.sh carries its
     // own byte-for-byte copy of the same resolution logic, and every other test in this file
     // passes scratchpad_dir explicitly, so only this test proves recover.sh's copy actually
     // resolves a real directory rather than just handling the "no match" case.
@@ -129,8 +129,8 @@ describe('plugins/garden-claude/hooks/scripts/recover.sh', () => {
   });
 
   it('re-arms the warning: a warn.sh call after recover.sh has cleared the marker warns again', () => {
-    const scratchpad = tempScratchpad();
-    const transcript = writeTranscript(scratchpad, [usageLine(200000)]);
+    const scratchpad = tempClaudeDir();
+    const transcript = writeClaudeTranscript(scratchpad, [claudeUsageLine(200000)]);
     const input = {
       session_id: 's-rearm',
       transcript_path: transcript,

@@ -5,24 +5,24 @@ import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
+import { cleanupTempDirs } from './support/temp-directories.js';
 import {
-  cleanupTempDirs,
-  compactBoundaryLine,
+  claudeCompactionBoundaryLine,
   fillerLines,
   GLOB_ROOT_ENV,
   markerExists,
   parseHookOutput,
   pathWithoutJq,
-  runScript,
+  runClaudeHook,
   tempGlobRoot,
-  tempScratchpad,
-  usageLine,
+  tempClaudeDir,
+  claudeUsageLine,
   WARN_SH,
-  writeTranscript,
-} from './support/plugin-hooks.js';
+  writeClaudeTranscript,
+} from './support/claude-plugin.js';
 
 function runWarn(input: Record<string, unknown>, envOverrides: NodeJS.ProcessEnv = {}) {
-  return runScript(WARN_SH, { hook_event_name: 'PostToolUse', ...input }, envOverrides);
+  return runClaudeHook(WARN_SH, { hook_event_name: 'PostToolUse', ...input }, envOverrides);
 }
 
 const HOOKS_JSON = join(
@@ -48,14 +48,14 @@ function warnEvents(): string[] {
     .map(([event]) => event);
 }
 
-describe('plugins/garden-claude/hooks/scripts/warn.sh', () => {
+describe('Claude compaction warning hook', () => {
   afterEach(() => {
     cleanupTempDirs();
   });
 
   it('emits nothing below 175K, and leaves the marker untouched', () => {
-    const scratchpad = tempScratchpad();
-    const transcript = writeTranscript(scratchpad, [usageLine(174999)]);
+    const scratchpad = tempClaudeDir();
+    const transcript = writeClaudeTranscript(scratchpad, [claudeUsageLine(174999)]);
 
     const result = runWarn({
       session_id: 's-below',
@@ -69,8 +69,8 @@ describe('plugins/garden-claude/hooks/scripts/warn.sh', () => {
   });
 
   it('emits the reminder once at 175K, then suppresses later calls in the same cycle', () => {
-    const scratchpad = tempScratchpad();
-    const transcript = writeTranscript(scratchpad, [usageLine(175000)]);
+    const scratchpad = tempClaudeDir();
+    const transcript = writeClaudeTranscript(scratchpad, [claudeUsageLine(175000)]);
     const input = { session_id: 's-at', transcript_path: transcript, scratchpad_dir: scratchpad };
 
     const first = runWarn(input);
@@ -86,8 +86,8 @@ describe('plugins/garden-claude/hooks/scripts/warn.sh', () => {
   });
 
   it('emits nothing and leaves the marker untouched when the input carries agent_id, even past 175K', () => {
-    const scratchpad = tempScratchpad();
-    const transcript = writeTranscript(scratchpad, [usageLine(200000)]);
+    const scratchpad = tempClaudeDir();
+    const transcript = writeClaudeTranscript(scratchpad, [claudeUsageLine(200000)]);
 
     const result = runWarn({
       session_id: 's-subagent',
@@ -102,11 +102,14 @@ describe('plugins/garden-claude/hooks/scripts/warn.sh', () => {
   });
 
   it('still finds the matching line when it falls outside a naively small tail window', () => {
-    const scratchpad = tempScratchpad();
+    const scratchpad = tempClaudeDir();
     // The matching assistant usage line comes first, followed by far more filler lines than
     // any reasonable bounded tail would cover — proving the retry-against-the-whole-file
     // fallback, not just the common case where the match sits near the end.
-    const transcript = writeTranscript(scratchpad, [usageLine(180000), ...fillerLines(200)]);
+    const transcript = writeClaudeTranscript(scratchpad, [
+      claudeUsageLine(180000),
+      ...fillerLines(200),
+    ]);
 
     const result = runWarn({
       session_id: 's-window',
@@ -123,8 +126,11 @@ describe('plugins/garden-claude/hooks/scripts/warn.sh', () => {
     // Early line is below threshold, later line is above it. Summing the two lines (210000)
     // or taking the first (20000) would both disagree with taking the last (190000) — this
     // is the direction that rules out "first line wins".
-    const scratchpad = tempScratchpad();
-    const transcript = writeTranscript(scratchpad, [usageLine(20000), usageLine(190000)]);
+    const scratchpad = tempClaudeDir();
+    const transcript = writeClaudeTranscript(scratchpad, [
+      claudeUsageLine(20000),
+      claudeUsageLine(190000),
+    ]);
 
     const result = runWarn({
       session_id: 's-last-not-first',
@@ -141,8 +147,11 @@ describe('plugins/garden-claude/hooks/scripts/warn.sh', () => {
     // Early line is above threshold, later line is below it. Summing the two lines (210000)
     // would fire; taking the first (190000) would also fire; only taking the last (20000)
     // stays quiet — this is the direction that rules out "sum of all lines".
-    const scratchpad = tempScratchpad();
-    const transcript = writeTranscript(scratchpad, [usageLine(190000), usageLine(20000)]);
+    const scratchpad = tempClaudeDir();
+    const transcript = writeClaudeTranscript(scratchpad, [
+      claudeUsageLine(190000),
+      claudeUsageLine(20000),
+    ]);
 
     const result = runWarn({
       session_id: 's-last-not-sum',
@@ -156,8 +165,8 @@ describe('plugins/garden-claude/hooks/scripts/warn.sh', () => {
   });
 
   it('exits 0 silently when jq is not installed', () => {
-    const scratchpad = tempScratchpad();
-    const transcript = writeTranscript(scratchpad, [usageLine(200000)]);
+    const scratchpad = tempClaudeDir();
+    const transcript = writeClaudeTranscript(scratchpad, [claudeUsageLine(200000)]);
     const binDir = pathWithoutJq();
 
     const result = runWarn(
@@ -171,7 +180,7 @@ describe('plugins/garden-claude/hooks/scripts/warn.sh', () => {
   });
 
   it('exits 0 silently when the transcript is unreadable', () => {
-    const scratchpad = tempScratchpad();
+    const scratchpad = tempClaudeDir();
 
     const result = runWarn({
       session_id: 's-bad-transcript',
@@ -185,7 +194,7 @@ describe('plugins/garden-claude/hooks/scripts/warn.sh', () => {
   });
 
   it('exits 0 silently when no scratchpad directory matches', () => {
-    const transcript = writeTranscript(tempScratchpad(), [usageLine(200000)]);
+    const transcript = writeClaudeTranscript(tempClaudeDir(), [claudeUsageLine(200000)]);
 
     const result = runWarn({
       session_id: 'totally-unknown-session-id-does-not-exist',
@@ -212,7 +221,7 @@ describe('plugins/garden-claude/hooks/scripts/warn.sh', () => {
       'scratchpad',
     );
     mkdirSync(scratchpad, { recursive: true });
-    const transcript = writeTranscript(scratchpad, [usageLine(200000)]);
+    const transcript = writeClaudeTranscript(scratchpad, [claudeUsageLine(200000)]);
 
     const result = runWarn(
       { session_id: sessionId, transcript_path: transcript },
@@ -229,8 +238,8 @@ describe('plugins/garden-claude/hooks/scripts/warn.sh', () => {
   });
 
   it.each(warnEvents())('delivers the warning on %s, echoing the event name', (event) => {
-    const scratchpad = tempScratchpad();
-    const transcript = writeTranscript(scratchpad, [usageLine(180000)]);
+    const scratchpad = tempClaudeDir();
+    const transcript = writeClaudeTranscript(scratchpad, [claudeUsageLine(180000)]);
 
     const result = runWarn({
       hook_event_name: event,
@@ -245,8 +254,8 @@ describe('plugins/garden-claude/hooks/scripts/warn.sh', () => {
   });
 
   it('warns once per cycle across events', () => {
-    const scratchpad = tempScratchpad();
-    const transcript = writeTranscript(scratchpad, [usageLine(180000)]);
+    const scratchpad = tempClaudeDir();
+    const transcript = writeClaudeTranscript(scratchpad, [claudeUsageLine(180000)]);
     const input = {
       session_id: 's-cross',
       transcript_path: transcript,
@@ -263,8 +272,8 @@ describe('plugins/garden-claude/hooks/scripts/warn.sh', () => {
   it.each([undefined, 'PreCompact'])(
     'exits 0 silently and leaves the marker untouched for hook_event_name %s',
     (event) => {
-      const scratchpad = tempScratchpad();
-      const transcript = writeTranscript(scratchpad, [usageLine(200000)]);
+      const scratchpad = tempClaudeDir();
+      const transcript = writeClaudeTranscript(scratchpad, [claudeUsageLine(200000)]);
 
       const result = runWarn({
         hook_event_name: event,
@@ -280,8 +289,11 @@ describe('plugins/garden-claude/hooks/scripts/warn.sh', () => {
   );
 
   it('stays quiet when a compact boundary follows the last usage line', () => {
-    const scratchpad = tempScratchpad();
-    const transcript = writeTranscript(scratchpad, [usageLine(190000), compactBoundaryLine()]);
+    const scratchpad = tempClaudeDir();
+    const transcript = writeClaudeTranscript(scratchpad, [
+      claudeUsageLine(190000),
+      claudeCompactionBoundaryLine(),
+    ]);
 
     const result = runWarn({
       hook_event_name: 'UserPromptSubmit',
@@ -296,11 +308,11 @@ describe('plugins/garden-claude/hooks/scripts/warn.sh', () => {
   });
 
   it('stays quiet on a boundary even when the last usage line is outside the tail window', () => {
-    const scratchpad = tempScratchpad();
-    const transcript = writeTranscript(scratchpad, [
-      usageLine(190000),
+    const scratchpad = tempClaudeDir();
+    const transcript = writeClaudeTranscript(scratchpad, [
+      claudeUsageLine(190000),
       ...fillerLines(200),
-      compactBoundaryLine(),
+      claudeCompactionBoundaryLine(),
     ]);
 
     const result = runWarn({
@@ -314,8 +326,11 @@ describe('plugins/garden-claude/hooks/scripts/warn.sh', () => {
   });
 
   it('warns on a usage line past 175K that comes after a compact boundary', () => {
-    const scratchpad = tempScratchpad();
-    const transcript = writeTranscript(scratchpad, [compactBoundaryLine(), usageLine(180000)]);
+    const scratchpad = tempClaudeDir();
+    const transcript = writeClaudeTranscript(scratchpad, [
+      claudeCompactionBoundaryLine(),
+      claudeUsageLine(180000),
+    ]);
 
     const result = runWarn({
       session_id: 's-after-boundary',
@@ -328,8 +343,8 @@ describe('plugins/garden-claude/hooks/scripts/warn.sh', () => {
   });
 
   it('asks the agent to record skills in the status file', () => {
-    const scratchpad = tempScratchpad();
-    const transcript = writeTranscript(scratchpad, [usageLine(180000)]);
+    const scratchpad = tempClaudeDir();
+    const transcript = writeClaudeTranscript(scratchpad, [claudeUsageLine(180000)]);
 
     const result = runWarn({
       session_id: 's-skills',

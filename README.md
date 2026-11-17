@@ -1,6 +1,6 @@
 # garden
 
-A local web console for running many Claude Code sessions at once across many repos and worktrees. tmux owns the Claude Code processes; garden is a viewport and control surface over them, so closing garden or restarting its server never touches a running session.
+A local web console for running many Claude Code or Codex sessions at once across many repos and worktrees. Each instance runs one harness. tmux owns its processes; garden is a viewport and control surface over them, so closing garden or restarting its server never touches a running session.
 
 ## Packages
 

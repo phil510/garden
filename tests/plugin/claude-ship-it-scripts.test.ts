@@ -4,13 +4,12 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { cleanupTempDirs, tempDirectory } from './support/temp-directories.js';
 import {
-  cleanupTempDirs,
   PIPELINE_FINISH_SH,
   PIPELINE_INIT_SH,
   PIPELINE_STATUS_SH,
-  tempScratchpad,
-} from './support/plugin-hooks.js';
+} from './support/claude-plugin.js';
 
 interface RunResult {
   code: number;
@@ -43,7 +42,7 @@ function gitEnv(): NodeJS.ProcessEnv {
 }
 
 function tempRepo(): string {
-  const dir = tempScratchpad();
+  const dir = tempDirectory('garden-claude-ship-it-test-');
   execFileSync('git', ['init', '-q', dir], { env: gitEnv() });
   return dir;
 }
@@ -88,7 +87,7 @@ function finish(worktree: string, branch: string) {
   };
 }
 
-describe('ship-it pipeline-init.sh', () => {
+describe('Claude ship-it pipeline-init.sh', () => {
   afterEach(() => {
     cleanupTempDirs();
   });
@@ -132,7 +131,7 @@ describe('ship-it pipeline-init.sh', () => {
   });
 });
 
-describe('ship-it pipeline-status.sh review_loop.outcome', () => {
+describe('Claude ship-it pipeline-status.sh review_loop.outcome', () => {
   afterEach(() => {
     cleanupTempDirs();
   });
@@ -182,7 +181,7 @@ describe('ship-it pipeline-status.sh review_loop.outcome', () => {
   });
 });
 
-describe('ship-it pipeline-status.sh JSON', () => {
+describe('Claude ship-it pipeline-status.sh JSON', () => {
   afterEach(() => {
     cleanupTempDirs();
   });
@@ -200,7 +199,7 @@ describe('ship-it pipeline-status.sh JSON', () => {
   });
 });
 
-describe('ship-it pipeline-finish.sh', () => {
+describe('Claude ship-it pipeline-finish.sh', () => {
   afterEach(() => {
     cleanupTempDirs();
   });

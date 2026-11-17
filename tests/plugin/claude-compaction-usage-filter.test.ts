@@ -5,35 +5,38 @@
 // that forked between the two scripts would disagree here without either one erroring.
 import { execFileSync, spawnSync } from 'node:child_process';
 import { afterEach, describe, expect, it } from 'vitest';
+import { cleanupTempDirs } from './support/temp-directories.js';
 import {
-  cleanupTempDirs,
-  compactBoundaryLine,
+  claudeCompactionBoundaryLine,
   CONTEXT_TOKENS_SH,
   fillerLines,
   markerExists,
   parseHookOutput,
-  runScript,
-  tempScratchpad,
-  usageLine,
+  runClaudeHook,
+  tempClaudeDir,
+  claudeUsageLine,
   WARN_SH,
-  writeTranscript,
-} from './support/plugin-hooks.js';
+  writeClaudeTranscript,
+} from './support/claude-plugin.js';
 
-describe('shared occupancy definition (warn.sh vs. context_tokens.sh)', () => {
+describe('Claude compaction shared occupancy definition (warn.sh vs. context_tokens.sh)', () => {
   afterEach(() => {
     cleanupTempDirs();
   });
 
   it('report the same token count for the same transcript', () => {
-    const scratchpad = tempScratchpad();
+    const scratchpad = tempClaudeDir();
     // Earlier line would read as 20000 or as a 210000 sum; only "last line wins" gives 190000,
     // so agreement on this exact number rules out either script silently reverting to those.
-    const transcript = writeTranscript(scratchpad, [usageLine(20000), usageLine(190000)]);
+    const transcript = writeClaudeTranscript(scratchpad, [
+      claudeUsageLine(20000),
+      claudeUsageLine(190000),
+    ]);
 
     const reported = execFileSync(CONTEXT_TOKENS_SH, [transcript], { encoding: 'utf8' }).trim();
     expect(reported).toBe('190000');
 
-    const warned = runScript(WARN_SH, {
+    const warned = runClaudeHook(WARN_SH, {
       hook_event_name: 'PostToolUse',
       session_id: 's-shared-filter',
       transcript_path: transcript,
@@ -44,13 +47,13 @@ describe('shared occupancy definition (warn.sh vs. context_tokens.sh)', () => {
   });
 });
 
-describe('usage filter compaction boundary (via context_tokens.sh)', () => {
+describe('Claude compaction usage filter boundary (via context_tokens.sh)', () => {
   afterEach(() => {
     cleanupTempDirs();
   });
 
   function contextTokens(lines: string[]) {
-    const transcript = writeTranscript(tempScratchpad(), lines);
+    const transcript = writeClaudeTranscript(tempClaudeDir(), lines);
     const result = spawnSync(CONTEXT_TOKENS_SH, [transcript], { encoding: 'utf8', stdio: 'pipe' });
     return { ...result, transcript };
   }
@@ -63,11 +66,11 @@ describe('usage filter compaction boundary (via context_tokens.sh)', () => {
   }
 
   it('reports the only usage line in the transcript', () => {
-    expect(contextTokens([usageLine(42000)]).stdout.trim()).toBe('42000');
+    expect(contextTokens([claudeUsageLine(42000)]).stdout.trim()).toBe('42000');
   });
 
   it('reports no usage yet when the last usage precedes the compact boundary', () => {
-    expectNoUsageYet([usageLine(190000), compactBoundaryLine()]);
+    expectNoUsageYet([claudeUsageLine(190000), claudeCompactionBoundaryLine()]);
   });
 
   it('reports the same no-usage-yet result as a transcript with no usage at all', () => {
@@ -76,15 +79,19 @@ describe('usage filter compaction boundary (via context_tokens.sh)', () => {
 
   it('reports usage recorded after the compact boundary', () => {
     expect(
-      contextTokens([usageLine(190000), compactBoundaryLine(), usageLine(30000)]).stdout.trim(),
+      contextTokens([
+        claudeUsageLine(190000),
+        claudeCompactionBoundaryLine(),
+        claudeUsageLine(30000),
+      ]).stdout.trim(),
     ).toBe('30000');
   });
 
   it('keeps post-boundary usage when non-usage lines follow it', () => {
     const { stdout } = contextTokens([
-      usageLine(190000),
-      compactBoundaryLine(),
-      usageLine(30000),
+      claudeUsageLine(190000),
+      claudeCompactionBoundaryLine(),
+      claudeUsageLine(30000),
       ...fillerLines(3),
     ]);
     expect(stdout.trim()).toBe('30000');
@@ -92,10 +99,10 @@ describe('usage filter compaction boundary (via context_tokens.sh)', () => {
 
   it('counts only the latest of several compact boundaries', () => {
     expectNoUsageYet([
-      usageLine(190000),
-      compactBoundaryLine(),
-      usageLine(30000),
-      compactBoundaryLine(),
+      claudeUsageLine(190000),
+      claudeCompactionBoundaryLine(),
+      claudeUsageLine(30000),
+      claudeCompactionBoundaryLine(),
     ]);
   });
 });

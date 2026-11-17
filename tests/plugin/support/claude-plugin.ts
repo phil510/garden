@@ -1,11 +1,10 @@
-// Shared fixture helpers for exercising the garden plugin's compaction-status hooks
-// (plugins/garden-claude/hooks/scripts/{warn,recover}.sh) as real subprocesses — per docs/testing.md,
-// execFile is never mocked, so the only way to prove these scripts' behaviour is to run them.
+// Fixtures for the Claude plugin's hooks, monitor and ship-it scripts.
+// Run real subprocesses against isolated files, per docs/testing.md.
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { tempDirectory } from './temp-directories.js';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const HOOKS_SCRIPTS_DIR = join(REPO_ROOT, 'plugins', 'garden-claude', 'hooks', 'scripts');
@@ -42,14 +41,8 @@ export const PIPELINE_INIT_SH = join(SHIP_IT_SCRIPTS_DIR, 'pipeline-init.sh');
 export const PIPELINE_STATUS_SH = join(SHIP_IT_SCRIPTS_DIR, 'pipeline-status.sh');
 export const PIPELINE_FINISH_SH = join(SHIP_IT_SCRIPTS_DIR, 'pipeline-finish.sh');
 
-/** Tracks every temp dir a test created, so a single `cleanupTempDirs()` in `afterEach` tears
- * them all down whether the test passed or not — never left for the next run to inherit. */
-const tempDirs: string[] = [];
-
-export function tempScratchpad(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'garden-hooks-test-'));
-  tempDirs.push(dir);
-  return dir;
+export function tempClaudeDir(): string {
+  return tempDirectory('garden-claude-plugin-test-');
 }
 
 /** Env var name the scripts check to override their default `/private/tmp` glob root — see
@@ -60,20 +53,11 @@ export const GLOB_ROOT_ENV = 'GARDEN_HOOKS_GLOB_ROOT';
  * tests don't need to write under the real system tmp root — which a non-macOS CI runner may
  * not permit. Auto-cleaned via cleanupTempDirs(). */
 export function tempGlobRoot(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'garden-hooks-test-root-'));
-  tempDirs.push(dir);
-  return dir;
-}
-
-export function cleanupTempDirs(): void {
-  while (tempDirs.length > 0) {
-    const dir = tempDirs.pop();
-    if (dir) rmSync(dir, { recursive: true, force: true });
-  }
+  return tempDirectory('garden-claude-plugin-test-root-');
 }
 
 /** One synthetic assistant transcript line carrying the given total token usage. */
-export function usageLine(tokens: number): string {
+export function claudeUsageLine(tokens: number): string {
   return (
     JSON.stringify({
       type: 'assistant',
@@ -84,7 +68,7 @@ export function usageLine(tokens: number): string {
 
 /** The system line Claude Code appends when compaction completes; no usage line follows until
  * the model's next reply. */
-export function compactBoundaryLine(): string {
+export function claudeCompactionBoundaryLine(): string {
   return JSON.stringify({ type: 'system', subtype: 'compact_boundary' }) + '\n';
 }
 
@@ -93,7 +77,7 @@ function fillerLine(): string {
   return JSON.stringify({ type: 'user', message: { content: 'filler' } }) + '\n';
 }
 
-export function writeTranscript(dir: string, lines: string[]): string {
+export function writeClaudeTranscript(dir: string, lines: string[]): string {
   const path = join(dir, 'transcript.jsonl');
   writeFileSync(path, lines.join(''));
   return path;
@@ -123,7 +107,7 @@ export function parseHookOutput(stdout: string): WarnHookOutput {
 /** Runs a hook script directly (as Claude Code itself would, via the command string in
  * hooks.json) with the given JSON piped to stdin. `process.env` is the base — the script's own
  * `jq`/`bash`/coreutils resolve by name and need PATH — with `envOverrides` layered on top. */
-export function runScript(
+export function runClaudeHook(
   scriptPath: string,
   input: Record<string, unknown>,
   envOverrides: NodeJS.ProcessEnv = {},
@@ -145,8 +129,7 @@ export function runScript(
  * for the `#!/usr/bin/env bash` shebang to resolve, but with `jq` unreachable regardless of
  * where this machine actually installs it. */
 export function pathWithoutJq(): string {
-  const binDir = mkdtempSync(join(tmpdir(), 'garden-hooks-test-bin-'));
-  tempDirs.push(binDir);
+  const binDir = tempDirectory('garden-claude-plugin-test-bin-');
   const realBash = execFileSync('sh', ['-c', 'command -v bash'], { encoding: 'utf8' }).trim();
   execFileSync('ln', ['-s', realBash, join(binDir, 'bash')]);
   return binDir;

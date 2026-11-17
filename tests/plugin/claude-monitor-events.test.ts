@@ -4,7 +4,8 @@ import { spawn } from 'node:child_process';
 import { chmodSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanupTempDirs, EVENTS_MONITOR_SH, tempScratchpad } from './support/plugin-hooks.js';
+import { cleanupTempDirs } from './support/temp-directories.js';
+import { EVENTS_MONITOR_SH, tempClaudeDir } from './support/claude-plugin.js';
 
 function isAlive(pid: number): boolean {
   try {
@@ -34,14 +35,14 @@ function stubGarden(dir: string): string {
 
 const cleanups: Array<() => void> = [];
 
-describe('plugins/garden-claude/monitors/events.sh', () => {
+describe('Claude watch-digest monitor', () => {
   afterEach(() => {
     while (cleanups.length > 0) cleanups.pop()?.();
     cleanupTempDirs();
   });
 
   it('blocks silently without running garden outside a garden session, and ends when Claude does', async () => {
-    const dir = tempScratchpad();
+    const dir = tempClaudeDir();
     const record = stubGarden(dir);
     const claude = spawn('sleep', ['60']);
     cleanups.push(() => claude.kill());
@@ -68,7 +69,7 @@ describe('plugins/garden-claude/monitors/events.sh', () => {
   }, 20_000);
 
   it('execs garden events --follow with the session environment inside a garden session', async () => {
-    const dir = tempScratchpad();
+    const dir = tempClaudeDir();
     const record = stubGarden(dir);
     const env = { ...process.env, PATH: `${dir}:${process.env.PATH}`, GARDEN_SESSION_ID: 'sess-1' };
 
