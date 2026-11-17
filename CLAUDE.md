@@ -32,8 +32,8 @@ A concurrent sandbox needs its own port, tmux socket and app dir — see `docs/t
 - Use the `gh` CLI for issues and PRs. Issue templates live in `.github/ISSUE_TEMPLATE/`.
 - The plugins live in `plugins/garden-claude/` and `plugins/garden-codex/`. Read each package
   README for its manifest and update behavior, and `plugins/maintaining.md` for parity review.
-  Keep outer manifests versionless and marketplace entries without `description`; descriptions
-  belong in each plugin manifest.
+  Keep outer manifests versionless. Claude marketplace entries omit `description`; the native
+  Codex catalog includes it. Both plugin manifests retain their own descriptions.
 - A diff that reads fine can still render wrong, so a UI-visible change (anything that alters what
   the browser renders) carries before/after screenshots, captured with the `garden-sandbox` skill
   and listed in the PR's `## Visual evidence` section. A capture that can't be made is reported in

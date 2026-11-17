@@ -3,7 +3,8 @@
   "plugins": [
     {
       "name": "garden-codex",
-      "source": "./plugins/garden-codex"
+      "source": "./plugins/garden-codex",
+      "description": "Orchestrate Codex sessions, review pull requests, and monitor GitHub activity in Garden."
     }
   ]
 }
