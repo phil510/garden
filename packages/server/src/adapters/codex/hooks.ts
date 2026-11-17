@@ -1,4 +1,4 @@
-import type { HarnessSignal, ReportedStatus } from '../../domain/types.js';
+import type { HarnessSignal } from '../../domain/types.js';
 
 export interface CodexHook {
   session_id: string;
@@ -7,6 +7,7 @@ export interface CodexHook {
   hook_event_name: string;
   source?: string;
   _garden_order?: string;
+  _garden_generation?: string;
 }
 
 export function codexHook(body: unknown): CodexHook | null {
@@ -19,6 +20,9 @@ export function codexHook(body: unknown): CodexHook | null {
     (typeof value['transcript_path'] !== 'string' && value['transcript_path'] !== null) ||
     typeof value['hook_event_name'] !== 'string' ||
     (value['source'] !== undefined && typeof value['source'] !== 'string') ||
+    (value['_garden_generation'] !== undefined &&
+      (typeof value['_garden_generation'] !== 'string' ||
+        !/^[a-z0-9-]{1,128}$/i.test(value['_garden_generation']))) ||
     (value['_garden_order'] !== undefined &&
       (typeof value['_garden_order'] !== 'string' || !/^\d{1,30}$/.test(value['_garden_order'])))
   )
@@ -31,25 +35,10 @@ export function codexSignal(
   sessionId: string,
   conversationCleared = false,
 ): HarnessSignal {
-  let reported: ReportedStatus | undefined;
-  switch (hook.hook_event_name) {
-    case 'UserPromptSubmit':
-    case 'PreToolUse':
-    case 'PostToolUse':
-      reported = { status: 'working', reason: null };
-      break;
-    case 'PermissionRequest':
-      reported = { status: 'needs-approval', reason: null };
-      break;
-    case 'Stop':
-    case 'Interrupt':
-      reported = { status: 'waiting', reason: null };
-  }
   return {
     sessionId,
     cwd: hook.cwd,
     transcriptPath: hook.transcript_path,
-    ...(reported === undefined ? {} : { reported }),
     ended:
       hook.hook_event_name === 'SessionEnd'
         ? true

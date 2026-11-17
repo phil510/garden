@@ -18,6 +18,8 @@ import { isAbsolute, join, relative, sep } from 'node:path';
 import type { EffortLevel } from '@garden/shared';
 import type { PermissionMode } from '../../config.js';
 import { codexHook, codexSignal } from './hooks.js';
+import { codexLauncherCommand, readCodexEndpoint } from './launcher.js';
+import { observeNativeStatus } from './nativeStatus.js';
 import { parseCodexTranscript } from './transcript.js';
 import type { HarnessSignal, TranscriptRecord } from '../../domain/types.js';
 
@@ -28,6 +30,7 @@ interface Alias {
   codexId: string | null;
   transcriptPath: string | null;
   bindingOrder?: string;
+  backendGeneration?: string;
 }
 interface Launch {
   id: string;
@@ -101,6 +104,9 @@ export function createCodexHarness(options: Options) {
         (entry['codexId'] !== null && !validNativeId(entry['codexId'])) ||
         (entry['transcriptPath'] !== null && !validPath(entry['transcriptPath'])) ||
         (entry['codexId'] === null) !== (entry['transcriptPath'] === null) ||
+        (entry['backendGeneration'] !== undefined &&
+          (typeof entry['backendGeneration'] !== 'string' ||
+            !/^[a-z0-9-]{1,128}$/i.test(entry['backendGeneration']))) ||
         (entry['bindingOrder'] !== undefined &&
           (typeof entry['bindingOrder'] !== 'string' || !/^\d{1,30}$/.test(entry['bindingOrder'])))
       )
@@ -133,6 +139,8 @@ export function createCodexHarness(options: Options) {
     if (hook === null || gardenSessionId === undefined || !isAbsolute(hook.cwd)) return null;
     const prior = aliases[gardenSessionId];
     if (prior === undefined) return null;
+    const endpoint = readCodexEndpoint(options.appDir, gardenSessionId);
+    if (endpoint !== null && hook._garden_generation !== endpoint.generation) return null;
     if (hook.transcript_path !== null && !validPath(hook.transcript_path)) return null;
     let changedConversation = false;
     if (hook.hook_event_name === 'SessionStart') {
@@ -161,7 +169,8 @@ export function createCodexHarness(options: Options) {
         // Keep an identical binding's object identity: an idempotent resume does not invalidate a read.
         if (
           changed ||
-          (hook._garden_order !== undefined && hook._garden_order !== prior.bindingOrder)
+          (hook._garden_order !== undefined && hook._garden_order !== prior.bindingOrder) ||
+          hook._garden_generation !== prior.backendGeneration
         ) {
           save({
             ...aliases,
@@ -170,16 +179,15 @@ export function createCodexHarness(options: Options) {
               codexId: hook.session_id,
               transcriptPath: hook.transcript_path,
               ...(hook._garden_order === undefined ? {} : { bindingOrder: hook._garden_order }),
+              ...(hook._garden_generation === undefined
+                ? {}
+                : { backendGeneration: hook._garden_generation }),
             },
           });
         }
       }
     } else if (prior.codexId !== null && prior.codexId !== hook.session_id) return null;
     const signal = codexSignal(hook, gardenSessionId, changedConversation);
-    if (signal.reported !== undefined) {
-      const launch = launches.get(gardenSessionId);
-      if (launch !== undefined) launch.reported = true;
-    }
     if (changedConversation)
       generations.set(gardenSessionId, (generations.get(gardenSessionId) ?? 0) + 1);
     return {
@@ -194,7 +202,6 @@ export function createCodexHarness(options: Options) {
     if (request.effort === 'max')
       throw new Error('Codex supports effort through xhigh; choose xhigh instead of max');
     return [
-      '--dangerously-bypass-hook-trust',
       ...(request.permissionMode === 'bypassPermissions'
         ? ['--dangerously-bypass-approvals-and-sandbox']
         : []),
@@ -202,8 +209,17 @@ export function createCodexHarness(options: Options) {
       ...(request.effort === undefined
         ? []
         : ['-c', `model_reasoning_effort=${JSON.stringify(request.effort)}`]),
-      ...hookArguments,
     ];
+  }
+
+  function launchCommand(request: Launch, terminalCommand: readonly string[]) {
+    return codexLauncherCommand({
+      appDir: options.appDir,
+      id: request.id,
+      cwd: request.cwd,
+      backendCommand: [...readCommand(), 'app-server', ...hookArguments],
+      terminalCommand,
+    });
   }
 
   return {
@@ -226,21 +242,57 @@ export function createCodexHarness(options: Options) {
         },
         registrationStatus() {
           launches.delete(request.id);
-          return launch.reported ? undefined : { status: 'waiting' as const, reason: null };
+          return launch.reported
+            ? undefined
+            : {
+                status:
+                  aliases[request.id]?.codexId == null
+                    ? ('waiting' as const)
+                    : ('unknown' as const),
+                reason: null,
+              };
         },
       };
     },
     spawnCommand(request: Launch): readonly string[] {
-      return [...readCommand(), ...flags(request)];
+      return launchCommand(request, [...readCommand(), ...flags(request)]);
     },
     resumeCommand(request: Launch): readonly string[] {
       const alias = aliases[request.id];
       if (alias === undefined) throw new Error(`no Codex binding for ${request.id}`);
-      return alias.codexId === null
-        ? [...readCommand(), ...flags(request)]
-        : [...readCommand(), 'resume', ...flags(request), alias.codexId];
+      return launchCommand(
+        request,
+        alias.codexId === null
+          ? [...readCommand(), ...flags(request)]
+          : [...readCommand(), 'resume', ...flags(request), alias.codexId],
+      );
     },
     parseHook,
+    observeStatus(onSignal: (signal: HarnessSignal) => void) {
+      return observeNativeStatus({
+        appDir: options.appDir,
+        onSignal: (signal) => {
+          const launch = launches.get(signal.sessionId);
+          if (launch !== undefined) launch.reported = true;
+          onSignal(signal);
+        },
+        bindings: () =>
+          Object.entries(aliases).flatMap(([id, alias]) =>
+            alias.codexId === null || alias.transcriptPath === null
+              ? []
+              : [
+                  {
+                    id,
+                    cwd: alias.cwd,
+                    codexId: alias.codexId,
+                    transcriptPath: alias.transcriptPath,
+                    generation: generations.get(id) ?? 0,
+                    backendGeneration: alias.backendGeneration,
+                  },
+                ],
+          ),
+      });
+    },
     pendingSessions() {
       return Object.entries(aliases)
         .filter(([, alias]) => alias.codexId === null)
@@ -287,9 +339,17 @@ export function createCodexHarness(options: Options) {
       }
       try {
         const command = readCommand();
+        const endpoint = readCodexEndpoint(options.appDir, id);
         await execFileAsync(
           command[0]!,
-          [...command.slice(1), 'queue', '--thread', alias.codexId, `--message=${message}`],
+          [
+            ...command.slice(1),
+            'queue',
+            ...(endpoint === null ? [] : ['--remote', endpoint.endpoint]),
+            '--thread',
+            alias.codexId,
+            `--message=${message}`,
+          ],
           { timeout: 15_000, maxBuffer: 1024 * 1024 },
         );
       } catch (cause) {
@@ -361,6 +421,7 @@ process.stdin.on('data', chunk => { input += chunk; });
 process.stdin.on('end', () => {
   let payload;
   try { payload = JSON.parse(input); } catch { return; }
+  if (process.env.GARDEN_CODEX_GENERATION) payload._garden_generation = process.env.GARDEN_CODEX_GENERATION;
   payload._garden_order = Math.floor((performance.timeOrigin + performance.now()) * 1000).toString();
   const body = JSON.stringify(payload);
   let finished = false;

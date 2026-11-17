@@ -4,6 +4,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { createCodexHarness } from './index.js';
+import { codexEndpointPath } from './launcher.js';
+function launch(command: readonly string[]): {
+  terminalCommand: string[];
+  backendCommand: string[];
+} {
+  return JSON.parse(command[2]!) as { terminalCommand: string[]; backendCommand: string[] };
+}
 
 const nativeA = '01999999-aaaa-7777-bbbb-0123456789ab';
 const nativeB = '01999999-aaaa-7777-bbbb-0123456789ac';
@@ -47,7 +54,9 @@ describe('Codex lifecycle persistence', () => {
       rollback.rollback();
       expect(createCodexHarness(f.options).pendingSessions()).toEqual([]);
       harness.beforeLaunch({ id: 'garden', cwd: f.directory });
-      expect(harness.resumeCommand({ id: 'garden', cwd: f.directory })).not.toContain('resume');
+      expect(
+        launch(harness.resumeCommand({ id: 'garden', cwd: f.directory })).terminalCommand,
+      ).not.toContain('resume');
       harness.parseHook(f.hook(), 'garden');
       const cleared = harness.parseHook(
         f.hook({ session_id: nativeB, transcript_path: f.pathB, source: 'clear' }),
@@ -55,10 +64,59 @@ describe('Codex lifecycle persistence', () => {
       );
       expect(cleared?.conversationCleared).toBe(true);
       const restarted = createCodexHarness(f.options);
-      expect(restarted.resumeCommand({ id: 'garden', cwd: f.directory })).toEqual(
-        expect.arrayContaining(['resume', nativeB]),
-      );
+      expect(
+        launch(restarted.resumeCommand({ id: 'garden', cwd: f.directory })).terminalCommand,
+      ).toEqual(expect.arrayContaining(['resume', nativeB]));
       expect(restarted.pendingSessions()).toEqual([]);
+    } finally {
+      f.close();
+    }
+  });
+
+  it('binds only the current backend generation while tool hooks cannot overwrite native status', () => {
+    const f = fixture();
+    try {
+      const harness = createCodexHarness(f.options);
+      harness.beforeLaunch({ id: 'garden', cwd: f.directory });
+      mkdirSync(join(f.appDir, 'native-endpoints'), { recursive: true });
+      writeFileSync(
+        codexEndpointPath(f.appDir, 'garden'),
+        JSON.stringify({
+          version: 1,
+          generation: 'current',
+          endpoint: 'unix:///tmp/test.sock',
+          pid: process.pid,
+        }),
+      );
+      expect(harness.parseHook(f.hook({ _garden_generation: 'old' }), 'garden')).toBeNull();
+      expect(harness.parseHook(f.hook(), 'garden')).toBeNull();
+      expect(harness.pendingSessions()).toHaveLength(1);
+      expect(harness.parseHook(f.hook({ _garden_generation: 'current' }), 'garden')).not.toBeNull();
+      const persisted = JSON.parse(readFileSync(join(f.appDir, 'codex-aliases.json'), 'utf8')) as {
+        sessions: { garden: { backendGeneration: string } };
+      };
+      expect(persisted.sessions.garden.backendGeneration).toBe('current');
+      for (const event of [
+        'PermissionRequest',
+        'PreToolUse',
+        'PostToolUse',
+        'Stop',
+        'Interrupt',
+        'UserPromptSubmit',
+      ]) {
+        expect(
+          harness.parseHook(
+            f.hook({ _garden_generation: 'current', hook_event_name: event }),
+            'garden',
+          )?.reported,
+        ).toBeUndefined();
+      }
+      expect(
+        harness.parseHook(
+          f.hook({ _garden_generation: 'old', hook_event_name: 'SessionEnd' }),
+          'garden',
+        ),
+      ).toBeNull();
     } finally {
       f.close();
     }
@@ -123,7 +181,8 @@ describe('Codex lifecycle persistence', () => {
         )?.conversationCleared,
       ).toBe(false);
       expect(
-        createCodexHarness(f.options).resumeCommand({ id: 'garden', cwd: f.directory }),
+        launch(createCodexHarness(f.options).resumeCommand({ id: 'garden', cwd: f.directory }))
+          .terminalCommand,
       ).toContain(nativeB);
     } finally {
       f.close();
@@ -197,7 +256,7 @@ describe('actual generated Codex hook commands', () => {
     try {
       const harness = createCodexHarness(f.options);
       harness.beforeLaunch({ id: 'garden', cwd: f.directory });
-      const args = harness.spawnCommand({ id: 'garden', cwd: f.directory });
+      const args = launch(harness.spawnCommand({ id: 'garden', cwd: f.directory })).backendCommand;
       const overlay = args.find((arg) => arg.startsWith('hooks.SessionStart='))!;
       const command = JSON.parse(overlay.match(/command=(.*),timeout=/)![1]!) as string;
       const execute = (payload: unknown) =>
@@ -222,7 +281,9 @@ describe('actual generated Codex hook commands', () => {
       expect(restarted.replaySpool()).toHaveLength(1);
       expect(readdirSync(spool)).toEqual([]);
       expect(restarted.replaySpool()).toEqual([]);
-      expect(restarted.resumeCommand({ id: 'garden', cwd: f.directory })).toContain(nativeA);
+      expect(
+        launch(restarted.resumeCommand({ id: 'garden', cwd: f.directory })).terminalCommand,
+      ).toContain(nativeA);
       writeFileSync(join(spool, 'broken.jsonl'), '{broken');
       restarted.replaySpool();
       expect(readdirSync(spool)).toEqual(['broken.jsonl']);
@@ -254,12 +315,24 @@ describe('message delivery', () => {
       });
       expect(pending).toBe(true);
       harness.parseHook(f.hook(), 'garden');
+      mkdirSync(join(f.appDir, 'native-endpoints'), { recursive: true });
+      writeFileSync(
+        codexEndpointPath(f.appDir, 'garden'),
+        JSON.stringify({
+          version: 1,
+          generation: 'launch',
+          endpoint: 'unix:///tmp/test.sock',
+          pid: process.pid,
+        }),
+      );
       const message = "literal `touch nope` $(touch nope) ' \n Enter";
       await harness.sendMessage('garden', message, () =>
         Promise.reject(new Error('bound must queue')),
       );
       expect(JSON.parse(readFileSync(output, 'utf8'))).toEqual([
         'queue',
+        '--remote',
+        'unix:///tmp/test.sock',
         '--thread',
         nativeA,
         `--message=${message}`,
@@ -271,7 +344,7 @@ describe('message delivery', () => {
 });
 
 describe('launch status ordering', () => {
-  it('resets stale status on resume but preserves a hook observed during the new launch', () => {
+  it('keeps pending sessions waiting and bound resumes unknown despite hook activity', () => {
     const f = fixture();
     try {
       const harness = createCodexHarness(f.options);
@@ -281,10 +354,10 @@ describe('launch status ordering', () => {
       harness.parseHook(f.hook({ hook_event_name: 'PreToolUse' }), 'garden');
       expect(
         harness.beforeLaunch({ id: 'garden', cwd: f.directory }).registrationStatus()?.status,
-      ).toBe('waiting');
+      ).toBe('unknown');
       const resumed = harness.beforeLaunch({ id: 'garden', cwd: f.directory });
       harness.parseHook(f.hook({ hook_event_name: 'UserPromptSubmit' }), 'garden');
-      expect(resumed.registrationStatus()).toBeUndefined();
+      expect(resumed.registrationStatus()?.status).toBe('unknown');
     } finally {
       f.close();
     }
@@ -298,12 +371,15 @@ it('reads the current command for every new and resumed launch', () => {
     const harness = createCodexHarness({ ...f.options, readCommand: () => command });
     const request = { id: 'garden', cwd: f.directory };
     harness.beforeLaunch(request);
-    expect(harness.spawnCommand(request)[0]).toBe('initial-codex');
+    expect(launch(harness.spawnCommand(request)).terminalCommand[0]).toBe('initial-codex');
     command = ['updated-codex', '--flag'];
-    expect(harness.spawnCommand(request).slice(0, 2)).toEqual(command);
-    expect(harness.resumeCommand(request).slice(0, 2)).toEqual(command);
+    expect(launch(harness.spawnCommand(request)).terminalCommand.slice(0, 2)).toEqual(command);
+    expect(launch(harness.resumeCommand(request)).terminalCommand.slice(0, 2)).toEqual(command);
     harness.parseHook(f.hook(), 'garden');
-    expect(harness.resumeCommand(request).slice(0, 3)).toEqual([...command, 'resume']);
+    expect(launch(harness.resumeCommand(request)).terminalCommand.slice(0, 3)).toEqual([
+      ...command,
+      'resume',
+    ]);
   } finally {
     f.close();
   }

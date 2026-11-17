@@ -6,14 +6,15 @@ boundaries and the invariants behind them, not features: what garden does is in 
 
 ## 1. The model everything follows from
 
-garden has four sources of truth about the outside world:
+garden has five sources of truth about the outside world:
 
 - **tmux** — which sessions exist, which panes are alive, exit codes.
 - **transcripts** — the selected harness's conversation files: Claude project JSONL files or bound Codex rollouts.
 - **hooks** — the selected harness POSTs native events, translated to garden signals at the boundary.
+- **native status** — a passive Codex backend connection reports the bound thread's current status.
 - **clients** — the browser and the CLI issue commands.
 
-All four fold into one thing: a map of session id to session state. That map streams to
+All five fold into one thing: a map of session id to session state. That map streams to
 browsers as a snapshot on connect, then as deltas. Some things travel outside the delta stream.
 Two are global messages on `/events` beside the session deltas: `ui-state`, the persisted UI
 slice, and `reviews`, the queue of open PRs awaiting the user's review (`app/reviews.ts`, an
@@ -26,7 +27,7 @@ Every layer in this codebase exists to serve that sentence. Adapters turn the ou
 into events. One pure function folds events into state. One diff turns state changes into
 deltas. If you are unsure where code belongs, ask which of those three jobs it is doing.
 
-The hard part of garden is not any individual feature — it is that those four sources are
+The hard part of garden is not any individual feature — it is that those sources are
 unsynchronised. A hook arrives before the transcript file exists. A pane dies while a client is
 attached. The server restarts and has to re-associate session ids to tmux names. A hook reporting
 `working` lands after tmux has already seen the pane die. Keeping that folding logic in one pure,
@@ -47,9 +48,9 @@ changing one.
 - **Per-process overlay.** Garden writes its configuration and identity state under `appDir`,
   and injects hooks into each process rather than editing the user's harness configuration.
   Claude receives `--settings <appDir>/claude-settings.json`; its `~/.claude/` tree stays read-only.
-  Codex receives per-process configuration. Its hook-trust bypass has an accepted exception:
-  Codex itself can write plugin hook trust records into `~/.codex/config.toml`. The bypass also
-  applies to other enabled hooks in that process. The separately installed plugins remain opt-in.
+  Codex receives hook configuration on a private per-session backend. Hook trust is approved
+  through Codex's native UI and persisted by Codex; Garden never writes trust records.
+  The separately installed plugins remain opt-in.
 - **Loopback only, no auth.** The server listens on `127.0.0.1`; `HOST` in `config.ts` is a
   constant, not a setting. Nothing authenticates a request, and the `/fs` endpoints serve file
   contents scoped only by session cwd, which is not strong enough to expose to a network.
@@ -210,12 +211,9 @@ relocatable install would have to. The version is pinned exactly; `pnpm-workspac
 
 ### Harness boundary
 
-For now, one harness is selected once at boot by `GARDEN_HARNESS` (`claude` by default, or
-`codex`). This simplifies instance configuration; mixed-harness instances remain a possible
-future extension, not a rejected architecture.
-The selection resolves the port, tmux socket and app directory together: Claude defaults to
-`4310`, `garden-claude`, `~/.garden-claude`; Codex to `4311`, `garden-codex`, `~/.garden-codex`. Explicit
-instance overrides retain precedence. CLI commands and spawned panes use that full resolution.
+Each instance selects one harness at boot. The selection resolves the port, tmux socket and
+app directory together; CLI commands and spawned panes use that full resolution. See
+[Configuration](../README.md#configuration) for selection, defaults and overrides.
 
 `HarnessPort` in `app/ports.ts` is selected in `main.ts`. It owns spawn and resume argv
 (including model, effort and permission mode), the per-process hook overlay, native hook
@@ -239,6 +237,21 @@ only bound rollouts, and invalidates reads when a binding changes, including rea
 It never discovers identities by scanning rollouts. Claude retains its project-slug discovery
 and bounded head/tail reads. Generic polling receives the selected layout instead of knowing
 either native format.
+
+Codex's terminal and backend run as a pair under a tmux-owned launcher. Each backend has
+its own private Unix socket and inherits that session's environment and hook overlay, so hook
+identity stays scoped to the session. The launcher waits for the backend before starting the
+terminal and stops the pair when either exits. Garden disconnects its status observer on
+shutdown without stopping either process.
+Message delivery uses the same backend through native `codex queue`.
+
+The observer reconciles the alias-bound thread's status on connect and follows native status
+notifications. Internal threads are ignored. Pending approvals remain pending until the native
+status clears them; tool hooks cannot overwrite that report. Connection loss invalidates the
+report, and reconnect obtains a fresh snapshot. Binding changes and endpoint generations reject
+late events. The observer never answers approval requests; those belong to the native terminal.
+A bound session without a matching backend endpoint reports `unknown`. Sessions launched without a
+backend must be ended and resumed to acquire one.
 
 ### 4.1 The projection is the spine
 
@@ -282,7 +295,7 @@ session had a pipe connected, and the review requests a session was started for.
 client's `UiState`, next to `tmuxNames` and the non-UI records, and a version 1 file is migrated on
 read. It does **not** hold a `SessionState` snapshot. Session facts are derived at boot —
 liveness and exit code from tmux, conversation facts from transcripts, branch from a live git
-lookup keyed by cwd, and status from hooks. Separately, `adapters/codex/index.ts` persists identity
+lookup keyed by cwd, and status from the selected harness's live signal source. Separately, `adapters/codex/index.ts` persists identity
 bindings and pending launch cwd under `appDir`; replaying pending aliases preserves sessions
 that have never produced a transcript, including their initial `waiting` report.
 
@@ -326,7 +339,7 @@ So the startup sequence is a replay, not a restore:
 
 Steps 4 and 5 feed the same projection events used during normal operation; `main.ts` owns
 the replay sequence. Transcript-recovered live sessions have `unknown` status until a status-bearing
-hook; pending Codex sessions retain their replayed `waiting` report.
+signal; pending Codex sessions retain their replayed `waiting` report.
 
 Transcripts are kept current by polling, not by native file watching: one `fs.watch` per file
 costs more as the corpus grows (and hits `EMFILE`), and a scan is needed regardless because
@@ -349,7 +362,7 @@ binding. `adapters/claude/` and `adapters/codex/` own these policies.
 Garden does not derive a transcript path at spawn: hooks and the selected layout supply it.
 A live path unchanged for 5 minutes leaves the live set; hooks re-track it, and a scan promotes
 it on its next change. A Claude session garden did not start and has not heard a hook from
-can take up to ~10s to appear through discovery. Codex requires a binding first. Hooks own
+can take up to ~10s to appear through discovery. Codex requires a binding first. Hooks and native status observation update
 status independently of transcript polling.
 
 `readRecord`, which boot replay uses, and the watcher share one signature map, and each read
@@ -517,7 +530,7 @@ can only police what a file imports, not what it does with the result, so a rout
 nothing but `app/` and `shared` can still contain an `if` about session state. That half of the
 row is a rule for review to catch, not `pnpm lint`.
 
-The server never parses terminal output. Status comes from hooks, session facts from
+The server never parses terminal output. Status comes from Claude hooks or the bound Codex backend, session facts from
 transcripts, liveness from tmux.
 
 ## 7. Errors

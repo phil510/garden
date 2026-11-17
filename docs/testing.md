@@ -49,12 +49,9 @@ Claude plugin suites use `claude-*` filenames and `support/claude-plugin.ts` fix
 Codex suites use `codex-*` filenames with fixtures beside their tests. Both use
 `support/temp-directories.ts` for temporary-directory creation and cleanup.
 
-Run `pnpm exec vitest run tests/plugin` for both packages. Script tests establish behavior for
-supplied hook payloads and fixture transcripts; packaging tests check installed paths and
-reviewer references within each independently installed package. Neither proves native plugin discovery, hook scheduling, warning
-feedback delivery, compaction timing or model compliance with skills. Those need an explicitly
-recorded live check with the relevant harness version. The fake-harness integrations below
-exercise Garden's lifecycle wiring, not native plugin loading.
+Run `pnpm exec vitest run tests/plugin` for both packages. Fixture-based script and packaging
+tests do not establish native plugin loading, hook timing or model compliance with skills.
+Verify those with the installed harness and record its version with the results.
 
 Each package's `vitest.config.ts` collects only its own `src/**/*.test.ts`, and the root config
 only `scripts/**/*.test.ts` plus repo-level `tests/**/*.test.ts` except `tests/integration/**`, so
@@ -99,6 +96,20 @@ discarded and `pane_dead_status` never gets set — `exitCode` never arrives (fi
   the only writer of the session store, a suite over it covers every client state transition
   there is; a helper gets its own suite wherever a feature has logic worth pulling out of a
   component to test as a function over plain data.
+
+## Native Codex probes
+
+The opt-in scripts under `scripts/probes/` exercise an installed Codex with a deterministic
+local provider, isolated Codex home, workspace and tmux socket. They require `codex` and
+`tmux` and are separate from CI's fake harness. Run
+`pnpm exec tsx scripts/probes/codex-native-status.ts` (or append `cancel`) to check the native
+approval screen, passive status notifications, reconnect snapshots and hook identity.
+Append `trust-resume` to exercise native hook consent across backend restart and new sessions,
+saved Full Access on resume, and changing permissions in a running conversation.
+These checks do not establish authenticated-provider behavior, every approval category or
+survival of the tmux-owned backend after Garden stops: the probe owns its backend directly.
+Record the printed Codex version and results with the change being verified.
+Each probe cleans up only its own processes and temporary files.
 
 ## Invariants over examples
 
