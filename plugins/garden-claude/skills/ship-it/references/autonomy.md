@@ -6,7 +6,8 @@ an escalation.
 
 Two things are kept apart here. **Ambiguity handling** — when to decide and when to ask — is this
 skill's to define. **Permitted side effects** — what may happen outside the worktree — belong to
-the project and the user, through the instructions Claude Code injects; this file supplies defaults where those instructions are silent.
+the project and the user, through the instructions Claude Code injects; this file only sets the
+floor.
 
 ## The rework-cost test
 
@@ -102,7 +103,7 @@ every future run.
 
 Intake writes these into §5 unless the input calls for something narrower. The injected
 instructions may widen `Auto:` for side effects outside the worktree (a sandbox deploy, a
-prerelease publish); explicit user authorization takes precedence over these defaults.
+prerelease publish); they can't remove the `Ask first:` floor on production.
 
 **Auto:** installing dependencies and authenticating as the injected instructions describe, running
 the verify command and any test tier, creating and pushing commits on the pipeline branch, opening
@@ -112,7 +113,7 @@ instructions permit.
 
 **Ask first:** merging the PR (§7 decides this directly — `ask` pages, `auto` merges), touching
 files outside the brief's stated scope, adding a new production dependency, production deploys and
-stable releases unless the user's instructions already authorize them.
+stable releases whatever the instructions say elsewhere.
 
 **Never:** rewriting git history, side effects outside the worktree that the
 injected instructions don't permit, deleting or force-overwriting anything without a recovery path,

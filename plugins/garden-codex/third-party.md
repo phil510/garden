@@ -7,7 +7,7 @@ They are distributed under the [Apache License 2.0](licenses/pr-review-toolkit-L
 
 These are editable Garden forks: reviewer formatting and the workflow are adapted for this
 package, including findings-only review and native agent dispatch. Each plugin owns one working
-copy of each reviewer. Changes require [semantic parity review](../MAINTAINING.md), not byte
+copy of each reviewer. Changes require [semantic parity review](../maintaining.md), not byte
 identity with upstream or the other harness.
 
 For upstream updates, inspect the diff and license changes from the recorded revision, then

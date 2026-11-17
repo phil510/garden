@@ -22,7 +22,7 @@ authorized publication. Do not install personal configuration or named roles to 
 
 Reviewer prompts are editable forks in each package's `agents/` directory; review semantic parity,
 not byte identity. For upstream updates, manually review and apply relevant diffs following each
-package's `THIRD_PARTY.md`. For hooks, run the
+package's `third-party.md`. For hooks, run the
 real-subprocess unit tests and check warning, recovery and cleanup behavior independently of any
 ship-it state. Both harnesses assume a user-managed 200K compaction threshold and warn at 175K;
 review counting semantics against the harness version before changing either implementation.

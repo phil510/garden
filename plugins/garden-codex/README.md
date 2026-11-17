@@ -31,7 +31,7 @@ and [cache replacement](https://github.com/openai/codex/blob/rust-v0.169.0/codex
 It resolves paths from the installed skill, passes the diff scope and project instructions, and
 aggregates findings. The prompt files are not automatically registered native roles; there is no
 TOML installation or user configuration change. See the [upstream source, license and update
-procedure](THIRD_PARTY.md). Review requests constrain the simplifier to findings; explicit
+procedure](third-party.md). Review requests constrain the simplifier to findings; explicit
 simplification requests may authorize edits.
 
 ## Compaction notes
@@ -52,6 +52,6 @@ removes directories inactive for more than seven days, bounding cleanup work aft
 write the note. `SessionStart` after compaction points the agent to its note to read in full and
 resets the warning marker. These hooks preserve live agents; recovery does not start a new run.
 
-See [plugin maintenance and intended differences](../MAINTAINING.md) for parity review. The
+See [plugin maintenance and intended differences](../maintaining.md) for parity review. The
 optional review-loop boundary defaults to `none`; Garden does not require personal bot-loop or
 comment-fetching skills. A future ship-it port must preserve that boundary.

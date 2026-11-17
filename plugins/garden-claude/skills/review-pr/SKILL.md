@@ -41,5 +41,5 @@ instructions.
    Disclose missing aspects or incomplete reviews. Recommend addressing critical issues first and
    rerunning the affected reviews after fixes. Act on recommendations only within the user’s authorization.
 
-The source, license and fork update policy are in `../../THIRD_PARTY.md`. Reviewer prompts are
+The source, license and fork update policy are in `../../third-party.md`. Reviewer prompts are
 editable; review the Codex counterpart for semantic parity when changing them.

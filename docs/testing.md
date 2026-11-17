@@ -45,13 +45,9 @@ files. Claude's shell hooks and pipeline scripts require `bash`, `jq` and, for p
 unit tier. “`execFile` is never mocked” governs how a subprocess is exercised, not which tier
 gets to exercise it.
 
-Use `claude-*` and `codex-*` filenames for harness-specific plugin suites and support modules;
-keep unqualified names for genuinely shared checks such as `plugin-packaging.test.ts`.
-Compaction suites share that term: Claude splits warning, recovery and usage-filter checks;
-Codex exercises its combined hook. Suite labels and temporary-directory prefixes identify the
-harness too. `support/claude-plugin.ts` supplies only Claude fixtures, including its transcript
-format; Codex fixtures stay with their own suite. Shared temporary-directory creation and
-cleanup live in `support/temp-directories.ts`.
+Claude plugin suites use `claude-*` filenames and `support/claude-plugin.ts` fixtures;
+Codex suites use `codex-*` filenames with fixtures beside their tests. Both use
+`support/temp-directories.ts` for temporary-directory creation and cleanup.
 
 Run `pnpm exec vitest run tests/plugin` for both packages. Script tests establish behavior for
 supplied hook payloads and fixture transcripts; packaging tests check installed paths and
@@ -178,9 +174,11 @@ those boundaries. They do not establish how an installed Claude or Codex version
 ## Running a sandbox
 
 `pnpm dev:sandbox:server` boots an isolated garden: its own port, tmux socket and app dir, with
-`scripts/fake-claude.ts` in place of Claude. This convenience command configures the Claude
-fake only; for a Codex instance, use the isolated setup in `tests/integration/fake-codex.test.ts`
-as the reference for its command, home and harness environment. An isolated sandbox runs beside
+a fake harness in place of a live model. Use `pnpm dev:sandbox:server --claude` (the default)
+or `pnpm dev:sandbox:server --codex` to select `scripts/fake-claude.ts` or
+`scripts/fake-codex.ts`. The Codex sandbox keeps its home under the sandbox app directory.
+These flags select Garden's harness and its fake process; they do not test native plugin loading.
+An isolated sandbox runs beside
 the user's real `garden` without either seeing the other's sessions, which makes it safe for an agent
 to start one for a manual or visual check. Never start, stop, signal or reconfigure the real instance (the
 default port, socket and app dir) to do the same job, because that is the user's live work.

@@ -45,5 +45,5 @@ required. This skill authorizes delegation for this review.
    suggestions, strengths, and recommended actions. Disclose missing lenses or incomplete reviews.
    A review alone does not authorize fixes or publishing its results.
 
-The source, license and fork update policy are in `../../THIRD_PARTY.md`. Reviewer prompts are
+The source, license and fork update policy are in `../../third-party.md`. Reviewer prompts are
 editable; review the Claude counterpart for semantic parity when changing them.

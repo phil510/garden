@@ -103,7 +103,7 @@ Existing `.ship-it/` state remains in the worktree and can be resumed with
 ## Reviewers and parity
 
 `review-pr` and ship-it use the bundled reviewers; a separate `pr-review-toolkit` plugin is not
-required. The [source and license record](THIRD_PARTY.md) describes the editable Garden forks in `agents/`
+required. The [source and license record](third-party.md) describes the editable Garden forks in `agents/`
 and their review workflow. Review loops remain optional (default `none`); a configured but missing
 loop skill blocks its run explicitly. No personal bot-loop or comment-fetching skill is bundled
 or required by default.
@@ -112,4 +112,4 @@ The 175K warning assumes the user already configured compaction at 200K, matchin
 headroom gives the agent time to write its note before compaction. Claude occupancy uses the
 latest assistant usage record's input, cache-read, cache-creation and output tokens; it is not a
 cumulative conversation total. The plugin does not set the compaction threshold. See
-[plugin maintenance and intended differences](../MAINTAINING.md) before changing these workflows.
+[plugin maintenance and intended differences](../maintaining.md) before changing these workflows.

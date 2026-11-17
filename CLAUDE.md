@@ -16,6 +16,11 @@ Node 22 (`.nvmrc`) and pnpm 10 via corepack. `.npmrc` pins the public registry o
 
 Tests come in two tiers, and the split matters: `pnpm test` is the unit tier only. The integration tier is `pnpm test:integration`, it drives real tmux, and it needs tmux installed locally — which is why pre-commit skips it and CI runs it as its own job. A clean commit is a good signal, not a guarantee. `docs/testing.md` is canonical for how to write either tier.
 
+Plugin test files, suite labels and temporary-directory prefixes identify their harness:
+use `claude-*` or `codex-*`, keeping unqualified names for shared checks. Keep compaction
+suites named for compaction and fixtures with their harness; only shared filesystem helpers
+belong in shared support modules. Tests and fixtures stay outside the shipped plugin packages.
+
 A concurrent sandbox needs its own port, tmux socket and app dir — see `docs/testing.md` for the `GARDEN_SANDBOX_*` variable names.
 
 ## Conventions
@@ -26,7 +31,7 @@ A concurrent sandbox needs its own port, tmux socket and app dir — see `docs/t
 - PRs follow `.github/pull_request_template.md` and include `Closes #N`.
 - Use the `gh` CLI for issues and PRs. Issue templates live in `.github/ISSUE_TEMPLATE/`.
 - The plugins live in `plugins/garden-claude/` and `plugins/garden-codex/`. Read each package
-  README for its manifest and update behavior, and `plugins/MAINTAINING.md` for parity review.
+  README for its manifest and update behavior, and `plugins/maintaining.md` for parity review.
   Keep outer manifests versionless and marketplace entries without `description`; descriptions
   belong in each plugin manifest.
 - A diff that reads fine can still render wrong, so a UI-visible change (anything that alters what
