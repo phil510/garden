@@ -111,7 +111,7 @@ and the user decides whether a fix round runs at all.
    Three slots keeps the convergent signal and drops the redundant reads.
 
    Each slot names a lens. For a toolkit lens, spawn a fresh generic native agent and tell it
-   to read `${SKILLDIR}/../../vendor/pr-review-toolkit/agents/<role>.md`. Those bundled prompts
+   to read `${SKILLDIR}/../../agents/<role>.md`. Those bundled prompts
    are instructions, not registered agent types: ignore Claude frontmatter model/tool metadata
    and use the current native tool schema. Follow the full prompt body with the assigned scope,
    current project instructions and a read-only brief, including for the simplifier. Do not invoke
