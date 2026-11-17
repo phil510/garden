@@ -25,13 +25,21 @@ function readReviewer(path: string): void {
 }
 
 describe('plugin packaging', () => {
-  it('resolves marketplace entries to their installed plugin identities', () => {
-    const marketplace = JSON.parse(
-      readFileSync(join(root, '.claude-plugin/marketplace.json'), 'utf8'),
-    ) as { plugins: { source: string; name: string }[] };
+  it.each([
+    ['.claude-plugin/marketplace.json', 'garden-claude'],
+    ['.agents/plugins/marketplace.json', 'garden-codex'],
+  ])('resolves %s to only the matching installed plugin', (catalog, identity) => {
+    const marketplace = JSON.parse(readFileSync(join(root, catalog), 'utf8')) as {
+      name: string;
+      plugins: { source: string; name: string }[];
+    };
+    expect(marketplace.name).toBe('garden');
+    expect(marketplace.plugins.map((entry) => entry.name)).toEqual([identity]);
     for (const entry of marketplace.plugins) {
+      const installed = join(tempDirectory(), entry.name);
+      cpSync(join(root, entry.source), installed, { recursive: true });
       const manifest = JSON.parse(
-        readFileSync(join(root, entry.source, '.claude-plugin/plugin.json'), 'utf8'),
+        readFileSync(join(installed, '.claude-plugin/plugin.json'), 'utf8'),
       ) as { name: string };
       expect(manifest.name).toBe(entry.name);
     }

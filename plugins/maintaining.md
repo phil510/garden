@@ -5,6 +5,14 @@ so review the counterpart whenever changing a workflow, prompt or hook. Compare 
 which work is authorized, when it stops, what survives interruption, and what the user sees.
 Keep harness mechanics in their own package; do not introduce symlinks or shared-source builds.
 
+Each harness has its own `garden` marketplace catalog: `.claude-plugin/marketplace.json` lists
+only `garden-claude`, and `.agents/plugins/marketplace.json` lists only `garden-codex`. Codex
+selects the native catalog before the Claude fallback, so adding this repository exposes only
+the matching package. Source paths in both catalogs are relative to the repository root.
+The Codex package still uses `.claude-plugin/plugin.json` for legacy plugin loading. See the
+[pinned Codex catalog loader](https://github.com/openai/codex/blob/rust-v0.169.0/codex-rs/core-plugins/src/marketplace.rs)
+for discovery and source resolution.
+
 | Surface                                           | Claude                                     | Codex                                                   |
 | ------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------- |
 | Installation identity                             | `garden-claude`                            | `garden-codex`                                          |

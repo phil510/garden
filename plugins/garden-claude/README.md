@@ -9,7 +9,8 @@ a background pipeline (plan, develop, draft PR, internal review, optional review
 flip, watch through merge), invoked as `/garden-claude:ship-it`. `review-pr` runs the bundled specialist review toolkit. The four ship-it workers ship as agents,
 `garden-claude:ship-it-planner`, `garden-claude:ship-it-developer`, `garden-claude:ship-it-reviewer` and
 `garden-claude:ship-it-review-loop`, which only the `ship-it` orchestrator spawns. Installed from the
-marketplace manifest at the repo root, `.claude-plugin/marketplace.json`.
+Claude marketplace catalog at `.claude-plugin/marketplace.json`, which lists only `garden-claude`.
+Codex uses its separate catalog at `.agents/plugins/marketplace.json`.
 
 It also ships two hooks (`hooks/hooks.json`), active as soon as the plugin is enabled — no
 configuration needed. `warn.sh` runs after every tool call, on each prompt submission and at the

@@ -1,0 +1,9 @@
+{
+  "name": "garden",
+  "plugins": [
+    {
+      "name": "garden-codex",
+      "source": "./plugins/garden-codex"
+    }
+  ]
+}

@@ -2,7 +2,8 @@
 
 Six skills for a Codex-only garden instance: `orchestrate-sessions`, `message-session`, `alert`,
 `review-queue`, `watch-pr` and `review-pr`. Install `garden-codex` from this repo's `garden`
-marketplace; the separate Claude package is `garden-claude`. This package includes Codex hooks
+marketplace through `.agents/plugins/marketplace.json`, which lists only `garden-codex`.
+The separate Claude catalog lists `garden-claude`. This package includes Codex hooks
 and bundled reviewer prompts, with no Claude monitors or automatic named-agent installation.
 Ship-it is not implemented here yet.
 
@@ -17,8 +18,9 @@ queue write followed by a lost ack can repeat a message. It does not prove the m
 that message. There is no Codex plugin monitor startup or automatic sidecar cleanup on session
 exit; stop the owned task when the run ends. The forwarding process must remain owned by the session that started it.
 
-The manifests omit `version`. Codex CLI 0.169.0 installs this unversioned legacy plugin as
-`local`. For a Git marketplace, explicit `codex plugin marketplace upgrade garden` refreshes
+The package keeps `.claude-plugin/plugin.json` for Codex’s legacy plugin loading; the native
+marketplace catalog does not change that package format. The manifests omit `version`. Codex
+CLI 0.169.0 installs this unversioned legacy plugin as `local`. For a Git marketplace, explicit `codex plugin marketplace upgrade garden` refreshes
 the installed contents after a Git revision change even when the version and cache path stay
 `local`. This was verified with changed skill discovery in a new app-server; live-session
 reloading and automatic update timing were not tested. See the pinned upstream
