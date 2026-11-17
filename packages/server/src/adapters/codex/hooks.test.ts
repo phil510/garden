@@ -15,15 +15,15 @@ describe('Codex hook translation', () => {
     expect(start.ended).toBe(false);
     expect(
       codexSignal({ ...hook, hook_event_name: 'UserPromptSubmit' }, 'garden').reported?.status,
-    ).toBe('working');
+    ).toBeUndefined();
   });
-  it('distinguishes approvals, stopped turns, and ended processes', () => {
+  it('leaves native status authoritative while retaining process lifecycle', () => {
     expect(
       codexSignal({ ...hook, hook_event_name: 'PermissionRequest' }, 'garden').reported?.status,
-    ).toBe('needs-approval');
-    expect(codexSignal({ ...hook, hook_event_name: 'Interrupt' }, 'garden').reported?.status).toBe(
-      'waiting',
-    );
+    ).toBeUndefined();
+    expect(
+      codexSignal({ ...hook, hook_event_name: 'Interrupt' }, 'garden').reported,
+    ).toBeUndefined();
     expect(codexSignal({ ...hook, hook_event_name: 'SessionEnd' }, 'garden').ended).toBe(true);
   });
   it('accepts nullable native paths and rejects malformed native ids and ordering metadata', () => {

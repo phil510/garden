@@ -3,19 +3,57 @@ import { randomUUID } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
+import { createServer } from 'node:http';
+import { once } from 'node:events';
+import WebSocket, { WebSocketServer } from 'ws';
 
 const args = process.argv.slice(2);
 const home = process.env.CODEX_HOME;
 if (home === undefined) throw new Error('fake Codex requires its own CODEX_HOME');
 const queueDir = join(home, 'queue');
 mkdirSync(queueDir, { recursive: true });
-if (args[0] === 'queue') {
+const remote = args[args.indexOf('--remote') + 1];
+if (args.includes('--remote')) {
+  const endpoint = remote!.replace(/^unix:\/\//, '');
+  const client = new WebSocket(`ws+unix://${endpoint}:/`);
+  await once(client, 'open');
+  if (args.includes('queue')) {
+    client.send(
+      JSON.stringify({
+        method: 'fake/queue',
+        params: {
+          threadId: args[args.indexOf('--thread') + 1],
+          message: args.find((arg) => arg.startsWith('--message='))?.slice('--message='.length),
+        },
+      }),
+    );
+    await once(client, 'message');
+    client.close();
+  } else {
+    client.on('message', (data) => {
+      const message = JSON.parse(
+        (Array.isArray(data)
+          ? Buffer.concat(data)
+          : data instanceof ArrayBuffer
+            ? Buffer.from(data)
+            : data
+        ).toString('utf8'),
+      ) as { method: string; params?: string };
+      if (message.method === 'fake/output') console.log(message.params);
+      if (message.method === 'fake/end') client.close();
+    });
+    client.send(JSON.stringify({ method: 'fake/start', params: { args } }));
+    const input = createInterface({ input: process.stdin });
+    input.on('line', (line) => client.send(JSON.stringify({ method: 'fake/input', params: line })));
+    await once(client, 'close');
+    input.close();
+  }
+  process.exit(0);
+}
+if (args.includes('queue')) {
   const id = args[args.indexOf('--thread') + 1];
-  const message =
-    args.find((arg) => arg.startsWith('--message='))?.slice('--message='.length) ??
-    args[args.indexOf('--message') + 1];
-  if (id === undefined || message === undefined)
-    throw new Error('queue requires thread and message');
+  const message = args.find((arg) => arg.startsWith('--message='))?.slice('--message='.length);
+  if (!id || message === undefined) throw new Error('queue requires thread and message');
   appendFileSync(join(queueDir, `${id}.jsonl`), `${JSON.stringify(message)}\n`);
   process.exit(0);
 }
@@ -31,11 +69,27 @@ for (let index = 0; index < args.length - 1; index += 1) {
 }
 if (!commands.has('SessionStart'))
   throw new Error('fake Codex requires real injected hook commands');
-let id = args[0] === 'resume' ? args.at(-1)! : randomUUID();
+let id: string = randomUUID();
 let path: string | null = null;
-let source = args[0] === 'resume' ? 'resume' : 'startup';
+let source = 'startup';
 let started = false;
 let queuePosition = 0;
+let status: { type: string; activeFlags?: string[] } = { type: 'idle' };
+const observers = new Set<WebSocket>();
+let terminal: WebSocket | undefined;
+function report(next: typeof status) {
+  status = next;
+  for (const client of observers)
+    client.send(
+      JSON.stringify({
+        method: 'thread/status/changed',
+        params: { threadId: id, status },
+      }),
+    );
+}
+function output(text: string) {
+  terminal?.send(JSON.stringify({ method: 'fake/output', params: text }));
+}
 
 function materialize() {
   const directory = join(home!, 'sessions', '2026', '11', '15');
@@ -71,14 +125,17 @@ async function hook(event: string): Promise<void> {
 async function turn(message: string) {
   if (message === '/end') {
     await hook('SessionEnd');
-    process.exit(0);
+    terminal?.send(JSON.stringify({ method: 'fake/end' }));
+    return;
   }
   if (message === '/approve') {
     await hook('PermissionRequest');
+    report({ type: 'active', activeFlags: ['waitingOnApproval'] });
     return;
   }
   if (message === '/wait') {
     await hook('Stop');
+    report({ type: 'idle' });
     return;
   }
   if (message === '/clear') {
@@ -89,11 +146,13 @@ async function turn(message: string) {
     queuePosition = 0;
     materialize();
     await hook('SessionStart');
-    console.log(`[fake-codex] CLEARED ${id}`);
+    report({ type: 'idle' });
+    output(`[fake-codex] CLEARED ${id}`);
     return;
   }
   materialize();
   // The input hook may precede binding; SessionStart must preserve its working status.
+  report({ type: 'active', activeFlags: [] });
   await hook('UserPromptSubmit');
   if (!started) {
     started = true;
@@ -116,18 +175,61 @@ async function turn(message: string) {
     content: [{ type: 'output_text', text: `Response to ${message}` }],
   });
   await hook('Stop');
+  report({ type: 'idle' });
 }
 
 let pending = Promise.resolve();
-const input = createInterface({ input: process.stdin });
-input.on('line', (line) => {
-  pending = pending
-    .then(() => turn(line))
-    .catch((error) => {
-      console.error(error);
-      process.exitCode = 1;
-    });
+const server = createServer();
+const sockets = new WebSocketServer({ server });
+sockets.on('connection', (client) => {
+  client.on('close', () => observers.delete(client));
+  client.on('message', (data) => {
+    const message = JSON.parse(
+      (Array.isArray(data)
+        ? Buffer.concat(data)
+        : data instanceof ArrayBuffer
+          ? Buffer.from(data)
+          : data
+      ).toString('utf8'),
+    ) as {
+      id?: number;
+      method: string;
+      params: { args?: string[]; threadId?: string; message?: string } | string;
+    };
+    const params = typeof message.params === 'object' ? message.params : {};
+    if (message.method === 'initialize') {
+      observers.add(client);
+      client.send(JSON.stringify({ id: message.id, result: {} }));
+    } else if (message.method === 'thread/read') {
+      client.send(JSON.stringify({ id: message.id, result: { thread: { id, status } } }));
+    } else if (message.method === 'fake/start') {
+      terminal = client;
+      const launch = params.args!;
+      const resume = launch.indexOf('resume');
+      if (resume >= 0) {
+        id = launch.slice(resume + 1).find((arg) => /^[0-9a-f-]{36}$/.test(arg))!;
+        source = 'resume';
+      }
+      writeFileSync(
+        join(home, `launch-${process.env.GARDEN_SESSION_ID ?? 'unknown'}.json`),
+        JSON.stringify(launch),
+      );
+      output('[fake-codex] READY');
+    } else if (message.method === 'fake/input' || message.method === 'fake/queue') {
+      const text = typeof message.params === 'string' ? message.params : params.message!;
+      pending = pending
+        .then(() => turn(text))
+        .then(() => {
+          if (message.method === 'fake/queue') client.send(JSON.stringify({ ok: true }));
+        })
+        .catch((error: unknown) => console.error(error));
+    }
+  });
 });
+const listen = args[args.indexOf('--listen') + 1];
+if (!args.includes('app-server') || !listen)
+  throw new Error('fake Codex requires app-server --listen');
+server.listen(listen.replace(/^unix:\/\//, ''));
 setInterval(() => {
   const queue = join(queueDir, `${id}.jsonl`);
   if (!existsSync(queue)) return;
@@ -136,9 +238,3 @@ setInterval(() => {
   queuePosition = messages.length;
   for (const encoded of unseen) pending = pending.then(() => turn(JSON.parse(encoded) as string));
 }, 40).unref();
-// Resume uses the existing native id; no new rollout is created until a turn runs.
-writeFileSync(
-  join(home, `launch-${process.env.GARDEN_SESSION_ID ?? 'unknown'}.json`),
-  JSON.stringify(args),
-);
-console.log('[fake-codex] READY');

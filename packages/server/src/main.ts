@@ -336,6 +336,9 @@ export async function main(detached: boolean): Promise<void> {
 
   drainBindingSpool(harness, projection, watcher, logger);
   await replay(projection, pipes, store, tmux, transcriptReplay, logger, harness, git);
+  const statusObserver = harness.observeStatus?.((signal) => {
+    applyHarnessSignal({ projection, liveTranscripts: watcher }, signal);
+  });
   // Only valid once replay's transcript scan has settled what "known" means — any earlier
   // (store-loaded, or the first tmux snapshot) would prune a live child whose transcript
   // just hasn't been read yet. Isolated like every other boot step above: a stale overlay
@@ -426,6 +429,7 @@ export async function main(detached: boolean): Promise<void> {
     logger,
   );
   app.addHook('onClose', () => {
+    statusObserver?.close();
     clearInterval(poll);
     clearInterval(pipeSweep);
     stopRepoRoots();

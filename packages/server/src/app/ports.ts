@@ -162,6 +162,7 @@ export interface HarnessLaunch {
 }
 
 export interface HarnessPort {
+  observeStatus?(onSignal: (signal: HarnessSignal) => void): { close(): void };
   sendMessage?(id: string, message: string, submitPending: () => Promise<void>): Promise<void>;
   beforeLaunch?(request: HarnessLaunchRequest): HarnessLaunch;
   pendingSessions?(): { id: string; cwd: string }[];

@@ -1,4 +1,4 @@
-// Opt-in native feasibility probe: pnpm exec tsx scripts/probes/codex-native-status.ts [cancel]
+// Opt-in native feasibility probe: pnpm exec tsx scripts/probes/codex-native-status.ts [cancel | trust-resume]
 // Requires codex, tmux and installed workspace dependencies. Uses no account credentials.
 import assert from 'node:assert/strict';
 import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
@@ -12,8 +12,12 @@ import { basename, join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import WebSocket from 'ws';
 
+type HookBinding = {
+  event: { session_id: string; cwd: string; transcript_path: string };
+  gardenId: string;
+};
 type Status = { type: string; activeFlags?: string[] };
-type NativeThread = { id: string; ephemeral: boolean; status: Status };
+type NativeThread = { id: string; ephemeral: boolean; status: Status; originator: string };
 type Message = {
   id?: number;
   method?: string;
@@ -28,6 +32,7 @@ process.on('SIGINT', stop);
 process.on('SIGTERM', stop);
 
 const cancel = process.argv[2] === 'cancel';
+const trustResume = process.argv[2] === 'trust-resume';
 const root = await mkdtemp(join(tmpdir(), 'garden-native-probe-'));
 const home = join(root, 'home');
 const cwd = join(root, 'workspace');
@@ -56,14 +61,28 @@ async function until(read: () => boolean | Promise<boolean>, description: string
     if (result) return result;
     await delay(100);
   }
-  throw new Error(`Timed out: ${description}\n${daemonLog}`);
+  let pane = '';
+  try {
+    pane = tmux('capture-pane', '-p', '-t', 'probe');
+  } catch {
+    /* No live pane to diagnose. */
+  }
+  throw new Error(`Timed out: ${description}\n${pane}\n${daemonLog}`);
+}
+async function submit(text: string) {
+  tmux('send-keys', '-t', 'probe', '-l', text);
+  await until(
+    () => tmux('capture-pane', '-p', '-t', 'probe').includes(`› ${text}`),
+    'native input rendered',
+  );
+  tmux('send-keys', '-t', 'probe', 'Enter');
 }
 const provider = http.createServer((request, response) => {
   request.resume();
   request.on('end', () => {
     const id = `response-${++providerCalls}`;
     const item =
-      providerCalls === 1
+      providerCalls === 1 && !trustResume
         ? {
             type: 'function_call',
             call_id: 'probe-command',
@@ -137,6 +156,34 @@ async function observe() {
   client.send(JSON.stringify({ method: 'initialized' }));
   return { client, rpc };
 }
+async function stopBackend() {
+  if (daemon?.pid !== undefined && daemon.exitCode === null && daemon.signalCode === null) {
+    const exited = once(daemon, 'exit');
+    daemon.kill('SIGTERM');
+    const timer = setTimeout(() => daemon?.kill('SIGKILL'), 3000);
+    await exited;
+    clearTimeout(timer);
+  }
+}
+async function assertFullAccessTurn(transcriptPath: string, minimumTurns: number) {
+  await until(async () => {
+    const rows = (await readFile(transcriptPath, 'utf8'))
+      .trim()
+      .split('\n')
+      .map(
+        (line) =>
+          JSON.parse(line) as {
+            type: string;
+            payload: { approval_policy: string; sandbox_policy: { type: string } };
+          },
+      );
+    const turns = rows.filter((row) => row.type === 'turn_context');
+    if (turns.length < minimumTurns) return false;
+    assert.equal(turns.at(-1)?.payload.approval_policy, 'never');
+    assert.equal(turns.at(-1)?.payload.sandbox_policy.type, 'danger-full-access');
+    return true;
+  }, 'effective full-access turn configuration persisted');
+}
 const pendingApproval = (status: Status) =>
   status.type === 'active' && status.activeFlags?.includes('waitingOnApproval') === true;
 try {
@@ -171,29 +218,31 @@ trust_level = "trusted"
     `let input='';process.stdin.on('data',d=>input+=d);process.stdin.on('end',()=>require('fs').writeFileSync(${JSON.stringify(hookResult)},JSON.stringify({event:JSON.parse(input),gardenId:process.env.GARDEN_SESSION_ID})));`,
   );
   const hook = `hooks.SessionStart=[{hooks=[{type="command",command=${JSON.stringify(`${quote(process.execPath)} ${quote(hookPath)}`)},timeout=2}]}]`;
-  daemon = spawn('codex', ['app-server', '--listen', `unix://${socket}`, '-c', hook], {
-    cwd,
-    env: {
-      PATH: process.env.PATH,
-      HOME: process.env.HOME,
-      USER: process.env.USER,
-      TERM: 'xterm-256color',
-      CODEX_HOME: home,
-      GARDEN_SESSION_ID: tmuxSocket,
-    },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  daemon.stdout?.on('data', (data) => {
-    daemonLog += String(data);
-  });
-  daemon.stderr?.on('data', (data) => {
-    daemonLog += String(data);
-  });
-  daemon.on('error', (error) => {
-    daemonLog += String(error);
-  });
-  await until(() => existsSync(socket), 'native socket');
-  let observer = await observe();
+  async function startBackend() {
+    daemon = spawn('codex', ['app-server', '--listen', `unix://${socket}`, '-c', hook], {
+      cwd,
+      env: {
+        PATH: process.env.PATH,
+        HOME: process.env.HOME,
+        USER: process.env.USER,
+        TERM: 'xterm-256color',
+        CODEX_HOME: home,
+        GARDEN_SESSION_ID: tmuxSocket,
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    daemon.stdout?.on('data', (data) => {
+      daemonLog += String(data);
+    });
+    daemon.stderr?.on('data', (data) => {
+      daemonLog += String(data);
+    });
+    daemon.on('error', (error) => {
+      daemonLog += String(error);
+    });
+    await until(() => existsSync(socket), 'native socket');
+  }
+  await startBackend();
   const command = [
     'env',
     `CODEX_HOME=${home}`,
@@ -201,68 +250,203 @@ trust_level = "trusted"
     '--remote',
     `unix://${socket}`,
     '--no-alt-screen',
-    '--dangerously-bypass-hook-trust',
+    ...(trustResume
+      ? ['--dangerously-bypass-approvals-and-sandbox']
+      : ['--dangerously-bypass-hook-trust']),
     '-C',
     cwd,
-    'Run the isolated echo probe.',
   ]
     .map(quote)
     .join(' ');
   tmux('new-session', '-d', '-s', 'probe', '-x', '120', '-y', '40', command);
   tmuxStarted = true;
+  tmux('set-window-option', '-t', 'probe', 'remain-on-exit', 'on');
+  if (trustResume) {
+    await until(
+      () => tmux('capture-pane', '-p', '-t', 'probe').includes('Hooks need review'),
+      'native hook review',
+    );
+    console.log(
+      'Native hook review shown; selecting Trust all and continue for the isolated hook.',
+    );
+    tmux('send-keys', '-t', 'probe', 'Down', 'Enter');
+  }
   await until(
-    () => tmux('capture-pane', '-p', '-t', 'probe').includes('Would you like to run'),
-    'native approval UI',
+    () => tmux('capture-pane', '-p', '-t', 'probe').includes('Ask Codex to do anything'),
+    'native composer',
   );
-  assert.ok(threadId, 'native user thread announced');
-  const readStatus = async () =>
-    (await observer.rpc('thread/read', { threadId, includeTurns: false })).thread.status;
-  assert.ok(pendingApproval(await readStatus()), 'metadata snapshot reports pending');
-  observer.client.terminate();
-  observer = await observe();
-  assert.ok(pendingApproval(await readStatus()), 'reconnect restores pending');
-  const hookEvidence = JSON.parse(await readFile(hookResult, 'utf8')) as {
-    event: { session_id: string; cwd: string };
-    gardenId: string;
-  };
-  assert.equal(hookEvidence.event.session_id, threadId);
-  assert.equal(hookEvidence.event.cwd, cwd);
-  assert.equal(hookEvidence.gardenId, tmuxSocket);
-  const beforeResolution = observations.length;
-  tmux('send-keys', '-t', 'probe', cancel ? 'Escape' : 'Enter');
-  await until(async () => (await readStatus()).type === 'idle', 'native resolution');
-  assert.ok(
-    observations.some(
-      (message) =>
-        message.method === 'thread/status/changed' &&
-        message.params.threadId === threadId &&
-        pendingApproval(message.params.status),
-    ),
-    'pending notification received',
-  );
-  assert.ok(
-    observations
-      .slice(beforeResolution)
-      .some(
+  let observer = await observe();
+  await submit('Run the isolated echo probe.');
+  await until(() => existsSync(hookResult), 'native SessionStart hook');
+  const binding = JSON.parse(await readFile(hookResult, 'utf8')) as HookBinding;
+  threadId = binding.event.session_id;
+  const native = (await observer.rpc('thread/read', { threadId, includeTurns: false })).thread;
+  console.log(`Native originator with TUI first: ${native.originator}`);
+  assert.equal(native.originator, 'codex-tui');
+  if (trustResume) {
+    await until(
+      () => tmux('capture-pane', '-p', '-t', 'probe').includes('Isolated native probe complete.'),
+      'native turn completed',
+    );
+    async function showPermissions() {
+      tmux('send-keys', '-t', 'probe', '/status');
+      await until(
+        () => tmux('capture-pane', '-p', '-t', 'probe').includes('› /status'),
+        'status command composer',
+      );
+      tmux('send-keys', '-t', 'probe', 'Enter');
+      await until(
+        () => tmux('capture-pane', '-p', '-t', 'probe').includes('Session:'),
+        'native permissions status',
+      );
+      const pane = tmux('capture-pane', '-p', '-t', 'probe');
+      assert.match(pane, /Permissions:\s+Full Access/);
+    }
+    await showPermissions();
+    await assertFullAccessTurn(binding.event.transcript_path, 1);
+    const originalThreadId = threadId;
+    observer.client.terminate();
+    await stopBackend();
+    await startBackend();
+    await rm(hookResult);
+    const resumeCommand = [
+      'env',
+      `CODEX_HOME=${home}`,
+      'codex',
+      '--remote',
+      `unix://${socket}`,
+      '--no-alt-screen',
+      '-C',
+      cwd,
+      'resume',
+      originalThreadId,
+    ]
+      .map(quote)
+      .join(' ');
+    tmux('respawn-pane', '-k', '-t', 'probe', resumeCommand);
+    await until(
+      () => tmux('capture-pane', '-p', '-t', 'probe').includes('Ask Codex to do anything'),
+      'resumed composer without hook review',
+    );
+    await submit('Continue the isolated probe.');
+    await until(() => existsSync(hookResult), 'trusted hook after backend restart and resume');
+    assert.ok(!tmux('capture-pane', '-p', '-t', 'probe').includes('Hooks need review'));
+    const resumed = JSON.parse(await readFile(hookResult, 'utf8')) as HookBinding;
+    assert.equal(resumed.event.session_id, originalThreadId);
+    await until(
+      () => tmux('capture-pane', '-p', '-t', 'probe').includes('Ask Codex to do anything'),
+      'resumed composer',
+    );
+    await showPermissions();
+    await assertFullAccessTurn(resumed.event.transcript_path, 2);
+    console.log(
+      'PASS: native hook trust reused after backend restart/resume; saved Full Access restored without a launch override.',
+    );
+    await rm(hookResult);
+    const newCommand = [
+      'env',
+      `CODEX_HOME=${home}`,
+      'codex',
+      '--remote',
+      `unix://${socket}`,
+      '--no-alt-screen',
+      '-C',
+      cwd,
+    ]
+      .map(quote)
+      .join(' ');
+    tmux('respawn-pane', '-k', '-t', 'probe', newCommand);
+    await until(
+      () => tmux('capture-pane', '-p', '-t', 'probe').includes('Ask Codex to do anything'),
+      'new session without hook review',
+    );
+    assert.ok(!tmux('capture-pane', '-p', '-t', 'probe').includes('Hooks need review'));
+    await submit('Run another isolated turn.');
+    await until(() => existsSync(hookResult), 'trusted hook in new session');
+    const next = JSON.parse(await readFile(hookResult, 'utf8')) as HookBinding;
+    assert.notEqual(next.event.session_id, originalThreadId);
+    console.log('PASS: new native session reuses the same persisted hook trust.');
+    await until(
+      () => tmux('capture-pane', '-p', '-t', 'probe').includes('Isolated native probe complete.'),
+      'new session turn completed',
+    );
+    await submit('/permissions');
+    await until(
+      () => /Full [Aa]ccess/.test(tmux('capture-pane', '-p', '-t', 'probe')),
+      'native permissions picker',
+    );
+    const picker = tmux('capture-pane', '-p', '-t', 'probe');
+    assert.match(picker, /› 4\. Read Only \(current\)/);
+    assert.match(picker, /3\. Full Access/);
+    tmux('send-keys', '-t', 'probe', 'Up', 'Enter');
+    await until(
+      () => tmux('capture-pane', '-p', '-t', 'probe').includes('Enable full access?'),
+      'native full-access confirmation',
+    );
+    tmux('send-keys', '-t', 'probe', 'Enter');
+    await until(
+      () =>
+        tmux('capture-pane', '-p', '-t', 'probe').includes(
+          'Permission selection requested: Full Access',
+        ),
+      'native permissions applied',
+    );
+    await showPermissions();
+    await submit('Confirm the updated native permissions.');
+    await assertFullAccessTurn(next.event.transcript_path, 2);
+    console.log('PASS: native /permissions changes a running read-only session to Full Access.');
+  } else {
+    await until(
+      () => tmux('capture-pane', '-p', '-t', 'probe').includes('Would you like to run'),
+      'native approval UI',
+    );
+    assert.ok(threadId, 'native user thread announced');
+    const readStatus = async () =>
+      (await observer.rpc('thread/read', { threadId, includeTurns: false })).thread.status;
+    assert.ok(pendingApproval(await readStatus()), 'metadata snapshot reports pending');
+    observer.client.terminate();
+    observer = await observe();
+    assert.ok(pendingApproval(await readStatus()), 'reconnect restores pending');
+    const hookEvidence = JSON.parse(await readFile(hookResult, 'utf8')) as HookBinding;
+    assert.equal(hookEvidence.event.session_id, threadId);
+    assert.equal(hookEvidence.event.cwd, cwd);
+    assert.equal(hookEvidence.gardenId, tmuxSocket);
+    const beforeResolution = observations.length;
+    tmux('send-keys', '-t', 'probe', cancel ? 'Escape' : 'Enter');
+    await until(async () => (await readStatus()).type === 'idle', 'native resolution');
+    assert.ok(
+      observations.some(
         (message) =>
           message.method === 'thread/status/changed' &&
           message.params.threadId === threadId &&
-          !pendingApproval(message.params.status),
+          pendingApproval(message.params.status),
       ),
-    'resolution notification received after native response',
-  );
-  assert.equal(
-    observations.filter((message) => message.method && message.id !== undefined).length,
-    0,
-    'passive observer received no approval requests',
-  );
-  console.log(
-    `PASS: native approval UI dismissal/status recovery after ${cancel ? 'Escape' : 'Enter'}, passive status, reconnect snapshot, hook identity`,
-  );
+      'pending notification received',
+    );
+    assert.ok(
+      observations
+        .slice(beforeResolution)
+        .some(
+          (message) =>
+            message.method === 'thread/status/changed' &&
+            message.params.threadId === threadId &&
+            !pendingApproval(message.params.status),
+        ),
+      'resolution notification received after native response',
+    );
+    assert.equal(
+      observations.filter((message) => message.method && message.id !== undefined).length,
+      0,
+      'passive observer received no approval requests',
+    );
+    console.log(
+      `PASS: native approval UI dismissal/status recovery after ${cancel ? 'Escape' : 'Enter'}, passive status, reconnect snapshot, hook identity`,
+    );
+  }
   console.log(
     'LIMIT: deterministic provider only; Guardian and authenticated providers were not tested.',
   );
-  console.log('LIMIT: observer initializes first and changes native originator/source metadata.');
+  console.log('TUI initialized before passive observer; native hook supplies thread binding.');
   console.log('LIMIT: this script owns the backend; tmux-owned backend survival was not tested.');
 } finally {
   for (const client of clients) client.terminate();
@@ -273,13 +457,7 @@ trust_level = "trusted"
       /* Already exited. */
     }
   }
-  if (daemon?.pid !== undefined && daemon.exitCode === null && daemon.signalCode === null) {
-    const exited = once(daemon, 'exit');
-    daemon.kill('SIGTERM');
-    const timer = setTimeout(() => daemon?.kill('SIGKILL'), 3000);
-    await exited;
-    clearTimeout(timer);
-  }
+  await stopBackend();
   provider.closeAllConnections();
   if (provider.listening) await new Promise<void>((resolve) => provider.close(() => resolve()));
   await rm(root, { recursive: true, force: true });

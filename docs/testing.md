@@ -100,6 +100,18 @@ discarded and `pane_dead_status` never gets set — `exitCode` never arrives (fi
   there is; a helper gets its own suite wherever a feature has logic worth pulling out of a
   component to test as a function over plain data.
 
+## Native Codex probes
+
+The opt-in scripts under `scripts/probes/` exercise an installed Codex with a deterministic
+local provider, isolated Codex home, workspace and tmux socket. They require `codex` and
+`tmux` and are separate from CI's fake harness. Run
+`pnpm exec tsx scripts/probes/codex-native-status.ts` (or append `cancel`) to check the native
+approval screen, passive status notifications, reconnect snapshots and hook identity.
+Append `trust-resume` to exercise native hook consent across backend restart and new sessions,
+saved Full Access on resume, and changing permissions in a running conversation.
+These checks do not establish authenticated-provider behavior or every approval category.
+Each probe cleans up only its own processes and temporary files.
+
 ## Invariants over examples
 
 garden's architecture makes a few whole-system properties expressible as single assertions.

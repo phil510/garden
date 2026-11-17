@@ -48,7 +48,8 @@ garden reads `<appDir>/config.json` on startup, writing a default one on first r
   bare clone kept in `<repo>/.bare/` with a `.git` file pointing at it, beside the clone.
   Applies after a restart.
 - `permissionMode` — `"default"` or `"bypassPermissions"`. Default `"default"`. `"bypassPermissions"`
-  skips Claude Code's permission prompts for every session garden spawns or resumes.
+  applies to new Codex sessions and to new or resumed Claude sessions. Codex resumes retain
+  the conversation's saved permissions; use `/permissions` in its terminal to change them.
 - `deadSessionCap` — dead sessions shown per repo group, swarm group and Solo block before "Show N more"; a whole number
   1–1000. Default `10`. Applies after a restart and a page reload.
 - `claudeCommand` — the command used to launch Claude Code. Default `"claude"`. Split on
@@ -57,6 +58,8 @@ garden reads `<appDir>/config.json` on startup, writing a default one on first r
   settings panel in the app (the gear icon in the topbar); `GARDEN_CLAUDE_COMMAND` still takes
   precedence when set. A saved change applies to the next new or resumed session — no restart
   required — but leaves already-running sessions on whatever command spawned them.
+- `codexCommand` — the Codex launch command, default `"codex"`, with the same argv splitting
+  and live settings behavior as `claudeCommand`. `GARDEN_CODEX_COMMAND` takes precedence.
 - `ignoreAuthors` — PR comment and review authors whose activity a watch does not report. Default
   `[]`.
 - `quietWindowMinutes` — minutes of PR quiet required before a digest is delivered; a whole
@@ -65,6 +68,24 @@ garden reads `<appDir>/config.json` on startup, writing a default one on first r
 
   These three are also editable from the settings panel, and a saved change is read on the next
   use — no restart required.
+
+## Codex sessions
+
+Codex sessions run the native terminal UI and a private native backend together under tmux.
+Garden observes backend status without answering approval requests. Closing Garden leaves
+both processes running; exiting the terminal stops its backend. Existing embedded sessions
+need to be ended and resumed to use native status observation.
+
+On first use, review and trust Garden's hooks in Codex's native hook review or `/hooks` UI.
+Codex saves trust in its own configuration and reuses it across sessions for unchanged hook
+definitions. Changing the hook declaration, Node executable path or Garden app directory can
+require another review. Garden does not approve hooks on your behalf. See
+[Codex hook trust](https://learn.chatgpt.com/docs/hooks#review-and-trust-hooks).
+
+A resumed conversation keeps its saved permissions. To change them, use `/permissions` in
+Codex; selecting Full Access does not require having started the session in that mode.
+Native backend compatibility is exercised against Codex 0.169.0; the opt-in probes described
+in [testing](docs/testing.md) check the installed version separately from the fake harness.
 
 ## Dev loop
 

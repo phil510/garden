@@ -202,13 +202,13 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
         expect(firstNative).not.toBe(id);
         await send(tmuxName, '/work');
         await until(
-          'working status from actual hook',
+          'working status from native backend',
           () => rows(url),
           (list) => list.some((row) => row.id === id && row.status === 'working'),
         );
         await send(tmuxName, '/approve');
         await until(
-          'approval status from actual hook',
+          'approval status from native backend',
           () => rows(url),
           (list) => list.some((row) => row.id === id && row.status === 'needs-approval'),
         );
@@ -221,7 +221,11 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
         const cleared = (await rows(url)).find((row) => row.id === id)!;
         expect(cleared.title).toBeNull();
         expect(cleared.recap).toBeNull();
-        expect(cleared.status).toBe('needs-approval');
+        await until(
+          'new conversation native idle status',
+          () => rows(url),
+          (list) => list.some((row) => row.id === id && row.status === 'waiting'),
+        );
         await post(url, `/sessions/${id}/messages`, { message: 'new conversation' });
         await until(
           'cleared rollout to reach same garden row',
@@ -235,11 +239,16 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
         await ready(pending.tmuxName);
         await stop(child);
         child = await start(env, url);
+        await until(
+          'native status restored after Garden restart',
+          () => rows(url),
+          (list) => list.some((row) => row.id === id && row.status === 'waiting'),
+        );
         const restored = await rows(url);
         expect(restored.filter((row) => row.id === id)).toHaveLength(1);
         expect(restored.find((row) => row.id === id)).toMatchObject({
           title: 'new conversation',
-          status: 'unknown',
+          status: 'waiting',
         });
         expect(restored.find((row) => row.id === pending.id)).toMatchObject({ status: 'waiting' });
         await stop(child);
@@ -324,7 +333,7 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
             Promise.resolve(
               JSON.parse(readFileSync(join(codexHome, `launch-${id}.json`), 'utf8')) as string[],
             ),
-          (args) => args[0] === 'resume' && args.at(-1) === boundAfterClear,
+          (args) => args.includes('resume') && args.includes(boundAfterClear!),
         );
       } finally {
         if (child) await stop(child);
