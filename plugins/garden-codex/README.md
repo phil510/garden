@@ -1,11 +1,10 @@
 # garden Codex plugin
 
-Six skills for a Codex-only garden instance: `orchestrate-sessions`, `message-session`, `alert`,
-`review-queue`, `watch-pr` and `review-pr`. Install `garden-codex` from this repo's `garden`
+Seven skills for a Codex-only garden instance: `orchestrate-sessions`, `message-session`, `alert`,
+`review-queue`, `watch-pr`, `review-pr` and `ship-it`. Install `garden-codex` from this repo's `garden`
 marketplace through `.agents/plugins/marketplace.json`, which lists only `garden-codex`.
 The separate Claude catalog lists `garden-claude`. This package includes Codex hooks
 and bundled reviewer prompts, with no Claude monitors or automatic named-agent installation.
-Ship-it is not implemented here yet.
 
 The CLI/server build must include Codex instance selection, `garden send`, Codex pipe identity,
 and `garden events --follow --forward-to-session`. A skill listing alone does not verify those
@@ -36,6 +35,20 @@ TOML installation or user configuration change. See the [upstream source, licens
 procedure](third-party.md). Review requests constrain the simplifier to findings; explicit
 simplification requests may authorize edits.
 
+## Ship-it
+
+`ship-it` preserves the Claude pipeline: plan and plan review, development and self-review,
+draft PR, internal review, optional configured bot loop, ready gate, watch, merge and cleanup.
+Merge defaults to asking the user; the optional review loop defaults to `none`. Its four durable
+pipeline helpers and `.ship-it` artifacts use the same format as the Claude package.
+
+Codex workers read bundled role prompts in fresh native contexts. Workers use the exposed native interface for
+reporting, waking idle owners and stopping: close when available, otherwise interrupt and retire
+the handle. Neither proves its shell commands stopped. Replacement and cleanup reconcile owned processes first. Compaction preserves live
+workers, while a fresh runtime reconstructs stage state from disk. Ship-it owns or reuses the
+Codex digest forwarder, verifies its connection before watching, and cleans up only its own
+transport when no other watch needs it.
+
 ## Compaction notes
 
 The hooks require Node 22 and use built-in modules. The fixed 175K warning assumes the user has
@@ -56,4 +69,4 @@ resets the warning marker. These hooks preserve live agents; recovery does not s
 
 See [plugin maintenance and intended differences](../maintaining.md) for parity review. The
 optional review-loop boundary defaults to `none`; Garden does not require personal bot-loop or
-comment-fetching skills. A future ship-it port must preserve that boundary.
+comment-fetching skills. Ship-it preserves that boundary.
