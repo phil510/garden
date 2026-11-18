@@ -1,9 +1,16 @@
 import { randomUUID } from 'node:crypto';
-import type { Placement, SessionPlacement, SwarmRecord, UiState } from '@garden/shared';
+import type {
+  Placement,
+  SessionPlacement,
+  SessionState,
+  SwarmRecord,
+  UiState,
+} from '@garden/shared';
 import { pruneOverlay, resolveSwarmId, validatePlacement } from '../domain/swarms.js';
 import { SessionNotFoundError } from './errors.js';
 import type { OverlayState } from './ports.js';
 import type { Projection } from './projection.js';
+import { resolveSessionTarget } from './sessionTargets.js';
 
 export interface SwarmsDeps {
   readonly projection: Projection;
@@ -17,11 +24,11 @@ export class SwarmCycleError extends Error {}
  *  latter is what keeps a just-spawned child (registered in `tmuxNames` at spawn time, but
  *  with no transcript yet) a valid placement target, the same union `pruneKnownSessions`
  *  uses to decide what survives a restart. */
-function knownSessionIds(deps: SwarmsDeps, base: OverlayState): ReadonlySet<string> {
-  return new Set([
-    ...deps.projection.sessions().map((session) => session.id),
-    ...Object.keys(base.tmuxNames),
-  ]);
+function knownSessionIds(
+  sessions: readonly SessionState[],
+  base: OverlayState,
+): ReadonlySet<string> {
+  return new Set([...sessions.map((session) => session.id), ...Object.keys(base.tmuxNames)]);
 }
 
 /** The overlay with `patch` laid over its `ui`; every swarm and placement write goes through here. */
@@ -103,13 +110,17 @@ export function placeSession(
   request: { sessionId: string; placement: Placement },
 ): void {
   deps.projection.updateOverlay((base) => {
-    const known = knownSessionIds(deps, base);
-    if (!known.has(request.sessionId))
-      throw new SessionNotFoundError(`no such session: ${request.sessionId}`);
+    const sessions = deps.projection.sessions();
+    const known = knownSessionIds(sessions, base);
+    const sessionId =
+      request.placement.type === 'parent' && !known.has(request.sessionId)
+        ? resolveSessionTarget(sessions, request.sessionId).id
+        : request.sessionId;
+    if (!known.has(sessionId)) throw new SessionNotFoundError(`no such session: ${sessionId}`);
     if (request.placement.type === 'parent' && !known.has(request.placement.parentId))
       throw new SessionNotFoundError(`no such session: ${request.placement.parentId}`);
 
-    const result = validatePlacement(base, request.sessionId, request.placement);
+    const result = validatePlacement(base, sessionId, request.placement);
     if (!result.ok) {
       throw request.placement.type === 'swarm'
         ? new SwarmNotFoundError(result.reason)
@@ -123,7 +134,7 @@ export function placeSession(
           ? { parent: request.placement.parentId }
           : {};
 
-    return withUi(base, { placements: { ...base.ui.placements, [request.sessionId]: entry } });
+    return withUi(base, { placements: { ...base.ui.placements, [sessionId]: entry } });
   });
 }
 
@@ -164,7 +175,7 @@ export function recordSpawn(
   request: { callerId: string; childId: string; callerTitle: string | null },
 ): void {
   deps.projection.updateOverlay((base) => {
-    const known = knownSessionIds(deps, base);
+    const known = knownSessionIds(deps.projection.sessions(), base);
     if (!known.has(request.callerId))
       throw new SessionNotFoundError(`no such session: ${request.callerId}`);
 
@@ -189,5 +200,7 @@ export function recordSpawn(
  * touch `uiState()`/its subscribers.
  */
 export function pruneKnownSessions(deps: SwarmsDeps): void {
-  deps.projection.updateOverlay((base) => pruneOverlay(base, knownSessionIds(deps, base)));
+  deps.projection.updateOverlay((base) =>
+    pruneOverlay(base, knownSessionIds(deps.projection.sessions(), base)),
+  );
 }
