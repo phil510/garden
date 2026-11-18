@@ -1,6 +1,7 @@
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import { once } from 'node:events';
 import {
+  appendFileSync,
   closeSync,
   existsSync,
   fstatSync,
@@ -238,6 +239,47 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
         );
         const firstNative = aliases(appDir)[id]!.codexId;
         expect(firstNative).not.toBe(id);
+        const firstRollout = aliases(appDir)[id]!.transcriptPath!;
+        const priorRollout = readFileSync(firstRollout, 'utf8');
+        const firstTitle = 'Payment queue investigation';
+        await send(tmuxName, `/rename ${firstTitle}`);
+        await until(
+          'idle native rename without a new turn',
+          () => rows(url),
+          (list) => list.some((row) => row.id === id && row.title === firstTitle),
+        );
+        expect(readFileSync(firstRollout, 'utf8')).toBe(priorRollout);
+        await post(url, `/sessions/${sessionName}/messages`, { message: 'ok' });
+        const afterFollowUp = await until(
+          'follow-up reaches the renamed session',
+          () => rows(url),
+          (list) => list.some((row) => row.id === id && row.recap === 'Response to ok'),
+        );
+        expect(afterFollowUp.find((row) => row.id === id)).toMatchObject({
+          title: firstTitle,
+          sessionName,
+        });
+        const indexPath = join(codexHome, 'session_index.jsonl');
+        const externalTitle = 'Renamed by another backend';
+        // A separate backend shares the index and sends no notification on this connection.
+        appendFileSync(
+          indexPath,
+          JSON.stringify({
+            id: firstNative,
+            thread_name: externalTitle,
+            updated_at: new Date().toISOString(),
+          }) + '\n',
+        );
+        const externallyRenamed = await until(
+          'external rename while the owning backend stays connected',
+          () => rows(url),
+          (list) => list.some((row) => row.id === id && row.title === externalTitle),
+        );
+        expect(externallyRenamed.find((row) => row.id === id)).toMatchObject({
+          status: 'waiting',
+          sessionName,
+          tmuxName,
+        });
         await send(tmuxName, '/work');
         await until(
           'working status from native backend',
@@ -269,20 +311,34 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
           () => rows(url),
           (list) => list.some((row) => row.id === id && row.title === 'new conversation'),
         );
+        const liveTitle = 'Investigation after clear';
+        await send(tmuxName, `/rename ${liveTitle}`);
+        await until(
+          'new conversation receives its own title',
+          () => rows(url),
+          (list) => list.some((row) => row.id === id && row.title === liveTitle),
+        );
         const pending = (await (await post(url, '/sessions', { cwd })).json()) as NamedSession;
         expect(pending.sessionName).not.toBe(sessionName);
         await ready(pending.tmuxName);
+        const savedIndex = join(codexHome, 'held-session-index.jsonl');
+        // Restart Garden without the index so the surviving backend must hydrate the title.
+        renameSync(indexPath, savedIndex);
         await stop(child);
         child = await start(env, url);
         await until(
-          'native status restored after Garden restart',
+          'native status and title restored after Garden restart',
           () => rows(url),
-          (list) => list.some((row) => row.id === id && row.status === 'waiting'),
+          (list) =>
+            list.some(
+              (row) => row.id === id && row.status === 'waiting' && row.title === liveTitle,
+            ),
         );
+        renameSync(savedIndex, indexPath);
         const restored = await rows(url);
         expect(restored.filter((row) => row.id === id)).toHaveLength(1);
         expect(restored.find((row) => row.id === id)).toMatchObject({
-          title: 'new conversation',
+          title: liveTitle,
           status: 'waiting',
           sessionName,
         });
@@ -370,6 +426,13 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
         const boundAfterClear = aliases(appDir)[id]!.codexId;
         expect(boundAfterClear).toEqual(expect.any(String));
         expect(boundAfterClear).not.toBe(beforeOfflineClear);
+        const coldTitle = 'Investigation after offline clear';
+        await send(tmuxName, `/rename ${coldTitle}`);
+        await until(
+          'native title after offline binding replay',
+          () => rows(url),
+          (list) => list.some((row) => row.id === id && row.title === coldTitle),
+        );
         const launchPath = join(codexHome, `launch-${id}.json`);
         const launchArgs = () =>
           Promise.resolve(JSON.parse(readFileSync(launchPath, 'utf8')) as string[]);
@@ -395,11 +458,35 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
                   state.dead && (state.exitStatus !== undefined || state.exitSignal !== undefined),
               );
               expect(pane).toMatchObject({ exitStatus: '0', exitSignal: undefined });
+              expect(existsSync(join(appDir, 'native-endpoints', `${id}.json`))).toBe(false);
+              if (child) await stop(child);
+              child = undefined;
+              child = await start(env, url);
+              expect((await rows(url)).find((row) => row.id === id)).toMatchObject({
+                liveness: 'dead',
+                title: coldTitle,
+                sessionName,
+              });
+              const cli = async (...args: string[]) =>
+                (
+                  await exec(
+                    process.execPath,
+                    ['--import', loader, join(root, 'packages/server/bin/garden.ts'), ...args],
+                    { env: { ...env, GARDEN_SERVER_PROCESS: undefined }, timeout: 5000 },
+                  )
+                ).stdout;
+              expect((await cli('ls')).split('\n')).toContain(
+                [id, 'dead', '-', coldTitle, sessionName].join('\t'),
+              );
+              expect(
+                (JSON.parse(await cli('ls', '--json')) as SessionState[]).find((s) => s.id === id),
+              ).toMatchObject({ title: coldTitle, sessionName });
             } else {
               expect((await paneState(tmuxName)).dead).toBe(false);
             }
 
-            const response = await post(url, `/sessions/${id}/resume`, {});
+            const target = command === '/end' ? sessionName : id;
+            const response = await post(url, `/sessions/${target}/resume`, {});
             const body = await response.text();
             resumeHttp = `${response.status} ${body}`;
             const resumed = JSON.parse(body) as CreateSessionResponse;
@@ -412,12 +499,20 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
             expect(args[0]).toBe('resume');
             expect(args[args.indexOf('--remote') - 1]).toBe(boundAfterClear);
             await ready(resumed.tmuxName);
-            await send(resumed.tmuxName, prompt);
-            await until(
+            if (command === '/end') {
+              await post(url, `/sessions/${sessionName}/messages`, { message: prompt });
+            } else {
+              await send(resumed.tmuxName, prompt);
+            }
+            const afterResume = await until(
               'replacement terminal to process a new prompt in the same Garden session',
               () => rows(url),
               (list) => list.some((row) => row.id === id && row.recap === `Response to ${prompt}`),
             );
+            expect(afterResume.find((row) => row.id === id)).toMatchObject({
+              title: coldTitle,
+              sessionName,
+            });
           } catch (error) {
             const [state, output] = await Promise.all([
               paneState(tmuxName)

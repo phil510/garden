@@ -20,6 +20,7 @@ import type { PermissionMode } from '../../config.js';
 import { codexHook, codexSignal } from './hooks.js';
 import { codexLauncherCommand, readCodexEndpoint } from './launcher.js';
 import { observeNativeStatus } from './nativeStatus.js';
+import { createSessionIndex, indexHasCaughtUp } from './sessionIndex.js';
 import { parseCodexTranscript } from './transcript.js';
 import type { HarnessSignal, TranscriptRecord } from '../../domain/types.js';
 
@@ -42,6 +43,7 @@ interface Launch {
 }
 interface Options {
   appDir: string;
+  codexHome: string;
   instanceEnv: Readonly<Record<string, string>>;
   /** Read-only Codex session roots; never recursively scanned. */
   transcriptRoots: readonly string[];
@@ -94,6 +96,11 @@ export function createCodexHarness(options: Options) {
   >();
   const generations = new Map<string, number>();
   const launches = new Map<string, { reported: boolean }>();
+  const readSessionIndex = createSessionIndex(options.codexHome);
+  const liveTitles = new Map<
+    string,
+    { generation: number; title: string | null; observedAt: number }
+  >();
   let aliases: Record<string, Alias> = Object.create(null) as Record<string, Alias>;
 
   function validPath(path: unknown): path is string {
@@ -219,8 +226,10 @@ export function createCodexHarness(options: Options) {
       }
     } else if (prior.codexId !== null && prior.codexId !== hook.session_id) return null;
     const signal = codexSignal(hook, gardenSessionId, changedConversation);
-    if (changedConversation)
+    if (changedConversation) {
       generations.set(gardenSessionId, (generations.get(gardenSessionId) ?? 0) + 1);
+      liveTitles.delete(gardenSessionId);
+    }
     return {
       ...signal,
       ...(changedConversation ? { resetConversation: true } : {}),
@@ -326,6 +335,12 @@ export function createCodexHarness(options: Options) {
           if (launch !== undefined) launch.reported = true;
           onSignal(signal);
         },
+        onTitle: (binding, title) =>
+          liveTitles.set(binding.id, {
+            generation: binding.generation,
+            title,
+            observedAt: Date.now(),
+          }),
         bindings: () =>
           Object.entries(aliases).flatMap(([id, alias]) =>
             alias.codexId === null || alias.transcriptPath === null
@@ -441,11 +456,27 @@ export function createCodexHarness(options: Options) {
         return { ...parsed, record, signature: { size, mtimeMs } };
       },
     },
-    readSessionNames() {
-      const names = Object.fromEntries(
-        Object.entries(aliases).map(([id, alias]) => [id, alias.name]),
-      );
-      return Promise.resolve({ names, skipped: 0 });
+    async readSessionMetadata() {
+      const indexedTitles = await readSessionIndex();
+      const names: Record<string, string> = Object.create(null) as Record<string, string>;
+      const nativeTitles: Record<string, string> = Object.create(null) as Record<string, string>;
+      for (const [id, alias] of Object.entries(aliases)) {
+        names[id] = alias.name;
+        if (alias.codexId === null) continue;
+        const indexed = indexedTitles.get(alias.codexId);
+        const live = liveTitles.get(id);
+        let title = indexed?.title ?? null;
+        if (
+          live !== undefined &&
+          live.generation === (generations.get(id) ?? 0) &&
+          !indexHasCaughtUp(indexed, live)
+        ) {
+          // Codex can report a rename even when its index append fails.
+          title = live.title;
+        }
+        if (title !== null) nativeTitles[id] = title;
+      }
+      return { names, nativeTitles, skipped: 0 };
     },
   };
 }

@@ -52,7 +52,11 @@ export type GardenEvent =
   | { type: 'branch-resolved'; cwd: string; branch: string | null }
   | { type: 'harness-signal'; signal: HarnessSignal }
   | { type: 'tmux-snapshot'; sessions: TmuxSessionFact[] }
-  | { type: 'session-names-loaded'; names: Record<string, string> }
+  | {
+      type: 'session-metadata-loaded';
+      names: Record<string, string>;
+      nativeTitles: Record<string, string>;
+    }
   /** The full, current summary list for one session; an empty list means it has none. */
   | { type: 'watches-changed'; sessionId: string; watches: WatchSummary[] }
   /** A session's current alert; null clears it. */
@@ -81,8 +85,12 @@ export interface GardenState {
   ended: Record<string, boolean>;
   /** The latest status-bearing hook per session, by session id. */
   reported: Record<string, ReportedStatus>;
-  /** The Claude session registry's latest snapshot, session id to Claude-side name. */
+  /** The latest Claude registry names or Codex handles, by Garden session id. */
   sessionNames: Record<string, string>;
+  /** The last title or prompt from each conversation's transcript, by Garden session id. */
+  transcriptTitles: Record<string, string>;
+  /** The latest harness-native conversation titles, by Garden session id. */
+  nativeTitles: Record<string, string>;
   /** Watch summaries by session id, keyed like `repoRoots` so an entry that lands before its
    *  session is still waiting when the session appears. A session with no watches has no key. */
   watches: Record<string, WatchSummary[]>;

@@ -63,10 +63,12 @@ function fixture() {
     pid: 1,
   });
   const signals: HarnessSignal[] = [];
+  const titles: (string | null)[] = [];
   const observer = observeNativeStatus({
     appDir: '/app',
     bindings: () => bindings,
     onSignal: (signal) => signals.push(signal),
+    onTitle: (_binding, title) => titles.push(title),
   });
   stops.push(() => observer.close());
   const connect = () => {
@@ -80,6 +82,7 @@ function fixture() {
   return {
     observer,
     signals,
+    titles,
     connect,
     status,
     rebind: () => {
@@ -91,10 +94,61 @@ const active = { type: 'active', activeFlags: ['waitingOnApproval'] };
 function notification(socket: FakeSocket, status: unknown, threadId = 'native-a') {
   socket.message({ method: 'thread/status/changed', params: { threadId, status } });
 }
-function snapshot(socket: FakeSocket, status: unknown) {
-  socket.message({ id: 2, result: { thread: { id: 'native-a', status } } });
+function snapshot(socket: FakeSocket, status: unknown, name?: unknown) {
+  socket.message({ id: 2, result: { thread: { id: 'native-a', status, name } } });
+}
+function rename(socket: FakeSocket, threadName: unknown, threadId = 'native-a') {
+  socket.message({ method: 'thread/name/updated', params: { threadId, threadName } });
 }
 describe('native status observer', () => {
+  it('hydrates the title when a newer status notification wins over the status snapshot', () => {
+    const f = fixture();
+    const socket = f.connect();
+    notification(socket, active);
+    snapshot(socket, { type: 'idle' }, '  Review payments 📊  ');
+    expect(f.status()).toBe('needs-approval');
+    expect(f.titles).toEqual(['  Review payments 📊  ']);
+  });
+  it('keeps a newer title notification and still hydrates status', () => {
+    const f = fixture();
+    const socket = f.connect();
+    const signalCount = f.signals.length;
+    rename(socket, 'Manual rename');
+    expect(f.signals).toHaveLength(signalCount);
+    snapshot(socket, active, 'Older name');
+    expect(f.status()).toBe('needs-approval');
+    expect(f.titles).toEqual(['Manual rename']);
+  });
+  it('recognizes an unnamed thread without clearing the title on failed reads or disconnects', () => {
+    const f = fixture();
+    const socket = f.connect();
+    snapshot(socket, { type: 'idle' });
+    rename(socket, 'New name');
+    socket.terminate();
+    f.observer.refresh();
+    const second = f.connect();
+    second.message({ id: 2, error: { message: 'unavailable' } });
+    expect(f.titles).toEqual([null, 'New name']);
+  });
+  it('ignores names from unrelated threads, stale bindings and server requests', () => {
+    const f = fixture();
+    const first = f.connect();
+    rename(first, 'Subagent', 'native-b');
+    rename(first, 123);
+    first.message({
+      id: 99,
+      method: 'thread/name/updated',
+      params: { threadId: 'native-a', threadName: 'Request' },
+    });
+    f.rebind();
+    rename(first, 'Retired binding');
+    f.observer.refresh();
+    const second = f.connect();
+    rename(second, 'Current binding', 'native-b');
+    endpoints.clear();
+    rename(second, 'Retired endpoint', 'native-b');
+    expect(f.titles).toEqual(['Current binding']);
+  });
   it('recovers pending approvals from a snapshot and follows native resolution only', () => {
     const f = fixture();
     const socket = f.connect();
