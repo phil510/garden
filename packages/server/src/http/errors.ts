@@ -1,11 +1,11 @@
-import type { ErrorResponse } from '@garden/shared';
-import type { FastifyError, FastifyReply, FastifyRequest } from 'fastify';
+import type { ErrorResponse } from '@garden/shared'
+import type { FastifyError, FastifyReply, FastifyRequest } from 'fastify'
 import {
   NotADirectoryError,
   NotAFileError,
   PathNotFoundError,
   PathOutsideRootError,
-} from '../app/filesystem.js';
+} from '../app/filesystem.js'
 import {
   AmbiguousSessionNameError,
   AmbiguousWatchError,
@@ -15,13 +15,13 @@ import {
   ReviewNotFoundError,
   SessionMessagingError,
   WatchNotFoundError,
-} from '../app/errors.js';
-import { ConfigWriteRefusedError } from '../app/ports.js';
-import { RootNotListedError } from '../app/repoCatalog.js';
-import { SessionNotFoundError } from '../app/sessions.js';
-import { SwarmCycleError, SwarmNotFoundError } from '../app/swarms.js';
+} from '../app/errors.js'
+import { ConfigWriteRefusedError } from '../app/ports.js'
+import { RootNotListedError } from '../app/repoCatalog.js'
+import { SessionNotFoundError } from '../app/sessions.js'
+import { SwarmCycleError, SwarmNotFoundError } from '../app/swarms.js'
 
-type ErrorClass = new (...args: never[]) => Error;
+type ErrorClass = new (...args: never[]) => Error
 
 const STATUS_BY_ERROR: readonly (readonly [ErrorClass, number])[] = [
   [SessionNotFoundError, 404],
@@ -41,15 +41,15 @@ const STATUS_BY_ERROR: readonly (readonly [ErrorClass, number])[] = [
   [PathOutsideRootError, 400],
   [NotAFileError, 400],
   [NotADirectoryError, 400],
-];
+]
 
 /** Fastify's own errors (malformed JSON, unsupported media type) carry a 4xx `statusCode`. */
 function statusOf(error: unknown): number {
-  const mapped = STATUS_BY_ERROR.find(([errorClass]) => error instanceof errorClass);
-  if (mapped !== undefined) return mapped[1];
-  const statusCode = (error as { statusCode?: unknown } | null)?.statusCode;
-  if (typeof statusCode === 'number' && statusCode >= 400 && statusCode < 500) return statusCode;
-  return 500;
+  const mapped = STATUS_BY_ERROR.find(([errorClass]) => error instanceof errorClass)
+  if (mapped !== undefined) return mapped[1]
+  const statusCode = (error as { statusCode?: unknown } | null)?.statusCode
+  if (typeof statusCode === 'number' && statusCode >= 400 && statusCode < 500) return statusCode
+  return 500
 }
 
 /** Fastify's error handler for every route. A mapped or 4xx error is something the client
@@ -61,9 +61,9 @@ export function errorHandler(
   request: FastifyRequest,
   reply: FastifyReply,
 ): FastifyReply {
-  const message = error instanceof Error ? error.message : String(error);
-  const status = statusOf(error);
-  if (status < 500) request.log.warn(message);
-  else request.log.error(error instanceof Error ? (error.stack ?? message) : message);
-  return reply.status(status).send({ error: message } satisfies ErrorResponse);
+  const message = error instanceof Error ? error.message : String(error)
+  const status = statusOf(error)
+  if (status < 500) request.log.warn(message)
+  else request.log.error(error instanceof Error ? (error.stack ?? message) : message)
+  return reply.status(status).send({ error: message } satisfies ErrorResponse)
 }

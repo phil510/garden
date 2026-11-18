@@ -1,44 +1,44 @@
-import { EVENTS_CLOSE_CODES, type EventsClientMessage, type ServerMessage } from '@garden/shared';
-import type { FastifyInstance } from 'fastify';
-import { WebSocketServer, type WebSocket } from 'ws';
-import type { Projection } from '../../app/projection.js';
-import type { RootWatches } from '../../app/rootWatch.js';
-import type { ReviewStore } from '../../app/reviews.js';
+import { EVENTS_CLOSE_CODES, type EventsClientMessage, type ServerMessage } from '@garden/shared'
+import type { FastifyInstance } from 'fastify'
+import { WebSocketServer, type WebSocket } from 'ws'
+import type { Projection } from '../../app/projection.js'
+import type { RootWatches } from '../../app/rootWatch.js'
+import type { ReviewStore } from '../../app/reviews.js'
 
 export interface EventsDeps {
-  readonly projection: Projection;
-  readonly rootWatches: RootWatches;
-  readonly reviews: Pick<ReviewStore, 'queue' | 'subscribe'>;
+  readonly projection: Projection
+  readonly rootWatches: RootWatches
+  readonly reviews: Pick<ReviewStore, 'queue' | 'subscribe'>
 }
 
 /** A debounced `fs-changed` can land after the client has started closing. */
 function send(socket: WebSocket, message: ServerMessage): void {
-  if (socket.readyState !== socket.OPEN) return;
-  socket.send(JSON.stringify(message));
+  if (socket.readyState !== socket.OPEN) return
+  socket.send(JSON.stringify(message))
 }
 
 /** A text frame is client input: anything but a `watch` with a string root is dropped. A throw
  *  in a `message` listener is an uncaught exception, not a socket error. */
 function parseWatch(frame: string): EventsClientMessage | undefined {
-  let message: unknown;
+  let message: unknown
   try {
-    message = JSON.parse(frame);
+    message = JSON.parse(frame)
   } catch {
-    return undefined;
+    return undefined
   }
-  if (typeof message !== 'object' || message === null) return undefined;
-  const { type, root } = message as Partial<EventsClientMessage>;
-  return type === 'watch' && typeof root === 'string' ? { type, root } : undefined;
+  if (typeof message !== 'object' || message === null) return undefined
+  const { type, root } = message as Partial<EventsClientMessage>
+  return type === 'watch' && typeof root === 'string' ? { type, root } : undefined
 }
 
 // A graceful `close()` needs the other end to finish its handshake, which is not guaranteed
 // to happen — this is how long `preClose` waits before giving up and terminating stragglers.
-const SHUTDOWN_GRACE_PERIOD_MS = 50;
+const SHUTDOWN_GRACE_PERIOD_MS = 50
 
 /** `noServer` mode: `http/server.ts` owns the single `upgrade` listener on the shared HTTP
  *  server and dispatches to this `wss` by path, so it can also dispatch to `WS /attach/:id`. */
 export function registerEventsSocket(app: FastifyInstance, deps: EventsDeps): WebSocketServer {
-  const wss = new WebSocketServer({ noServer: true });
+  const wss = new WebSocketServer({ noServer: true })
   // An upgraded socket keeps the HTTP server from closing, and that happens before `onClose`
   // runs — so the clients have to go in `preClose`. `wss.close()` terminates none of them itself.
   //
@@ -48,46 +48,44 @@ export function registerEventsSocket(app: FastifyInstance, deps: EventsDeps): We
   // awaits whatever `preClose` returns, so a hung client still can't block shutdown forever.
   app.addHook('preClose', async () => {
     for (const client of wss.clients) {
-      client.close(EVENTS_CLOSE_CODES.DELIBERATE_SHUTDOWN, 'garden server is shutting down');
+      client.close(EVENTS_CLOSE_CODES.DELIBERATE_SHUTDOWN, 'garden server is shutting down')
     }
-    await new Promise((resolve) => setTimeout(resolve, SHUTDOWN_GRACE_PERIOD_MS));
-    for (const client of wss.clients) client.terminate();
-  });
-  app.addHook('onClose', (_instance, done) => wss.close(() => done()));
+    await new Promise((resolve) => setTimeout(resolve, SHUTDOWN_GRACE_PERIOD_MS))
+    for (const client of wss.clients) client.terminate()
+  })
+  app.addHook('onClose', (_instance, done) => wss.close(() => done()))
 
   wss.on('connection', (socket) => {
     // A malformed frame emits `error` on the socket, which is fatal to the process if unhandled.
-    socket.on('error', () => socket.terminate());
+    socket.on('error', () => socket.terminate())
     send(socket, {
       type: 'snapshot',
       sessions: deps.projection.sessions(),
       uiState: deps.projection.uiState(),
       reviews: deps.reviews.queue(),
-    });
+    })
     const unsubscribe = deps.projection.subscribe((deltas) => {
-      send(socket, { type: 'deltas', deltas });
-    });
+      send(socket, { type: 'deltas', deltas })
+    })
     const unsubscribeUiState = deps.projection.subscribeUiState((uiState) => {
-      send(socket, { type: 'ui-state', uiState });
-    });
+      send(socket, { type: 'ui-state', uiState })
+    })
     const unsubscribeReviews = deps.reviews.subscribe((queue) => {
-      send(socket, { type: 'reviews', queue });
-    });
-    const rootWatch = deps.rootWatches.connect((root) =>
-      send(socket, { type: 'fs-changed', root }),
-    );
+      send(socket, { type: 'reviews', queue })
+    })
+    const rootWatch = deps.rootWatches.connect((root) => send(socket, { type: 'fs-changed', root }))
     socket.on('message', (data: Buffer, isBinary: boolean) => {
-      if (isBinary) return;
-      const message = parseWatch(data.toString('utf8'));
-      if (message !== undefined) void rootWatch.watch(message.root);
-    });
+      if (isBinary) return
+      const message = parseWatch(data.toString('utf8'))
+      if (message !== undefined) void rootWatch.watch(message.root)
+    })
     socket.on('close', () => {
-      unsubscribe();
-      unsubscribeUiState();
-      unsubscribeReviews();
-      rootWatch.close();
-    });
-  });
+      unsubscribe()
+      unsubscribeUiState()
+      unsubscribeReviews()
+      rootWatch.close()
+    })
+  })
 
-  return wss;
+  return wss
 }

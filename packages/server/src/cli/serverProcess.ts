@@ -1,36 +1,36 @@
-import { spawn } from 'node:child_process';
+import { spawn } from 'node:child_process'
 
 export type SpawnResult =
   | { readonly kind: 'ready'; readonly pid: number }
   | { readonly kind: 'exited'; readonly code: number | null; readonly stderr: string }
-  | { readonly kind: 'timed-out'; readonly stderr: string; readonly pid: number | undefined };
+  | { readonly kind: 'timed-out'; readonly stderr: string; readonly pid: number | undefined }
 
-const POLL_INTERVAL_MS = 50;
+const POLL_INTERVAL_MS = 50
 
 /** Default readiness timeout for `spawnServer`. `describeStartupFailure` (in `start.ts`) names
  *  this same value in its timed-out message, so the two never drift apart. */
-export const DEFAULT_HEALTH_TIMEOUT_MS = 30_000;
+export const DEFAULT_HEALTH_TIMEOUT_MS = 30_000
 
 /** What `/health` told us about the process behind a port: the pid it reported, that nothing is
  *  listening (`refused`), or that something is but did not answer usefully (`no-answer`). */
-export type HealthPidResult = number | 'refused' | 'no-answer';
+export type HealthPidResult = number | 'refused' | 'no-answer'
 
 /** The server's main thread can block during session spawns, so too short a timeout misreads a
  *  busy healthy garden as hung; with none at all, a hung garden would hang `garden stop`. */
-const HEALTH_PID_TIMEOUT_MS = 2500;
+const HEALTH_PID_TIMEOUT_MS = 2500
 
 export async function fetchHealthPid(
   healthUrl: string,
   timeoutMs = HEALTH_PID_TIMEOUT_MS,
 ): Promise<HealthPidResult> {
   try {
-    const response = await fetch(healthUrl, { signal: AbortSignal.timeout(timeoutMs) });
-    if (!response.ok) return 'no-answer';
-    const body = (await response.json()) as { pid?: unknown };
-    return typeof body.pid === 'number' ? body.pid : 'no-answer';
+    const response = await fetch(healthUrl, { signal: AbortSignal.timeout(timeoutMs) })
+    if (!response.ok) return 'no-answer'
+    const body = (await response.json()) as { pid?: unknown }
+    return typeof body.pid === 'number' ? body.pid : 'no-answer'
   } catch (error) {
-    const cause = (error as { cause?: { code?: string } }).cause;
-    return cause?.code === 'ECONNREFUSED' ? 'refused' : 'no-answer';
+    const cause = (error as { cause?: { code?: string } }).cause
+    return cause?.code === 'ECONNREFUSED' ? 'refused' : 'no-answer'
   }
 }
 
@@ -53,36 +53,36 @@ export async function spawnServer(
     detached: true,
     stdio: ['ignore', 'ignore', 'pipe'],
     env,
-  });
+  })
 
-  let stderr = '';
+  let stderr = ''
   child.stderr.on('data', (chunk: Buffer) => {
-    stderr += chunk.toString('utf8');
-  });
+    stderr += chunk.toString('utf8')
+  })
 
-  let exitCode: number | null | undefined;
+  let exitCode: number | null | undefined
   child.on('exit', (code) => {
-    exitCode = code;
-  });
+    exitCode = code
+  })
   child.on('error', (error) => {
-    exitCode = null;
-    stderr += `${stderr === '' ? '' : '\n'}${error.message}`;
-  });
+    exitCode = null
+    stderr += `${stderr === '' ? '' : '\n'}${error.message}`
+  })
 
-  const deadline = Date.now() + timeoutMs;
+  const deadline = Date.now() + timeoutMs
   for (;;) {
-    if (exitCode !== undefined) return { kind: 'exited', code: exitCode, stderr };
+    if (exitCode !== undefined) return { kind: 'exited', code: exitCode, stderr }
     // Ready means the health url reports the child's own pid: an orphaned garden already
     // holding the port would otherwise pass for the server this child is about to fail to start.
-    const reported = await fetchHealthPid(healthUrl);
+    const reported = await fetchHealthPid(healthUrl)
     if (typeof reported === 'number' && reported === child.pid) {
-      child.unref();
-      return { kind: 'ready', pid: reported };
+      child.unref()
+      return { kind: 'ready', pid: reported }
     }
     if (Date.now() >= deadline) {
-      child.kill('SIGTERM');
-      return { kind: 'timed-out', stderr, pid: child.pid };
+      child.kill('SIGTERM')
+      return { kind: 'timed-out', stderr, pid: child.pid }
     }
-    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
   }
 }

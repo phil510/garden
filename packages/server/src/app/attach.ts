@@ -1,28 +1,28 @@
-import type { PaneSize, PtyPort } from './ports.js';
-import type { Projection } from './projection.js';
-import { findSession } from './sessions.js';
+import type { PaneSize, PtyPort } from './ports.js'
+import type { Projection } from './projection.js'
+import { findSession } from './sessions.js'
 
 export interface AttachDeps {
-  readonly pty: PtyPort;
-  readonly projection: Projection;
+  readonly pty: PtyPort
+  readonly projection: Projection
 }
 
 export interface AttachRequest {
-  readonly id: string;
-  readonly size: PaneSize;
-  readonly onData: (chunk: string) => void;
-  readonly onExit: () => void;
+  readonly id: string
+  readonly size: PaneSize
+  readonly onData: (chunk: string) => void
+  readonly onExit: () => void
 }
 
 export interface Attachment {
-  write(data: string): void;
-  resize(size: PaneSize): void;
+  write(data: string): void
+  resize(size: PaneSize): void
   /** Detaches. Safe to call after the pty has already exited on its own. */
-  close(): void;
+  close(): void
 }
 
 export interface AttachRegistry {
-  attach(request: AttachRequest): Attachment;
+  attach(request: AttachRequest): Attachment
 }
 
 /** A second pane socket for a session garden is already streaming. The caller
@@ -38,38 +38,38 @@ export class SessionNotRunningError extends Error {}
  * `shown` is what tells the client a session is already on stage.
  */
 export function createAttachRegistry(deps: AttachDeps): AttachRegistry {
-  const open = new Set<string>();
+  const open = new Set<string>()
 
   return {
     attach(request) {
-      const session = findSession(deps.projection, request.id);
+      const session = findSession(deps.projection, request.id)
       if (session.tmuxName === null)
-        throw new SessionNotRunningError(`session has no tmux session: ${request.id}`);
+        throw new SessionNotRunningError(`session has no tmux session: ${request.id}`)
       if (open.has(request.id))
-        throw new SessionAlreadyAttachedError(`session is already attached: ${request.id}`);
+        throw new SessionAlreadyAttachedError(`session is already attached: ${request.id}`)
 
-      open.add(request.id);
-      let released = false;
+      open.add(request.id)
+      let released = false
       const release = (): void => {
-        if (released) return;
-        released = true;
-        open.delete(request.id);
-      };
+        if (released) return
+        released = true
+        open.delete(request.id)
+      }
 
       // A pty that never spawned holds no slot: without this the session would be refused
       // as already attached for the life of the process.
-      let attachment;
+      let attachment
       try {
         attachment = deps.pty.attach(session.tmuxName, request.size, {
           onData: request.onData,
           onExit: () => {
-            release();
-            request.onExit();
+            release()
+            request.onExit()
           },
-        });
+        })
       } catch (error) {
-        release();
-        throw error;
+        release()
+        throw error
       }
 
       return {
@@ -78,10 +78,10 @@ export function createAttachRegistry(deps: AttachDeps): AttachRegistry {
         close: () => {
           // Freeing the slot before the kill means a client that closes and immediately
           // reopens is not refused by its own previous attach still winding down.
-          release();
-          attachment.kill();
+          release()
+          attachment.kill()
         },
-      };
+      }
     },
-  };
+  }
 }

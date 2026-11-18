@@ -1,11 +1,11 @@
-import { randomBytes } from 'node:crypto';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
-import { createCodexHarness } from './adapters/codex/index.js';
-import { applyHarnessSignal } from './app/hooks.js';
-import { createClaudeHarness } from './adapters/claude/index.js';
-import { watchFsRoot } from './adapters/fsWatch.js';
-import { ghGet, ghRemoveReviewRequest } from './adapters/gh.js';
+import { randomBytes } from 'node:crypto'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
+import { createCodexHarness } from './adapters/codex/index.js'
+import { applyHarnessSignal } from './app/hooks.js'
+import { createClaudeHarness } from './adapters/claude/index.js'
+import { watchFsRoot } from './adapters/fsWatch.js'
+import { ghGet, ghRemoveReviewRequest } from './adapters/gh.js'
 import {
   createBranchReader,
   isBareRepository,
@@ -13,12 +13,12 @@ import {
   repoRoot,
   status,
   workTreePrefix,
-} from './adapters/git.js';
-import { createLogger, guardStderr, type Logger } from './adapters/logger.js';
-import { attachPty } from './adapters/pty.js';
-import type { PtyTarget } from './adapters/pty.js';
-import { readOverlayState, writeOverlayState } from './adapters/store.js';
-import { createTranscripts } from './adapters/transcripts.js';
+} from './adapters/git.js'
+import { createLogger, guardStderr, type Logger } from './adapters/logger.js'
+import { attachPty } from './adapters/pty.js'
+import type { PtyTarget } from './adapters/pty.js'
+import { readOverlayState, writeOverlayState } from './adapters/store.js'
+import { createTranscripts } from './adapters/transcripts.js'
 import {
   applyConf,
   checkTmuxVersion,
@@ -27,16 +27,16 @@ import {
   newSession,
   respawnPane,
   submitMessage,
-} from './adapters/tmux.js';
-import type { TmuxTarget } from './adapters/tmux.js';
-import { createAttachRegistry, type AttachRegistry } from './app/attach.js';
-import { createBranchSweeper } from './app/branches.js';
-import { createSessionNameRefresh } from './app/sessionNames.js';
-import { createTranscriptReplay, type TranscriptReplay } from './app/transcriptReplay.js';
-import { createPoller } from './app/poller.js';
-import { createReviewPoller } from './app/reviewPoller.js';
-import { createReviewDismisser } from './app/reviewDismiss.js';
-import { createReviewStore } from './app/reviews.js';
+} from './adapters/tmux.js'
+import type { TmuxTarget } from './adapters/tmux.js'
+import { createAttachRegistry, type AttachRegistry } from './app/attach.js'
+import { createBranchSweeper } from './app/branches.js'
+import { createSessionNameRefresh } from './app/sessionNames.js'
+import { createTranscriptReplay, type TranscriptReplay } from './app/transcriptReplay.js'
+import { createPoller } from './app/poller.js'
+import { createReviewPoller } from './app/reviewPoller.js'
+import { createReviewDismisser } from './app/reviewDismiss.js'
+import { createReviewStore } from './app/reviews.js'
 import type {
   ConfigPort,
   HarnessPort,
@@ -49,17 +49,17 @@ import type {
   TmuxPaneFact,
   TmuxPort,
   TranscriptPort,
-} from './app/ports.js';
-import { createPipes, type Pipes } from './app/pipes.js';
-import { createProjection, type Projection } from './app/projection.js';
-import { createRepoCatalog } from './app/repoCatalog.js';
-import { createCloneResolver } from './app/reviewClones.js';
-import { createRootWatches } from './app/rootWatch.js';
-import { watchRepoRoots } from './app/repoRoots.js';
-import { pruneKnownSessions } from './app/swarms.js';
-import { replayWatches } from './app/watches.js';
-import { replayAlerts } from './app/alerts.js';
-import { writeTmuxConf } from './appdir.js';
+} from './app/ports.js'
+import { createPipes, type Pipes } from './app/pipes.js'
+import { createProjection, type Projection } from './app/projection.js'
+import { createRepoCatalog } from './app/repoCatalog.js'
+import { createCloneResolver } from './app/reviewClones.js'
+import { createRootWatches } from './app/rootWatch.js'
+import { watchRepoRoots } from './app/repoRoots.js'
+import { pruneKnownSessions } from './app/swarms.js'
+import { replayWatches } from './app/watches.js'
+import { replayAlerts } from './app/alerts.js'
+import { writeTmuxConf } from './appdir.js'
 import {
   appDirPath,
   configFilePath,
@@ -70,17 +70,17 @@ import {
   readConfigFile,
   resolveClaudeCommand,
   resolveCodexCommand,
-} from './config.js';
-import type { TmuxSessionFact } from './domain/types.js';
-import { createServer } from './http/server.js';
+} from './config.js'
+import type { TmuxSessionFact } from './domain/types.js'
+import { createServer } from './http/server.js'
 
 /** How often the tmux poll re-derives liveness. */
-const TMUX_POLL_INTERVAL_MS = 2000;
+const TMUX_POLL_INTERVAL_MS = 2000
 
 /** How often the pipe sweep ends watches that have had no pipe for seven days. */
-const PIPE_SWEEP_INTERVAL_MS = 60 * 60 * 1000;
+const PIPE_SWEEP_INTERVAL_MS = 60 * 60 * 1000
 // Must stay under `garden stop`'s 5s wait so the stopper sees the process exit.
-const SHUTDOWN_TIMEOUT_MS = 3000;
+const SHUTDOWN_TIMEOUT_MS = 3000
 
 function tmuxPort(target: TmuxTarget): TmuxPort {
   return {
@@ -89,39 +89,39 @@ function tmuxPort(target: TmuxTarget): TmuxPort {
     respawnPane: (request) => respawnPane(target, request),
     killSession: (name) => killSession(target, name),
     submitMessage: (name, message) => submitMessage(target, name, message),
-  };
+  }
 }
 
 function storePort(appDir: string, logger: Logger): StorePort {
   return {
     read: () => readOverlayState(appDir, logger),
     write: (state) => {
-      writeOverlayState(appDir, state);
+      writeOverlayState(appDir, state)
     },
-  };
+  }
 }
 
 /** Binds `config.ts`'s read/write logic to this run's config file path, next to the other
  *  factories that turn a target into a port. */
 function configPort(home: string): ConfigPort {
-  const path = configFilePath(appDirPath(home, process.env));
+  const path = configFilePath(appDirPath(home, process.env))
   return {
     read: () => readConfigFile(path),
     write: (patch) => {
-      patchConfigFile(path, patch);
+      patchConfigFile(path, patch)
     },
-  };
+  }
 }
 
 /** Resolves `claudeCommand` fresh from `configPort.read()` on every call, so a command saved
  *  through the settings panel reaches the next spawned or resumed session without a restart —
  *  unlike `permissionMode`, which `main` still reads once from `config` at boot. */
 function readClaudeCommand(configPort: ConfigPort): () => readonly string[] {
-  return () => resolveClaudeCommand(process.env, configPort.read());
+  return () => resolveClaudeCommand(process.env, configPort.read())
 }
 
 function fsWatchPort(logger: Logger): FsWatchPort {
-  return { watch: (root, onChange) => watchFsRoot(root, onChange, logger) };
+  return { watch: (root, onChange) => watchFsRoot(root, onChange, logger) }
 }
 
 function gitPort(): GitPort {
@@ -132,7 +132,7 @@ function gitPort(): GitPort {
     remoteUrl,
     status,
     workTreePrefix,
-  };
+  }
 }
 
 function ghPort(): GhPort {
@@ -140,13 +140,13 @@ function ghPort(): GhPort {
     get: (path, etag) => ghGet('gh', path, etag, Date.now()),
     removeReviewRequest: (repo, number, login) =>
       ghRemoveReviewRequest('gh', repo, number, login, Date.now()),
-  };
+  }
 }
 
 function ptyPort(target: PtyTarget): PtyPort {
   return {
     attach: (tmuxName, size, handlers) => attachPty(target, tmuxName, size, handlers),
-  };
+  }
 }
 
 /**
@@ -154,20 +154,20 @@ function ptyPort(target: PtyTarget): PtyPort {
  * first pane carrying a name is that session's.
  */
 function toSessionFacts(panes: readonly TmuxPaneFact[]): TmuxSessionFact[] {
-  const facts = new Map<string, TmuxSessionFact>();
+  const facts = new Map<string, TmuxSessionFact>()
   for (const pane of panes) {
-    if (facts.has(pane.session)) continue;
+    if (facts.has(pane.session)) continue
     facts.set(pane.session, {
       name: pane.session,
       paneDead: pane.dead,
       exitCode: pane.exitCode ?? null,
-    });
+    })
   }
-  return [...facts.values()];
+  return [...facts.values()]
 }
 
 async function dispatchTmuxSnapshot(projection: Projection, tmux: TmuxPort): Promise<void> {
-  projection.dispatch({ type: 'tmux-snapshot', sessions: toSessionFacts(await tmux.listPanes()) });
+  projection.dispatch({ type: 'tmux-snapshot', sessions: toSessionFacts(await tmux.listPanes()) })
 }
 
 function drainBindingSpool(
@@ -178,11 +178,11 @@ function drainBindingSpool(
 ): void {
   try {
     for (const signal of harness.replaySpool?.() ?? [])
-      applyHarnessSignal({ projection, liveTranscripts }, signal);
+      applyHarnessSignal({ projection, liveTranscripts }, signal)
   } catch (error) {
     logger.error(
       `binding spool replay failed: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    )
   }
 }
 
@@ -202,32 +202,32 @@ async function replay(
   git: GitPort,
   refreshSessionNames: () => Promise<void>,
 ): Promise<void> {
-  projection.dispatch({ type: 'store-loaded', tmuxNames: { ...store.read().tmuxNames } });
+  projection.dispatch({ type: 'store-loaded', tmuxNames: { ...store.read().tmuxNames } })
   // Isolated like the steps below: unreadable watch state is not a reason to fail boot.
   try {
-    replayWatches({ projection, git }, Date.now());
+    replayWatches({ projection, git }, Date.now())
   } catch (error) {
-    logger.error(`watch replay failed: ${error instanceof Error ? error.message : String(error)}`);
+    logger.error(`watch replay failed: ${error instanceof Error ? error.message : String(error)}`)
   }
   try {
-    replayAlerts({ projection });
+    replayAlerts({ projection })
   } catch (error) {
-    logger.error(`alert replay failed: ${error instanceof Error ? error.message : String(error)}`);
+    logger.error(`alert replay failed: ${error instanceof Error ? error.message : String(error)}`)
   }
   try {
-    pipes.replay();
+    pipes.replay()
   } catch (error) {
-    logger.error(`pipe replay failed: ${error instanceof Error ? error.message : String(error)}`);
+    logger.error(`pipe replay failed: ${error instanceof Error ? error.message : String(error)}`)
   }
   for (const pending of harness.pendingSessions?.() ?? []) {
-    const tmuxName = store.read().tmuxNames[pending.id];
+    const tmuxName = store.read().tmuxNames[pending.id]
     if (tmuxName !== undefined)
       projection.dispatch({
         type: 'session-registered',
         ...pending,
         tmuxName,
         reported: { status: 'waiting', reason: null },
-      });
+      })
     else
       projection.dispatch({
         type: 'harness-signal',
@@ -238,17 +238,17 @@ async function replay(
           ended: true,
           conversationCleared: false,
         },
-      });
+      })
   }
-  await dispatchTmuxSnapshot(projection, tmux);
+  await dispatchTmuxSnapshot(projection, tmux)
   try {
-    await refreshSessionNames();
+    await refreshSessionNames()
   } catch (error) {
     logger.error(
       `session name projection failed: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    )
   }
-  await transcriptReplay.run();
+  await transcriptReplay.run()
 }
 
 /** The composition root: the one place that reads config and wires the parts together.
@@ -256,33 +256,33 @@ async function replay(
  *  attached to a developer's terminal (`pnpm dev` / `pnpm dev:sandbox`) — see
  *  `SERVER_DETACHED_FLAG` in `cli/start.ts`. */
 export async function main(detached: boolean): Promise<void> {
-  await checkTmuxVersion();
+  await checkTmuxVersion()
 
-  const home = homedir();
-  const logger = createLogger();
+  const home = homedir()
+  const logger = createLogger()
   // Armed before anything can log: it backstops the whole process lifetime, including the
   // pre-redirect window below, in case that pipe closes early too.
-  guardStderr();
-  const config = loadConfig(process.env, ensureConfigFile(home, logger), home);
-  const confPath = writeTmuxConf(config.appDir);
+  guardStderr()
+  const config = loadConfig(process.env, ensureConfigFile(home, logger), home)
+  const confPath = writeTmuxConf(config.appDir)
 
   // A tmux server that outlives a garden upgrade never re-reads the conf on its own.
   try {
-    await applyConf({ socket: config.tmuxSocket, confPath });
+    await applyConf({ socket: config.tmuxSocket, confPath })
   } catch (error) {
     logger.error(
       `applying tmux conf failed: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    )
   }
 
-  const store = storePort(config.appDir, logger);
-  const configAdapter = configPort(home);
+  const store = storePort(config.appDir, logger)
+  const configAdapter = configPort(home)
   const tmux = tmuxPort({
     socket: config.tmuxSocket,
     confPath,
     instanceEnv: instanceEnvironment(config),
-  });
-  const codexHome = process.env.CODEX_HOME ?? join(home, '.codex');
+  })
+  const codexHome = process.env.CODEX_HOME ?? join(home, '.codex')
   const harness: HarnessPort =
     config.harness === 'codex'
       ? createCodexHarness({
@@ -299,32 +299,32 @@ export async function main(detached: boolean): Promise<void> {
           transcriptsDir: config.transcriptsDir,
           roots: config.roots,
           sessionsDir: config.claudeSessionsDir,
-        });
-  const transcripts: TranscriptPort = createTranscripts(harness.transcripts, logger);
-  const git = gitPort();
-  const projection = createProjection(store);
-  const refreshSessionNames = createSessionNameRefresh(projection, harness, logger);
-  const pipes = createPipes({ projection, git });
+        })
+  const transcripts: TranscriptPort = createTranscripts(harness.transcripts, logger)
+  const git = gitPort()
+  const projection = createProjection(store)
+  const refreshSessionNames = createSessionNameRefresh(projection, harness, logger)
+  const pipes = createPipes({ projection, git })
   const attach: AttachRegistry = createAttachRegistry({
     pty: ptyPort({ socket: config.tmuxSocket, confPath }),
     projection,
-  });
+  })
 
   // Subscribed before the replay so boot's own dispatches are what drive the first resolutions.
-  const stopRepoRoots = watchRepoRoots({ git, projection });
-  const branches = createBranchSweeper({ git, projection });
+  const stopRepoRoots = watchRepoRoots({ git, projection })
+  const branches = createBranchSweeper({ git, projection })
 
   // Started before replay() rather than after — including before its store-loaded and
   // tmux-snapshot dispatches, not just before its transcript scan — so a write landing
   // anywhere in that window still reaches the watch instead of being lost until the next
   // unrelated event or a restart. The watcher dispatches nothing for files replay has already read,
   // so this only affects files written during boot, not the existing corpus.
-  const transcriptReplay = createTranscriptReplay({ projection, transcripts }, logger);
+  const transcriptReplay = createTranscriptReplay({ projection, transcripts }, logger)
   const watcher = transcripts.watch((event) => {
-    transcriptReplay.live(event);
-  });
+    transcriptReplay.live(event)
+  })
 
-  drainBindingSpool(harness, projection, watcher, logger);
+  drainBindingSpool(harness, projection, watcher, logger)
   await replay(
     projection,
     pipes,
@@ -335,20 +335,20 @@ export async function main(detached: boolean): Promise<void> {
     harness,
     git,
     refreshSessionNames,
-  );
+  )
   const statusObserver = harness.observeStatus?.((signal) => {
-    applyHarnessSignal({ projection, liveTranscripts: watcher }, signal);
-  });
+    applyHarnessSignal({ projection, liveTranscripts: watcher }, signal)
+  })
   // Only valid once replay's transcript scan has settled what "known" means — any earlier
   // (store-loaded, or the first tmux snapshot) would prune a live child whose transcript
   // just hasn't been read yet. Isolated like every other boot step above: a stale overlay
   // entry left behind by a failed prune is not a reason to fail boot.
   try {
-    pruneKnownSessions({ projection });
+    pruneKnownSessions({ projection })
   } catch (error) {
     logger.error(
       `post-boot pruning failed: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    )
   }
 
   // Created after the watch replay so its first tick sees the pruned watches; started once the
@@ -360,10 +360,10 @@ export async function main(detached: boolean): Promise<void> {
     logger,
     now: Date.now,
     mintId: () => randomBytes(6).toString('hex'),
-  });
+  })
 
-  const repos = createRepoCatalog({ git, roots: config.roots });
-  const reviews = createReviewStore({ overlay: projection });
+  const repos = createRepoCatalog({ git, roots: config.roots })
+  const reviews = createReviewStore({ overlay: projection })
   const reviewPoller = createReviewPoller({
     gh: ghPort(),
     store: reviews,
@@ -371,41 +371,39 @@ export async function main(detached: boolean): Promise<void> {
     config: configAdapter,
     logger,
     now: Date.now,
-  });
-  const reviewDismisser = createReviewDismisser({ gh: ghPort(), store: reviews, logger });
+  })
+  const reviewDismisser = createReviewDismisser({ gh: ghPort(), store: reviews, logger })
 
   const poll = setInterval(() => {
     // A hook can fail between boot replay and listen, or during a transient HTTP failure.
-    drainBindingSpool(harness, projection, watcher, logger);
+    drainBindingSpool(harness, projection, watcher, logger)
     // A tmux that fails mid-run leaves liveness stale until the next tick; it does not end the server.
     dispatchTmuxSnapshot(projection, tmux).catch((error: unknown) => {
-      logger.error(`tmux poll failed: ${error instanceof Error ? error.message : String(error)}`);
-    });
+      logger.error(`tmux poll failed: ${error instanceof Error ? error.message : String(error)}`)
+    })
     // Its own try/catch, not chained onto the tmux snapshot's promise: a registry read
     // failure must not swallow that tick's liveness dispatch.
     refreshSessionNames().catch((error: unknown) => {
       logger.error(
         `session name projection failed: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    });
+      )
+    })
     // Its own catch too, for the same reason as above — see the first sweep after listen for what
     // this actually guards, since tick() resolves per-cwd git failures internally rather than rejecting.
     branches.tick().catch((error: unknown) => {
-      logger.error(
-        `branch sweep failed: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    });
-  }, TMUX_POLL_INTERVAL_MS);
+      logger.error(`branch sweep failed: ${error instanceof Error ? error.message : String(error)}`)
+    })
+  }, TMUX_POLL_INTERVAL_MS)
 
   // The first sweep is one interval after boot, which gives pipes time to reconnect after a
   // restart before the no-pipe rule can end a watch.
   const pipeSweep = setInterval(() => {
     try {
-      pipes.sweep(Date.now());
+      pipes.sweep(Date.now())
     } catch (error) {
-      logger.error(`pipe sweep failed: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error(`pipe sweep failed: ${error instanceof Error ? error.message : String(error)}`)
     }
-  }, PIPE_SWEEP_INTERVAL_MS);
+  }, PIPE_SWEEP_INTERVAL_MS)
 
   const app = createServer(
     {
@@ -427,54 +425,52 @@ export async function main(detached: boolean): Promise<void> {
       configPort: configAdapter,
     },
     logger,
-  );
+  )
   app.addHook('onClose', () => {
-    statusObserver?.close();
-    clearInterval(poll);
-    clearInterval(pipeSweep);
-    stopRepoRoots();
-    branches.stop();
-    watchPoller.stop();
-    reviewPoller.stop();
-    return watcher.close();
-  });
+    statusObserver?.close()
+    clearInterval(poll)
+    clearInterval(pipeSweep)
+    stopRepoRoots()
+    branches.stop()
+    watchPoller.stop()
+    reviewPoller.stop()
+    return watcher.close()
+  })
   for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     process.once(signal, () => {
       // A handle that never lets go would otherwise leave the process alive after a clean close,
       // and app.close() may itself never settle; the timer is the bound `garden stop` relies on.
       setTimeout(() => {
-        logger.error(`shutdown did not finish within ${String(SHUTDOWN_TIMEOUT_MS)}ms; exiting`);
-        process.exit(1);
-      }, SHUTDOWN_TIMEOUT_MS).unref();
+        logger.error(`shutdown did not finish within ${String(SHUTDOWN_TIMEOUT_MS)}ms; exiting`)
+        process.exit(1)
+      }, SHUTDOWN_TIMEOUT_MS).unref()
       app.close().then(
         () => process.exit(0),
         (error: unknown) => {
-          logger.error(
-            `shutdown failed: ${error instanceof Error ? error.message : String(error)}`,
-          );
-          process.exit(1);
+          logger.error(`shutdown failed: ${error instanceof Error ? error.message : String(error)}`)
+          process.exit(1)
         },
-      );
-    });
+      )
+    })
   }
 
-  await app.listen({ port: config.port, host: config.host });
+  await app.listen({ port: config.port, host: config.host })
   // Only the branches fill in after listen: sessions read `branch: null` until their cwd resolves,
   // and the events socket delivers each one as it lands. tick() resolves per-cwd git failures to
   // null rather than rejecting, so this catch guards against an unexpected throw.
   branches.tick().catch((error: unknown) => {
-    logger.error(`branch sweep failed: ${error instanceof Error ? error.message : String(error)}`);
-  });
-  watchPoller.start();
-  reviewPoller.start();
+    logger.error(`branch sweep failed: ${error instanceof Error ? error.message : String(error)}`)
+  })
+  watchPoller.start()
+  reviewPoller.start()
   if (detached) {
     // Earliest the health endpoint can answer 'ok' — the earliest spawnServer's poll loop can
     // observe readiness and exit, closing its end of the stderr pipe. Nothing should log through
     // the console sink after this point. Skipped when running attached (`pnpm dev` /
     // `pnpm dev:sandbox`), where the console is exactly where this should go.
-    logger.redirectToFile(join(config.appDir, 'server.log'));
+    logger.redirectToFile(join(config.appDir, 'server.log'))
   }
   logger.info(
     `garden listening on http://${config.host}:${String(config.port)} (${String(Math.round(process.uptime() * 1000))}ms after process start)`,
-  );
+  )
 }

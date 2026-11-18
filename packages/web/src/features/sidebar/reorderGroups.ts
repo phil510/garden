@@ -1,4 +1,4 @@
-import { arrayMove } from '@dnd-kit/sortable';
+import { arrayMove } from '@dnd-kit/sortable'
 
 /**
  * Dragging a group pins it and sets its order. `visibleOrder` is the repo roots in the
@@ -19,10 +19,10 @@ export function reorderGroups(
     visibleOrder,
     visibleOrder.indexOf(activeRepoRoot),
     visibleOrder.indexOf(overRepoRoot),
-  );
-  const nowPinned = new Set(pinnedRepos);
-  nowPinned.add(activeRepoRoot);
+  )
+  const nowPinned = new Set(pinnedRepos)
+  nowPinned.add(activeRepoRoot)
 
-  const pinnedOrder = moved.filter((root) => nowPinned.has(root));
-  return { groupOrder: pinnedOrder, pinnedRepos: pinnedOrder };
+  const pinnedOrder = moved.filter((root) => nowPinned.has(root))
+  return { groupOrder: pinnedOrder, pinnedRepos: pinnedOrder }
 }

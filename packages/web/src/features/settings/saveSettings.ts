@@ -1,10 +1,10 @@
-import type { OkResponse, SettingsRequest, SettingsResponse } from '@garden/shared';
-import { commandFailureMessage, reportCommandFailure } from '../../api/reportCommandFailure';
-import { useToastStore } from '../../state/toastStore';
+import type { OkResponse, SettingsRequest, SettingsResponse } from '@garden/shared'
+import { commandFailureMessage, reportCommandFailure } from '../../api/reportCommandFailure'
+import { useToastStore } from '../../state/toastStore'
 
 interface SettingsApi {
-  update: (request: SettingsRequest) => Promise<OkResponse>;
-  reread: () => Promise<SettingsResponse>;
+  update: (request: SettingsRequest) => Promise<OkResponse>
+  reread: () => Promise<SettingsResponse>
 }
 
 /** Resolves to the settings the caller should show, or `null` when there is nothing to apply.
@@ -19,17 +19,17 @@ export async function saveSettings(
   { update, reread }: SettingsApi,
 ): Promise<SettingsResponse | null> {
   try {
-    await update(request);
+    await update(request)
   } catch (error: unknown) {
-    reportCommandFailure(error);
-    useToastStore.getState().showToast(commandFailureMessage(error), 'error');
-    return null;
+    reportCommandFailure(error)
+    useToastStore.getState().showToast(commandFailureMessage(error), 'error')
+    return null
   }
-  useToastStore.getState().showToast('Settings saved', 'success');
+  useToastStore.getState().showToast('Settings saved', 'success')
   try {
-    return await reread();
+    return await reread()
   } catch (error: unknown) {
-    reportCommandFailure(error);
-    return null;
+    reportCommandFailure(error)
+    return null
   }
 }

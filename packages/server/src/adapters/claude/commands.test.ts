@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { claudeCommand } from './commands.js';
+import { describe, expect, it } from 'vitest'
+import { claudeCommand } from './commands.js'
 
 describe('Claude launch argv', () => {
   it.each(['spawn', 'resume'] as const)(
@@ -33,7 +33,7 @@ describe('Claude launch argv', () => {
         'high',
         '--settings',
         '/app dir/claude-settings.json',
-      ]);
+      ])
     },
-  );
-});
+  )
+})

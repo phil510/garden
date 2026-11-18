@@ -1,30 +1,30 @@
-import type { DismissReviewFailure, ReviewItem, ReviewQueue } from '@garden/shared';
-import type { GhResult, GhWriteResult } from './github.js';
-import { normalizeRepo } from './watches.js';
+import type { DismissReviewFailure, ReviewItem, ReviewQueue } from '@garden/shared'
+import type { GhResult, GhWriteResult } from './github.js'
+import { normalizeRepo } from './watches.js'
 
 /** One search page is the whole read: more matches than this and the queue is not complete. */
-export const REVIEW_SEARCH_PAGE_SIZE = 100;
+export const REVIEW_SEARCH_PAGE_SIZE = 100
 
-type Fault = NonNullable<ReviewQueue['fault']>;
+type Fault = NonNullable<ReviewQueue['fault']>
 
 export type ReviewPollOutcome =
   | { readonly kind: 'complete'; readonly items: ReviewItem[] }
-  | { readonly kind: 'fault'; readonly fault: Fault };
+  | { readonly kind: 'fault'; readonly fault: Fault }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
+  typeof value === 'object' && value !== null && !Array.isArray(value)
 
 /** `<owner>/<name>` from a `repository_url` such as `https://api.github.com/repos/o/n`. */
 export function repoFromRepositoryUrl(url: string): string | null {
-  const marker = '/repos/';
-  const at = url.indexOf(marker);
-  return at < 0 ? null : normalizeRepo(url.slice(at + marker.length));
+  const marker = '/repos/'
+  const at = url.indexOf(marker)
+  return at < 0 ? null : normalizeRepo(url.slice(at + marker.length))
 }
 
 function parseItem(raw: unknown): ReviewItem | null {
-  if (!isRecord(raw)) return null;
-  const { number, title, user, html_url: url, draft, updated_at: updatedAt } = raw;
-  const repository = raw['repository_url'];
+  if (!isRecord(raw)) return null
+  const { number, title, user, html_url: url, draft, updated_at: updatedAt } = raw
+  const repository = raw['repository_url']
   if (
     typeof number !== 'number' ||
     typeof title !== 'string' ||
@@ -35,9 +35,9 @@ function parseItem(raw: unknown): ReviewItem | null {
     typeof updatedAt !== 'string' ||
     typeof repository !== 'string'
   )
-    return null;
-  const repo = repoFromRepositoryUrl(repository);
-  if (repo === null) return null;
+    return null
+  const repo = repoFromRepositoryUrl(repository)
+  if (repo === null) return null
   return {
     key: `${repo}#${String(number)}`,
     repo,
@@ -49,7 +49,7 @@ function parseItem(raw: unknown): ReviewItem | null {
     updatedAt,
     clonePath: null,
     sessionId: null,
-  };
+  }
 }
 
 /**
@@ -61,39 +61,39 @@ function parseItem(raw: unknown): ReviewItem | null {
 export function parseReviewSearch(
   body: unknown,
 ): { complete: boolean; items: ReviewItem[] } | null {
-  if (!isRecord(body)) return null;
-  const { total_count: total, incomplete_results: incomplete, items: raw } = body;
+  if (!isRecord(body)) return null
+  const { total_count: total, incomplete_results: incomplete, items: raw } = body
   if (typeof total !== 'number' || typeof incomplete !== 'boolean' || !Array.isArray(raw))
-    return null;
-  const items: ReviewItem[] = [];
+    return null
+  const items: ReviewItem[] = []
   for (const entry of raw) {
-    const item = parseItem(entry);
-    if (item === null) return null;
-    items.push(item);
+    const item = parseItem(entry)
+    if (item === null) return null
+    items.push(item)
   }
   // ISO timestamps in one format order lexically.
-  items.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : 0));
-  return { complete: !incomplete && total <= REVIEW_SEARCH_PAGE_SIZE, items };
+  items.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : 0))
+  return { complete: !incomplete && total <= REVIEW_SEARCH_PAGE_SIZE, items }
 }
 
 /** What one search call means for the queue. A thrown call is the caller's to map to `error`. */
 export function reviewPollOutcome(result: GhResult): ReviewPollOutcome {
   switch (result.kind) {
     case 'unavailable':
-      return { kind: 'fault', fault: result.reason === 'missing' ? 'gh-missing' : 'logged-out' };
+      return { kind: 'fault', fault: result.reason === 'missing' ? 'gh-missing' : 'logged-out' }
     case 'rate-limited':
-      return { kind: 'fault', fault: 'rate-limited' };
+      return { kind: 'fault', fault: 'rate-limited' }
     case 'ok': {
-      const page = parseReviewSearch(result.body);
-      if (page === null) return { kind: 'fault', fault: 'error' };
+      const page = parseReviewSearch(result.body)
+      if (page === null) return { kind: 'fault', fault: 'error' }
       return page.complete
         ? { kind: 'complete', items: page.items }
-        : { kind: 'fault', fault: 'incomplete' };
+        : { kind: 'fault', fault: 'incomplete' }
     }
     // `not-modified` needs an etag, which a search request never sends.
     case 'inaccessible':
     case 'not-modified':
-      return { kind: 'fault', fault: 'error' };
+      return { kind: 'fault', fault: 'error' }
   }
 }
 
@@ -103,24 +103,24 @@ export function dismissFailure(
 ): DismissReviewFailure {
   switch (result.kind) {
     case 'unavailable':
-      return { kind: result.reason === 'missing' ? 'gh-missing' : 'logged-out' };
+      return { kind: result.reason === 'missing' ? 'gh-missing' : 'logged-out' }
     case 'rate-limited':
-      return { kind: 'rate-limited' };
+      return { kind: 'rate-limited' }
     case 'inaccessible':
-      return { kind: 'error', status: result.status };
+      return { kind: 'error', status: result.status }
   }
 }
 
 /** Whether the pull request body GitHub returned still lists `login` as a requested reviewer. */
 export function stillRequested(body: unknown, login: string): boolean {
-  if (!isRecord(body) || !Array.isArray(body['requested_reviewers'])) return false;
-  const wanted = login.toLowerCase();
+  if (!isRecord(body) || !Array.isArray(body['requested_reviewers'])) return false
+  const wanted = login.toLowerCase()
   return body['requested_reviewers'].some(
     (reviewer) =>
       isRecord(reviewer) &&
       typeof reviewer['login'] === 'string' &&
       reviewer['login'].toLowerCase() === wanted,
-  );
+  )
 }
 
 /** The path of the clone whose origin is `repo`; when several match, the one that sorts first so
@@ -129,10 +129,10 @@ export function pickClone(
   candidates: readonly { path: string; repo: string | null }[],
   repo: string,
 ): string | null {
-  let best: string | null = null;
+  let best: string | null = null
   for (const candidate of candidates)
-    if (candidate.repo === repo && (best === null || candidate.path < best)) best = candidate.path;
-  return best;
+    if (candidate.repo === repo && (best === null || candidate.path < best)) best = candidate.path
+  return best
 }
 
 /** `items` with each one's `sessionId` set from `links`; a link for a key not in `items` is ignored. */
@@ -140,5 +140,5 @@ export function joinLinks(
   items: readonly ReviewItem[],
   links: Readonly<Record<string, string>>,
 ): ReviewItem[] {
-  return items.map((item) => ({ ...item, sessionId: links[item.key] ?? null }));
+  return items.map((item) => ({ ...item, sessionId: links[item.key] ?? null }))
 }

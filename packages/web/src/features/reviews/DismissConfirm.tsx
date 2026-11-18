@@ -1,7 +1,7 @@
 interface DismissConfirmProps {
-  onConfirm: () => void;
-  onCancel: () => void;
-  sending: boolean;
+  onConfirm: () => void
+  onCancel: () => void
+  sending: boolean
 }
 
 /** The only place the dismiss request is sent from: nothing reaches GitHub until Confirm. */
@@ -20,5 +20,5 @@ export function DismissConfirm({ onConfirm, onCancel, sending }: DismissConfirmP
         </button>
       </div>
     </div>
-  );
+  )
 }

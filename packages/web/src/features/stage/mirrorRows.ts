@@ -1,15 +1,15 @@
-import type { DockviewApi } from 'dockview-core';
-import { groupIdForSlot } from './presetLayout';
+import type { DockviewApi } from 'dockview-core'
+import { groupIdForSlot } from './presetLayout'
 
-export type RowWidths = readonly [number, number];
+export type RowWidths = readonly [number, number]
 
 export interface RowMirror {
-  readonly target: 'top' | 'bottom';
-  readonly widths: RowWidths;
+  readonly target: 'top' | 'bottom'
+  readonly widths: RowWidths
 }
 
 function widthsEqual(a: RowWidths, b: RowWidths): boolean {
-  return a[0] === b[0] && a[1] === b[1];
+  return a[0] === b[0] && a[1] === b[1]
 }
 
 /**
@@ -24,11 +24,11 @@ export function resolveRowMirror(
   previousTopWidths: RowWidths,
   previousBottomWidths: RowWidths,
 ): RowMirror | null {
-  const topChanged = !widthsEqual(topWidths, previousTopWidths);
-  const bottomChanged = !widthsEqual(bottomWidths, previousBottomWidths);
-  if (topChanged && !bottomChanged) return { target: 'bottom', widths: topWidths };
-  if (bottomChanged && !topChanged) return { target: 'top', widths: bottomWidths };
-  return null;
+  const topChanged = !widthsEqual(topWidths, previousTopWidths)
+  const bottomChanged = !widthsEqual(bottomWidths, previousBottomWidths)
+  if (topChanged && !bottomChanged) return { target: 'bottom', widths: topWidths }
+  if (bottomChanged && !topChanged) return { target: 'top', widths: bottomWidths }
+  return null
 }
 
 /**
@@ -41,16 +41,11 @@ export function resolveRowMirror(
 export function groupIdsFromSlots(
   slots: readonly (string | null)[],
 ): readonly [string, string, string, string] {
-  return [0, 1, 2, 3].map((slot) => groupIdForSlot(slots, slot)) as [
-    string,
-    string,
-    string,
-    string,
-  ];
+  return [0, 1, 2, 3].map((slot) => groupIdForSlot(slots, slot)) as [string, string, string, string]
 }
 
 function rowWidths(api: DockviewApi, ids: readonly [string, string]): RowWidths {
-  return [api.getGroup(ids[0])?.api.width ?? 0, api.getGroup(ids[1])?.api.width ?? 0];
+  return [api.getGroup(ids[0])?.api.width ?? 0, api.getGroup(ids[1])?.api.width ?? 0]
 }
 
 /**
@@ -67,21 +62,21 @@ function rowWidths(api: DockviewApi, ids: readonly [string, string]): RowWidths 
  * row as changed and `resolveRowMirror` returns `null`.
  */
 export function wireRowMirror(api: DockviewApi, slots: readonly (string | null)[]): () => void {
-  const [topLeft, topRight, bottomLeft, bottomRight] = groupIdsFromSlots(slots);
-  let previousTop = rowWidths(api, [topLeft, topRight]);
-  let previousBottom = rowWidths(api, [bottomLeft, bottomRight]);
+  const [topLeft, topRight, bottomLeft, bottomRight] = groupIdsFromSlots(slots)
+  let previousTop = rowWidths(api, [topLeft, topRight])
+  let previousBottom = rowWidths(api, [bottomLeft, bottomRight])
   const disposable = api.onDidLayoutChange(() => {
-    const top = rowWidths(api, [topLeft, topRight]);
-    const bottom = rowWidths(api, [bottomLeft, bottomRight]);
-    const mirror = resolveRowMirror(top, bottom, previousTop, previousBottom);
+    const top = rowWidths(api, [topLeft, topRight])
+    const bottom = rowWidths(api, [bottomLeft, bottomRight])
+    const mirror = resolveRowMirror(top, bottom, previousTop, previousBottom)
     if (mirror !== null) {
       const [leftId, rightId] =
-        mirror.target === 'top' ? [topLeft, topRight] : [bottomLeft, bottomRight];
-      api.getGroup(leftId)?.api.setSize({ width: mirror.widths[0] });
-      api.getGroup(rightId)?.api.setSize({ width: mirror.widths[1] });
+        mirror.target === 'top' ? [topLeft, topRight] : [bottomLeft, bottomRight]
+      api.getGroup(leftId)?.api.setSize({ width: mirror.widths[0] })
+      api.getGroup(rightId)?.api.setSize({ width: mirror.widths[1] })
     }
-    previousTop = mirror?.target === 'top' ? mirror.widths : top;
-    previousBottom = mirror?.target === 'bottom' ? mirror.widths : bottom;
-  });
-  return () => disposable.dispose();
+    previousTop = mirror?.target === 'top' ? mirror.widths : top
+    previousBottom = mirror?.target === 'bottom' ? mirror.widths : bottom
+  })
+  return () => disposable.dispose()
 }

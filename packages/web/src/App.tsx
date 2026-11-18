@@ -1,106 +1,106 @@
-import { useEffect, useRef, useState } from 'react';
-import { connectEventSocket } from './api/eventSocket';
-import { AppTitle } from './components/AppTitle';
-import { ErrorBoundary } from './components/ErrorBoundary';
-import { ResizeHandle } from './components/ResizeHandle';
-import { Toast } from './components/Toast';
-import { FilePanel } from './features/filetree/FilePanel';
-import { Sidebar } from './features/sidebar/Sidebar';
-import { SettingsModal } from './features/settings/SettingsModal';
-import { ShutdownOverlay } from './features/shutdown/ShutdownOverlay';
-import { anyFault, collectWatchGroups, summarizeWatchGroups } from './features/watches/allWatches';
-import { AlertsPanel } from './features/alerts/AlertsPanel';
-import { BellIcon, EyeIcon, ReviewsIcon } from './features/watches/WatchIcons';
-import { WatchesPanel } from './features/watches/WatchesPanel';
-import { usePipeGrace } from './features/watches/usePipeGrace';
-import { receiveReviews } from './features/reviews/receiveReviews';
-import { reviewCount } from './features/reviews/reviewToast';
-import { reviewHasFault } from './features/reviews/reviewFaultNotice';
-import { ReviewsCountBadge, ReviewsPanel } from './features/reviews/ReviewsPanel';
-import { PresetSwitcher } from './features/stage/PresetSwitcher';
-import { Stage } from './features/stage/Stage';
-import { useLocalStore } from './state/localStore';
-import { usePipeGraceStore } from './state/pipeGraceStore';
-import { useReviewStore } from './state/reviewStore';
-import { useSessionStore } from './state/sessionStore';
-import { useUiStore } from './state/uiStore';
+import { useEffect, useRef, useState } from 'react'
+import { connectEventSocket } from './api/eventSocket'
+import { AppTitle } from './components/AppTitle'
+import { ErrorBoundary } from './components/ErrorBoundary'
+import { ResizeHandle } from './components/ResizeHandle'
+import { Toast } from './components/Toast'
+import { FilePanel } from './features/filetree/FilePanel'
+import { Sidebar } from './features/sidebar/Sidebar'
+import { SettingsModal } from './features/settings/SettingsModal'
+import { ShutdownOverlay } from './features/shutdown/ShutdownOverlay'
+import { anyFault, collectWatchGroups, summarizeWatchGroups } from './features/watches/allWatches'
+import { AlertsPanel } from './features/alerts/AlertsPanel'
+import { BellIcon, EyeIcon, ReviewsIcon } from './features/watches/WatchIcons'
+import { WatchesPanel } from './features/watches/WatchesPanel'
+import { usePipeGrace } from './features/watches/usePipeGrace'
+import { receiveReviews } from './features/reviews/receiveReviews'
+import { reviewCount } from './features/reviews/reviewToast'
+import { reviewHasFault } from './features/reviews/reviewFaultNotice'
+import { ReviewsCountBadge, ReviewsPanel } from './features/reviews/ReviewsPanel'
+import { PresetSwitcher } from './features/stage/PresetSwitcher'
+import { Stage } from './features/stage/Stage'
+import { useLocalStore } from './state/localStore'
+import { usePipeGraceStore } from './state/pipeGraceStore'
+import { useReviewStore } from './state/reviewStore'
+import { useSessionStore } from './state/sessionStore'
+import { useUiStore } from './state/uiStore'
 
-type RightPanel = 'files' | 'watches' | 'alerts' | 'reviews' | null;
+type RightPanel = 'files' | 'watches' | 'alerts' | 'reviews' | null
 
 export function App() {
-  const [rightPanel, setRightPanel] = useState<RightPanel>('files');
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [rightPanel, setRightPanel] = useState<RightPanel>('files')
+  const [sidebarOpen, setSidebarOpen] = useState(true)
   // What the eye, bell and reviews buttons return to when they close their view.
-  const beforeOverlay = useRef<RightPanel>('files');
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [stopped, setStopped] = useState(false);
-  const sidebarWidth = useLocalStore((state) => state.sidebarWidth);
-  const resizeSidebarBy = useLocalStore((state) => state.resizeSidebarBy);
-  const filePanelWidth = useLocalStore((state) => state.filePanelWidth);
-  const resizeFilePanelBy = useLocalStore((state) => state.resizeFilePanelBy);
-  usePipeGrace();
-  const sessions = useSessionStore((state) => state.sessions);
-  const pipeFaulted = usePipeGraceStore((state) => state.faulted);
-  const groups = collectWatchGroups(Object.values(sessions), pipeFaulted);
-  const hasFault = anyFault(groups);
-  const { faultedSessions } = summarizeWatchGroups(groups);
-  const reviewQueue = useReviewStore((state) => state.queue);
-  const reviewsOpen = reviewCount(reviewQueue);
-  const reviewsFault = reviewHasFault(reviewQueue);
+  const beforeOverlay = useRef<RightPanel>('files')
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [stopped, setStopped] = useState(false)
+  const sidebarWidth = useLocalStore((state) => state.sidebarWidth)
+  const resizeSidebarBy = useLocalStore((state) => state.resizeSidebarBy)
+  const filePanelWidth = useLocalStore((state) => state.filePanelWidth)
+  const resizeFilePanelBy = useLocalStore((state) => state.resizeFilePanelBy)
+  usePipeGrace()
+  const sessions = useSessionStore((state) => state.sessions)
+  const pipeFaulted = usePipeGraceStore((state) => state.faulted)
+  const groups = collectWatchGroups(Object.values(sessions), pipeFaulted)
+  const hasFault = anyFault(groups)
+  const { faultedSessions } = summarizeWatchGroups(groups)
+  const reviewQueue = useReviewStore((state) => state.queue)
+  const reviewsOpen = reviewCount(reviewQueue)
+  const reviewsFault = reviewHasFault(reviewQueue)
 
   useEffect(() => {
-    const sessionStore = useSessionStore.getState();
-    const uiStore = useUiStore.getState();
-    const localStore = useLocalStore.getState();
-    let connectedBefore = false;
+    const sessionStore = useSessionStore.getState()
+    const uiStore = useUiStore.getState()
+    const localStore = useLocalStore.getState()
+    let connectedBefore = false
     const controller = connectEventSocket({
       onSnapshot: (message) => {
-        sessionStore.setSnapshot(message.sessions);
-        uiStore.setUiState(message.uiState);
+        sessionStore.setSnapshot(message.sessions)
+        uiStore.setUiState(message.uiState)
         // A snapshot resets the toast baseline, so it never toasts.
-        useReviewStore.getState().setQueue(message.reviews);
+        useReviewStore.getState().setQueue(message.reviews)
       },
       onDeltas: (message) => {
-        sessionStore.applyDeltas(message.deltas);
+        sessionStore.applyDeltas(message.deltas)
       },
       onUiState: (message) => {
-        uiStore.setUiState(message.uiState);
+        uiStore.setUiState(message.uiState)
       },
       onReviews: (message) => receiveReviews(message.queue),
       onFsChanged: (root) => {
-        if (root === useLocalStore.getState().filePanel.root) localStore.bumpFsRefresh();
+        if (root === useLocalStore.getState().filePanel.root) localStore.bumpFsRefresh()
       },
       onConnect: () => {
-        localStore.noteConnected();
+        localStore.noteConnected()
         // `fs-changed` messages sent while disconnected are lost, so a reconnect refetches.
-        if (connectedBefore) localStore.bumpFsRefresh();
-        connectedBefore = true;
+        if (connectedBefore) localStore.bumpFsRefresh()
+        connectedBefore = true
       },
       onShutdown: () => setStopped(true),
-    });
+    })
     // `subscribe` doesn't fire with the current value, so the initial root is watched by hand.
-    controller.watch(useLocalStore.getState().filePanel.root);
+    controller.watch(useLocalStore.getState().filePanel.root)
     const unsubscribe = useLocalStore.subscribe((state, previous) => {
-      if (state.filePanel.root !== previous.filePanel.root) controller.watch(state.filePanel.root);
-    });
+      if (state.filePanel.root !== previous.filePanel.root) controller.watch(state.filePanel.root)
+    })
     return () => {
-      unsubscribe();
-      controller.stop();
-    };
-  }, []);
+      unsubscribe()
+      controller.stop()
+    }
+  }, [])
 
   function toggleOverlay(panel: 'watches' | 'alerts' | 'reviews') {
     if (rightPanel === panel) {
-      setRightPanel(beforeOverlay.current);
+      setRightPanel(beforeOverlay.current)
     } else {
       // Switching straight between overlays keeps the panel they all return to.
       if (rightPanel !== 'watches' && rightPanel !== 'alerts' && rightPanel !== 'reviews')
-        beforeOverlay.current = rightPanel;
-      setRightPanel(panel);
+        beforeOverlay.current = rightPanel
+      setRightPanel(panel)
     }
   }
 
-  if (stopped) return <ShutdownOverlay />;
+  if (stopped) return <ShutdownOverlay />
 
   return (
     <ErrorBoundary>
@@ -234,5 +234,5 @@ export function App() {
       </div>
       <Toast />
     </ErrorBoundary>
-  );
+  )
 }

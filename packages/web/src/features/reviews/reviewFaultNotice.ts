@@ -1,4 +1,4 @@
-import type { ReviewQueue } from '@garden/shared';
+import type { ReviewQueue } from '@garden/shared'
 
 const NOTICES: Record<NonNullable<ReviewQueue['fault']>, string> = {
   'gh-missing': "GitHub CLI (gh) isn't installed, so review requests can't be checked.",
@@ -6,13 +6,13 @@ const NOTICES: Record<NonNullable<ReviewQueue['fault']>, string> = {
   'rate-limited': 'GitHub search rate limit hit. Garden will retry shortly.',
   incomplete: 'GitHub returned incomplete results. Showing the last complete list.',
   error: "Couldn't check GitHub for review requests.",
-};
+}
 
 export function reviewFaultNotice(fault: ReviewQueue['fault']): string | null {
-  return fault === null ? null : NOTICES[fault];
+  return fault === null ? null : NOTICES[fault]
 }
 
 /** Whether the queue is faulted, for the top-bar toggle's fault dot. */
 export function reviewHasFault(queue: ReviewQueue | null): boolean {
-  return queue?.fault != null;
+  return queue?.fault != null
 }

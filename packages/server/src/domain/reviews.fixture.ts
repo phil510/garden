@@ -216,4 +216,4 @@ export const searchResponse: unknown = {
     },
   ],
   search_type: 'lexical',
-};
+}

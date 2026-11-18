@@ -1,23 +1,23 @@
 // One-shot node:fs reads are allowed in app/; see the dependency rules in docs/architecture.md.
-import { readdir, realpath, stat } from 'node:fs/promises';
-import { basename, isAbsolute, join, relative, sep } from 'node:path';
-import type { RepoEntry } from '@garden/shared';
-import type { GitPort } from './ports.js';
+import { readdir, realpath, stat } from 'node:fs/promises'
+import { basename, isAbsolute, join, relative, sep } from 'node:path'
+import type { RepoEntry } from '@garden/shared'
+import type { GitPort } from './ports.js'
 
-type ReposGit = Pick<GitPort, 'repoRoot' | 'isBareRepository' | 'branch'>;
+type ReposGit = Pick<GitPort, 'repoRoot' | 'isBareRepository' | 'branch'>
 
 export interface ReposDeps {
-  readonly git: ReposGit;
-  readonly roots: readonly string[];
+  readonly git: ReposGit
+  readonly roots: readonly string[]
 }
 
 /** Caps how many `git` subprocesses `listRepos` has spawned at once. A large root can have
  *  well over a hundred candidate directories; spawning a process per directory unbounded would
  *  fork-bomb the host, so every leaf git call goes through one shared limiter for the call. */
-const MAX_CONCURRENT_GIT_SPAWNS = 8;
+const MAX_CONCURRENT_GIT_SPAWNS = 8
 
 interface Limiter {
-  run<T>(fn: () => Promise<T>): Promise<T>;
+  run<T>(fn: () => Promise<T>): Promise<T>
 }
 
 /** A counting semaphore, not a queue of work: callers hand it a thunk to run once a slot is
@@ -27,49 +27,49 @@ interface Limiter {
  *  level would multiply the effective bound by the tree's branching factor instead of capping
  *  it globally. */
 function createLimiter(maxConcurrent: number): Limiter {
-  let active = 0;
-  const queue: Array<() => void> = [];
+  let active = 0
+  const queue: Array<() => void> = []
 
   function acquire(): Promise<void> {
     if (active < maxConcurrent) {
-      active += 1;
-      return Promise.resolve();
+      active += 1
+      return Promise.resolve()
     }
-    return new Promise((resolve) => queue.push(resolve));
+    return new Promise((resolve) => queue.push(resolve))
   }
 
   /** Hands the freed slot straight to the next waiter rather than decrementing `active` and
    *  letting it re-acquire — that keeps a released slot from being claimed by an unrelated
    *  acquire that raced in after this one queued. */
   function release(): void {
-    const next = queue.shift();
+    const next = queue.shift()
     if (next !== undefined) {
-      next();
+      next()
     } else {
-      active -= 1;
+      active -= 1
     }
   }
 
   return {
     async run<T>(fn: () => Promise<T>): Promise<T> {
-      await acquire();
+      await acquire()
       try {
-        return await fn();
+        return await fn()
       } finally {
-        release();
+        release()
       }
     },
-  };
+  }
 }
 
 async function subdirectories(dir: string): Promise<string[]> {
-  let entries;
+  let entries
   try {
-    entries = await readdir(dir, { withFileTypes: true });
+    entries = await readdir(dir, { withFileTypes: true })
   } catch {
-    return [];
+    return []
   }
-  return entries.filter((entry) => entry.isDirectory()).map((entry) => join(dir, entry.name));
+  return entries.filter((entry) => entry.isDirectory()).map((entry) => join(dir, entry.name))
 }
 
 /**
@@ -83,9 +83,9 @@ async function subdirectories(dir: string): Promise<string[]> {
  */
 async function gitEntry(dir: string): Promise<'directory' | 'file' | null> {
   try {
-    return (await stat(join(dir, '.git'))).isDirectory() ? 'directory' : 'file';
+    return (await stat(join(dir, '.git'))).isDirectory() ? 'directory' : 'file'
   } catch {
-    return null;
+    return null
   }
 }
 
@@ -97,8 +97,8 @@ async function repoEntry(
   dir: string,
   isWorktree: boolean,
 ): Promise<RepoEntry> {
-  const branch = await limiter.run(() => git.branch(dir)).catch(() => null);
-  return { path: dir, name: basename(dir), branch, isWorktree };
+  const branch = await limiter.run(() => git.branch(dir)).catch(() => null)
+  return { path: dir, name: basename(dir), branch, isWorktree }
 }
 
 /**
@@ -110,23 +110,23 @@ async function repoEntry(
  * so `dir` is resolved the same way before the comparison.
  */
 async function isRepo(git: ReposGit, limiter: Limiter, dir: string): Promise<boolean> {
-  const root = await limiter.run(() => git.repoRoot(dir)).catch(() => undefined);
-  if (root === undefined) return false;
-  const resolvedDir = await realpath(dir).catch(() => dir);
-  return root === resolvedDir;
+  const root = await limiter.run(() => git.repoRoot(dir)).catch(() => undefined)
+  if (root === undefined) return false
+  const resolvedDir = await realpath(dir).catch(() => dir)
+  return root === resolvedDir
 }
 
-const WORKTREES = '.worktrees';
+const WORKTREES = '.worktrees'
 
 /** Where a directory sits relative to a configured root: a child of the root, a child of a repo,
  *  a child of a bare clone's directory, or a descendant of a repo's `.worktrees/`. */
-type Position = 'root' | 'repo' | 'bare-repo' | 'worktrees';
+type Position = 'root' | 'repo' | 'bare-repo' | 'worktrees'
 
 interface Step {
   /** Set when the directory is itself a listed entry. */
-  readonly listed?: 'repo' | 'worktree';
+  readonly listed?: 'repo' | 'worktree'
   /** Set when listed entries may sit below the directory, and at which position its children are. */
-  readonly next?: Position;
+  readonly next?: Position
 }
 
 /**
@@ -142,26 +142,26 @@ interface Step {
 async function step(git: ReposGit, limiter: Limiter, pos: Position, dir: string): Promise<Step> {
   switch (pos) {
     case 'root': {
-      const entry = await gitEntry(dir);
+      const entry = await gitEntry(dir)
       // a worktree stray under a root has a `.git` too, but is not a repo
-      if (entry === null || !(await isRepo(git, limiter, dir))) return {};
+      if (entry === null || !(await isRepo(git, limiter, dir))) return {}
       // Asked of git rather than inferred from the gitlink: `--separate-git-dir` also leaves a
       // `.git` file in a repo's own directory, and that directory is a working tree to stay out of.
       const bare =
-        entry === 'file' && (await limiter.run(() => git.isBareRepository(dir)).catch(() => false));
-      return { listed: 'repo', next: bare ? 'bare-repo' : 'repo' };
+        entry === 'file' && (await limiter.run(() => git.isBareRepository(dir)).catch(() => false))
+      return { listed: 'repo', next: bare ? 'bare-repo' : 'repo' }
     }
     case 'repo':
-      return basename(dir) === WORKTREES ? { next: 'worktrees' } : {};
+      return basename(dir) === WORKTREES ? { next: 'worktrees' } : {}
     case 'bare-repo': {
       // `.bare/` itself, and anything else hidden, is not where worktrees are checked out
-      if (basename(dir).startsWith('.')) return {};
-      const entry = await gitEntry(dir);
-      if (entry === 'file') return { listed: 'worktree' };
-      return entry === 'directory' ? {} : { next: 'bare-repo' };
+      if (basename(dir).startsWith('.')) return {}
+      const entry = await gitEntry(dir)
+      if (entry === 'file') return { listed: 'worktree' }
+      return entry === 'directory' ? {} : { next: 'bare-repo' }
     }
     case 'worktrees':
-      return (await gitEntry(dir)) !== null ? { listed: 'worktree' } : { next: 'worktrees' };
+      return (await gitEntry(dir)) !== null ? { listed: 'worktree' } : { next: 'worktrees' }
   }
 }
 
@@ -179,17 +179,17 @@ async function walk(
   pos: Position,
   dir: string,
 ): Promise<RepoEntry[]> {
-  const children = pos === 'repo' ? [join(dir, WORKTREES)] : await subdirectories(dir);
+  const children = pos === 'repo' ? [join(dir, WORKTREES)] : await subdirectories(dir)
   const results = await Promise.all(
     children.map(async (child): Promise<RepoEntry[]> => {
-      const { listed, next } = await step(git, limiter, pos, child);
+      const { listed, next } = await step(git, limiter, pos, child)
       const own =
-        listed === undefined ? [] : [await repoEntry(git, limiter, child, listed === 'worktree')];
-      const below = next === undefined ? [] : await walk(git, limiter, next, child);
-      return [...own, ...below];
+        listed === undefined ? [] : [await repoEntry(git, limiter, child, listed === 'worktree')]
+      const below = next === undefined ? [] : await walk(git, limiter, next, child)
+      return [...own, ...below]
     }),
-  );
-  return results.flat();
+  )
+  return results.flat()
 }
 
 /** Repos and their worktrees under the configured roots, for the new-session picker. One
@@ -199,36 +199,34 @@ async function walk(
  *  concurrently via `Promise.all`, which preserves input order in its result regardless of which
  *  one settles first — so this keeps the repo-then-its-worktrees, in-input-order shape. */
 export async function listRepos(deps: ReposDeps): Promise<RepoEntry[]> {
-  const limiter = createLimiter(MAX_CONCURRENT_GIT_SPAWNS);
-  const perRoot = await Promise.all(
-    deps.roots.map((root) => walk(deps.git, limiter, 'root', root)),
-  );
-  return perRoot.flat();
+  const limiter = createLimiter(MAX_CONCURRENT_GIT_SPAWNS)
+  const perRoot = await Promise.all(deps.roots.map((root) => walk(deps.git, limiter, 'root', root)))
+  return perRoot.flat()
 }
 
 /** Whether `real` (an absolute realpath) is an entry `listRepos` would list, checked by running
  *  `step` down the path from each configured root rather than scanning the roots. */
 export async function isListedPath(deps: ReposDeps, real: string): Promise<boolean> {
   // A couple of git spawns per root at most, so there is nothing for a limiter to bound.
-  const limiter: Limiter = { run: (fn) => fn() };
+  const limiter: Limiter = { run: (fn) => fn() }
   for (const root of deps.roots) {
-    const rootReal = await realpath(root).catch(() => undefined);
-    if (rootReal === undefined) continue;
-    const rel = relative(rootReal, real);
-    if (rel === '' || rel === '..' || rel.startsWith('..' + sep) || isAbsolute(rel)) continue;
-    const segments = rel.split(sep);
-    let pos: Position = 'root';
-    let dir = rootReal;
+    const rootReal = await realpath(root).catch(() => undefined)
+    if (rootReal === undefined) continue
+    const rel = relative(rootReal, real)
+    if (rel === '' || rel === '..' || rel.startsWith('..' + sep) || isAbsolute(rel)) continue
+    const segments = rel.split(sep)
+    let pos: Position = 'root'
+    let dir = rootReal
     for (const [i, segment] of segments.entries()) {
-      dir = join(dir, segment);
-      const { listed, next } = await step(deps.git, limiter, pos, dir);
+      dir = join(dir, segment)
+      const { listed, next } = await step(deps.git, limiter, pos, dir)
       if (i === segments.length - 1) {
-        if (listed !== undefined) return true;
-        break;
+        if (listed !== undefined) return true
+        break
       }
-      if (next === undefined) break;
-      pos = next;
+      if (next === undefined) break
+      pos = next
     }
   }
-  return false;
+  return false
 }

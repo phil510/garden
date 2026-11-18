@@ -1,39 +1,39 @@
-import type { ReviewItem, ReviewQueue } from '@garden/shared';
-import { useState } from 'react';
-import { dismissReview, startReviewSession, updateUiState } from '../../api/client';
-import { commandFailureMessage, reportCommandFailure } from '../../api/reportCommandFailure';
-import { useReviewStore } from '../../state/reviewStore';
-import { useToastStore } from '../../state/toastStore';
-import { useUiStore } from '../../state/uiStore';
-import { openExternalLink } from '../../terminals/hyperlinks';
-import { placeOnStage } from '../sidebar/placeOnStage';
-import { formatRelativeTime } from '../sidebar/relativeTime';
-import { DismissConfirm } from './DismissConfirm';
-import { dismissFailureMessage } from './dismissFailureMessage';
-import { reviewFaultNotice } from './reviewFaultNotice';
-import './reviews.css';
+import type { ReviewItem, ReviewQueue } from '@garden/shared'
+import { useState } from 'react'
+import { dismissReview, startReviewSession, updateUiState } from '../../api/client'
+import { commandFailureMessage, reportCommandFailure } from '../../api/reportCommandFailure'
+import { useReviewStore } from '../../state/reviewStore'
+import { useToastStore } from '../../state/toastStore'
+import { useUiStore } from '../../state/uiStore'
+import { openExternalLink } from '../../terminals/hyperlinks'
+import { placeOnStage } from '../sidebar/placeOnStage'
+import { formatRelativeTime } from '../sidebar/relativeTime'
+import { DismissConfirm } from './DismissConfirm'
+import { dismissFailureMessage } from './dismissFailureMessage'
+import { reviewFaultNotice } from './reviewFaultNotice'
+import './reviews.css'
 
 interface ReviewRowProps {
-  item: ReviewItem;
-  now: number;
-  onStart: (item: ReviewItem) => void;
-  onOpen: (sessionId: string) => void;
+  item: ReviewItem
+  now: number
+  onStart: (item: ReviewItem) => void
+  onOpen: (sessionId: string) => void
 }
 
 /** One request. `.rv-actions` is the trailing slot for per-row buttons. */
 export function ReviewRow({ item, now, onStart, onOpen }: ReviewRowProps) {
-  const [dismissal, setDismissal] = useState<'idle' | 'confirming' | 'sending'>('idle');
+  const [dismissal, setDismissal] = useState<'idle' | 'confirming' | 'sending'>('idle')
 
   // On success the row leaves with the `reviews` push, so no success toast and no removal here.
   function confirmDismiss() {
-    setDismissal('sending');
+    setDismissal('sending')
     dismissReview(item.repo, item.number)
       .then(() => setDismissal('idle'))
       .catch((error: unknown) => {
-        reportCommandFailure(error);
-        useToastStore.getState().showToast(dismissFailureMessage(error), 'error');
-        setDismissal('idle');
-      });
+        reportCommandFailure(error)
+        useToastStore.getState().showToast(dismissFailureMessage(error), 'error')
+        setDismissal('idle')
+      })
   }
 
   return (
@@ -83,20 +83,20 @@ export function ReviewRow({ item, now, onStart, onOpen }: ReviewRowProps) {
         />
       )}
     </div>
-  );
+  )
 }
 
 interface ReviewsPanelViewProps {
-  queue: ReviewQueue | null;
-  now: number;
-  onStart: (item: ReviewItem) => void;
-  onOpen: (sessionId: string) => void;
+  queue: ReviewQueue | null
+  now: number
+  onStart: (item: ReviewItem) => void
+  onOpen: (sessionId: string) => void
 }
 
 export function ReviewsPanelView({ queue, now, onStart, onOpen }: ReviewsPanelViewProps) {
-  const notice = reviewFaultNotice(queue?.fault ?? null);
-  const items = queue?.items ?? [];
-  const checking = notice === null && (queue === null || queue.polledAt === null);
+  const notice = reviewFaultNotice(queue?.fault ?? null)
+  const items = queue?.items ?? []
+  const checking = notice === null && (queue === null || queue.polledAt === null)
   // A queue that was never polled has no count worth reporting; "0 requests" would be a claim.
   const summary =
     queue === null || (queue.polledAt === null && items.length === 0)
@@ -105,7 +105,7 @@ export function ReviewsPanelView({ queue, now, onStart, onOpen }: ReviewsPanelVi
           queue.polledAt === null
             ? ''
             : ` · last checked ${formatRelativeTime(Date.parse(queue.polledAt), now)}`
-        }`;
+        }`
 
   return (
     <div className="awp">
@@ -141,37 +141,37 @@ export function ReviewsPanelView({ queue, now, onStart, onOpen }: ReviewsPanelVi
         )
       )}
     </div>
-  );
+  )
 }
 
 /** Review requests in the file panel's slot. */
 export function ReviewsPanel() {
-  const queue = useReviewStore((state) => state.queue);
-  const uiState = useUiStore((state) => state.uiState);
+  const queue = useReviewStore((state) => state.queue)
+  const uiState = useUiStore((state) => state.uiState)
 
   function open(sessionId: string) {
     updateUiState(placeOnStage(uiState.slots, uiState.focusedSlot, sessionId)).catch(
       reportCommandFailure,
-    );
+    )
   }
 
   function start(item: ReviewItem) {
-    const [owner, name] = item.repo.split('/') as [string, string];
+    const [owner, name] = item.repo.split('/') as [string, string]
     startReviewSession(owner, name, item.number)
       .then((result) => {
-        open(result.sessionId);
+        open(result.sessionId)
       })
       .catch((error: unknown) => {
-        reportCommandFailure(error);
-        useToastStore.getState().showToast(commandFailureMessage(error));
-      });
+        reportCommandFailure(error)
+        useToastStore.getState().showToast(commandFailureMessage(error))
+      })
   }
 
-  return <ReviewsPanelView queue={queue} now={Date.now()} onStart={start} onOpen={open} />;
+  return <ReviewsPanelView queue={queue} now={Date.now()} onStart={start} onOpen={open} />
 }
 
 /** The top-bar pill; nothing at zero. */
 export function ReviewsCountBadge({ count }: { count: number }) {
-  if (count === 0) return null;
-  return <span className="rv-badge">{count}</span>;
+  if (count === 0) return null
+  return <span className="rv-badge">{count}</span>
 }

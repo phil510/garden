@@ -1,9 +1,9 @@
-import type { Placement, SessionPlacement } from '@garden/shared';
-import type { OverlayState } from './overlay.js';
+import type { Placement, SessionPlacement } from '@garden/shared'
+import type { OverlayState } from './overlay.js'
 
-type Placements = Readonly<Record<string, SessionPlacement>>;
+type Placements = Readonly<Record<string, SessionPlacement>>
 
-export type DomainResult = { ok: true } | { ok: false; reason: string };
+export type DomainResult = { ok: true } | { ok: false; reason: string }
 
 /**
  * Walks `parent` up to a top-level ancestor (a placement with `swarmId` set, or a
@@ -14,17 +14,17 @@ export type DomainResult = { ok: true } | { ok: false; reason: string };
  * hop than there are entries, at the final missing parent.
  */
 export function resolveSwarmId(placements: Placements, sessionId: string): string | undefined {
-  const visited = new Set<string>();
-  let currentId: string | undefined = sessionId;
+  const visited = new Set<string>()
+  let currentId: string | undefined = sessionId
   while (currentId !== undefined) {
-    if (visited.has(currentId)) return undefined;
-    visited.add(currentId);
-    const entry: SessionPlacement | undefined = placements[currentId];
-    if (entry === undefined) return undefined;
-    if (entry.swarmId !== undefined) return entry.swarmId;
-    currentId = entry.parent;
+    if (visited.has(currentId)) return undefined
+    visited.add(currentId)
+    const entry: SessionPlacement | undefined = placements[currentId]
+    if (entry === undefined) return undefined
+    if (entry.swarmId !== undefined) return entry.swarmId
+    currentId = entry.parent
   }
-  return undefined;
+  return undefined
 }
 
 /**
@@ -40,15 +40,15 @@ export function wouldCreateParentCycle(
   sessionId: string,
   newParentId: string,
 ): boolean {
-  const visited = new Set<string>();
-  let currentId: string | undefined = newParentId;
+  const visited = new Set<string>()
+  let currentId: string | undefined = newParentId
   while (currentId !== undefined) {
-    if (currentId === sessionId) return true;
-    if (visited.has(currentId)) return false;
-    visited.add(currentId);
-    currentId = placements[currentId]?.parent;
+    if (currentId === sessionId) return true
+    if (visited.has(currentId)) return false
+    visited.add(currentId)
+    currentId = placements[currentId]?.parent
   }
-  return false;
+  return false
 }
 
 /**
@@ -65,18 +65,18 @@ export function validatePlacement(
 ): DomainResult {
   if (placement.type === 'swarm') {
     if (!overlay.ui.swarms.some((swarm) => swarm.id === placement.swarmId))
-      return { ok: false, reason: `no such swarm: ${placement.swarmId}` };
-    return { ok: true };
+      return { ok: false, reason: `no such swarm: ${placement.swarmId}` }
+    return { ok: true }
   }
   if (placement.type === 'parent') {
     if (wouldCreateParentCycle(overlay.ui.placements, sessionId, placement.parentId))
       return {
         ok: false,
         reason: `would create a cycle: ${placement.parentId} is already a descendant of ${sessionId}`,
-      };
-    return { ok: true };
+      }
+    return { ok: true }
   }
-  return { ok: true };
+  return { ok: true }
 }
 
 /**
@@ -94,44 +94,44 @@ export function pruneOverlay(
   overlay: OverlayState,
   knownSessionIds: ReadonlySet<string>,
 ): OverlayState {
-  const placements: Record<string, SessionPlacement> = { ...overlay.ui.placements };
-  const ownKeysToDelete = new Set(Object.keys(placements).filter((id) => !knownSessionIds.has(id)));
-  let mutated = false;
+  const placements: Record<string, SessionPlacement> = { ...overlay.ui.placements }
+  const ownKeysToDelete = new Set(Object.keys(placements).filter((id) => !knownSessionIds.has(id)))
+  let mutated = false
 
   // Bounded by the entry count: a legitimate (acyclic) chain resolves one hop per pass, so it
   // cannot take more passes than there are entries. Only a hand-edited `state.json` with a
   // parent cycle among unknown ids could otherwise make this loop forever; the cap trades a
   // possibly-incomplete splice for that corrupt-file case against hanging the server at boot.
-  const maxPasses = Object.keys(placements).length + 1;
+  const maxPasses = Object.keys(placements).length + 1
   for (let pass = 0; pass < maxPasses; pass++) {
-    let changed = false;
+    let changed = false
     for (const [id, entry] of Object.entries(placements)) {
-      if (ownKeysToDelete.has(id)) continue;
-      if (entry.parent === undefined || knownSessionIds.has(entry.parent)) continue;
-      const dropped = placements[entry.parent];
-      const spliced: SessionPlacement = { ...entry };
-      delete spliced.parent;
-      delete spliced.swarmId;
-      if (dropped?.parent !== undefined) spliced.parent = dropped.parent;
-      if (dropped?.swarmId !== undefined) spliced.swarmId = dropped.swarmId;
-      placements[id] = spliced;
-      changed = true;
-      mutated = true;
+      if (ownKeysToDelete.has(id)) continue
+      if (entry.parent === undefined || knownSessionIds.has(entry.parent)) continue
+      const dropped = placements[entry.parent]
+      const spliced: SessionPlacement = { ...entry }
+      delete spliced.parent
+      delete spliced.swarmId
+      if (dropped?.parent !== undefined) spliced.parent = dropped.parent
+      if (dropped?.swarmId !== undefined) spliced.swarmId = dropped.swarmId
+      placements[id] = spliced
+      changed = true
+      mutated = true
     }
-    if (!changed) break;
+    if (!changed) break
   }
 
   if (ownKeysToDelete.size > 0) {
-    for (const id of ownKeysToDelete) delete placements[id];
-    mutated = true;
+    for (const id of ownKeysToDelete) delete placements[id]
+    mutated = true
   }
 
   const swarms = overlay.ui.swarms.filter((swarm) =>
     Object.keys(placements).some((id) => resolveSwarmId(placements, id) === swarm.id),
-  );
-  if (swarms.length !== overlay.ui.swarms.length) mutated = true;
+  )
+  if (swarms.length !== overlay.ui.swarms.length) mutated = true
 
   // Same reference when nothing changed, so a caller like `pruneKnownSessions` can skip
   // writing a no-op back through `updateOverlay` with a plain `===` check.
-  return mutated ? { ...overlay, ui: { ...overlay.ui, placements, swarms } } : overlay;
+  return mutated ? { ...overlay, ui: { ...overlay.ui, placements, swarms } } : overlay
 }

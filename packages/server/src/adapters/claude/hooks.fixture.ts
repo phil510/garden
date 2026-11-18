@@ -1,4 +1,4 @@
-import type { HookPayload } from './types.js';
+import type { HookPayload } from './types.js'
 
 export function aHookEvent(overrides: Partial<HookPayload> = {}): HookPayload {
   return {
@@ -9,5 +9,5 @@ export function aHookEvent(overrides: Partial<HookPayload> = {}): HookPayload {
     hook_event_name: 'UserPromptSubmit',
     permission_mode: 'default',
     ...overrides,
-  };
+  }
 }

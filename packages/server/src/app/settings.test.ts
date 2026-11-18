@@ -1,21 +1,21 @@
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
-import { DEFAULT_CONFIG_FILE, patchConfigFile, readConfigFile } from '../config.js';
-import type { ConfigPort } from './ports.js';
-import { getSettings, updateSettings } from './settings.js';
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { describe, expect, it } from 'vitest'
+import { DEFAULT_CONFIG_FILE, patchConfigFile, readConfigFile } from '../config.js'
+import type { ConfigPort } from './ports.js'
+import { getSettings, updateSettings } from './settings.js'
 
 function fakeConfigPort(overrides: Partial<ConfigPort> = {}): ConfigPort {
   return {
     read: () => {
-      throw new Error('not used by this test');
+      throw new Error('not used by this test')
     },
     write: () => {
-      throw new Error('not used by this test');
+      throw new Error('not used by this test')
     },
     ...overrides,
-  };
+  }
 }
 
 describe('getSettings', () => {
@@ -26,7 +26,7 @@ describe('getSettings', () => {
       }),
       harnessName: 'claude' as const,
       deadSessionCap: 25,
-    });
+    })
 
     expect(result).toEqual({
       harness: 'claude',
@@ -36,39 +36,39 @@ describe('getSettings', () => {
       ignoreAuthors: [],
       quietWindowMinutes: 3,
       pollIntervalMinutes: 5,
-    });
-  });
-});
+    })
+  })
+})
 
 describe('getSettings watch settings', () => {
   it('reports the values the config port holds right now', () => {
-    let file = { ...DEFAULT_CONFIG_FILE };
+    let file = { ...DEFAULT_CONFIG_FILE }
     const deps = {
       configPort: fakeConfigPort({ read: () => file }),
       harnessName: 'claude' as const,
       deadSessionCap: 10,
-    };
+    }
 
     file = {
       ...file,
       ignoreAuthors: ['dependabot'],
       quietWindowMinutes: 0,
       pollIntervalMinutes: 9,
-    };
+    }
 
     expect(getSettings(deps)).toMatchObject({
       ignoreAuthors: ['dependabot'],
       quietWindowMinutes: 0,
       pollIntervalMinutes: 9,
-    });
-  });
-});
+    })
+  })
+})
 
 describe('settings round trip', () => {
   it('serves a saved value on the next read without a restart', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'garden-settings-'));
+    const dir = mkdtempSync(join(tmpdir(), 'garden-settings-'))
     try {
-      const path = join(dir, 'config.json');
+      const path = join(dir, 'config.json')
       const deps = {
         configPort: {
           read: () => readConfigFile(path),
@@ -76,39 +76,39 @@ describe('settings round trip', () => {
         },
         harnessName: 'claude' as const,
         deadSessionCap: 10,
-      };
+      }
 
-      updateSettings(deps, { pollIntervalMinutes: 12, ignoreAuthors: ['bot'] });
+      updateSettings(deps, { pollIntervalMinutes: 12, ignoreAuthors: ['bot'] })
 
-      expect(getSettings(deps)).toMatchObject({ pollIntervalMinutes: 12, ignoreAuthors: ['bot'] });
+      expect(getSettings(deps)).toMatchObject({ pollIntervalMinutes: 12, ignoreAuthors: ['bot'] })
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, { recursive: true, force: true })
     }
-  });
-});
+  })
+})
 
 describe('updateSettings', () => {
   const deps = () => {
-    const writes: unknown[] = [];
+    const writes: unknown[] = []
     return {
       writes,
       deps: {
         configPort: fakeConfigPort({
           write: (patch) => {
-            writes.push(patch);
+            writes.push(patch)
           },
         }),
         harnessName: 'claude' as const,
         deadSessionCap: 10,
       },
-    };
-  };
+    }
+  }
 
   it('writes a subset that omits claudeCommand', () => {
-    const { writes, deps: d } = deps();
-    updateSettings(d, { quietWindowMinutes: 0, ignoreAuthors: ['bot'] });
-    expect(writes).toEqual([{ quietWindowMinutes: 0, ignoreAuthors: ['bot'] }]);
-  });
+    const { writes, deps: d } = deps()
+    updateSettings(d, { quietWindowMinutes: 0, ignoreAuthors: ['bot'] })
+    expect(writes).toEqual([{ quietWindowMinutes: 0, ignoreAuthors: ['bot'] }])
+  })
 
   it.each([
     [{ quietWindowMinutes: -1 }],
@@ -120,67 +120,67 @@ describe('updateSettings', () => {
     [{ unknownKey: 1 }],
     [{}],
   ])('rejects %j without writing', (body) => {
-    const { writes, deps: d } = deps();
-    expect(() => updateSettings(d, body as never)).toThrow();
-    expect(writes).toHaveLength(0);
-  });
+    const { writes, deps: d } = deps()
+    expect(() => updateSettings(d, body as never)).toThrow()
+    expect(writes).toHaveLength(0)
+  })
 
   it('validates claudeCommand before calling write', () => {
-    const writes: unknown[] = [];
+    const writes: unknown[] = []
     const deps = {
       configPort: fakeConfigPort({
         write: (patch) => {
-          writes.push(patch);
+          writes.push(patch)
         },
       }),
       harnessName: 'claude' as const,
       deadSessionCap: 10,
-    };
+    }
 
     for (const invalid of ['', '   ']) {
-      expect(() => updateSettings(deps, { claudeCommand: invalid })).toThrow(/claudeCommand/);
+      expect(() => updateSettings(deps, { claudeCommand: invalid })).toThrow(/claudeCommand/)
     }
-    expect(writes).toHaveLength(0);
-  });
+    expect(writes).toHaveLength(0)
+  })
 
   it('calls configPort.write with the validated patch', () => {
-    const writes: unknown[] = [];
+    const writes: unknown[] = []
     const deps = {
       configPort: fakeConfigPort({
         write: (patch) => {
-          writes.push(patch);
+          writes.push(patch)
         },
       }),
       harnessName: 'claude' as const,
       deadSessionCap: 10,
-    };
+    }
 
-    updateSettings(deps, { claudeCommand: 'tsx scripts/fake-claude.ts' });
+    updateSettings(deps, { claudeCommand: 'tsx scripts/fake-claude.ts' })
 
-    expect(writes).toEqual([{ claudeCommand: 'tsx scripts/fake-claude.ts' }]);
-  });
+    expect(writes).toEqual([{ claudeCommand: 'tsx scripts/fake-claude.ts' }])
+  })
 
   it("lets the port's refusal propagate rather than swallowing it", () => {
     const deps = {
       configPort: fakeConfigPort({
         write: () => {
-          throw new Error('existing file is invalid');
+          throw new Error('existing file is invalid')
         },
       }),
       harnessName: 'claude' as const,
       deadSessionCap: 10,
-    };
+    }
 
     expect(() => updateSettings(deps, { claudeCommand: 'claude' })).toThrow(
       'existing file is invalid',
-    );
-  });
-});
+    )
+  })
+})
 
 it('persists and reports the Codex command without changing the Claude command', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'garden-codex-settings-'));
+  const dir = mkdtempSync(join(tmpdir(), 'garden-codex-settings-'))
   try {
-    const path = join(dir, 'config.json');
+    const path = join(dir, 'config.json')
     const deps = {
       harnessName: 'codex' as const,
       deadSessionCap: 10,
@@ -188,15 +188,15 @@ it('persists and reports the Codex command without changing the Claude command',
         read: () => readConfigFile(path),
         write: (patch: Parameters<typeof patchConfigFile>[1]) => patchConfigFile(path, patch),
       },
-    };
-    updateSettings(deps, { codexCommand: 'custom-codex --flag' });
+    }
+    updateSettings(deps, { codexCommand: 'custom-codex --flag' })
     expect(getSettings(deps)).toMatchObject({
       harness: 'codex',
       codexCommand: 'custom-codex --flag',
       claudeCommand: 'claude',
-    });
-    expect(() => updateSettings(deps, { codexCommand: ' ' })).toThrow(/codexCommand/);
+    })
+    expect(() => updateSettings(deps, { codexCommand: ' ' })).toThrow(/codexCommand/)
   } finally {
-    rmSync(dir, { recursive: true, force: true });
+    rmSync(dir, { recursive: true, force: true })
   }
-});
+})

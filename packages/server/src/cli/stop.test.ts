@@ -1,306 +1,306 @@
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { Io } from './commands.js';
-import { runStop, runStopAll, type StopAllDeps, type StopDeps } from './stop.js';
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import type { Io } from './commands.js'
+import { runStop, runStopAll, type StopAllDeps, type StopDeps } from './stop.js'
 
 function collectingIo(): { io: Io; stdout: string[]; stderr: string[] } {
-  const stdout: string[] = [];
-  const stderr: string[] = [];
+  const stdout: string[] = []
+  const stderr: string[] = []
   const io: Io = {
     stdout: {
       write: (text, callback) => {
-        stdout.push(text);
-        callback?.();
+        stdout.push(text)
+        callback?.()
       },
     },
     stderr: {
       write: (text, callback) => {
-        stderr.push(text);
-        callback?.();
+        stderr.push(text)
+        callback?.()
       },
     },
-  };
-  return { io, stdout, stderr };
+  }
+  return { io, stdout, stderr }
 }
 
-let home: string;
+let home: string
 
 beforeEach(() => {
-  home = mkdtempSync(join(tmpdir(), 'garden-cli-stop-'));
-});
+  home = mkdtempSync(join(tmpdir(), 'garden-cli-stop-'))
+})
 
 afterEach(() => {
-  rmSync(home, { recursive: true, force: true });
-});
+  rmSync(home, { recursive: true, force: true })
+})
 
 function baseDeps(overrides: Partial<StopDeps> = {}): { deps: StopDeps; calls: string[] } {
-  const calls: string[] = [];
+  const calls: string[] = []
   const deps: StopDeps = {
     readPid: () => {
-      calls.push('readPid');
-      return null;
+      calls.push('readPid')
+      return null
     },
     removePid: () => {
-      calls.push('removePid');
+      calls.push('removePid')
     },
     isProcessRunning: () => {
-      calls.push('isProcessRunning');
-      return false;
+      calls.push('isProcessRunning')
+      return false
     },
     healthPid: () => {
-      calls.push('healthPid');
-      return Promise.resolve('refused');
+      calls.push('healthPid')
+      return Promise.resolve('refused')
     },
     kill: (pid, signal) => {
-      calls.push(`kill:${String(pid)}:${signal}`);
+      calls.push(`kill:${String(pid)}:${signal}`)
     },
     home,
     stopTimeoutMs: 200,
     pollIntervalMs: 10,
     ...overrides,
-  };
-  return { deps, calls };
+  }
+  return { deps, calls }
 }
 
 describe('runStop', () => {
   it('reports not running and skips kill when no pid is recorded', async () => {
-    const { io, stdout } = collectingIo();
-    const { deps, calls } = baseDeps();
+    const { io, stdout } = collectingIo()
+    const { deps, calls } = baseDeps()
 
-    const exitCode = await runStop(io, deps);
+    const exitCode = await runStop(io, deps)
 
-    expect(exitCode).toBe(0);
-    expect(stdout).toEqual(['garden is not running\n']);
-    expect(calls).not.toContain(expect.stringMatching(/^kill:/));
-    expect(calls).toContain('removePid');
-  });
+    expect(exitCode).toBe(0)
+    expect(stdout).toEqual(['garden is not running\n'])
+    expect(calls).not.toContain(expect.stringMatching(/^kill:/))
+    expect(calls).toContain('removePid')
+  })
 
   it('clears a stale pid file that names a process no longer running', async () => {
-    const { io, stdout } = collectingIo();
+    const { io, stdout } = collectingIo()
     const { deps, calls } = baseDeps({
       readPid: () => ({ pid: 4242, port: null }),
       isProcessRunning: () => false,
-    });
+    })
 
-    const exitCode = await runStop(io, deps);
+    const exitCode = await runStop(io, deps)
 
-    expect(exitCode).toBe(0);
-    expect(stdout).toEqual(['garden is not running\n']);
-    expect(calls.filter((c) => c === 'removePid')).toHaveLength(1);
-    expect(calls.some((c) => c.startsWith('kill:'))).toBe(false);
-  });
+    expect(exitCode).toBe(0)
+    expect(stdout).toEqual(['garden is not running\n'])
+    expect(calls.filter((c) => c === 'removePid')).toHaveLength(1)
+    expect(calls.some((c) => c.startsWith('kill:'))).toBe(false)
+  })
 
   it('kills a running server and waits for it to exit', async () => {
-    const { io, stdout } = collectingIo();
-    let running = true;
+    const { io, stdout } = collectingIo()
+    let running = true
     setTimeout(() => {
-      running = false;
-    }, 30);
+      running = false
+    }, 30)
     const { deps, calls } = baseDeps({
       readPid: () => ({ pid: 4242, port: null }),
       isProcessRunning: () => running,
       healthPid: () => Promise.resolve(4242),
-    });
+    })
 
-    const exitCode = await runStop(io, deps);
+    const exitCode = await runStop(io, deps)
 
-    expect(exitCode).toBe(0);
-    expect(stdout).toEqual(['garden stopped\n']);
-    expect(calls).toContain('kill:4242:SIGTERM');
-    expect(calls).toContain('removePid');
-  });
+    expect(exitCode).toBe(0)
+    expect(stdout).toEqual(['garden stopped\n'])
+    expect(calls).toContain('kill:4242:SIGTERM')
+    expect(calls).toContain('removePid')
+  })
 
   it('fails after the deadline when the server never stops', async () => {
-    const { io, stderr } = collectingIo();
+    const { io, stderr } = collectingIo()
     const { deps, calls } = baseDeps({
       readPid: () => ({ pid: 4242, port: null }),
       isProcessRunning: () => true,
       healthPid: () => Promise.resolve(4242),
-    });
+    })
 
-    const exitCode = await runStop(io, deps);
+    const exitCode = await runStop(io, deps)
 
-    expect(exitCode).toBe(1);
-    expect(stderr[0]).toMatch(/did not stop within 200ms/);
-    expect(calls).not.toContain('removePid');
-  });
+    expect(exitCode).toBe(1)
+    expect(stderr[0]).toMatch(/did not stop within 200ms/)
+    expect(calls).not.toContain('removePid')
+  })
 
   it('treats a live pid that /health says is another process as stale and never signals it', async () => {
-    const { io, stdout } = collectingIo();
+    const { io, stdout } = collectingIo()
     const { deps, calls } = baseDeps({
       readPid: () => ({ pid: 4242, port: null }),
       isProcessRunning: () => true,
       healthPid: () => Promise.resolve(777),
-    });
+    })
 
-    const exitCode = await runStop(io, deps);
+    const exitCode = await runStop(io, deps)
 
-    expect(exitCode).toBe(0);
-    expect(stdout).toEqual(['garden is not running\n']);
-    expect(calls).toContain('removePid');
-    expect(calls.some((c) => c.startsWith('kill:'))).toBe(false);
-  });
+    expect(exitCode).toBe(0)
+    expect(stdout).toEqual(['garden is not running\n'])
+    expect(calls).toContain('removePid')
+    expect(calls.some((c) => c.startsWith('kill:'))).toBe(false)
+  })
 
   it('treats a live pid with nothing listening on the port as stale and never signals it', async () => {
-    const { io, stdout } = collectingIo();
+    const { io, stdout } = collectingIo()
     const { deps, calls } = baseDeps({
       readPid: () => ({ pid: 4242, port: null }),
       isProcessRunning: () => true,
       healthPid: () => Promise.resolve('refused'),
-    });
+    })
 
-    const exitCode = await runStop(io, deps);
+    const exitCode = await runStop(io, deps)
 
-    expect(exitCode).toBe(0);
-    expect(stdout).toEqual(['garden is not running\n']);
-    expect(calls).toContain('removePid');
-    expect(calls.some((c) => c.startsWith('kill:'))).toBe(false);
-  });
+    expect(exitCode).toBe(0)
+    expect(stdout).toEqual(['garden is not running\n'])
+    expect(calls).toContain('removePid')
+    expect(calls.some((c) => c.startsWith('kill:'))).toBe(false)
+  })
 
   it('probes the recorded port, not the configured one, and stops the server there', async () => {
-    const { io, stdout } = collectingIo();
-    const probed: string[] = [];
-    let running = true;
+    const { io, stdout } = collectingIo()
+    const probed: string[] = []
+    let running = true
     setTimeout(() => {
-      running = false;
-    }, 30);
+      running = false
+    }, 30)
     const { deps, calls } = baseDeps({
       readPid: () => ({ pid: 4242, port: 1 }),
       isProcessRunning: () => running,
       healthPid: (url) => {
-        probed.push(url);
-        return Promise.resolve(4242);
+        probed.push(url)
+        return Promise.resolve(4242)
       },
-    });
+    })
 
-    const exitCode = await runStop(io, deps);
+    const exitCode = await runStop(io, deps)
 
-    expect(exitCode).toBe(0);
-    expect(probed).toEqual(['http://127.0.0.1:1/health']);
-    expect(stdout).toEqual(['garden stopped\n']);
-    expect(calls).toContain('kill:4242:SIGTERM');
-  });
+    expect(exitCode).toBe(0)
+    expect(probed).toEqual(['http://127.0.0.1:1/health'])
+    expect(stdout).toEqual(['garden stopped\n'])
+    expect(calls).toContain('kill:4242:SIGTERM')
+  })
 
   it('probes the configured port for a pid file that records no port', async () => {
-    const { io } = collectingIo();
-    const probed: string[] = [];
+    const { io } = collectingIo()
+    const probed: string[] = []
     const { deps } = baseDeps({
       readPid: () => ({ pid: 4242, port: null }),
       isProcessRunning: () => true,
       healthPid: (url) => {
-        probed.push(url);
-        return Promise.resolve('refused');
+        probed.push(url)
+        return Promise.resolve('refused')
       },
-    });
+    })
 
-    await runStop(io, deps);
+    await runStop(io, deps)
 
-    expect(probed).toEqual([expect.stringMatching(/^http:\/\/127\.0\.0\.1:(?!1\/)\d+\/health$/)]);
-  });
+    expect(probed).toEqual([expect.stringMatching(/^http:\/\/127\.0\.0\.1:(?!1\/)\d+\/health$/)])
+  })
 
   it('refuses without signalling or clearing the pid file when a live pid does not answer /health', async () => {
-    const { io, stderr } = collectingIo();
+    const { io, stderr } = collectingIo()
     const { deps, calls } = baseDeps({
       readPid: () => ({ pid: 4242, port: null }),
       isProcessRunning: () => true,
       healthPid: () => Promise.resolve('no-answer'),
-    });
+    })
 
-    const exitCode = await runStop(io, deps);
+    const exitCode = await runStop(io, deps)
 
-    expect(exitCode).toBe(1);
-    expect(stderr[0]).toContain('4242');
-    expect(stderr[0]).toMatch(/hung garden/);
-    expect(calls).not.toContain('removePid');
-    expect(calls.some((c) => c.startsWith('kill:'))).toBe(false);
-  });
-});
+    expect(exitCode).toBe(1)
+    expect(stderr[0]).toContain('4242')
+    expect(stderr[0]).toMatch(/hung garden/)
+    expect(calls).not.toContain('removePid')
+    expect(calls.some((c) => c.startsWith('kill:'))).toBe(false)
+  })
+})
 
 function baseStopAllDeps(overrides: Partial<StopAllDeps> = {}): {
-  deps: StopAllDeps;
-  calls: string[];
+  deps: StopAllDeps
+  calls: string[]
 } {
-  const calls: string[] = [];
+  const calls: string[] = []
   const deps: StopAllDeps = {
     confirm: () => {
-      calls.push('confirm');
-      return Promise.resolve(true);
+      calls.push('confirm')
+      return Promise.resolve(true)
     },
     stop: () => {
-      calls.push('stop');
-      return Promise.resolve(0);
+      calls.push('stop')
+      return Promise.resolve(0)
     },
     killTmuxServer: (confPath, socket) => {
-      calls.push(`killTmuxServer:${confPath}:${socket}`);
-      return Promise.resolve();
+      calls.push(`killTmuxServer:${confPath}:${socket}`)
+      return Promise.resolve()
     },
     home: '/home/garden-user',
     appDir: '/home/garden-user/.garden',
     tmuxSocket: 'garden',
     ...overrides,
-  };
-  return { deps, calls };
+  }
+  return { deps, calls }
 }
 
 describe('runStopAll', () => {
   it('skips the confirmation prompt when told to', async () => {
-    const { io } = collectingIo();
-    const { deps, calls } = baseStopAllDeps();
+    const { io } = collectingIo()
+    const { deps, calls } = baseStopAllDeps()
 
-    const exitCode = await runStopAll(io, true, deps);
+    const exitCode = await runStopAll(io, true, deps)
 
-    expect(exitCode).toBe(0);
-    expect(calls).not.toContain('confirm');
-  });
+    expect(exitCode).toBe(0)
+    expect(calls).not.toContain('confirm')
+  })
 
   it('aborts without stopping anything when the user declines confirmation', async () => {
-    const { io, stdout } = collectingIo();
-    const { deps, calls } = baseStopAllDeps({ confirm: () => Promise.resolve(false) });
+    const { io, stdout } = collectingIo()
+    const { deps, calls } = baseStopAllDeps({ confirm: () => Promise.resolve(false) })
 
-    const exitCode = await runStopAll(io, false, deps);
+    const exitCode = await runStopAll(io, false, deps)
 
-    expect(exitCode).toBe(0);
-    expect(stdout).toEqual(['aborted\n']);
-    expect(calls).toEqual([]);
-  });
+    expect(exitCode).toBe(0)
+    expect(stdout).toEqual(['aborted\n'])
+    expect(calls).toEqual([])
+  })
 
   it('does not kill tmux when stopping the server fails', async () => {
-    const { io } = collectingIo();
-    const { deps, calls } = baseStopAllDeps({ stop: () => Promise.resolve(1) });
+    const { io } = collectingIo()
+    const { deps, calls } = baseStopAllDeps({ stop: () => Promise.resolve(1) })
 
-    const exitCode = await runStopAll(io, false, deps);
+    const exitCode = await runStopAll(io, false, deps)
 
-    expect(exitCode).toBe(1);
-    expect(calls.some((c) => c.startsWith('killTmuxServer'))).toBe(false);
-  });
+    expect(exitCode).toBe(1)
+    expect(calls.some((c) => c.startsWith('killTmuxServer'))).toBe(false)
+  })
 
   it('fails without the success line when the tmux server cannot be reached', async () => {
-    const { io, stdout, stderr } = collectingIo();
+    const { io, stdout, stderr } = collectingIo()
     const { deps } = baseStopAllDeps({
       killTmuxServer: () => Promise.reject(new Error('cannot reach the tmux server socket /x')),
-    });
+    })
 
-    const exitCode = await runStopAll(io, true, deps);
+    const exitCode = await runStopAll(io, true, deps)
 
-    expect(exitCode).toBe(1);
-    expect(stderr).toEqual(['garden: cannot reach the tmux server socket /x\n']);
-    expect(stdout.join('')).not.toContain('tmux server killed');
-  });
+    expect(exitCode).toBe(1)
+    expect(stderr).toEqual(['garden: cannot reach the tmux server socket /x\n'])
+    expect(stdout.join('')).not.toContain('tmux server killed')
+  })
 
   it('stops the server then kills tmux, in order, on a successful run', async () => {
-    const { io, stdout } = collectingIo();
-    const { deps, calls } = baseStopAllDeps();
+    const { io, stdout } = collectingIo()
+    const { deps, calls } = baseStopAllDeps()
 
-    const exitCode = await runStopAll(io, false, deps);
+    const exitCode = await runStopAll(io, false, deps)
 
-    expect(exitCode).toBe(0);
+    expect(exitCode).toBe(0)
     expect(calls).toEqual([
       'confirm',
       'stop',
       'killTmuxServer:/home/garden-user/.garden/tmux.conf:garden',
-    ]);
-    expect(stdout.at(-1)).toBe('garden stopped; tmux server killed\n');
-  });
-});
+    ])
+    expect(stdout.at(-1)).toBe('garden stopped; tmux server killed\n')
+  })
+})

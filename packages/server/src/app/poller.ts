@@ -4,8 +4,8 @@ import {
   emptyCursor,
   newListItems,
   statusTransitions,
-} from '../domain/pollCursor.js';
-import type { Activity, Cursor, ListCursor, Observation, Tracking } from '../domain/pollCursor.js';
+} from '../domain/pollCursor.js'
+import type { Activity, Cursor, ListCursor, Observation, Tracking } from '../domain/pollCursor.js'
 import {
   parseCheckRuns,
   parseIssueComments,
@@ -13,26 +13,26 @@ import {
   parseReviewComments,
   parseReviews,
   parseStatuses,
-} from '../domain/github.js';
-import type { GhResult, ParsedPage } from '../domain/github.js';
-import type { Watch } from '../domain/watches.js';
-import { applyObservation, markWatchError } from '../domain/digest.js';
-import type { DigestSettings } from '../domain/digest.js';
-import { readCursor } from '../domain/pollCursor.js';
-import type { ConfigPort, GhPort } from './ports.js';
-import { updateWatches } from './watches.js';
-import type { WatchesDeps } from './watches.js';
+} from '../domain/github.js'
+import type { GhResult, ParsedPage } from '../domain/github.js'
+import type { Watch } from '../domain/watches.js'
+import { applyObservation, markWatchError } from '../domain/digest.js'
+import type { DigestSettings } from '../domain/digest.js'
+import { readCursor } from '../domain/pollCursor.js'
+import type { ConfigPort, GhPort } from './ports.js'
+import { updateWatches } from './watches.js'
+import type { WatchesDeps } from './watches.js'
 
 /** A fetch that did not reach a verdict about the PR. */
-export type WatchFailure = Exclude<GhResult, { kind: 'ok' } | { kind: 'not-modified' }>;
+export type WatchFailure = Exclude<GhResult, { kind: 'ok' } | { kind: 'not-modified' }>
 
 export type FetchOutcome =
-  { readonly kind: 'observed'; readonly observation: Observation } | WatchFailure;
+  { readonly kind: 'observed'; readonly observation: Observation } | WatchFailure
 
-const PAGE_SIZE = 100;
+const PAGE_SIZE = 100
 
 const isFailure = (result: GhResult): result is WatchFailure =>
-  result.kind !== 'ok' && result.kind !== 'not-modified';
+  result.kind !== 'ok' && result.kind !== 'not-modified'
 
 /** Every page of a list endpoint, each with the ETag it had last time. An unchanged page comes
  *  back 304 with no items, which is correct: nothing on it is new. Paging continues while a page
@@ -43,26 +43,26 @@ async function fetchPages<T>(
   previous: readonly string[],
   parse: (body: unknown) => ParsedPage<T>,
 ): Promise<{ etags: string[]; items: T[] } | WatchFailure> {
-  const etags: string[] = [];
-  const items: T[] = [];
+  const etags: string[] = []
+  const items: T[] = []
   for (let page = 1; ; page += 1) {
-    const sent = previous[page - 1] ?? '';
+    const sent = previous[page - 1] ?? ''
     const result = await gh.get(
       `${path}?per_page=${String(PAGE_SIZE)}&page=${String(page)}`,
       sent === '' ? null : sent,
-    );
-    if (isFailure(result)) return result;
-    let full: boolean;
+    )
+    if (isFailure(result)) return result
+    let full: boolean
     if (result.kind === 'not-modified') {
-      etags.push(sent);
-      full = previous.length > page;
+      etags.push(sent)
+      full = previous.length > page
     } else {
-      const parsed = parse(result.body);
-      etags.push(result.etag ?? '');
-      items.push(...parsed.items);
-      full = parsed.count >= PAGE_SIZE;
+      const parsed = parse(result.body)
+      etags.push(result.etag ?? '')
+      items.push(...parsed.items)
+      full = parsed.count >= PAGE_SIZE
     }
-    if (!full) return { etags, items };
+    if (!full) return { etags, items }
   }
 }
 
@@ -79,119 +79,119 @@ export async function fetchWatch(
   watch: Watch,
   cursor: Cursor | null,
 ): Promise<FetchOutcome> {
-  const previous = cursor ?? emptyCursor();
-  const firstPoll = cursor === null;
-  const base = `repos/${watch.repo}`;
-  const prPath = `${base}/pulls/${String(watch.pr)}`;
+  const previous = cursor ?? emptyCursor()
+  const firstPoll = cursor === null
+  const base = `repos/${watch.repo}`
+  const prPath = `${base}/pulls/${String(watch.pr)}`
 
-  const prResult = await gh.get(prPath, previous.pr.etag);
-  if (isFailure(prResult)) return prResult;
-  let pr = previous.pr;
+  const prResult = await gh.get(prPath, previous.pr.etag)
+  if (isFailure(prResult)) return prResult
+  let pr = previous.pr
   if (prResult.kind === 'ok') {
-    const fact = parsePr(prResult.body);
-    if (fact === null) throw new Error(`${prPath}: unexpected PR response`);
-    pr = { etag: prResult.etag, ...fact };
+    const fact = parsePr(prResult.body)
+    if (fact === null) throw new Error(`${prPath}: unexpected PR response`)
+    pr = { etag: prResult.etag, ...fact }
   }
 
-  const reviews = await fetchPages(gh, `${prPath}/reviews`, previous.reviews.etags, parseReviews);
-  if (!('items' in reviews)) return reviews;
+  const reviews = await fetchPages(gh, `${prPath}/reviews`, previous.reviews.etags, parseReviews)
+  if (!('items' in reviews)) return reviews
   const issueComments = await fetchPages(
     gh,
     `${base}/issues/${String(watch.pr)}/comments`,
     previous.issueComments.etags,
     parseIssueComments,
-  );
-  if (!('items' in issueComments)) return issueComments;
+  )
+  if (!('items' in issueComments)) return issueComments
   const reviewComments = await fetchPages(
     gh,
     `${prPath}/comments`,
     previous.reviewComments.etags,
     parseReviewComments,
-  );
-  if (!('items' in reviewComments)) return reviewComments;
+  )
+  if (!('items' in reviewComments)) return reviewComments
 
-  const submittedAt = new Map(reviews.items.map((review) => [review.id, review.submittedAt]));
+  const submittedAt = new Map(reviews.items.map((review) => [review.id, review.submittedAt]))
   // An inline comment is visible from the later of its own creation and its review's submission:
   // a comment inside a pending review is created when the review starts, a reply long after it.
   const reviewCommentAt = (comment: { createdAt: number; reviewId: number | null }) =>
     Math.max(
       comment.createdAt,
       (comment.reviewId === null ? undefined : submittedAt.get(comment.reviewId)) ?? 0,
-    );
+    )
   const newReviews = newListItems(
     reviews.items,
     previous.reviews.seen,
     firstPoll,
     watch.createdAt,
     (r) => r.submittedAt,
-  );
+  )
   const newIssueComments = newListItems(
     issueComments.items,
     previous.issueComments.seen,
     firstPoll,
     watch.createdAt,
     (c) => c.createdAt,
-  );
+  )
   const newReviewComments = newListItems(
     reviewComments.items,
     previous.reviewComments.seen,
     firstPoll,
     watch.createdAt,
     reviewCommentAt,
-  );
+  )
 
-  let checkRuns = previous.checkRuns;
-  let status = previous.status;
-  const checks: Activity['checks'][number][] = [];
+  let checkRuns = previous.checkRuns
+  let status = previous.status
+  const checks: Activity['checks'][number][] = []
   if (pr.open) {
-    const sameSha = previous.checkRuns.sha === pr.headSha;
+    const sameSha = previous.checkRuns.sha === pr.headSha
     const runs = await fetchPages(
       gh,
       `${base}/commits/${pr.headSha ?? ''}/check-runs`,
       sameSha ? previous.checkRuns.etags : [],
       parseCheckRuns,
-    );
-    if (!('items' in runs)) return runs;
+    )
+    if (!('items' in runs)) return runs
     const transitions = checkTransitions(
       runs.items,
       sameSha ? previous.checkRuns.reported : {},
       watch.createdAt,
       pr.headSha,
-    );
-    checks.push(...transitions.transitions);
-    checkRuns = { sha: pr.headSha, etags: runs.etags, reported: transitions.reported };
+    )
+    checks.push(...transitions.transitions)
+    checkRuns = { sha: pr.headSha, etags: runs.etags, reported: transitions.reported }
 
-    const sameStatusSha = previous.status.sha === pr.headSha;
-    const statusPath = `${base}/commits/${pr.headSha ?? ''}/status?per_page=${String(PAGE_SIZE)}`;
-    const statusResult = await gh.get(statusPath, sameStatusSha ? previous.status.etag : null);
-    if (isFailure(statusResult)) return statusResult;
+    const sameStatusSha = previous.status.sha === pr.headSha
+    const statusPath = `${base}/commits/${pr.headSha ?? ''}/status?per_page=${String(PAGE_SIZE)}`
+    const statusResult = await gh.get(statusPath, sameStatusSha ? previous.status.etag : null)
+    if (isFailure(statusResult)) return statusResult
     status = {
       sha: pr.headSha,
       etag: sameStatusSha ? previous.status.etag : null,
       reported: sameStatusSha ? previous.status.reported : {},
-    };
+    }
     if (statusResult.kind === 'ok') {
       const transitions = statusTransitions(
         parseStatuses(statusResult.body).items,
         status.reported,
         watch.createdAt,
         pr.headSha,
-      );
-      checks.push(...transitions.transitions);
-      status = { sha: pr.headSha, etag: statusResult.etag, reported: transitions.reported };
+      )
+      checks.push(...transitions.transitions)
+      status = { sha: pr.headSha, etag: statusResult.etag, reported: transitions.reported }
     }
   }
 
   // A closed PR's mergeability says nothing about conflicts, so it is carried over untouched.
   const conflict = pr.open
     ? conflictTransition(previous.pr.mergeable, pr.mergeable)
-    : { fires: false, next: previous.pr.mergeable };
-  pr = { ...pr, mergeable: conflict.next };
+    : { fires: false, next: previous.pr.mergeable }
+  pr = { ...pr, mergeable: conflict.next }
 
   const listCursor = (etags: readonly string[], seen: readonly number[]): ListCursor => ({
     etags,
     seen,
-  });
+  })
   const tracking: Tracking = {
     v: 1,
     pr,
@@ -200,7 +200,7 @@ export async function fetchWatch(
     reviewComments: listCursor(reviewComments.etags, newReviewComments.seen),
     checkRuns,
     status,
-  };
+  }
   const activity: Activity = {
     reviews: newReviews.fresh
       .filter((review) => !review.wrapper)
@@ -224,34 +224,34 @@ export async function fetchWatch(
     checks,
     conflict: conflict.fires ? { headSha: pr.headSha } : null,
     closed: pr.open ? null : { merged: pr.merged },
-  };
-  return { kind: 'observed', observation: { activity, tracking } };
+  }
+  return { kind: 'observed', observation: { activity, tracking } }
 }
 
 /** The slice of `adapters/logger.ts`'s `Logger` the poller needs. */
 export interface PollerLogger {
-  warn(message: string): void;
-  error(message: string): void;
+  warn(message: string): void
+  error(message: string): void
 }
 
 export interface PollerDeps {
-  readonly watches: WatchesDeps;
-  readonly gh: GhPort;
+  readonly watches: WatchesDeps
+  readonly gh: GhPort
   /** `ignoreAuthors`, `quietWindowMinutes` and `pollIntervalMinutes` are read at use time, so a
    *  settings change applies from the next tick. */
-  readonly config: Pick<ConfigPort, 'read'>;
-  readonly logger: PollerLogger;
-  readonly now: () => number;
-  readonly mintId: () => string;
+  readonly config: Pick<ConfigPort, 'read'>
+  readonly logger: PollerLogger
+  readonly now: () => number
+  readonly mintId: () => string
 }
 
 export interface Poller {
-  tick(): Promise<void>;
-  start(): void;
-  stop(): void;
+  tick(): Promise<void>
+  start(): void
+  stop(): void
 }
 
-const MINUTE_MS = 60_000;
+const MINUTE_MS = 60_000
 
 /** Applies `change` to the watches in `ids`. Returns `watches` itself when none of them is
  *  still present or changed, so the writer sees no change and skips the store write. */
@@ -260,23 +260,23 @@ function changeWatches(
   ids: ReadonlySet<string>,
   change: (watch: Watch) => Watch,
 ): readonly Watch[] {
-  let changed = false;
+  let changed = false
   const next = watches.map((watch) => {
-    if (!ids.has(watch.id)) return watch;
-    const result = change(watch);
-    if (result !== watch) changed = true;
-    return result;
-  });
-  return changed ? next : watches;
+    if (!ids.has(watch.id)) return watch
+    const result = change(watch)
+    if (result !== watch) changed = true
+    return result
+  })
+  return changed ? next : watches
 }
 
 const GH_UNAVAILABLE_REASON = {
   missing: 'The gh CLI is not installed.',
   'logged-out': 'gh is not logged in. Run `gh auth login`.',
-} as const;
-const INACCESSIBLE_REASON = 'No access to this repo or PR.';
+} as const
+const INACCESSIBLE_REASON = 'No access to this repo or PR.'
 
-const describe = (error: unknown) => (error instanceof Error ? error.message : String(error));
+const describe = (error: unknown) => (error instanceof Error ? error.message : String(error))
 
 /**
  * One loop over every watch that is not closed. Each tick fetches a watch (no writes), then
@@ -290,30 +290,30 @@ const describe = (error: unknown) => (error instanceof Error ? error.message : S
  * garbled response) is logged and leaves the watch as it was.
  */
 export function createPoller(deps: PollerDeps): Poller {
-  let inFlight = false;
-  let started = false;
-  let stopped = false;
-  let holdUntil = 0;
-  let timer: NodeJS.Timeout | undefined;
+  let inFlight = false
+  let started = false
+  let stopped = false
+  let holdUntil = 0
+  let timer: NodeJS.Timeout | undefined
 
   async function pollWatches(): Promise<void> {
-    const settings = deps.config.read();
+    const settings = deps.config.read()
     const digestSettings = {
       ignoreAuthors: settings.ignoreAuthors,
       quietWindowMs: settings.quietWindowMinutes * MINUTE_MS,
-    };
+    }
     // A write that changes nothing but prune expired watches.
-    updateWatches(deps.watches, (current) => current, deps.now());
-    const { watches } = deps.watches.projection.overlay();
-    if (deps.now() < holdUntil) return;
-    const polled = watches.filter((w) => w.status !== 'closed');
+    updateWatches(deps.watches, (current) => current, deps.now())
+    const { watches } = deps.watches.projection.overlay()
+    if (deps.now() < holdUntil) return
+    const polled = watches.filter((w) => w.status !== 'closed')
     for (const watch of polled) {
-      if (stopped) return;
+      if (stopped) return
       try {
-        if (await pollOne(watch, polled, digestSettings)) return;
+        if (await pollOne(watch, polled, digestSettings)) return
       } catch (error) {
         // One watch failing must not starve the rest of the tick.
-        deps.logger.error(`poll ${watch.repo}#${String(watch.pr)} failed: ${describe(error)}`);
+        deps.logger.error(`poll ${watch.repo}#${String(watch.pr)} failed: ${describe(error)}`)
       }
     }
   }
@@ -324,12 +324,12 @@ export function createPoller(deps: PollerDeps): Poller {
     polled: readonly Watch[],
     digestSettings: DigestSettings,
   ): Promise<boolean> {
-    const cursor = readCursor(watch.cursor);
+    const cursor = readCursor(watch.cursor)
     if (watch.cursor !== null && cursor === null)
-      deps.logger.warn(`watch ${watch.id}: unreadable poll cursor, starting over from creation`);
-    const outcome = await fetchWatch(deps.gh, watch, cursor);
-    if (stopped) return true;
-    const now = deps.now();
+      deps.logger.warn(`watch ${watch.id}: unreadable poll cursor, starting over from creation`)
+    const outcome = await fetchWatch(deps.gh, watch, cursor)
+    if (stopped) return true
+    const now = deps.now()
     switch (outcome.kind) {
       case 'observed':
         updateWatches(
@@ -339,8 +339,8 @@ export function createPoller(deps: PollerDeps): Poller {
               applyObservation(w, outcome.observation, digestSettings, now, deps.mintId),
             ),
           now,
-        );
-        return false;
+        )
+        return false
       case 'inaccessible':
         updateWatches(
           deps.watches,
@@ -349,59 +349,59 @@ export function createPoller(deps: PollerDeps): Poller {
               markWatchError(w, INACCESSIBLE_REASON),
             ),
           now,
-        );
-        return false;
+        )
+        return false
       case 'unavailable': {
-        deps.logger.warn(`gh is unavailable (${outcome.reason}); marking watches as error`);
-        const ids = new Set(polled.map((w) => w.id));
-        const reason = GH_UNAVAILABLE_REASON[outcome.reason];
+        deps.logger.warn(`gh is unavailable (${outcome.reason}); marking watches as error`)
+        const ids = new Set(polled.map((w) => w.id))
+        const reason = GH_UNAVAILABLE_REASON[outcome.reason]
         updateWatches(
           deps.watches,
           (current) => changeWatches(current, ids, (w) => markWatchError(w, reason)),
           now,
-        );
-        return true;
+        )
+        return true
       }
       case 'rate-limited':
-        holdUntil = outcome.resumeAt;
+        holdUntil = outcome.resumeAt
         deps.logger.warn(
           `GitHub rate limit; pausing polls until ${new Date(holdUntil).toISOString()}`,
-        );
-        return true;
+        )
+        return true
     }
   }
 
   async function tick(): Promise<void> {
-    if (inFlight || stopped) return;
-    inFlight = true;
+    if (inFlight || stopped) return
+    inFlight = true
     try {
-      await pollWatches();
+      await pollWatches()
     } finally {
-      inFlight = false;
+      inFlight = false
     }
   }
 
   function loop(): void {
     tick()
       .catch((error: unknown) => {
-        deps.logger.error(`watch poll failed: ${describe(error)}`);
+        deps.logger.error(`watch poll failed: ${describe(error)}`)
       })
       .finally(() => {
-        if (stopped) return;
-        timer = setTimeout(loop, deps.config.read().pollIntervalMinutes * MINUTE_MS);
-      });
+        if (stopped) return
+        timer = setTimeout(loop, deps.config.read().pollIntervalMinutes * MINUTE_MS)
+      })
   }
 
   return {
     tick,
     start() {
-      if (started || stopped) return;
-      started = true;
-      loop();
+      if (started || stopped) return
+      started = true
+      loop()
     },
     stop() {
-      stopped = true;
-      clearTimeout(timer);
+      stopped = true
+      clearTimeout(timer)
     },
-  };
+  }
 }

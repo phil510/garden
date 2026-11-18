@@ -8,33 +8,33 @@ import {
   useSensors,
   type CollisionDetection,
   type DragEndEvent,
-} from '@dnd-kit/core';
-import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { useEffect, useState } from 'react';
-import { setSessionPlacement, updateUiState } from '../../api/client';
-import { reportCommandFailure } from '../../api/reportCommandFailure';
-import { useLocalStore, type SidebarMode } from '../../state/localStore';
-import { useSessionStore } from '../../state/sessionStore';
-import { useUiStore } from '../../state/uiStore';
-import { groupSessions } from './groupSessions';
-import { activeSwarmsByRecency, groupSwarms, SOLO_BUCKET_ID } from './groupSwarms';
-import type { ActiveSwarmOption } from './groupSwarms';
-import { NewSessionModal } from './NewSessionModal';
-import { placeOnStage } from './placeOnStage';
-import { reorderGroups } from './reorderGroups';
-import { reorderSwarms } from './reorderSwarms';
-import { RepoGroup } from './RepoGroup';
-import { resolveSidebarDrop } from './resolveSidebarDrop';
-import { focusedSessionId } from './stageFocus';
-import { SwarmGroup } from './SwarmGroup';
-import { SwarmHeader } from './SwarmHeader';
-import { SwarmBucketRows } from './SwarmBucketRows';
-import { resolveSwarmScrollAction } from './swarmScrollTarget';
-import { toggleHideDeadRepo } from './toggleHideDeadRepo';
-import { toggleHideDeadSwarm } from './toggleHideDeadSwarm';
-import { toggleRepoCollapse } from './toggleRepoCollapse';
-import { toggleSwarmCollapse } from './toggleSwarmCollapse';
-import './sidebar.css';
+} from '@dnd-kit/core'
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { useEffect, useState } from 'react'
+import { setSessionPlacement, updateUiState } from '../../api/client'
+import { reportCommandFailure } from '../../api/reportCommandFailure'
+import { useLocalStore, type SidebarMode } from '../../state/localStore'
+import { useSessionStore } from '../../state/sessionStore'
+import { useUiStore } from '../../state/uiStore'
+import { groupSessions } from './groupSessions'
+import { activeSwarmsByRecency, groupSwarms, SOLO_BUCKET_ID } from './groupSwarms'
+import type { ActiveSwarmOption } from './groupSwarms'
+import { NewSessionModal } from './NewSessionModal'
+import { placeOnStage } from './placeOnStage'
+import { reorderGroups } from './reorderGroups'
+import { reorderSwarms } from './reorderSwarms'
+import { RepoGroup } from './RepoGroup'
+import { resolveSidebarDrop } from './resolveSidebarDrop'
+import { focusedSessionId } from './stageFocus'
+import { SwarmGroup } from './SwarmGroup'
+import { SwarmHeader } from './SwarmHeader'
+import { SwarmBucketRows } from './SwarmBucketRows'
+import { resolveSwarmScrollAction } from './swarmScrollTarget'
+import { toggleHideDeadRepo } from './toggleHideDeadRepo'
+import { toggleHideDeadSwarm } from './toggleHideDeadSwarm'
+import { toggleRepoCollapse } from './toggleRepoCollapse'
+import { toggleSwarmCollapse } from './toggleSwarmCollapse'
+import './sidebar.css'
 
 /**
  * Each drag kind is filtered to its own droppable types before its own algorithm runs, so
@@ -49,44 +49,44 @@ import './sidebar.css';
  * sits at the top of its group) can be nearer than the group a reorder is actually targeting.
  */
 const swarmSidebarCollisionDetection: CollisionDetection = (args) => {
-  const activeType = args.active.data.current?.type as string | undefined;
-  const wantedType = activeType === 'session' ? undefined : 'swarm-reorder';
+  const activeType = args.active.data.current?.type as string | undefined
+  const wantedType = activeType === 'session' ? undefined : 'swarm-reorder'
   const droppableContainers = args.droppableContainers.filter((container) => {
-    const type = container.data.current?.type as string | undefined;
+    const type = container.data.current?.type as string | undefined
     return wantedType === undefined
       ? type === 'swarm-header' || type === 'solo'
-      : type === wantedType;
-  });
-  const filteredArgs = { ...args, droppableContainers };
-  return activeType === 'session' ? pointerWithin(filteredArgs) : closestCenter(filteredArgs);
-};
+      : type === wantedType
+  })
+  const filteredArgs = { ...args, droppableContainers }
+  return activeType === 'session' ? pointerWithin(filteredArgs) : closestCenter(filteredArgs)
+}
 
 const SIDEBAR_MODES: readonly { mode: SidebarMode; label: string }[] = [
   { mode: 'repos', label: 'Repos' },
   { mode: 'swarms', label: 'Swarms' },
-];
+]
 
 export function Sidebar() {
-  const sessions = useSessionStore((state) => state.sessions);
-  const uiState = useUiStore((state) => state.uiState);
-  const sidebarMode = useLocalStore((state) => state.sidebarMode);
-  const setSidebarMode = useLocalStore((state) => state.setSidebarMode);
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [finishedOpen, setFinishedOpen] = useState(false);
+  const sessions = useSessionStore((state) => state.sessions)
+  const uiState = useUiStore((state) => state.uiState)
+  const sidebarMode = useLocalStore((state) => state.sidebarMode)
+  const setSidebarMode = useLocalStore((state) => state.setSidebarMode)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [finishedOpen, setFinishedOpen] = useState(false)
 
   function selectSession(id: string) {
-    updateUiState(placeOnStage(uiState.slots, uiState.focusedSlot, id)).catch(reportCommandFailure);
+    updateUiState(placeOnStage(uiState.slots, uiState.focusedSlot, id)).catch(reportCommandFailure)
   }
 
-  const now = Date.now();
-  const onStageIds = new Set(uiState.slots.filter((id): id is string => id !== null));
-  const focusedId = focusedSessionId(uiState.slots, uiState.focusedSlot);
+  const now = Date.now()
+  const onStageIds = new Set(uiState.slots.filter((id): id is string => id !== null))
+  const focusedId = focusedSessionId(uiState.slots, uiState.focusedSlot)
   // Computed once here rather than inside each mode's sidebar: a session's swarm membership
   // (and the menu that changes it) isn't a Swarms-mode-only concept, so Repos mode needs the
   // same recency-sorted active-swarm list for its own rows' "Add to swarm" menu.
-  const activeSwarms = activeSwarmsByRecency(groupSwarms(sessions, uiState).swarms);
+  const activeSwarms = activeSwarmsByRecency(groupSwarms(sessions, uiState).swarms)
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
   return (
     <>
@@ -146,25 +146,25 @@ export function Sidebar() {
         <NewSessionModal
           onClose={() => setPickerOpen(false)}
           onCreated={(id) => {
-            selectSession(id);
-            setPickerOpen(false);
+            selectSession(id)
+            setPickerOpen(false)
           }}
         />
       )}
     </>
-  );
+  )
 }
 
 type SharedSidebarProps = {
-  sessions: ReturnType<typeof useSessionStore.getState>['sessions'];
-  uiState: ReturnType<typeof useUiStore.getState>['uiState'];
-  activeSwarms: readonly ActiveSwarmOption[];
-  now: number;
-  onStageIds: ReadonlySet<string>;
-  focusedId: string | null;
-  sensors: ReturnType<typeof useSensors>;
-  onSelectSession: (id: string) => void;
-};
+  sessions: ReturnType<typeof useSessionStore.getState>['sessions']
+  uiState: ReturnType<typeof useUiStore.getState>['uiState']
+  activeSwarms: readonly ActiveSwarmOption[]
+  now: number
+  onStageIds: ReadonlySet<string>
+  focusedId: string | null
+  sensors: ReturnType<typeof useSensors>
+  onSelectSession: (id: string) => void
+}
 
 function RepoSidebar({
   sessions,
@@ -176,31 +176,31 @@ function RepoSidebar({
   sensors,
   onSelectSession,
 }: SharedSidebarProps) {
-  const groups = groupSessions(sessions, uiState);
-  const visibleOrder = groups.map((group) => group.repoRoot);
+  const groups = groupSessions(sessions, uiState)
+  const visibleOrder = groups.map((group) => group.repoRoot)
 
   function toggleCollapse(repoRoot: string) {
     updateUiState({ collapsedRepos: toggleRepoCollapse(uiState.collapsedRepos, repoRoot) }).catch(
       reportCommandFailure,
-    );
+    )
   }
 
   function toggleHideDead(repoRoot: string) {
     updateUiState({ hideDeadRepos: toggleHideDeadRepo(uiState.hideDeadRepos, repoRoot) }).catch(
       reportCommandFailure,
-    );
+    )
   }
 
   function onDragEnd(event: DragEndEvent) {
     // Defense in depth: nothing else registers as draggable inside this DndContext today, but
     // a foreign active type should bail rather than be treated as a repo root regardless.
-    if (event.active.data.current?.type !== 'repo') return;
-    const activeRepoRoot = event.active.id as string;
-    const overRepoRoot = event.over?.id as string | undefined;
-    if (overRepoRoot === undefined || overRepoRoot === activeRepoRoot) return;
+    if (event.active.data.current?.type !== 'repo') return
+    const activeRepoRoot = event.active.id as string
+    const overRepoRoot = event.over?.id as string | undefined
+    if (overRepoRoot === undefined || overRepoRoot === activeRepoRoot) return
     updateUiState(
       reorderGroups(visibleOrder, uiState.pinnedRepos, activeRepoRoot, overRepoRoot),
-    ).catch(reportCommandFailure);
+    ).catch(reportCommandFailure)
   }
 
   return (
@@ -223,13 +223,13 @@ function RepoSidebar({
         ))}
       </SortableContext>
     </DndContext>
-  );
+  )
 }
 
 interface SwarmSidebarProps extends SharedSidebarProps {
-  finishedOpen: boolean;
-  onToggleFinishedOpen: () => void;
-  onOpenFinished: () => void;
+  finishedOpen: boolean
+  onToggleFinishedOpen: () => void
+  onOpenFinished: () => void
 }
 
 function SwarmSidebar({
@@ -245,15 +245,15 @@ function SwarmSidebar({
   onToggleFinishedOpen,
   onOpenFinished,
 }: SwarmSidebarProps) {
-  const { swarms, solo, soloTotal, soloHideDead } = groupSwarms(sessions, uiState);
-  const active = swarms.filter((swarm) => !swarm.finished);
-  const finished = swarms.filter((swarm) => swarm.finished);
-  const selectedSwarmId = useLocalStore((state) => state.selectedSwarmId);
-  const setSelectedSwarmId = useLocalStore((state) => state.setSelectedSwarmId);
+  const { swarms, solo, soloTotal, soloHideDead } = groupSwarms(sessions, uiState)
+  const active = swarms.filter((swarm) => !swarm.finished)
+  const finished = swarms.filter((swarm) => swarm.finished)
+  const selectedSwarmId = useLocalStore((state) => state.selectedSwarmId)
+  const setSelectedSwarmId = useLocalStore((state) => state.setSelectedSwarmId)
   const { setNodeRef: setSoloDropRef, isOver: soloIsOver } = useDroppable({
     id: SOLO_BUCKET_ID,
     data: { type: 'solo' },
-  });
+  })
 
   // Scrolls to and flashes the swarm a pane-header chip click named. A dead pane can stay on
   // stage after its swarm has gone fully dead/finished, and the Finished section only mounts
@@ -269,61 +269,61 @@ function SwarmSidebar({
       selectedSwarmId,
       finishedOpen,
       finished.map((swarm) => swarm.swarmId),
-    );
-    if (action === 'idle') return;
+    )
+    if (action === 'idle') return
     if (action === 'expand-finished') {
-      onOpenFinished();
-      return;
+      onOpenFinished()
+      return
     }
-    const target = document.querySelector(`[data-swarm-id="${selectedSwarmId}"]`);
-    setSelectedSwarmId(null);
-    if (target === null) return;
-    target.scrollIntoView({ block: 'center', behavior: 'smooth' });
-    target.classList.add('flash');
+    const target = document.querySelector(`[data-swarm-id="${selectedSwarmId}"]`)
+    setSelectedSwarmId(null)
+    if (target === null) return
+    target.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    target.classList.add('flash')
     target.addEventListener('animationend', () => target.classList.remove('flash'), {
       once: true,
-    });
-  }, [selectedSwarmId, setSelectedSwarmId, finished, finishedOpen, onOpenFinished]);
-  const visibleOrder = active.map((swarm) => swarm.swarmId);
+    })
+  }, [selectedSwarmId, setSelectedSwarmId, finished, finishedOpen, onOpenFinished])
+  const visibleOrder = active.map((swarm) => swarm.swarmId)
   // The base a drag reorders within has to carry every swarm, not just the active ones
   // `SortableContext` renders — `updateUiState` replaces `swarmOrder` wholesale rather than
   // merging (`projection.ts`'s `updateUiState`), so writing back an active-only order would
   // silently drop a finished swarm's position the moment any active swarm gets dragged.
-  const fullOrder = swarms.map((swarm) => swarm.swarmId);
+  const fullOrder = swarms.map((swarm) => swarm.swarmId)
 
   function toggleCollapse(swarmId: string) {
     updateUiState({
       collapsedSwarms: toggleSwarmCollapse(uiState.collapsedSwarms, swarmId),
-    }).catch(reportCommandFailure);
+    }).catch(reportCommandFailure)
   }
 
   function toggleHideDead(swarmId: string) {
     updateUiState({
       hideDeadSwarms: toggleHideDeadSwarm(uiState.hideDeadSwarms, swarmId),
-    }).catch(reportCommandFailure);
+    }).catch(reportCommandFailure)
   }
 
   function onDragEnd(event: DragEndEvent) {
-    const activeId = event.active.id as string;
-    const activeData = event.active.data.current as { type?: string } | undefined;
+    const activeId = event.active.id as string
+    const activeData = event.active.data.current as { type?: string } | undefined
     // Defense in depth against a foreign active type — RepoGroup never registers a session as
     // draggable, but a mismatched type here should bail rather than be misread as one of this
     // sidebar's own two drag kinds.
-    if (activeData?.type !== 'swarm-reorder' && activeData?.type !== 'session') return;
-    const overData = event.over?.data.current as { type?: string; swarmId?: string } | undefined;
+    if (activeData?.type !== 'swarm-reorder' && activeData?.type !== 'session') return
+    const overData = event.over?.data.current as { type?: string; swarmId?: string } | undefined
     const outcome = resolveSidebarDrop(
       { type: activeData.type, id: activeId },
       event.over === null
         ? null
         : { type: overData?.type, id: event.over.id as string, swarmId: overData?.swarmId },
       uiState.placements[activeId],
-    );
+    )
     if (outcome.type === 'reorder') {
       updateUiState({
         swarmOrder: reorderSwarms(fullOrder, outcome.activeSwarmId, outcome.overSwarmId),
-      }).catch(reportCommandFailure);
+      }).catch(reportCommandFailure)
     } else if (outcome.type === 'place') {
-      setSessionPlacement(outcome.sessionId, outcome.placement).catch(reportCommandFailure);
+      setSessionPlacement(outcome.sessionId, outcome.placement).catch(reportCommandFailure)
     }
   }
 
@@ -414,5 +414,5 @@ function SwarmSidebar({
         </div>
       )}
     </DndContext>
-  );
+  )
 }

@@ -1,15 +1,15 @@
-import { createLimiter } from './limiter.js';
-import type { GitPort } from './ports.js';
-import type { Projection } from './projection.js';
+import { createLimiter } from './limiter.js'
+import type { GitPort } from './ports.js'
+import type { Projection } from './projection.js'
 
 export interface BranchSweeperDeps {
-  readonly git: Pick<GitPort, 'branch'>;
-  readonly projection: Projection;
+  readonly git: Pick<GitPort, 'branch'>
+  readonly projection: Projection
 }
 
 export interface BranchSweeper {
-  tick(): Promise<void>;
-  stop(): void;
+  tick(): Promise<void>
+  stop(): void
 }
 
 /** Caps how many `git` subprocesses one sweep spawns at once. Steady state only re-resolves
@@ -17,7 +17,7 @@ export interface BranchSweeper {
  *  session ends or after boot can still fan out across every dead cwd this sweeper has not
  *  settled yet — the same fork-bomb concern `app/repos.ts` already caps its own leaf git calls
  *  against, here bounding a one-time catch-up instead of a per-root listing. */
-const MAX_CONCURRENT_GIT_SPAWNS = 8;
+const MAX_CONCURRENT_GIT_SPAWNS = 8
 
 /**
  * Re-resolves a *live* session's branch on every tick, unlike `watchRepoRoots`: a repo root is
@@ -37,59 +37,59 @@ const MAX_CONCURRENT_GIT_SPAWNS = 8;
  * function of the git state seen at that moment.
  */
 export function createBranchSweeper(deps: BranchSweeperDeps): BranchSweeper {
-  let inFlight = false;
-  let stopped = false;
-  const limit = createLimiter(MAX_CONCURRENT_GIT_SPAWNS);
+  let inFlight = false
+  let stopped = false
+  const limit = createLimiter(MAX_CONCURRENT_GIT_SPAWNS)
   // Dead cwds already given their one resolution. Checked before re-asking git for a cwd
   // that isn't live this tick.
-  const settled = new Set<string>();
+  const settled = new Set<string>()
 
   async function resolve(cwd: string): Promise<void> {
-    const branch = await limit(() => deps.git.branch(cwd)).catch(() => null);
-    if (stopped) return;
-    deps.projection.dispatch({ type: 'branch-resolved', cwd, branch });
+    const branch = await limit(() => deps.git.branch(cwd)).catch(() => null)
+    if (stopped) return
+    deps.projection.dispatch({ type: 'branch-resolved', cwd, branch })
   }
 
   return {
     async tick() {
-      if (inFlight || stopped) return;
-      inFlight = true;
-      let results: PromiseSettledResult<void>[];
+      if (inFlight || stopped) return
+      inFlight = true
+      let results: PromiseSettledResult<void>[]
       try {
-        const sessions = deps.projection.sessions();
+        const sessions = deps.projection.sessions()
         // `liveness` marks whether garden itself is polling a tmux pane for a session, not
         // whether the underlying process is running — a session garden didn't start is always
         // `'dead'` here. Its cwd still gets exactly one resolution below, so a branch change
         // made from such a session after that point won't be picked back up.
         const live = new Set(
           sessions.filter((s) => s.liveness === 'live' && s.cwd !== '').map((s) => s.cwd),
-        );
-        for (const cwd of live) settled.delete(cwd);
+        )
+        for (const cwd of live) settled.delete(cwd)
         const uncachedDead = new Set(
           sessions
             .filter((s) => s.cwd !== '' && !live.has(s.cwd) && !settled.has(s.cwd))
             .map((s) => s.cwd),
-        );
-        for (const cwd of uncachedDead) settled.add(cwd);
-        const cwds = new Set([...live, ...uncachedDead]);
-        results = await Promise.allSettled([...cwds].map(resolve));
+        )
+        for (const cwd of uncachedDead) settled.add(cwd)
+        const cwds = new Set([...live, ...uncachedDead])
+        results = await Promise.allSettled([...cwds].map(resolve))
       } finally {
-        inFlight = false;
+        inFlight = false
       }
       // resolve() only rejects if a projection listener throws synchronously during dispatch —
       // deps.git.branch()'s own failures are already caught above and turned into a `null`
       // dispatch. allSettled swallows a rejection like that by design, so it has to be
       // re-raised here or it vanishes with no log and no sign the sweep hit a problem.
-      const rejected = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+      const rejected = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected')
       if (rejected.length > 0) {
         throw new AggregateError(
           rejected.map((r: PromiseRejectedResult) => r.reason as unknown),
           `branch sweep: ${String(rejected.length)} dispatch(es) failed unexpectedly`,
-        );
+        )
       }
     },
     stop() {
-      stopped = true;
+      stopped = true
     },
-  };
+  }
 }

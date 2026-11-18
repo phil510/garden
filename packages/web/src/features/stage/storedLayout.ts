@@ -1,8 +1,8 @@
-import type { SerializedDockview } from 'dockview-core';
-import { collectViews } from './presetLayout';
+import type { SerializedDockview } from 'dockview-core'
+import { collectViews } from './presetLayout'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /** Mirrors `collectViews`'s ordered flatten of a grid tree's leaf `views`, but tolerates a shape
@@ -11,21 +11,21 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  *  node that isn't a plain branch-or-leaf record, rather than assuming the grid-presence guard in
  *  `fits()` already covers everything beneath `root`. */
 function collectStoredViews(node: unknown): string[] | null {
-  if (!isRecord(node)) return null;
-  const data = node['data'];
+  if (!isRecord(node)) return null
+  const data = node['data']
   if (Array.isArray(data)) {
-    const views: string[] = [];
+    const views: string[] = []
     for (const child of data) {
-      const childViews = collectStoredViews(child);
-      if (childViews === null) return null;
-      views.push(...childViews);
+      const childViews = collectStoredViews(child)
+      if (childViews === null) return null
+      views.push(...childViews)
     }
-    return views;
+    return views
   }
-  if (!isRecord(data) || !Array.isArray(data['views'])) return null;
+  if (!isRecord(data) || !Array.isArray(data['views'])) return null
   return data['views'].every((view): view is string => typeof view === 'string')
     ? data['views']
-    : null;
+    : null
 }
 
 /** The stored blob is only ever handed back to `fromJSON`, so the things worth checking are that
@@ -47,25 +47,25 @@ function collectStoredViews(node: unknown): string[] | null {
  *  `hideHeader: true`, which keeps dockview's own drag-to-merge from reshaping the tree into
  *  something structurally different that still flattens the same way. */
 function fits(stored: unknown, wanted: SerializedDockview): stored is SerializedDockview {
-  if (!isRecord(stored) || !isRecord(stored['grid']) || !isRecord(stored['panels'])) return false;
-  if (stored['grid']['orientation'] !== wanted.grid.orientation) return false;
-  const storedOrder = collectStoredViews(stored['grid']['root']);
-  const wantedOrder = collectViews(wanted.grid.root);
-  const panels = stored['panels'];
+  if (!isRecord(stored) || !isRecord(stored['grid']) || !isRecord(stored['panels'])) return false
+  if (stored['grid']['orientation'] !== wanted.grid.orientation) return false
+  const storedOrder = collectStoredViews(stored['grid']['root'])
+  const wantedOrder = collectViews(wanted.grid.root)
+  const panels = stored['panels']
   return (
     storedOrder !== null &&
     storedOrder.length === wantedOrder.length &&
     Object.keys(panels).length === storedOrder.length &&
     storedOrder.every((id, index) => id === wantedOrder[index] && id in panels)
-  );
+  )
 }
 
 /** dockview serialises a maximised stage with the maximised node recorded, so restoring the blob
  *  verbatim would bring the stage back with a pane hidden and nothing on screen saying why. */
 function withoutMaximizedNode(layout: SerializedDockview): SerializedDockview {
-  const grid: Record<string, unknown> = { ...layout.grid };
-  delete grid['maximizedNode'];
-  return { ...layout, grid: grid as unknown as SerializedDockview['grid'] };
+  const grid: Record<string, unknown> = { ...layout.grid }
+  delete grid['maximizedNode']
+  return { ...layout, grid: grid as unknown as SerializedDockview['grid'] }
 }
 
 /**
@@ -74,5 +74,5 @@ function withoutMaximizedNode(layout: SerializedDockview): SerializedDockview {
  * default arrangement otherwise.
  */
 export function stageLayout(wanted: SerializedDockview, stored: unknown): SerializedDockview {
-  return fits(stored, wanted) ? withoutMaximizedNode(stored) : wanted;
+  return fits(stored, wanted) ? withoutMaximizedNode(stored) : wanted
 }

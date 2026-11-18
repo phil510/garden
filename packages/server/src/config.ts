@@ -1,41 +1,41 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
-import { createLogger, type Logger } from './adapters/logger.js';
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
+import { createLogger, type Logger } from './adapters/logger.js'
 
 /** The permission mode garden passes to a spawned or resumed Claude Code process.
  *  `'bypassPermissions'` skips its permission prompts; `'default'` passes no flag. */
-export type PermissionMode = 'default' | 'bypassPermissions';
+export type PermissionMode = 'default' | 'bypassPermissions'
 
-export type Harness = 'claude' | 'codex';
+export type Harness = 'claude' | 'codex'
 
 function isPermissionMode(value: unknown): value is PermissionMode {
-  return value === 'default' || value === 'bypassPermissions';
+  return value === 'default' || value === 'bypassPermissions'
 }
 
 /** What `<appDir>/config.json` may contain. Omitted keys fall back to the defaults below. */
 export interface ConfigFile {
-  readonly port: number;
-  readonly roots: readonly string[];
-  readonly permissionMode: PermissionMode;
-  readonly deadSessionCap: number;
-  readonly claudeCommand: string;
-  readonly codexCommand: string;
-  readonly ignoreAuthors: readonly string[];
-  readonly quietWindowMinutes: number;
-  readonly pollIntervalMinutes: number;
+  readonly port: number
+  readonly roots: readonly string[]
+  readonly permissionMode: PermissionMode
+  readonly deadSessionCap: number
+  readonly claudeCommand: string
+  readonly codexCommand: string
+  readonly ignoreAuthors: readonly string[]
+  readonly quietWindowMinutes: number
+  readonly pollIntervalMinutes: number
 }
 export interface Config {
-  readonly harness: Harness;
-  readonly port: number;
-  readonly host: string;
-  readonly roots: readonly string[];
-  readonly appDir: string;
-  readonly tmuxSocket: string;
-  readonly transcriptsDir: string;
-  readonly claudeSessionsDir: string;
-  readonly permissionMode: PermissionMode;
-  readonly deadSessionCap: number;
+  readonly harness: Harness
+  readonly port: number
+  readonly host: string
+  readonly roots: readonly string[]
+  readonly appDir: string
+  readonly tmuxSocket: string
+  readonly transcriptsDir: string
+  readonly claudeSessionsDir: string
+  readonly permissionMode: PermissionMode
+  readonly deadSessionCap: number
 }
 
 export const DEFAULT_CONFIG_FILE: ConfigFile = {
@@ -48,50 +48,50 @@ export const DEFAULT_CONFIG_FILE: ConfigFile = {
   ignoreAuthors: [],
   quietWindowMinutes: 3,
   pollIntervalMinutes: 5,
-};
+}
 
 /** Loopback-only, and deliberately not configurable: garden is not a remote-access tool. */
-const HOST = '127.0.0.1';
+const HOST = '127.0.0.1'
 
 /** Dedicated sockets keep each harness separate from the user's own tmux server. */
-export const TMUX_SOCKET = 'garden-claude';
-export const CODEX_TMUX_SOCKET = 'garden-codex';
+export const TMUX_SOCKET = 'garden-claude'
+export const CODEX_TMUX_SOCKET = 'garden-codex'
 
 function resolveHarness(env: Record<string, string | undefined>): Harness {
-  const raw = envString(env, 'GARDEN_HARNESS');
-  if (raw === undefined || raw === 'claude') return 'claude';
-  if (raw === 'codex') return 'codex';
-  throw new Error(`GARDEN_HARNESS must be "claude" or "codex", got "${raw}"`);
+  const raw = envString(env, 'GARDEN_HARNESS')
+  if (raw === undefined || raw === 'claude') return 'claude'
+  if (raw === 'codex') return 'codex'
+  throw new Error(`GARDEN_HARNESS must be "claude" or "codex", got "${raw}"`)
 }
 
 function defaultConfigFile(env: Record<string, string | undefined>): ConfigFile {
   return resolveHarness(env) === 'codex'
     ? { ...DEFAULT_CONFIG_FILE, port: 4311 }
-    : DEFAULT_CONFIG_FILE;
+    : DEFAULT_CONFIG_FILE
 }
 
 function isPort(value: unknown): value is number {
-  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 65535;
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 65535
 }
 
 function isDeadSessionCap(value: unknown): value is number {
-  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 1000;
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 1000
 }
 
 export function isLaunchCommand(value: unknown): value is string {
-  return typeof value === 'string' && value.trim() !== '';
+  return typeof value === 'string' && value.trim() !== ''
 }
 
 export function isIgnoreAuthors(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every((author) => typeof author === 'string');
+  return Array.isArray(value) && value.every((author) => typeof author === 'string')
 }
 
 export function isQuietWindowMinutes(value: unknown): value is number {
-  return typeof value === 'number' && Number.isInteger(value) && value >= 0;
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0
 }
 
 export function isPollIntervalMinutes(value: unknown): value is number {
-  return typeof value === 'number' && Number.isInteger(value) && value >= 1;
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1
 }
 
 /** Splits a raw command string on whitespace into argv, collapsing to `undefined` when
@@ -100,33 +100,33 @@ export function isPollIntervalMinutes(value: unknown): value is number {
  *  the env var falls back silently (see `envClaudeCommand`), the file field rejects loudly
  *  (see `isLaunchCommand`). */
 function splitCommand(raw: string): readonly string[] | undefined {
-  const parts = raw.split(/\s+/).filter(Boolean);
-  return parts.length === 0 ? undefined : parts;
+  const parts = raw.split(/\s+/).filter(Boolean)
+  return parts.length === 0 ? undefined : parts
 }
 
 function envPort(env: Record<string, string | undefined>): number | undefined {
-  const raw = env.GARDEN_PORT;
+  const raw = env.GARDEN_PORT
   // An empty value is treated as unset: `GARDEN_PORT=` means "no opinion", not "port zero".
-  if (raw === undefined || raw === '') return undefined;
-  const port = Number(raw);
+  if (raw === undefined || raw === '') return undefined
+  const port = Number(raw)
   if (!isPort(port)) {
-    throw new Error(`GARDEN_PORT must be an integer between 1 and 65535, got "${raw}"`);
+    throw new Error(`GARDEN_PORT must be an integer between 1 and 65535, got "${raw}"`)
   }
-  return port;
+  return port
 }
 
 /** An empty value is treated as unset, matching `envPort`'s "no opinion" convention. */
 function envString(env: Record<string, string | undefined>, key: string): string | undefined {
-  const raw = env[key];
-  return raw === undefined || raw === '' ? undefined : raw;
+  const raw = env[key]
+  return raw === undefined || raw === '' ? undefined : raw
 }
 
 function envClaudeCommand(env: Record<string, string | undefined>): readonly string[] | undefined {
-  const raw = envString(env, 'GARDEN_CLAUDE_COMMAND');
-  if (raw === undefined) return undefined;
+  const raw = envString(env, 'GARDEN_CLAUDE_COMMAND')
+  if (raw === undefined) return undefined
   // A value of only whitespace names no command, so it falls back rather than
   // spawning an argv whose first element is the session flag.
-  return splitCommand(raw);
+  return splitCommand(raw)
 }
 
 /** The `claudeCommand` precedence: `GARDEN_CLAUDE_COMMAND` outranks the file, which outranks
@@ -138,7 +138,7 @@ export function resolveClaudeCommand(
   env: Record<string, string | undefined>,
   file: Pick<ConfigFile, 'claudeCommand'>,
 ): readonly string[] {
-  return envClaudeCommand(env) ?? splitCommand(file.claudeCommand) ?? ['claude'];
+  return envClaudeCommand(env) ?? splitCommand(file.claudeCommand) ?? ['claude']
 }
 
 /** Resolves the Codex command against a fresh config read at launch time. */
@@ -148,12 +148,12 @@ export function resolveCodexCommand(
 ): readonly string[] {
   return (
     splitCommand(env.GARDEN_CODEX_COMMAND ?? '') ?? splitCommand(file.codexCommand) ?? ['codex']
-  );
+  )
 }
 
 function expandHome(path: string, home: string): string {
-  if (path === '~') return home;
-  return path.startsWith('~/') ? join(home, path.slice(2)) : path;
+  if (path === '~') return home
+  return path.startsWith('~/') ? join(home, path.slice(2)) : path
 }
 
 export function parseConfigFile(
@@ -161,14 +161,14 @@ export function parseConfigFile(
   source: string,
   defaults: ConfigFile = DEFAULT_CONFIG_FILE,
 ): ConfigFile {
-  let raw: unknown;
+  let raw: unknown
   try {
-    raw = JSON.parse(text);
+    raw = JSON.parse(text)
   } catch (cause) {
-    throw new Error(`${source} is not valid JSON: ${(cause as Error).message}`, { cause });
+    throw new Error(`${source} is not valid JSON: ${(cause as Error).message}`, { cause })
   }
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
-    throw new Error(`${source} must contain a JSON object`);
+    throw new Error(`${source} must contain a JSON object`)
   }
   const {
     port,
@@ -181,45 +181,45 @@ export function parseConfigFile(
     quietWindowMinutes,
     pollIntervalMinutes,
   } = raw as {
-    port?: unknown;
-    roots?: unknown;
-    permissionMode?: unknown;
-    deadSessionCap?: unknown;
-    claudeCommand?: unknown;
-    codexCommand?: unknown;
-    ignoreAuthors?: unknown;
-    quietWindowMinutes?: unknown;
-    pollIntervalMinutes?: unknown;
-  };
+    port?: unknown
+    roots?: unknown
+    permissionMode?: unknown
+    deadSessionCap?: unknown
+    claudeCommand?: unknown
+    codexCommand?: unknown
+    ignoreAuthors?: unknown
+    quietWindowMinutes?: unknown
+    pollIntervalMinutes?: unknown
+  }
   if (port !== undefined && !isPort(port)) {
-    throw new Error(`${source}: "port" must be an integer between 1 and 65535`);
+    throw new Error(`${source}: "port" must be an integer between 1 and 65535`)
   }
   if (
     roots !== undefined &&
     (!Array.isArray(roots) || (roots as unknown[]).some((r) => typeof r !== 'string'))
   ) {
-    throw new Error(`${source}: "roots" must be an array of strings`);
+    throw new Error(`${source}: "roots" must be an array of strings`)
   }
   if (permissionMode !== undefined && !isPermissionMode(permissionMode)) {
-    throw new Error(`${source}: "permissionMode" must be "default" or "bypassPermissions"`);
+    throw new Error(`${source}: "permissionMode" must be "default" or "bypassPermissions"`)
   }
   if (deadSessionCap !== undefined && !isDeadSessionCap(deadSessionCap)) {
-    throw new Error(`${source}: "deadSessionCap" must be an integer between 1 and 1000`);
+    throw new Error(`${source}: "deadSessionCap" must be an integer between 1 and 1000`)
   }
   if (claudeCommand !== undefined && !isLaunchCommand(claudeCommand)) {
-    throw new Error(`${source}: "claudeCommand" must be a non-empty string`);
+    throw new Error(`${source}: "claudeCommand" must be a non-empty string`)
   }
   if (codexCommand !== undefined && !isLaunchCommand(codexCommand)) {
-    throw new Error(`${source}: "codexCommand" must be a non-empty string`);
+    throw new Error(`${source}: "codexCommand" must be a non-empty string`)
   }
   if (ignoreAuthors !== undefined && !isIgnoreAuthors(ignoreAuthors)) {
-    throw new Error(`${source}: "ignoreAuthors" must be an array of strings`);
+    throw new Error(`${source}: "ignoreAuthors" must be an array of strings`)
   }
   if (quietWindowMinutes !== undefined && !isQuietWindowMinutes(quietWindowMinutes)) {
-    throw new Error(`${source}: "quietWindowMinutes" must be a non-negative integer`);
+    throw new Error(`${source}: "quietWindowMinutes" must be a non-negative integer`)
   }
   if (pollIntervalMinutes !== undefined && !isPollIntervalMinutes(pollIntervalMinutes)) {
-    throw new Error(`${source}: "pollIntervalMinutes" must be a positive integer`);
+    throw new Error(`${source}: "pollIntervalMinutes" must be a positive integer`)
   }
   return {
     port: port ?? defaults.port,
@@ -231,19 +231,19 @@ export function parseConfigFile(
     ignoreAuthors: ignoreAuthors ?? DEFAULT_CONFIG_FILE.ignoreAuthors,
     quietWindowMinutes: quietWindowMinutes ?? DEFAULT_CONFIG_FILE.quietWindowMinutes,
     pollIntervalMinutes: pollIntervalMinutes ?? DEFAULT_CONFIG_FILE.pollIntervalMinutes,
-  };
+  }
 }
 
 export function appDirPath(home: string, env: Record<string, string | undefined>): string {
-  const harness = resolveHarness(env);
+  const harness = resolveHarness(env)
   return (
     envString(env, 'GARDEN_APP_DIR') ??
     join(home, harness === 'codex' ? '.garden-codex' : '.garden-claude')
-  );
+  )
 }
 
 export function configFilePath(appDir: string): string {
-  return join(appDir, 'config.json');
+  return join(appDir, 'config.json')
 }
 
 /** Resolves the effective config. `GARDEN_PORT` outranks the file; roots come back absolute. */
@@ -252,7 +252,7 @@ export function loadConfig(
   file: ConfigFile = defaultConfigFile(env),
   home: string = homedir(),
 ): Config {
-  const harness = resolveHarness(env);
+  const harness = resolveHarness(env)
   return {
     harness,
     port: envPort(env) ?? file.port,
@@ -266,7 +266,7 @@ export function loadConfig(
     claudeSessionsDir: join(home, '.claude', 'sessions'),
     permissionMode: file.permissionMode,
     deadSessionCap: file.deadSessionCap,
-  };
+  }
 }
 
 /** Carries the effective instance across process boundaries, including file-derived values. */
@@ -278,7 +278,7 @@ export function instanceEnvironment(
     GARDEN_PORT: String(config.port),
     GARDEN_TMUX_SOCKET: config.tmuxSocket,
     GARDEN_APP_DIR: config.appDir,
-  };
+  }
 }
 
 /**
@@ -292,21 +292,21 @@ export function ensureConfigFile(
   home: string,
   logger: Pick<Logger, 'warn'> = createLogger(),
 ): ConfigFile {
-  const defaults = defaultConfigFile(process.env);
-  const dir = appDirPath(home, process.env);
-  mkdirSync(dir, { recursive: true });
-  const path = configFilePath(dir);
+  const defaults = defaultConfigFile(process.env)
+  const dir = appDirPath(home, process.env)
+  mkdirSync(dir, { recursive: true })
+  const path = configFilePath(dir)
   try {
-    return parseConfigFile(readFileSync(path, 'utf8'), path, defaults);
+    return parseConfigFile(readFileSync(path, 'utf8'), path, defaults)
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
       // parseConfigFile's thrown message already names `path` (it's the `source` argument), so
       // this doesn't repeat it — the message alone carries which file and why.
-      logger.warn(`config unusable, falling back to defaults: ${(error as Error).message}`);
-      return defaults;
+      logger.warn(`config unusable, falling back to defaults: ${(error as Error).message}`)
+      return defaults
     }
-    writeFileSync(path, `${JSON.stringify(defaults, null, 2)}\n`, 'utf8');
-    return defaults;
+    writeFileSync(path, `${JSON.stringify(defaults, null, 2)}\n`, 'utf8')
+    return defaults
   }
 }
 
@@ -316,9 +316,9 @@ export function ensureConfigFile(
  *  the caller may be persisting a raw parsed file merged with a patch, which need not carry
  *  every `ConfigFile` field. */
 export function writeConfigFile(path: string, contents: Record<string, unknown>): void {
-  const tmpPath = `${path}.tmp`;
-  writeFileSync(tmpPath, `${JSON.stringify(contents, null, 2)}\n`, 'utf8');
-  renameSync(tmpPath, path);
+  const tmpPath = `${path}.tmp`
+  writeFileSync(tmpPath, `${JSON.stringify(contents, null, 2)}\n`, 'utf8')
+  renameSync(tmpPath, path)
 }
 
 /** Live, tolerant read of `config.json` at `path` for display purposes: a missing or
@@ -332,31 +332,31 @@ export function writeConfigFile(path: string, contents: Record<string, unknown>)
  *  defaults for values that are actually sitting on disk. Every other key falls back to its
  *  default. */
 export function readConfigFile(path: string): ConfigFile {
-  let text: string;
+  let text: string
   try {
-    text = readFileSync(path, 'utf8');
+    text = readFileSync(path, 'utf8')
   } catch {
-    return DEFAULT_CONFIG_FILE;
+    return DEFAULT_CONFIG_FILE
   }
   try {
-    return parseConfigFile(text, path);
+    return parseConfigFile(text, path)
   } catch {
-    return recoverValidKeys(text);
+    return recoverValidKeys(text)
   }
 }
 
 /** Best-effort per-key extraction from JSON text that failed whole-object validation. Yields
  *  the defaults when the text isn't even a JSON object — there's nothing to recover then. */
 function recoverValidKeys(text: string): ConfigFile {
-  let raw: unknown;
+  let raw: unknown
   try {
-    raw = JSON.parse(text);
+    raw = JSON.parse(text)
   } catch {
-    return DEFAULT_CONFIG_FILE;
+    return DEFAULT_CONFIG_FILE
   }
-  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return DEFAULT_CONFIG_FILE;
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return DEFAULT_CONFIG_FILE
   const { claudeCommand, codexCommand, ignoreAuthors, quietWindowMinutes, pollIntervalMinutes } =
-    raw as Record<string, unknown>;
+    raw as Record<string, unknown>
   return {
     ...DEFAULT_CONFIG_FILE,
     claudeCommand: isLaunchCommand(claudeCommand)
@@ -372,7 +372,7 @@ function recoverValidKeys(text: string): ConfigFile {
     pollIntervalMinutes: isPollIntervalMinutes(pollIntervalMinutes)
       ? pollIntervalMinutes
       : DEFAULT_CONFIG_FILE.pollIntervalMinutes,
-  };
+  }
 }
 
 /** Thrown by `patchConfigFile` when the on-disk file fails to parse or validate: writing the
@@ -389,23 +389,23 @@ export class ConfigWriteRefusedError extends Error {}
  * `ConfigFile` field's default into a file that only ever set one key.
  */
 export function patchConfigFile(path: string, patch: Partial<ConfigFile>): void {
-  let text: string;
+  let text: string
   try {
-    text = readFileSync(path, 'utf8');
+    text = readFileSync(path, 'utf8')
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-    writeConfigFile(path, { ...patch });
-    return;
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    writeConfigFile(path, { ...patch })
+    return
   }
   try {
-    parseConfigFile(text, path); // validates; its defaulted return is not the merge base
+    parseConfigFile(text, path) // validates; its defaulted return is not the merge base
   } catch (error) {
     throw new ConfigWriteRefusedError(
       `refusing to write ${path}: existing file is invalid (${(error as Error).message})`,
-    );
+    )
   }
   // parseConfigFile above already guarantees text parses as a JSON object, so this reparse
   // (for the raw, non-defaulted merge base) cannot fail.
-  const raw = JSON.parse(text) as Record<string, unknown>;
-  writeConfigFile(path, { ...raw, ...patch });
+  const raw = JSON.parse(text) as Record<string, unknown>
+  writeConfigFile(path, { ...raw, ...patch })
 }

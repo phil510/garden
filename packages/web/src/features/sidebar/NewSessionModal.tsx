@@ -1,66 +1,66 @@
-import { useEffect, useState, type MouseEvent } from 'react';
-import type { RepoEntry } from '@garden/shared';
-import { createSession, listRepos } from '../../api/client';
-import { commandFailureMessage, reportCommandFailure } from '../../api/reportCommandFailure';
-import { useToastStore } from '../../state/toastStore';
-import { buildPickerGroups } from './pickerItems';
-import { getCachedRepoList, setCachedRepoList } from './repoListCache';
+import { useEffect, useState, type MouseEvent } from 'react'
+import type { RepoEntry } from '@garden/shared'
+import { createSession, listRepos } from '../../api/client'
+import { commandFailureMessage, reportCommandFailure } from '../../api/reportCommandFailure'
+import { useToastStore } from '../../state/toastStore'
+import { buildPickerGroups } from './pickerItems'
+import { getCachedRepoList, setCachedRepoList } from './repoListCache'
 
 interface NewSessionModalProps {
-  onClose: () => void;
-  onCreated: (id: string) => void;
+  onClose: () => void
+  onCreated: (id: string) => void
 }
 
 export function NewSessionModal({ onClose, onCreated }: NewSessionModalProps) {
   // Seeded from the cache left by a prior open, so a second mount renders the list immediately
   // instead of a loading state — see repoListCache.ts for why this isn't in localStore.
-  const [repos, setRepos] = useState<RepoEntry[] | null>(getCachedRepoList);
-  const [failed, setFailed] = useState(false);
-  const [query, setQuery] = useState('');
+  const [repos, setRepos] = useState<RepoEntry[] | null>(getCachedRepoList)
+  const [failed, setFailed] = useState(false)
+  const [query, setQuery] = useState('')
 
   // Always refetch on mount, so the list never goes stale.
   useEffect(() => {
-    let cancelled = false;
+    let cancelled = false
     listRepos()
       .then((response) => {
         if (!cancelled) {
-          setCachedRepoList(response.repos);
-          setRepos(response.repos);
+          setCachedRepoList(response.repos)
+          setRepos(response.repos)
         }
       })
       .catch((error: unknown) => {
-        reportCommandFailure(error);
-        if (!cancelled) setFailed(true);
-      });
+        reportCommandFailure(error)
+        if (!cancelled) setFailed(true)
+      })
     return () => {
-      cancelled = true;
-    };
-  }, []);
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') onClose()
     }
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [onClose]);
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [onClose])
 
   function onOverlayClick(event: MouseEvent<HTMLDivElement>) {
-    if (event.target === event.currentTarget) onClose();
+    if (event.target === event.currentTarget) onClose()
   }
 
   function pick(path: string) {
     createSession(path)
       .then((result) => onCreated(result.id))
       .catch((error: unknown) => {
-        reportCommandFailure(error);
-        useToastStore.getState().showToast(commandFailureMessage(error));
-      });
+        reportCommandFailure(error)
+        useToastStore.getState().showToast(commandFailureMessage(error))
+      })
   }
 
   // A failed refetch must not leave a previously-cached, now-unverified list on screen and
   // clickable — hide it behind the error banner above rather than trusting stale data.
-  const groups = failed || repos === null ? [] : buildPickerGroups(repos, query);
+  const groups = failed || repos === null ? [] : buildPickerGroups(repos, query)
 
   return (
     <div className="modal-overlay" onClick={onOverlayClick}>
@@ -98,7 +98,7 @@ export function NewSessionModal({ onClose, onCreated }: NewSessionModalProps) {
         </div>
       </div>
     </div>
-  );
+  )
 }
 
 function RepoIcon() {
@@ -113,7 +113,7 @@ function RepoIcon() {
     >
       <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" />
     </svg>
-  );
+  )
 }
 
 function WorktreeIcon() {
@@ -131,5 +131,5 @@ function WorktreeIcon() {
       <circle cx="18" cy="8" r="2.5" />
       <path d="M6 8.5V15.5M8.3 6.8 15.7 8.2" />
     </svg>
-  );
+  )
 }

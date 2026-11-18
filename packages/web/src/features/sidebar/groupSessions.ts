@@ -1,14 +1,14 @@
-import type { SessionMap, SessionState, UiState } from '@garden/shared';
-import { lastPathSegment } from './lastPathSegment';
+import type { SessionMap, SessionState, UiState } from '@garden/shared'
+import { lastPathSegment } from './lastPathSegment'
 
 export interface SidebarGroup {
-  repoRoot: string;
-  repoName: string;
-  sessionIds: string[];
-  liveCount: number;
-  pinned: boolean;
-  collapsed: boolean;
-  hideDead: boolean;
+  repoRoot: string
+  repoName: string
+  sessionIds: string[]
+  liveCount: number
+  pinned: boolean
+  collapsed: boolean
+  hideDead: boolean
 }
 
 /**
@@ -20,26 +20,26 @@ export function groupSessions(
   sessions: SessionMap,
   uiState: Pick<UiState, 'groupOrder' | 'pinnedRepos' | 'collapsedRepos' | 'hideDeadRepos'>,
 ): SidebarGroup[] {
-  const byRoot = new Map<string, SessionState[]>();
+  const byRoot = new Map<string, SessionState[]>()
   for (const session of Object.values(sessions)) {
-    if (session.repoRoot === null) continue;
-    const members = byRoot.get(session.repoRoot);
-    if (members === undefined) byRoot.set(session.repoRoot, [session]);
-    else members.push(session);
+    if (session.repoRoot === null) continue
+    const members = byRoot.get(session.repoRoot)
+    if (members === undefined) byRoot.set(session.repoRoot, [session])
+    else members.push(session)
   }
 
-  const pinned = new Set(uiState.pinnedRepos);
+  const pinned = new Set(uiState.pinnedRepos)
   // Membership marks a repo as expanded; a repo absent from the list (the default) is collapsed.
-  const expandedRepoRoots = new Set(uiState.collapsedRepos);
-  const hideDeadRepos = new Set(uiState.hideDeadRepos);
-  const order = new Map(uiState.groupOrder.map((repoRoot, index) => [repoRoot, index]));
+  const expandedRepoRoots = new Set(uiState.collapsedRepos)
+  const hideDeadRepos = new Set(uiState.hideDeadRepos)
+  const order = new Map(uiState.groupOrder.map((repoRoot, index) => [repoRoot, index]))
 
   const mostRecentActivity = new Map(
     Array.from(byRoot.entries(), ([repoRoot, members]) => [
       repoRoot,
       Math.max(...members.map((session) => session.lastActivity)),
     ]),
-  );
+  )
 
   const groups: SidebarGroup[] = Array.from(byRoot.entries(), ([repoRoot, members]) => ({
     repoRoot,
@@ -51,16 +51,16 @@ export function groupSessions(
     pinned: pinned.has(repoRoot),
     collapsed: !expandedRepoRoots.has(repoRoot),
     hideDead: hideDeadRepos.has(repoRoot),
-  }));
+  }))
 
   groups.sort((a, b) => {
-    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
     const orderDelta =
       (order.get(a.repoRoot) ?? Number.POSITIVE_INFINITY) -
-      (order.get(b.repoRoot) ?? Number.POSITIVE_INFINITY);
-    if (a.pinned && orderDelta !== 0) return orderDelta;
-    return (mostRecentActivity.get(b.repoRoot) ?? 0) - (mostRecentActivity.get(a.repoRoot) ?? 0);
-  });
+      (order.get(b.repoRoot) ?? Number.POSITIVE_INFINITY)
+    if (a.pinned && orderDelta !== 0) return orderDelta
+    return (mostRecentActivity.get(b.repoRoot) ?? 0) - (mostRecentActivity.get(a.repoRoot) ?? 0)
+  })
 
-  return groups;
+  return groups
 }

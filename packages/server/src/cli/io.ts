@@ -1,7 +1,7 @@
 /** The minimal shape `writeAll` needs. Matches the callback overload of
  *  `NodeJS.WritableStream.write`, so `process.stdout`/`process.stderr` satisfy it as-is. */
 export interface WritableLike {
-  write(text: string, callback?: (err?: Error | null) => void): void;
+  write(text: string, callback?: (err?: Error | null) => void): void
 }
 
 /** Resolves only once `text` has actually been delivered. The callback form reports
@@ -11,8 +11,8 @@ export interface WritableLike {
 export function writeAll(stream: WritableLike, text: string): Promise<void> {
   return new Promise((resolve, reject) => {
     stream.write(text, (err) => {
-      if (err) reject(err);
-      else resolve();
-    });
-  });
+      if (err) reject(err)
+      else resolve()
+    })
+  })
 }

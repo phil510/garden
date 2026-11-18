@@ -1,15 +1,15 @@
-import { describe, expect, it, vi } from 'vitest';
-import { deriveLiveness, type LivenessInput, type LivenessResult } from './sessions.js';
-import type { TmuxSessionFact } from './types.js';
+import { describe, expect, it, vi } from 'vitest'
+import { deriveLiveness, type LivenessInput, type LivenessResult } from './sessions.js'
+import type { TmuxSessionFact } from './types.js'
 
 const fact = (o: Partial<TmuxSessionFact> = {}): TmuxSessionFact => ({
   name: 'repo',
   paneDead: false,
   exitCode: null,
   ...o,
-});
+})
 
-const base = { fact: fact(), ended: false };
+const base = { fact: fact(), ended: false }
 
 /** Every combination of the two inputs, so the derivation is pinned exhaustively. */
 const cases: { name: string; input: LivenessInput; expected: LivenessResult }[] = [
@@ -53,27 +53,27 @@ const cases: { name: string; input: LivenessInput; expected: LivenessResult }[] 
     input: { fact: undefined, ended: true },
     expected: { liveness: 'dead', exitCode: null },
   },
-];
+]
 
 describe('deriveLiveness', () => {
   for (const { name, input, expected } of cases) {
     it(`a session ${name}`, () => {
-      expect(deriveLiveness(input)).toEqual(expected);
-    });
+      expect(deriveLiveness(input)).toEqual(expected)
+    })
   }
 
   it('answers identically at any wall-clock time, so no clock can leak back into the derivation', () => {
-    const instants = [0, 1_700_000_000_000, 4_100_000_000_000];
-    vi.useFakeTimers();
+    const instants = [0, 1_700_000_000_000, 4_100_000_000_000]
+    vi.useFakeTimers()
     try {
       for (const { input, expected } of cases) {
         for (const instant of instants) {
-          vi.setSystemTime(instant);
-          expect(deriveLiveness(input)).toEqual(expected);
+          vi.setSystemTime(instant)
+          expect(deriveLiveness(input)).toEqual(expected)
         }
       }
     } finally {
-      vi.useRealTimers();
+      vi.useRealTimers()
     }
-  });
-});
+  })
+})

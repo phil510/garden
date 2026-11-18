@@ -1,4 +1,4 @@
-import { createLogger, guardStderr } from './logger.js';
+import { createLogger, guardStderr } from './logger.js'
 
 /**
  * Spawned by logger.epipe.test.ts with its stderr end destroyed right after spawn, so these
@@ -9,17 +9,17 @@ import { createLogger, guardStderr } from './logger.js';
  * sink for this to exercise guardStderr rather than the file sink.
  */
 function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 async function main(): Promise<void> {
-  guardStderr();
-  const logger = createLogger();
-  logger.warn('warn1');
-  await sleep(20);
-  logger.error('warn2');
-  await sleep(20);
-  process.exit(0);
+  guardStderr()
+  const logger = createLogger()
+  logger.warn('warn1')
+  await sleep(20)
+  logger.error('warn2')
+  await sleep(20)
+  process.exit(0)
 }
 
-void main();
+void main()

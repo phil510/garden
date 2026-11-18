@@ -1,23 +1,23 @@
 export interface PathLineLink {
-  path: string;
+  path: string
   /** Null for a bare path with no `:line` suffix: open the file without jumping anywhere. */
-  line: number | null;
+  line: number | null
   /** Offset into the scanned text where the match starts, so a caller can map it back to a
    *  buffer column. */
-  index: number;
-  length: number;
+  index: number
+  length: number
 }
 
-const CANDIDATE = /[\w.\-/]+(?::(\d+))?/g;
-const FILE_EXTENSION = /\.[a-z][a-z0-9]{0,4}$/;
-const TOKEN_START_PREFIX = /[\s([{<"'`]/;
+const CANDIDATE = /[\w.\-/]+(?::(\d+))?/g
+const FILE_EXTENSION = /\.[a-z][a-z0-9]{0,4}$/
+const TOKEN_START_PREFIX = /[\s([{<"'`]/
 
 /** Whether the whitespace-delimited token around `index` contains a URL scheme separator, so a
  *  file-shaped fragment after a bracket or quote inside a URL isn't claimed. */
 function insideUrl(text: string, index: number): boolean {
-  const start = text.lastIndexOf(' ', index) + 1;
-  const end = text.indexOf(' ', index);
-  return text.slice(start, end === -1 ? undefined : end).includes('://');
+  const start = text.lastIndexOf(' ', index) + 1
+  const end = text.indexOf(' ', index)
+  return text.slice(start, end === -1 ? undefined : end).includes('://')
 }
 
 /**
@@ -36,23 +36,23 @@ function insideUrl(text: string, index: number): boolean {
  * only link with a `:line`.
  */
 export function findPathLineLinks(text: string, continuesPreviousRow = false): PathLineLink[] {
-  const links: PathLineLink[] = [];
+  const links: PathLineLink[] = []
   for (const match of text.matchAll(CANDIDATE)) {
-    const [full, lineText] = match;
+    const [full, lineText] = match
     if (lineText !== undefined) {
-      const path = full.slice(0, full.lastIndexOf(':'));
-      if (path.includes('//')) continue;
-      if (!path.includes('.') && !path.includes('/')) continue;
-      links.push({ path, line: Number(lineText), index: match.index, length: full.length });
-      continue;
+      const path = full.slice(0, full.lastIndexOf(':'))
+      if (path.includes('//')) continue
+      if (!path.includes('.') && !path.includes('/')) continue
+      links.push({ path, line: Number(lineText), index: match.index, length: full.length })
+      continue
     }
-    const path = full.replace(/\.+$/, '');
-    if (path === '' || path.includes('//') || !FILE_EXTENSION.test(path)) continue;
-    const before = match.index === 0 ? undefined : text[match.index - 1];
+    const path = full.replace(/\.+$/, '')
+    if (path === '' || path.includes('//') || !FILE_EXTENSION.test(path)) continue
+    const before = match.index === 0 ? undefined : text[match.index - 1]
     const startsToken =
-      before === undefined ? !continuesPreviousRow : TOKEN_START_PREFIX.test(before);
-    if (!startsToken || insideUrl(text, match.index)) continue;
-    links.push({ path, line: null, index: match.index, length: path.length });
+      before === undefined ? !continuesPreviousRow : TOKEN_START_PREFIX.test(before)
+    if (!startsToken || insideUrl(text, match.index)) continue
+    links.push({ path, line: null, index: match.index, length: path.length })
   }
-  return links;
+  return links
 }

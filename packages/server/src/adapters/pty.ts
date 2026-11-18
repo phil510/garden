@@ -1,30 +1,30 @@
-import { spawn, type IPty } from 'node-pty';
+import { spawn, type IPty } from 'node-pty'
 
 /** Which tmux server to attach to. Passed in; the adapter never reads config itself. */
 export interface PtyTarget {
-  readonly socket: string;
-  readonly confPath: string;
+  readonly socket: string
+  readonly confPath: string
 }
 
 export interface PtySize {
-  readonly cols: number;
-  readonly rows: number;
+  readonly cols: number
+  readonly rows: number
 }
 
 export interface AttachHandlers {
-  readonly onData: (chunk: string) => void;
-  readonly onExit: () => void;
+  readonly onData: (chunk: string) => void
+  readonly onExit: () => void
 }
 
 export interface PtyAttachment {
-  write(data: string): void;
-  resize(size: PtySize): void;
-  kill(): void;
+  write(data: string): void
+  resize(size: PtySize): void
+  kill(): void
 }
 
 /** What the tmux client inside the pty is told it is talking to. The browser end is
  *  xterm.js, and tmux picks its own `default-terminal` for the shells it hosts. */
-const TERM = 'xterm-256color';
+const TERM = 'xterm-256color'
 
 /**
  * Attaches to an existing tmux session in a pty of its own. Killing the pty detaches
@@ -45,9 +45,9 @@ export function attachPty(
       rows: size.rows,
       env: { ...process.env, TERM },
     },
-  );
-  pty.onData(handlers.onData);
-  pty.onExit(() => handlers.onExit());
+  )
+  pty.onData(handlers.onData)
+  pty.onExit(() => handlers.onExit())
 
   return {
     write: (data) => pty.write(data),
@@ -56,10 +56,10 @@ export function attachPty(
     // process would throw an ESRCH the caller cannot act on.
     kill: () => {
       try {
-        pty.kill();
+        pty.kill()
       } catch {
         // Already exited.
       }
     },
-  };
+  }
 }

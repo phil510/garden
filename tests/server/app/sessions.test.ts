@@ -1,25 +1,25 @@
-import { fakeClaudeHarness } from '../../support/claudeHarness.js';
-import { DEFAULT_UI_STATE } from '@garden/shared';
-import { aSession } from '@garden/shared/fixtures';
-import type { SessionState, UiState } from '@garden/shared';
-import { describe, expect, it } from 'vitest';
-import type { GardenEvent } from '../../../packages/server/src/domain/types.js';
+import { fakeClaudeHarness } from '../../support/claudeHarness.js'
+import { DEFAULT_UI_STATE } from '@garden/shared'
+import { aSession } from '@garden/shared/fixtures'
+import type { SessionState, UiState } from '@garden/shared'
+import { describe, expect, it } from 'vitest'
+import type { GardenEvent } from '../../../packages/server/src/domain/types.js'
 import type {
   OverlayState,
   StorePort,
   TmuxNewSessionRequest,
   TmuxPort,
-} from '../../../packages/server/src/app/ports.js';
-import { createProjection, type Projection } from '../../../packages/server/src/app/projection.js';
-import { raiseSessionAlert } from '../../../packages/server/src/app/alerts.js';
+} from '../../../packages/server/src/app/ports.js'
+import { createProjection, type Projection } from '../../../packages/server/src/app/projection.js'
+import { raiseSessionAlert } from '../../../packages/server/src/app/alerts.js'
 import {
   createSession,
   killSession,
   resumeSession,
   sendSessionMessage,
-} from '../../../packages/server/src/app/sessions.js';
+} from '../../../packages/server/src/app/sessions.js'
 
-const baseUiState: UiState = DEFAULT_UI_STATE;
+const baseUiState: UiState = DEFAULT_UI_STATE
 
 const emptyOverlay: OverlayState = {
   version: 2,
@@ -30,7 +30,7 @@ const emptyOverlay: OverlayState = {
   digests: [],
   pipes: {},
   reviews: { links: {} },
-};
+}
 
 function fakeTmux(overrides: Partial<TmuxPort> = {}): TmuxPort {
   return {
@@ -39,7 +39,7 @@ function fakeTmux(overrides: Partial<TmuxPort> = {}): TmuxPort {
     respawnPane: () => Promise.reject(new Error('not used by this test')),
     killSession: () => Promise.reject(new Error('not used by this test')),
     ...overrides,
-  };
+  }
 }
 
 /** `placementOf` defaults to "no placement" rather than throwing, since every
@@ -48,54 +48,54 @@ function fakeTmux(overrides: Partial<TmuxPort> = {}): TmuxPort {
  *  behavior it actually exercises. `current()` exposes the overlay as mutated by the default
  *  `updateOverlay`, for tests (e.g. spawn recording) that don't override it. */
 function fakeProjection(sessions: SessionState[] = [], overrides: Partial<Projection> = {}) {
-  const dispatched: GardenEvent[] = [];
-  let current = emptyOverlay;
+  const dispatched: GardenEvent[] = []
+  let current = emptyOverlay
   const projection: Projection = {
     sessions: () => sessions,
     uiState: () => {
-      throw new Error('not used by this test');
+      throw new Error('not used by this test')
     },
     dispatch: (event) => dispatched.push(event),
     updateUiState: () => {
-      throw new Error('not used by this test');
+      throw new Error('not used by this test')
     },
     subscribe: () => () => undefined,
     subscribeUiState: () => () => undefined,
     overlay: () => current,
     updateOverlay: (mutate) => {
-      current = mutate(current);
-      return current;
+      current = mutate(current)
+      return current
     },
     subscribeOverlay: () => () => undefined,
     placementOf: () => undefined,
     ...overrides,
-  };
-  return { projection, dispatched, current: () => current };
+  }
+  return { projection, dispatched, current: () => current }
 }
 
 /** In-memory StorePort: the projection's contract with the store is read-modify-write,
  *  so the fake has to hold what it was handed. */
 function fakeStore(initial: OverlayState = emptyOverlay) {
-  let current = initial;
+  let current = initial
   const store: StorePort = {
     read: () => current,
     write: (state) => {
-      current = state;
+      current = state
     },
-  };
-  return { store, written: () => current };
+  }
+  return { store, written: () => current }
 }
 
 describe('createSession', () => {
   it('starts tmux before registering the session, and returns its id and name', async () => {
-    const calls: TmuxNewSessionRequest[] = [];
+    const calls: TmuxNewSessionRequest[] = []
     const tmux = fakeTmux({
       newSession: (request) => {
-        calls.push(request);
-        return Promise.resolve();
+        calls.push(request)
+        return Promise.resolve()
       },
-    });
-    const { projection, dispatched } = fakeProjection();
+    })
+    const { projection, dispatched } = fakeProjection()
 
     const result = await createSession(
       {
@@ -105,7 +105,7 @@ describe('createSession', () => {
         harness: fakeClaudeHarness('/home/.garden/claude-settings.json', () => ['claude']),
       },
       { cwd: '/Users/dev/garden' },
-    );
+    )
 
     expect(calls).toEqual([
       {
@@ -121,23 +121,23 @@ describe('createSession', () => {
           '/home/.garden/claude-settings.json',
         ],
       },
-    ]);
-    expect(result.tmuxName).toBe('garden');
-    expect(result.id).not.toBe('');
+    ])
+    expect(result.tmuxName).toBe('garden')
+    expect(result.id).not.toBe('')
     expect(dispatched).toEqual([
       { type: 'session-registered', id: result.id, tmuxName: 'garden', cwd: '/Users/dev/garden' },
-    ]);
-  });
+    ])
+  })
 
   it('puts every token of a multi-token claudeCommand ahead of the session flags', async () => {
-    const calls: TmuxNewSessionRequest[] = [];
+    const calls: TmuxNewSessionRequest[] = []
     const tmux = fakeTmux({
       newSession: (request) => {
-        calls.push(request);
-        return Promise.resolve();
+        calls.push(request)
+        return Promise.resolve()
       },
-    });
-    const { projection } = fakeProjection();
+    })
+    const { projection } = fakeProjection()
 
     const result = await createSession(
       {
@@ -150,7 +150,7 @@ describe('createSession', () => {
         ]),
       },
       { cwd: '/Users/dev/garden' },
-    );
+    )
 
     expect(calls[0]?.command).toEqual([
       'tsx',
@@ -159,48 +159,48 @@ describe('createSession', () => {
       result.id,
       '--settings',
       '/home/.garden/claude-settings.json',
-    ]);
-  });
+    ])
+  })
 
   it('calls readClaudeCommand fresh on every invocation rather than caching its first result', async () => {
-    const calls: TmuxNewSessionRequest[] = [];
+    const calls: TmuxNewSessionRequest[] = []
     const tmux = fakeTmux({
       newSession: (request) => {
-        calls.push(request);
-        return Promise.resolve();
+        calls.push(request)
+        return Promise.resolve()
       },
-    });
-    const { projection } = fakeProjection();
+    })
+    const { projection } = fakeProjection()
     const results: readonly (readonly string[])[] = [
       ['claude'],
       ['ec', 'bedrock', 'launch', 'claude', '--'],
-    ];
-    let readCount = 0;
-    const readClaudeCommand = () => results[readCount++] ?? ['claude'];
+    ]
+    let readCount = 0
+    const readClaudeCommand = () => results[readCount++] ?? ['claude']
     const deps = {
       tmux,
       projection,
       serverPort: 4310,
       harness: fakeClaudeHarness('/home/.garden/claude-settings.json', readClaudeCommand),
-    };
+    }
 
-    await createSession(deps, { cwd: '/Users/dev/garden' });
-    await createSession(deps, { cwd: '/Users/dev/garden' });
+    await createSession(deps, { cwd: '/Users/dev/garden' })
+    await createSession(deps, { cwd: '/Users/dev/garden' })
 
-    expect(readCount).toBe(2);
-    expect(calls[0]?.command.slice(0, 1)).toEqual(['claude']);
-    expect(calls[1]?.command.slice(0, 5)).toEqual(['ec', 'bedrock', 'launch', 'claude', '--']);
-  });
+    expect(readCount).toBe(2)
+    expect(calls[0]?.command.slice(0, 1)).toEqual(['claude'])
+    expect(calls[1]?.command.slice(0, 5)).toEqual(['ec', 'bedrock', 'launch', 'claude', '--'])
+  })
 
   it('adds --permission-mode bypassPermissions ahead of --settings when configured', async () => {
-    const calls: TmuxNewSessionRequest[] = [];
+    const calls: TmuxNewSessionRequest[] = []
     const tmux = fakeTmux({
       newSession: (request) => {
-        calls.push(request);
-        return Promise.resolve();
+        calls.push(request)
+        return Promise.resolve()
       },
-    });
-    const { projection } = fakeProjection();
+    })
+    const { projection } = fakeProjection()
 
     const result = await createSession(
       {
@@ -211,7 +211,7 @@ describe('createSession', () => {
         harness: fakeClaudeHarness('/home/.garden/claude-settings.json', () => ['claude']),
       },
       { cwd: '/Users/dev/garden' },
-    );
+    )
 
     expect(calls[0]?.command).toEqual([
       'claude',
@@ -221,32 +221,32 @@ describe('createSession', () => {
       'bypassPermissions',
       '--settings',
       '/home/.garden/claude-settings.json',
-    ]);
-  });
+    ])
+  })
 
   it('adds --model and --effort ahead of --settings, each independently', async () => {
-    const calls: TmuxNewSessionRequest[] = [];
+    const calls: TmuxNewSessionRequest[] = []
     const tmux = fakeTmux({
       newSession: (request) => {
-        calls.push(request);
-        return Promise.resolve();
+        calls.push(request)
+        return Promise.resolve()
       },
-    });
-    const { projection } = fakeProjection();
+    })
+    const { projection } = fakeProjection()
     const deps = {
       tmux,
       projection,
       serverPort: 4310,
       harness: fakeClaudeHarness('/home/.garden/claude-settings.json', () => ['claude']),
-    };
+    }
 
     const both = await createSession(deps, {
       cwd: '/Users/dev/garden',
       model: 'opus',
       effort: 'high',
-    });
-    await createSession(deps, { cwd: '/Users/dev/garden', model: 'sonnet' });
-    await createSession(deps, { cwd: '/Users/dev/garden', effort: 'max' });
+    })
+    await createSession(deps, { cwd: '/Users/dev/garden', model: 'sonnet' })
+    await createSession(deps, { cwd: '/Users/dev/garden', effort: 'max' })
 
     expect(calls[0]?.command).toEqual([
       'claude',
@@ -258,16 +258,16 @@ describe('createSession', () => {
       'high',
       '--settings',
       '/home/.garden/claude-settings.json',
-    ]);
-    expect(calls[1]?.command.slice(3, 5)).toEqual(['--model', 'sonnet']);
-    expect(calls[1]?.command).not.toContain('--effort');
-    expect(calls[2]?.command.slice(3, 5)).toEqual(['--effort', 'max']);
-    expect(calls[2]?.command).not.toContain('--model');
-  });
+    ])
+    expect(calls[1]?.command.slice(3, 5)).toEqual(['--model', 'sonnet'])
+    expect(calls[1]?.command).not.toContain('--effort')
+    expect(calls[2]?.command.slice(3, 5)).toEqual(['--effort', 'max'])
+    expect(calls[2]?.command).not.toContain('--model')
+  })
 
   it('derives a name unique against every tmux name the projection already knows', async () => {
-    const tmux = fakeTmux({ newSession: () => Promise.resolve() });
-    const { projection } = fakeProjection([aSession({ tmuxName: 'garden' })]);
+    const tmux = fakeTmux({ newSession: () => Promise.resolve() })
+    const { projection } = fakeProjection([aSession({ tmuxName: 'garden' })])
 
     const result = await createSession(
       {
@@ -277,17 +277,17 @@ describe('createSession', () => {
         harness: fakeClaudeHarness('/home/.garden/claude-settings.json', () => ['claude']),
       },
       { cwd: '/Users/dev/garden' },
-    );
+    )
 
-    expect(result.tmuxName).toBe('garden-2');
-  });
+    expect(result.tmuxName).toBe('garden-2')
+  })
 
   it('derives a name unique against a live tmux session the projection has lost track of', async () => {
     const tmux = fakeTmux({
       listPanes: () => Promise.resolve([{ session: 'garden', dead: false, exitCode: undefined }]),
       newSession: () => Promise.resolve(),
-    });
-    const { projection } = fakeProjection([]);
+    })
+    const { projection } = fakeProjection([])
 
     const result = await createSession(
       {
@@ -297,10 +297,10 @@ describe('createSession', () => {
         harness: fakeClaudeHarness('/home/.garden/claude-settings.json', () => ['claude']),
       },
       { cwd: '/Users/dev/garden' },
-    );
+    )
 
-    expect(result.tmuxName).toBe('garden-2');
-  });
+    expect(result.tmuxName).toBe('garden-2')
+  })
 
   it('derives a name unique against both the projection and a live pane it does not know about', async () => {
     // Distinguishes the two taken-name sources: the projection knows 'garden', the live
@@ -308,8 +308,8 @@ describe('createSession', () => {
     const tmux = fakeTmux({
       listPanes: () => Promise.resolve([{ session: 'garden-2', dead: false, exitCode: undefined }]),
       newSession: () => Promise.resolve(),
-    });
-    const { projection } = fakeProjection([aSession({ tmuxName: 'garden' })]);
+    })
+    const { projection } = fakeProjection([aSession({ tmuxName: 'garden' })])
 
     const result = await createSession(
       {
@@ -319,14 +319,14 @@ describe('createSession', () => {
         harness: fakeClaudeHarness('/home/.garden/claude-settings.json', () => ['claude']),
       },
       { cwd: '/Users/dev/garden' },
-    );
+    )
 
-    expect(result.tmuxName).toBe('garden-3');
-  });
+    expect(result.tmuxName).toBe('garden-3')
+  })
 
   it('does not dispatch session-registered when the tmux port throws', async () => {
-    const tmux = fakeTmux({ newSession: () => Promise.reject(new Error('tmux is not installed')) });
-    const { projection, dispatched } = fakeProjection();
+    const tmux = fakeTmux({ newSession: () => Promise.reject(new Error('tmux is not installed')) })
+    const { projection, dispatched } = fakeProjection()
 
     await expect(
       createSession(
@@ -338,13 +338,13 @@ describe('createSession', () => {
         },
         { cwd: '/Users/dev/garden' },
       ),
-    ).rejects.toThrow('tmux is not installed');
-    expect(dispatched).toEqual([]);
-  });
+    ).rejects.toThrow('tmux is not installed')
+    expect(dispatched).toEqual([])
+  })
 
   it('records the caller as parent when callerSessionId resolves to a known session', async () => {
-    const tmux = fakeTmux({ newSession: () => Promise.resolve() });
-    const { projection, current } = fakeProjection([aSession({ id: 'caller', title: 'Caller' })]);
+    const tmux = fakeTmux({ newSession: () => Promise.resolve() })
+    const { projection, current } = fakeProjection([aSession({ id: 'caller', title: 'Caller' })])
 
     const result = await createSession(
       {
@@ -354,16 +354,16 @@ describe('createSession', () => {
         harness: fakeClaudeHarness('/home/.garden/claude-settings.json', () => ['claude']),
       },
       { cwd: '/Users/dev/garden', callerSessionId: 'caller' },
-    );
+    )
 
-    expect(result.unknownCaller).toBeUndefined();
-    expect(current().ui.placements[result.id]).toEqual({ parent: 'caller' });
-    expect(current().ui.swarms[0]?.name).toBe('Caller');
-  });
+    expect(result.unknownCaller).toBeUndefined()
+    expect(current().ui.placements[result.id]).toEqual({ parent: 'caller' })
+    expect(current().ui.swarms[0]?.name).toBe('Caller')
+  })
 
   it('sets unknownCaller instead of throwing when callerSessionId does not resolve', async () => {
-    const tmux = fakeTmux({ newSession: () => Promise.resolve() });
-    const { projection, dispatched, current } = fakeProjection([]);
+    const tmux = fakeTmux({ newSession: () => Promise.resolve() })
+    const { projection, dispatched, current } = fakeProjection([])
 
     const result = await createSession(
       {
@@ -373,30 +373,30 @@ describe('createSession', () => {
         harness: fakeClaudeHarness('/home/.garden/claude-settings.json', () => ['claude']),
       },
       { cwd: '/Users/dev/garden', callerSessionId: 'ghost' },
-    );
+    )
 
-    expect(result.unknownCaller).toBe(true);
+    expect(result.unknownCaller).toBe(true)
     expect(dispatched).toEqual([
       { type: 'session-registered', id: result.id, tmuxName: 'garden', cwd: '/Users/dev/garden' },
-    ]);
-    expect(current().ui.placements).toEqual({});
-  });
-});
+    ])
+    expect(current().ui.placements).toEqual({})
+  })
+})
 
 describe('resumeSession', () => {
-  const settingsPath = '/home/.garden/claude-settings.json';
-  const deadSession = aSession({ id: 'sid-1', cwd: '/Users/dev/garden', tmuxName: 'garden' });
+  const settingsPath = '/home/.garden/claude-settings.json'
+  const deadSession = aSession({ id: 'sid-1', cwd: '/Users/dev/garden', tmuxName: 'garden' })
 
   it('respawns in place when tmux still holds the session', async () => {
-    const respawned: unknown[] = [];
+    const respawned: unknown[] = []
     const tmux = fakeTmux({
       listPanes: () => Promise.resolve([{ session: 'garden', dead: true, exitCode: 1 }]),
       respawnPane: (request) => {
-        respawned.push(request);
-        return Promise.resolve();
+        respawned.push(request)
+        return Promise.resolve()
       },
-    });
-    const { projection, dispatched } = fakeProjection([deadSession]);
+    })
+    const { projection, dispatched } = fakeProjection([deadSession])
 
     const result = await resumeSession(
       {
@@ -406,27 +406,27 @@ describe('resumeSession', () => {
         harness: fakeClaudeHarness(settingsPath, () => ['claude']),
       },
       { id: 'sid-1' },
-    );
+    )
 
     expect(respawned).toEqual([
       { name: 'garden', command: ['claude', '--resume', 'sid-1', '--settings', settingsPath] },
-    ]);
-    expect(result).toEqual({ id: 'sid-1', tmuxName: 'garden' });
+    ])
+    expect(result).toEqual({ id: 'sid-1', tmuxName: 'garden' })
     expect(dispatched).toEqual([
       { type: 'session-registered', id: 'sid-1', tmuxName: 'garden', cwd: '/Users/dev/garden' },
-    ]);
-  });
+    ])
+  })
 
   it('adds --permission-mode bypassPermissions to the respawnPane command when configured', async () => {
-    const respawned: unknown[] = [];
+    const respawned: unknown[] = []
     const tmux = fakeTmux({
       listPanes: () => Promise.resolve([{ session: 'garden', dead: true, exitCode: 1 }]),
       respawnPane: (request) => {
-        respawned.push(request);
-        return Promise.resolve();
+        respawned.push(request)
+        return Promise.resolve()
       },
-    });
-    const { projection } = fakeProjection([deadSession]);
+    })
+    const { projection } = fakeProjection([deadSession])
 
     await resumeSession(
       {
@@ -437,7 +437,7 @@ describe('resumeSession', () => {
         harness: fakeClaudeHarness(settingsPath, () => ['claude']),
       },
       { id: 'sid-1' },
-    );
+    )
 
     expect(respawned).toEqual([
       {
@@ -452,19 +452,19 @@ describe('resumeSession', () => {
           settingsPath,
         ],
       },
-    ]);
-  });
+    ])
+  })
 
   it('adds --model and --effort to the resume command', async () => {
-    const respawned: unknown[] = [];
+    const respawned: unknown[] = []
     const tmux = fakeTmux({
       listPanes: () => Promise.resolve([{ session: 'garden', dead: true, exitCode: 1 }]),
       respawnPane: (request) => {
-        respawned.push(request);
-        return Promise.resolve();
+        respawned.push(request)
+        return Promise.resolve()
       },
-    });
-    const { projection } = fakeProjection([deadSession]);
+    })
+    const { projection } = fakeProjection([deadSession])
 
     await resumeSession(
       {
@@ -474,7 +474,7 @@ describe('resumeSession', () => {
         harness: fakeClaudeHarness(settingsPath, () => ['claude']),
       },
       { id: 'sid-1', model: 'opus', effort: 'xhigh' },
-    );
+    )
 
     expect(respawned).toEqual([
       {
@@ -491,19 +491,19 @@ describe('resumeSession', () => {
           settingsPath,
         ],
       },
-    ]);
-  });
+    ])
+  })
 
   it('puts every token of a multi-token claudeCommand ahead of --resume', async () => {
-    const respawned: unknown[] = [];
+    const respawned: unknown[] = []
     const tmux = fakeTmux({
       listPanes: () => Promise.resolve([{ session: 'garden', dead: true, exitCode: 1 }]),
       respawnPane: (request) => {
-        respawned.push(request);
-        return Promise.resolve();
+        respawned.push(request)
+        return Promise.resolve()
       },
-    });
-    const { projection } = fakeProjection([deadSession]);
+    })
+    const { projection } = fakeProjection([deadSession])
 
     await resumeSession(
       {
@@ -513,26 +513,26 @@ describe('resumeSession', () => {
         harness: fakeClaudeHarness(settingsPath, () => ['tsx', 'scripts/fake-claude.ts']),
       },
       { id: 'sid-1' },
-    );
+    )
 
     expect(respawned).toEqual([
       {
         name: 'garden',
         command: ['tsx', 'scripts/fake-claude.ts', '--resume', 'sid-1', '--settings', settingsPath],
       },
-    ]);
-  });
+    ])
+  })
 
   it('adds --permission-mode bypassPermissions to the fresh-newSession command when configured', async () => {
-    const created: unknown[] = [];
+    const created: unknown[] = []
     const tmux = fakeTmux({
       listPanes: () => Promise.resolve([]),
       newSession: (request) => {
-        created.push(request);
-        return Promise.resolve();
+        created.push(request)
+        return Promise.resolve()
       },
-    });
-    const { projection } = fakeProjection([deadSession]);
+    })
+    const { projection } = fakeProjection([deadSession])
 
     await resumeSession(
       {
@@ -543,7 +543,7 @@ describe('resumeSession', () => {
         harness: fakeClaudeHarness(settingsPath, () => ['claude']),
       },
       { id: 'sid-1' },
-    );
+    )
 
     expect(created).toEqual([
       {
@@ -561,19 +561,19 @@ describe('resumeSession', () => {
           settingsPath,
         ],
       },
-    ]);
-  });
+    ])
+  })
 
   it('creates a fresh tmux session when tmux no longer holds the recorded name', async () => {
-    const created: unknown[] = [];
+    const created: unknown[] = []
     const tmux = fakeTmux({
       listPanes: () => Promise.resolve([]),
       newSession: (request) => {
-        created.push(request);
-        return Promise.resolve();
+        created.push(request)
+        return Promise.resolve()
       },
-    });
-    const { projection, dispatched } = fakeProjection([deadSession]);
+    })
+    const { projection, dispatched } = fakeProjection([deadSession])
 
     const result = await resumeSession(
       {
@@ -583,7 +583,7 @@ describe('resumeSession', () => {
         harness: fakeClaudeHarness(settingsPath, () => ['claude']),
       },
       { id: 'sid-1' },
-    );
+    )
 
     expect(created).toEqual([
       {
@@ -593,30 +593,30 @@ describe('resumeSession', () => {
         sessionId: 'sid-1',
         command: ['claude', '--resume', 'sid-1', '--settings', settingsPath],
       },
-    ]);
-    expect(result).toEqual({ id: 'sid-1', tmuxName: 'garden' });
+    ])
+    expect(result).toEqual({ id: 'sid-1', tmuxName: 'garden' })
     expect(dispatched).toEqual([
       { type: 'session-registered', id: 'sid-1', tmuxName: 'garden', cwd: '/Users/dev/garden' },
-    ]);
-  });
+    ])
+  })
 
   it('derives a fresh name unique against a live tmux session the projection has lost track of', async () => {
     const staleSession = aSession({
       id: 'sid-1',
       cwd: '/Users/dev/garden',
       tmuxName: 'garden-old',
-    });
-    const created: unknown[] = [];
+    })
+    const created: unknown[] = []
     const tmux = fakeTmux({
       // Matches the issue's exact repro: a dead pane kept alive by remain-on-exit still
       // holds the name. Filtering dead panes out of the taken set must not resurface it.
       listPanes: () => Promise.resolve([{ session: 'garden', dead: true, exitCode: 1 }]),
       newSession: (request) => {
-        created.push(request);
-        return Promise.resolve();
+        created.push(request)
+        return Promise.resolve()
       },
-    });
-    const { projection } = fakeProjection([staleSession]);
+    })
+    const { projection } = fakeProjection([staleSession])
 
     const result = await resumeSession(
       {
@@ -626,9 +626,9 @@ describe('resumeSession', () => {
         harness: fakeClaudeHarness(settingsPath, () => ['claude']),
       },
       { id: 'sid-1' },
-    );
+    )
 
-    expect(result.tmuxName).toBe('garden-2');
+    expect(result.tmuxName).toBe('garden-2')
     expect(created).toEqual([
       {
         name: 'garden-2',
@@ -637,15 +637,15 @@ describe('resumeSession', () => {
         sessionId: 'sid-1',
         command: ['claude', '--resume', 'sid-1', '--settings', settingsPath],
       },
-    ]);
-  });
+    ])
+  })
 
   it('does not dispatch when the in-place mechanism throws', async () => {
     const tmux = fakeTmux({
       listPanes: () => Promise.resolve([{ session: 'garden', dead: true, exitCode: 1 }]),
       respawnPane: () => Promise.reject(new Error('tmux is not installed')),
-    });
-    const { projection, dispatched } = fakeProjection([deadSession]);
+    })
+    const { projection, dispatched } = fakeProjection([deadSession])
 
     await expect(
       resumeSession(
@@ -657,16 +657,16 @@ describe('resumeSession', () => {
         },
         { id: 'sid-1' },
       ),
-    ).rejects.toThrow('tmux is not installed');
-    expect(dispatched).toEqual([]);
-  });
+    ).rejects.toThrow('tmux is not installed')
+    expect(dispatched).toEqual([])
+  })
 
   it('does not dispatch when the fresh-session mechanism throws', async () => {
     const tmux = fakeTmux({
       listPanes: () => Promise.resolve([]),
       newSession: () => Promise.reject(new Error('tmux is not installed')),
-    });
-    const { projection, dispatched } = fakeProjection([deadSession]);
+    })
+    const { projection, dispatched } = fakeProjection([deadSession])
 
     await expect(
       resumeSession(
@@ -678,27 +678,27 @@ describe('resumeSession', () => {
         },
         { id: 'sid-1' },
       ),
-    ).rejects.toThrow('tmux is not installed');
-    expect(dispatched).toEqual([]);
-  });
+    ).rejects.toThrow('tmux is not installed')
+    expect(dispatched).toEqual([])
+  })
 
   it("clears archived on the resumed session's top-level swarm", async () => {
     const tmux = fakeTmux({
       listPanes: () => Promise.resolve([{ session: 'garden', dead: true, exitCode: 1 }]),
       respawnPane: () => Promise.resolve(),
-    });
+    })
     let overlay: OverlayState = {
       ...emptyOverlay,
       ui: { ...emptyOverlay.ui, swarms: [{ id: 'swarm-1', name: 'A swarm', archived: true }] },
-    };
+    }
     const { projection } = fakeProjection([deadSession], {
       uiState: () => ({ ...baseUiState, swarms: [...overlay.ui.swarms] }),
       placementOf: () => ({ swarmId: 'swarm-1', topLevelSwarmId: 'swarm-1' }),
       updateOverlay: (mutate) => {
-        overlay = mutate(overlay);
-        return overlay;
+        overlay = mutate(overlay)
+        return overlay
       },
-    });
+    })
 
     await resumeSession(
       {
@@ -708,17 +708,17 @@ describe('resumeSession', () => {
         harness: fakeClaudeHarness(settingsPath, () => ['claude']),
       },
       { id: 'sid-1' },
-    );
+    )
 
-    expect(overlay.ui.swarms).toEqual([{ id: 'swarm-1', name: 'A swarm', archived: false }]);
-  });
+    expect(overlay.ui.swarms).toEqual([{ id: 'swarm-1', name: 'A swarm', archived: false }])
+  })
 
   it('leaves archived untouched when resuming a session with no swarm, or in a non-archived swarm', async () => {
     const tmux = fakeTmux({
       listPanes: () => Promise.resolve([{ session: 'garden', dead: true, exitCode: 1 }]),
       respawnPane: () => Promise.resolve(),
-    });
-    const { projection: soloProjection } = fakeProjection([deadSession]);
+    })
+    const { projection: soloProjection } = fakeProjection([deadSession])
 
     // No swarm at all: placementOf's default ("no placement") short-circuits before
     // uiState()/updateOverlay are ever called, so nothing needs overriding.
@@ -730,23 +730,23 @@ describe('resumeSession', () => {
         harness: fakeClaudeHarness(settingsPath, () => ['claude']),
       },
       { id: 'sid-1' },
-    );
+    )
 
     let overlay: OverlayState = {
       ...emptyOverlay,
       ui: { ...emptyOverlay.ui, swarms: [{ id: 'swarm-1', name: 'A swarm', archived: false }] },
-    };
-    const overlayWrites: OverlayState[] = [];
+    }
+    const overlayWrites: OverlayState[] = []
     const { projection: memberProjection } = fakeProjection([deadSession], {
       uiState: () => ({ ...baseUiState, swarms: [...overlay.ui.swarms] }),
       placementOf: () => ({ swarmId: 'swarm-1', topLevelSwarmId: 'swarm-1' }),
       updateOverlay: (mutate) => {
-        const next = mutate(overlay);
-        overlayWrites.push(next);
-        overlay = next;
-        return next;
+        const next = mutate(overlay)
+        overlayWrites.push(next)
+        overlay = next
+        return next
       },
-    });
+    })
 
     await resumeSession(
       {
@@ -756,15 +756,15 @@ describe('resumeSession', () => {
         harness: fakeClaudeHarness(settingsPath, () => ['claude']),
       },
       { id: 'sid-1' },
-    );
+    )
 
-    expect(overlayWrites).toEqual([]);
-    expect(overlay.ui.swarms).toEqual([{ id: 'swarm-1', name: 'A swarm', archived: false }]);
-  });
+    expect(overlayWrites).toEqual([])
+    expect(overlay.ui.swarms).toEqual([{ id: 'swarm-1', name: 'A swarm', archived: false }])
+  })
 
   it('throws for an id the projection does not know', async () => {
-    const tmux = fakeTmux();
-    const { projection } = fakeProjection([]);
+    const tmux = fakeTmux()
+    const { projection } = fakeProjection([])
 
     await expect(
       resumeSession(
@@ -776,40 +776,40 @@ describe('resumeSession', () => {
         },
         { id: 'nope' },
       ),
-    ).rejects.toThrow('no such session: nope');
-  });
-});
+    ).rejects.toThrow('no such session: nope')
+  })
+})
 
 describe('killSession', () => {
   it('kills the tmux session and unregisters its name', async () => {
-    const killed: string[] = [];
+    const killed: string[] = []
     const tmux = fakeTmux({
       killSession: (name) => {
-        killed.push(name);
-        return Promise.resolve();
+        killed.push(name)
+        return Promise.resolve()
       },
-    });
+    })
     const { projection, dispatched } = fakeProjection([
       aSession({ id: 'sid-1', tmuxName: 'garden' }),
-    ]);
+    ])
 
     await killSession(
       { tmux, projection, serverPort: 4310, harness: fakeClaudeHarness('/x', () => ['claude']) },
       { id: 'sid-1' },
-    );
+    )
 
-    expect(killed).toEqual(['garden']);
-    expect(dispatched).toEqual([{ type: 'session-unregistered', id: 'sid-1' }]);
-  });
+    expect(killed).toEqual(['garden'])
+    expect(dispatched).toEqual([{ type: 'session-unregistered', id: 'sid-1' }])
+  })
 
   it('leaves no entry for the session in the store or in the projection', async () => {
-    const { store, written } = fakeStore();
-    const projection = createProjection(store);
+    const { store, written } = fakeStore()
+    const projection = createProjection(store)
     for (const [id, tmuxName] of [
       ['sid-1', 'garden'],
       ['sid-2', 'other'],
     ] as const) {
-      projection.dispatch({ type: 'session-registered', id, tmuxName, cwd: '/Users/dev/garden' });
+      projection.dispatch({ type: 'session-registered', id, tmuxName, cwd: '/Users/dev/garden' })
     }
 
     await killSession(
@@ -820,22 +820,22 @@ describe('killSession', () => {
         harness: fakeClaudeHarness('/x', () => ['claude']),
       },
       { id: 'sid-1' },
-    );
+    )
 
-    expect(written().tmuxNames).toEqual({ 'sid-2': 'other' });
-    expect(projection.sessions().find((s) => s.id === 'sid-1')?.tmuxName).toBeNull();
-  });
+    expect(written().tmuxNames).toEqual({ 'sid-2': 'other' })
+    expect(projection.sessions().find((s) => s.id === 'sid-1')?.tmuxName).toBeNull()
+  })
 
   it('clears the alert from the overlay and the session', async () => {
-    const { store, written } = fakeStore();
-    const projection = createProjection(store);
+    const { store, written } = fakeStore()
+    const projection = createProjection(store)
     projection.dispatch({
       type: 'session-registered',
       id: 'sid-1',
       tmuxName: 'garden',
       cwd: '/Users/dev/garden',
-    });
-    raiseSessionAlert({ projection }, 'sid-1', 'stuck', 100);
+    })
+    raiseSessionAlert({ projection }, 'sid-1', 'stuck', 100)
 
     await killSession(
       {
@@ -845,22 +845,22 @@ describe('killSession', () => {
         harness: fakeClaudeHarness('/x', () => ['claude']),
       },
       { id: 'sid-1' },
-    );
+    )
 
-    expect(written().alerts).toEqual([]);
-    expect(projection.sessions().find((s) => s.id === 'sid-1')?.alert).toBeNull();
-  });
+    expect(written().alerts).toEqual([])
+    expect(projection.sessions().find((s) => s.id === 'sid-1')?.alert).toBeNull()
+  })
 
   it('keeps the alert when tmux fails to kill the session', async () => {
-    const { store, written } = fakeStore();
-    const projection = createProjection(store);
+    const { store, written } = fakeStore()
+    const projection = createProjection(store)
     projection.dispatch({
       type: 'session-registered',
       id: 'sid-1',
       tmuxName: 'garden',
       cwd: '/Users/dev/garden',
-    });
-    const alert = raiseSessionAlert({ projection }, 'sid-1', 'stuck', 100);
+    })
+    const alert = raiseSessionAlert({ projection }, 'sid-1', 'stuck', 100)
 
     await expect(
       killSession(
@@ -872,41 +872,41 @@ describe('killSession', () => {
         },
         { id: 'sid-1' },
       ),
-    ).rejects.toThrow('tmux down');
+    ).rejects.toThrow('tmux down')
 
-    expect(written().alerts).toHaveLength(1);
-    expect(projection.sessions().find((s) => s.id === 'sid-1')?.alert).toEqual(alert);
-  });
+    expect(written().alerts).toHaveLength(1)
+    expect(projection.sessions().find((s) => s.id === 'sid-1')?.alert).toEqual(alert)
+  })
 
   it('does not call tmux when the session already has no tmux name', async () => {
-    const tmux = fakeTmux({ killSession: () => Promise.reject(new Error('should not be called')) });
-    const { projection } = fakeProjection([aSession({ id: 'sid-1', tmuxName: null })]);
+    const tmux = fakeTmux({ killSession: () => Promise.reject(new Error('should not be called')) })
+    const { projection } = fakeProjection([aSession({ id: 'sid-1', tmuxName: null })])
 
     await expect(
       killSession(
         { tmux, projection, serverPort: 4310, harness: fakeClaudeHarness('/x', () => ['claude']) },
         { id: 'sid-1' },
       ),
-    ).resolves.toBeUndefined();
-  });
+    ).resolves.toBeUndefined()
+  })
 
   it('throws for an id the projection does not know', async () => {
-    const tmux = fakeTmux();
-    const { projection } = fakeProjection([]);
+    const tmux = fakeTmux()
+    const { projection } = fakeProjection([])
 
     await expect(
       killSession(
         { tmux, projection, serverPort: 4310, harness: fakeClaudeHarness('/x', () => ['claude']) },
         { id: 'nope' },
       ),
-    ).rejects.toThrow('no such session: nope');
-  });
-});
+    ).rejects.toThrow('no such session: nope')
+  })
+})
 
 describe('launch preparation', () => {
   it('prepares persistence before tmux and rolls it back without a projected orphan if tmux fails', async () => {
-    const { projection, dispatched } = fakeProjection();
-    const calls: string[] = [];
+    const { projection, dispatched } = fakeProjection()
+    const calls: string[] = []
     await expect(
       createSession(
         {
@@ -914,33 +914,33 @@ describe('launch preparation', () => {
           serverPort: 4311,
           tmux: fakeTmux({
             newSession: () => {
-              calls.push('tmux');
-              return Promise.reject(new Error('failed'));
+              calls.push('tmux')
+              return Promise.reject(new Error('failed'))
             },
           }),
           harness: {
             spawnCommand: () => ['codex'],
             resumeCommand: () => ['codex'],
             beforeLaunch: () => {
-              calls.push('prepare');
+              calls.push('prepare')
               return {
                 rollback: () => {
-                  calls.push('rollback');
+                  calls.push('rollback')
                 },
                 registrationStatus: () => ({ status: 'waiting', reason: null }),
-              };
+              }
             },
           },
         },
         { cwd: '/repo' },
       ),
-    ).rejects.toThrow('failed');
-    expect(calls).toEqual(['prepare', 'tmux', 'rollback']);
-    expect(dispatched).toEqual([]);
-  });
+    ).rejects.toThrow('failed')
+    expect(calls).toEqual(['prepare', 'tmux', 'rollback'])
+    expect(dispatched).toEqual([])
+  })
 
   it('registers after success without overriding a status-bearing hook observed during launch', async () => {
-    const { projection, dispatched } = fakeProjection();
+    const { projection, dispatched } = fakeProjection()
     await createSession(
       {
         projection,
@@ -954,63 +954,63 @@ describe('launch preparation', () => {
         },
       },
       { cwd: '/repo' },
-    );
-    expect(dispatched).toHaveLength(1);
-    expect(dispatched[0]).not.toHaveProperty('reported');
-  });
-});
+    )
+    expect(dispatched).toHaveLength(1)
+    expect(dispatched[0]).not.toHaveProperty('reported')
+  })
+})
 
 describe('resume binding freshness', () => {
   it('builds the resume command after asynchronous pane discovery and launch preparation', async () => {
     const { projection } = fakeProjection([
       aSession({ id: 'garden', cwd: '/repo', tmuxName: 'held', liveness: 'dead' }),
-    ]);
-    let currentNative = 'old';
+    ])
+    let currentNative = 'old'
     let release:
-      ((panes: { session: string; dead: boolean; exitCode: undefined }[]) => void) | undefined;
-    let entered: (() => void) | undefined;
+      ((panes: { session: string; dead: boolean; exitCode: undefined }[]) => void) | undefined
+    let entered: (() => void) | undefined
     const discovering = new Promise<void>((resolve) => {
-      entered = resolve;
-    });
-    const launched: unknown[] = [];
+      entered = resolve
+    })
+    const launched: unknown[] = []
     const pending = resumeSession(
       {
         projection,
         serverPort: 4311,
         tmux: fakeTmux({
           listPanes: () => {
-            entered!();
+            entered!()
             return new Promise((resolve) => {
-              release = resolve;
-            });
+              release = resolve
+            })
           },
           respawnPane: (request) => {
-            launched.push(request.command);
-            return Promise.resolve();
+            launched.push(request.command)
+            return Promise.resolve()
           },
         }),
         harness: {
           spawnCommand: () => [],
           resumeCommand: () => ['codex', 'resume', currentNative],
           beforeLaunch: () => {
-            currentNative = 'prepared';
-            return { rollback: () => undefined, registrationStatus: () => undefined };
+            currentNative = 'prepared'
+            return { rollback: () => undefined, registrationStatus: () => undefined }
           },
         },
       },
       { id: 'garden' },
-    );
-    await discovering;
-    currentNative = 'new';
-    release!([{ session: 'held', dead: true, exitCode: undefined }]);
-    await pending;
-    expect(launched).toEqual([['codex', 'resume', 'prepared']]);
-  });
+    )
+    await discovering
+    currentNative = 'new'
+    release!([{ session: 'held', dead: true, exitCode: undefined }])
+    await pending
+    expect(launched).toEqual([['codex', 'resume', 'prepared']])
+  })
   it('rolls launch preparation back if building the resume command fails', async () => {
     const { projection, dispatched } = fakeProjection([
       aSession({ id: 'garden', cwd: '/repo', liveness: 'dead' }),
-    ]);
-    let rolledBack = false;
+    ])
+    let rolledBack = false
     await expect(
       resumeSession(
         {
@@ -1020,11 +1020,11 @@ describe('resume binding freshness', () => {
           harness: {
             spawnCommand: () => [],
             resumeCommand: () => {
-              throw new Error('bad launch options');
+              throw new Error('bad launch options')
             },
             beforeLaunch: () => ({
               rollback: () => {
-                rolledBack = true;
+                rolledBack = true
               },
               registrationStatus: () => undefined,
             }),
@@ -1032,26 +1032,26 @@ describe('resume binding freshness', () => {
         },
         { id: 'garden' },
       ),
-    ).rejects.toThrow('bad launch options');
-    expect(rolledBack).toBe(true);
-    expect(dispatched).toEqual([]);
-  });
-});
+    ).rejects.toThrow('bad launch options')
+    expect(rolledBack).toBe(true)
+    expect(dispatched).toEqual([])
+  })
+})
 
 describe('session message delivery', () => {
   it('uses the live pending pane only when the harness asks for its first-prompt fallback', async () => {
     const { projection } = fakeProjection([
       aSession({ id: 'garden', tmuxName: 'pane', liveness: 'live' }),
-    ]);
-    const sent: unknown[] = [];
+    ])
+    const sent: unknown[] = []
     const deps = {
       projection,
       serverPort: 4311,
       tmux: fakeTmux({
         listPanes: () => Promise.resolve([{ session: 'pane', dead: false, exitCode: undefined }]),
         submitMessage: (name, message) => {
-          sent.push([name, message]);
-          return Promise.resolve();
+          sent.push([name, message])
+          return Promise.resolve()
         },
       }),
       harness: {
@@ -1059,21 +1059,21 @@ describe('session message delivery', () => {
         resumeCommand: () => [],
         sendMessage: (_id: string, _message: string, pending: () => Promise<void>) => pending(),
       },
-    };
-    await sendSessionMessage(deps, 'garden', 'first prompt');
-    expect(sent).toEqual([['pane', 'first prompt']]);
-  });
+    }
+    await sendSessionMessage(deps, 'garden', 'first prompt')
+    expect(sent).toEqual([['pane', 'first prompt']])
+  })
   it('rejects sending a first prompt to a dead pending pane and rejects unsupported harnesses', async () => {
-    const { projection } = fakeProjection([aSession({ id: 'garden', liveness: 'dead' })]);
+    const { projection } = fakeProjection([aSession({ id: 'garden', liveness: 'dead' })])
     const deps = {
       projection,
       serverPort: 4311,
       tmux: fakeTmux(),
       harness: fakeClaudeHarness('/settings', () => ['claude']),
-    };
+    }
     await expect(sendSessionMessage(deps, 'garden', 'hello')).rejects.toThrow(
       'not supported by the selected harness',
-    );
+    )
     await expect(
       sendSessionMessage(
         {
@@ -1086,6 +1086,6 @@ describe('session message delivery', () => {
         'garden',
         'hello',
       ),
-    ).rejects.toThrow('Resume this pending session');
-  });
-});
+    ).rejects.toThrow('Resume this pending session')
+  })
+})

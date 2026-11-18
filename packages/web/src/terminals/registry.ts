@@ -1,89 +1,89 @@
-import { PANE_CLOSE_CODES } from '@garden/shared';
-import { FitAddon } from '@xterm/addon-fit';
-import { WebLinksAddon } from '@xterm/addon-web-links';
-import { Terminal } from '@xterm/xterm';
-import '@xterm/xterm/css/xterm.css';
-import { getFile } from '../api/client.js';
-import { connectPaneSocket, type PaneSize } from '../api/paneSocket.js';
-import { openFailureMessage } from '../features/filetree/pathLineErrors.js';
-import { resolveAgainst, resolvePathLineTarget } from '../features/filetree/projectPaths.js';
-import { refreshRepoList } from '../features/sidebar/repoListCache.js';
-import { useLocalStore } from '../state/localStore.js';
-import { useRefusedAttachStore } from '../state/refusedAttachStore.js';
-import { useSessionStore } from '../state/sessionStore.js';
-import { useToastStore } from '../state/toastStore.js';
-import { openExternalLink } from './hyperlinks.js';
-import { findMarkdownLinks } from './markdownLinks.js';
-import { findPathLineLinks } from './pathLineLinks.js';
-import { resolvePaneKeydown } from './paneKeydown.js';
-import { shouldReusePane } from './paneReuse.js';
-import { terminalTheme } from './theme.js';
-import { unicodeV11Provider } from './unicodeWidth.js';
+import { PANE_CLOSE_CODES } from '@garden/shared'
+import { FitAddon } from '@xterm/addon-fit'
+import { WebLinksAddon } from '@xterm/addon-web-links'
+import { Terminal } from '@xterm/xterm'
+import '@xterm/xterm/css/xterm.css'
+import { getFile } from '../api/client.js'
+import { connectPaneSocket, type PaneSize } from '../api/paneSocket.js'
+import { openFailureMessage } from '../features/filetree/pathLineErrors.js'
+import { resolveAgainst, resolvePathLineTarget } from '../features/filetree/projectPaths.js'
+import { refreshRepoList } from '../features/sidebar/repoListCache.js'
+import { useLocalStore } from '../state/localStore.js'
+import { useRefusedAttachStore } from '../state/refusedAttachStore.js'
+import { useSessionStore } from '../state/sessionStore.js'
+import { useToastStore } from '../state/toastStore.js'
+import { openExternalLink } from './hyperlinks.js'
+import { findMarkdownLinks } from './markdownLinks.js'
+import { findPathLineLinks } from './pathLineLinks.js'
+import { resolvePaneKeydown } from './paneKeydown.js'
+import { shouldReusePane } from './paneReuse.js'
+import { terminalTheme } from './theme.js'
+import { unicodeV11Provider } from './unicodeWidth.js'
 
 interface PaneHandle {
   /** The event-socket connection this pane's attach belongs to. The server tracks pane attaches
    *  independently of that socket, so this is a deliberately conservative policy: a pane from an
    *  earlier epoch is treated as scrap and rebuilt rather than trusted. */
-  readonly epoch: number;
+  readonly epoch: number
   /** Moves the terminal's already-open DOM element into `container`, a no-op if it is already
    *  there, then fits it to that container and tracks its size from then on. */
-  mount(container: HTMLElement): void;
+  mount(container: HTMLElement): void
   /** Ends the pane socket and disposes the terminal. A pane survives a React remount, but never
    *  the loss of its panel or of its session's liveness. */
-  dispose(): void;
+  dispose(): void
 }
 
 /** The one escape hatch (docs/architecture.md §5.1): xterm instances and their pane sockets
  *  outlive React's tree, keyed by session id, so a preset switch or maximise never remounts
  *  one and drops its socket. */
-const panes = new Map<string, PaneHandle>();
+const panes = new Map<string, PaneHandle>()
 
-const FALLBACK_SIZE: PaneSize = { cols: 80, rows: 24 };
+const FALLBACK_SIZE: PaneSize = { cols: 80, rows: 24 }
 
 function readCssVar(name: string): string {
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
 }
 
 /** Whether the container has been laid out at all, read the way the fit addon reads it. */
 function hasSize(element: HTMLElement): boolean {
-  const style = getComputedStyle(element);
-  return parseFloat(style.width) > 0 && parseFloat(style.height) > 0;
+  const style = getComputedStyle(element)
+  return parseFloat(style.width) > 0 && parseFloat(style.height) > 0
 }
 
 /** Opens a clicked file path, with an optional line, in the file panel: re-rooting it onto the
  *  project containing the file, or showing it through the session when no listed project does. */
 async function openPathLine(sessionId: string, path: string, line: number | null): Promise<void> {
-  const cwd = useSessionStore.getState().sessions[sessionId]?.cwd;
-  const { showToast } = useToastStore.getState();
+  const cwd = useSessionStore.getState().sessions[sessionId]?.cwd
+  const { showToast } = useToastStore.getState()
   if (cwd === undefined) {
-    showToast(`Can't open ${path}: session directory unknown`, 'error');
-    return;
+    showToast(`Can't open ${path}: session directory unknown`, 'error')
+    return
   }
-  const target = resolvePathLineTarget((await refreshRepoList()) ?? [], cwd, sessionId, path, line);
+  const target = resolvePathLineTarget((await refreshRepoList()) ?? [], cwd, sessionId, path, line)
   if (target === null) {
-    showToast(`${resolveAgainst(cwd, path)} isn't in any known project`, 'error');
-    return;
+    showToast(`${resolveAgainst(cwd, path)} isn't in any known project`, 'error')
+    return
   }
-  const store = useLocalStore.getState();
+  const store = useLocalStore.getState()
   if (target.kind === 'session') {
-    store.requestOpenFile({ kind: 'session', sessionId }, target.path, target.line);
-    return;
+    store.requestOpenFile({ kind: 'session', sessionId }, target.path, target.line)
+    return
   }
   // Probe first: committing the root and open file before the load would leave the panel on a
   // file that doesn't exist when a false-positive match is clicked.
   try {
-    await getFile({ root: target.root }, target.path);
+    await getFile({ root: target.root }, target.path)
   } catch (error) {
-    const message = openFailureMessage(error, resolveAgainst(cwd, path));
+    const message = openFailureMessage(error, resolveAgainst(cwd, path))
     if (message !== null) {
-      showToast(message, 'error');
-      return;
+      showToast(message, 'error')
+      return
     }
   }
-  store.setPanelRoot(target.root);
-  store.setOpenFile(target.root, target.path);
-  store.setPanelTab(target.root, 'editor');
-  store.requestOpenFile({ kind: 'root', root: target.root }, target.path, target.line);
+  store.setPanelRoot(target.root)
+  store.setOpenFile(target.root, target.path)
+  store.setPanelTab(target.root, 'editor')
+  store.requestOpenFile({ kind: 'root', root: target.root }, target.path, target.line)
 }
 
 /** xterm decodes tmux's mouse-tracking escape sequences on its own once tmux's `mouse on`
@@ -106,18 +106,18 @@ function createPane(sessionId: string, container: HTMLElement, epoch: number): P
     linkHandler: {
       allowNonHttpProtocols: true,
       activate: (_event, text) => {
-        openExternalLink(text);
+        openExternalLink(text)
       },
     },
-  });
+  })
   // xterm.js defaults to its bundled UnicodeV6 table, which tmux's own wide-char width table has
   // moved past — this keeps a partial redraw from stranding characters at a width tmux disagrees
   // with.
-  terminal.unicode.register(unicodeV11Provider);
-  terminal.unicode.activeVersion = unicodeV11Provider.version;
-  const fitAddon = new FitAddon();
-  terminal.loadAddon(fitAddon);
-  terminal.open(container);
+  terminal.unicode.register(unicodeV11Provider)
+  terminal.unicode.activeVersion = unicodeV11Provider.version
+  const fitAddon = new FitAddon()
+  terminal.loadAddon(fitAddon)
+  terminal.open(container)
 
   // xterm's Linkifier resolves overlapping link matches by registration order, first registered
   // wins. Three providers are registered below, in this order: markdown-link, file path, then
@@ -132,12 +132,12 @@ function createPane(sessionId: string, container: HTMLElement, epoch: number): P
   // itself, not by ordering.
   terminal.registerLinkProvider({
     provideLinks(bufferLineNumber, callback) {
-      const line = terminal.buffer.active.getLine(bufferLineNumber - 1);
+      const line = terminal.buffer.active.getLine(bufferLineNumber - 1)
       if (line === undefined) {
-        callback(undefined);
-        return;
+        callback(undefined)
+        return
       }
-      const text = line.translateToString(true);
+      const text = line.translateToString(true)
       const links = findMarkdownLinks(text).map((link) => ({
         text: text.slice(link.index, link.index + link.length),
         range: {
@@ -145,21 +145,21 @@ function createPane(sessionId: string, container: HTMLElement, epoch: number): P
           end: { x: link.index + link.length + 1, y: bufferLineNumber },
         },
         activate: () => {
-          openExternalLink(link.url);
+          openExternalLink(link.url)
         },
-      }));
-      callback(links.length > 0 ? links : undefined);
+      }))
+      callback(links.length > 0 ? links : undefined)
     },
-  });
+  })
 
   terminal.registerLinkProvider({
     provideLinks(bufferLineNumber, callback) {
-      const line = terminal.buffer.active.getLine(bufferLineNumber - 1);
+      const line = terminal.buffer.active.getLine(bufferLineNumber - 1)
       if (line === undefined) {
-        callback(undefined);
-        return;
+        callback(undefined)
+        return
       }
-      const text = line.translateToString(true);
+      const text = line.translateToString(true)
       const links = findPathLineLinks(text, line.isWrapped).map((link) => ({
         text: text.slice(link.index, link.index + link.length),
         range: {
@@ -167,56 +167,56 @@ function createPane(sessionId: string, container: HTMLElement, epoch: number): P
           end: { x: link.index + link.length + 1, y: bufferLineNumber },
         },
         activate: () => {
-          void openPathLine(sessionId, link.path, link.line);
+          void openPathLine(sessionId, link.path, link.line)
         },
-      }));
-      callback(links.length > 0 ? links : undefined);
+      }))
+      callback(links.length > 0 ? links : undefined)
     },
-  });
+  })
 
   // WebLinksAddon's default handler opens a blank window and clears its `opener` by hand, which
   // isolates the new tab but sends a Referer header naming this page. `openExternalLink` uses an
   // explicit `noopener,noreferrer` instead, so this custom handler brings plain-URL links up to
   // the same isolation — and the same allowlist — OSC 8 links get above.
-  terminal.loadAddon(new WebLinksAddon((_event, uri) => openExternalLink(uri)));
+  terminal.loadAddon(new WebLinksAddon((_event, uri) => openExternalLink(uri)))
 
   // `proposeDimensions` reports "no size to fit to" in two ways for a pane that is hidden or not
   // laid out yet: NaN, or its own clamped minimum. Either would size the pty to garbage, so
   // neither counts as a proposal.
   function proposeSize(): PaneSize | undefined {
-    const host = terminal.element?.parentElement;
-    if (host === null || host === undefined || !hasSize(host)) return undefined;
-    const dims = fitAddon.proposeDimensions();
+    const host = terminal.element?.parentElement
+    if (host === null || host === undefined || !hasSize(host)) return undefined
+    const dims = fitAddon.proposeDimensions()
     if (dims === undefined || !Number.isFinite(dims.cols) || !Number.isFinite(dims.rows)) {
-      return undefined;
+      return undefined
     }
-    return dims;
+    return dims
   }
 
-  const initialSize = proposeSize() ?? FALLBACK_SIZE;
-  terminal.resize(initialSize.cols, initialSize.rows);
+  const initialSize = proposeSize() ?? FALLBACK_SIZE
+  terminal.resize(initialSize.cols, initialSize.rows)
 
-  let disposed = false;
-  let resizeObserver: ResizeObserver | undefined;
+  let disposed = false
+  let resizeObserver: ResizeObserver | undefined
   const dispose = (): void => {
-    if (disposed) return;
-    disposed = true;
-    resizeObserver?.disconnect();
-    panes.delete(sessionId);
-    socket.close();
-    terminal.dispose();
-  };
+    if (disposed) return
+    disposed = true
+    resizeObserver?.disconnect()
+    panes.delete(sessionId)
+    socket.close()
+    terminal.dispose()
+  }
 
   const socket = connectPaneSocket(sessionId, initialSize, {
     onData: (chunk) => terminal.write(chunk),
     onClose: (code) => {
       if (code === PANE_CLOSE_CODES.ALREADY_ATTACHED) {
-        useRefusedAttachStore.getState().markRefused(sessionId);
+        useRefusedAttachStore.getState().markRefused(sessionId)
       }
-      dispose();
+      dispose()
     },
-  });
-  terminal.onData((data) => socket.write(data));
+  })
+  terminal.onData((data) => socket.write(data))
 
   // Shift+Enter inserts a newline into the pane instead of submitting. xterm has no key binding
   // for this itself, so it is intercepted before xterm's own handling — which every other key,
@@ -225,35 +225,35 @@ function createPane(sessionId: string, container: HTMLElement, epoch: number): P
   // xterm's default handling, since a canceled keydown doesn't stop every browser from still
   // firing keypress.
   terminal.attachCustomKeyEventHandler((event) => {
-    const disposition = resolvePaneKeydown(event);
-    if (disposition === 'default') return true;
+    const disposition = resolvePaneKeydown(event)
+    if (disposition === 'default') return true
     if (disposition === 'literal-newline') {
-      event.preventDefault();
-      socket.write('\n');
+      event.preventDefault()
+      socket.write('\n')
     }
-    return false;
-  });
+    return false
+  })
 
   function fit(): void {
-    const dims = proposeSize();
-    if (dims === undefined) return;
-    terminal.resize(dims.cols, dims.rows);
-    socket.resize(dims);
+    const dims = proposeSize()
+    if (dims === undefined) return
+    terminal.resize(dims.cols, dims.rows)
+    socket.resize(dims)
   }
 
   return {
     epoch,
     mount(nextContainer) {
       if (terminal.element !== undefined && terminal.element.parentElement !== nextContainer) {
-        nextContainer.appendChild(terminal.element);
+        nextContainer.appendChild(terminal.element)
       }
-      resizeObserver?.disconnect();
-      resizeObserver = new ResizeObserver(fit);
-      resizeObserver.observe(nextContainer);
-      fit();
+      resizeObserver?.disconnect()
+      resizeObserver = new ResizeObserver(fit)
+      resizeObserver.observe(nextContainer)
+      fit()
     },
     dispose,
-  };
+  }
 }
 
 /** Puts the session's pane in `container`, fitted to it and tracking its size. A session already
@@ -263,20 +263,20 @@ function createPane(sessionId: string, container: HTMLElement, epoch: number): P
  *  `useRefusedAttachStore`. A pane held over from an earlier `epoch` is the one case
  *  where that socket is already gone, so it is replaced rather than reused. */
 export function attachPane(sessionId: string, container: HTMLElement, epoch: number): void {
-  const existing = panes.get(sessionId);
+  const existing = panes.get(sessionId)
   if (existing !== undefined && shouldReusePane(existing.epoch, epoch)) {
-    existing.mount(container);
-    return;
+    existing.mount(container)
+    return
   }
-  existing?.dispose();
-  const handle = createPane(sessionId, container, epoch);
-  panes.set(sessionId, handle);
-  handle.mount(container);
+  existing?.dispose()
+  const handle = createPane(sessionId, container, epoch)
+  panes.set(sessionId, handle)
+  handle.mount(container)
 }
 
 /** Ends a session's pane socket and disposes its terminal, and forgets that its attach was
  *  refused so the next attach starts fresh. Safe to call on a session with no open pane. */
 export function detachPane(sessionId: string): void {
-  panes.get(sessionId)?.dispose();
-  useRefusedAttachStore.getState().clearRefused(sessionId);
+  panes.get(sessionId)?.dispose()
+  useRefusedAttachStore.getState().clearRefused(sessionId)
 }

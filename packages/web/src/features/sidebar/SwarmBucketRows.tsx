@@ -1,23 +1,23 @@
-import type { SessionMap, SessionPlacement } from '@garden/shared';
-import { useState } from 'react';
-import { useSettingsStore } from '../../state/settingsStore';
-import { hideDeadLabel } from './hideDeadLabel';
-import type { ActiveSwarmOption, SwarmTreeNode } from './groupSwarms';
-import { ShowMoreDeadRow } from './ShowMoreDeadRow';
-import { SwarmTree } from './SwarmTree';
-import { capDeadForest } from './visibility';
+import type { SessionMap, SessionPlacement } from '@garden/shared'
+import { useState } from 'react'
+import { useSettingsStore } from '../../state/settingsStore'
+import { hideDeadLabel } from './hideDeadLabel'
+import type { ActiveSwarmOption, SwarmTreeNode } from './groupSwarms'
+import { ShowMoreDeadRow } from './ShowMoreDeadRow'
+import { SwarmTree } from './SwarmTree'
+import { capDeadForest } from './visibility'
 
 interface SwarmBucketRowsProps {
-  roots: SwarmTreeNode[];
-  hideDead: boolean;
-  onToggleHideDead: () => void;
-  sessions: SessionMap;
-  placements: Record<string, SessionPlacement>;
-  activeSwarms: readonly ActiveSwarmOption[];
-  now: number;
-  onStageIds: ReadonlySet<string>;
-  focusedSessionId: string | null;
-  onSelectSession: (id: string) => void;
+  roots: SwarmTreeNode[]
+  hideDead: boolean
+  onToggleHideDead: () => void
+  sessions: SessionMap
+  placements: Record<string, SessionPlacement>
+  activeSwarms: readonly ActiveSwarmOption[]
+  now: number
+  onStageIds: ReadonlySet<string>
+  focusedSessionId: string | null
+  onSelectSession: (id: string) => void
 }
 
 /** The rows of one Swarms bucket (a swarm group or Solo): its tree capped at `deadSessionCap`
@@ -29,13 +29,13 @@ export function SwarmBucketRows({
   onToggleHideDead,
   ...treeProps
 }: SwarmBucketRowsProps) {
-  const [expanded, setExpanded] = useState(false);
-  const deadSessionCap = useSettingsStore((s) => s.deadSessionCap);
+  const [expanded, setExpanded] = useState(false)
+  const deadSessionCap = useSettingsStore((s) => s.deadSessionCap)
   const capped = capDeadForest(
     roots,
     (id) => treeProps.sessions[id]?.liveness === 'dead',
     deadSessionCap,
-  );
+  )
 
   return (
     <>
@@ -57,5 +57,5 @@ export function SwarmBucketRows({
         {hideDeadLabel(hideDead)}
       </div>
     </>
-  );
+  )
 }

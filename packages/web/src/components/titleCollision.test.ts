@@ -1,10 +1,10 @@
-import { describe, expect, it } from 'vitest';
-import { titleCollides } from './titleCollision';
+import { describe, expect, it } from 'vitest'
+import { titleCollides } from './titleCollision'
 
 describe('titleCollides', () => {
-  const bar = 500;
-  const title = 60;
-  const gap = 16;
+  const bar = 500
+  const title = 60
+  const gap = 16
 
   it('is clear when neighbours end well before and start well after the title', () => {
     expect(
@@ -17,19 +17,19 @@ describe('titleCollides', () => {
         ],
         gap,
       ),
-    ).toBe(false);
-  });
+    ).toBe(false)
+  })
 
   it('collides when a neighbour comes within the gap of the title', () => {
     // title spans 470..530, so the gap-padded span is 454..546
-    expect(titleCollides(bar, title, [{ left: 0, right: 455 }], gap)).toBe(true);
-    expect(titleCollides(bar, title, [{ left: 545, right: 900 }], gap)).toBe(true);
-  });
+    expect(titleCollides(bar, title, [{ left: 0, right: 455 }], gap)).toBe(true)
+    expect(titleCollides(bar, title, [{ left: 545, right: 900 }], gap)).toBe(true)
+  })
 
   it('is clear when a neighbour sits exactly at the gap', () => {
-    expect(titleCollides(bar, title, [{ left: 0, right: 454 }], gap)).toBe(false);
-    expect(titleCollides(bar, title, [{ left: 546, right: 900 }], gap)).toBe(false);
-  });
+    expect(titleCollides(bar, title, [{ left: 0, right: 454 }], gap)).toBe(false)
+    expect(titleCollides(bar, title, [{ left: 546, right: 900 }], gap)).toBe(false)
+  })
 
   it('considers the wider side even when the other side is clear', () => {
     expect(
@@ -42,10 +42,10 @@ describe('titleCollides', () => {
         ],
         gap,
       ),
-    ).toBe(true);
-  });
+    ).toBe(true)
+  })
 
   it('is clear with no neighbours', () => {
-    expect(titleCollides(bar, title, [], gap)).toBe(false);
-  });
-});
+    expect(titleCollides(bar, title, [], gap)).toBe(false)
+  })
+})

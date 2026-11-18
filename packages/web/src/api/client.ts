@@ -18,7 +18,7 @@ import type {
   TreeResponse,
   UiStateRequest,
   WatchResponse,
-} from '@garden/shared';
+} from '@garden/shared'
 
 /** The server answered with a non-2xx status, or the response body was not JSON. */
 export class ApiError extends Error {
@@ -27,29 +27,29 @@ export class ApiError extends Error {
     readonly status?: number,
     options?: ErrorOptions,
   ) {
-    super(message, options);
-    this.name = 'ApiError';
+    super(message, options)
+    this.name = 'ApiError'
   }
 }
 
 /** The server answered `502` to a dismiss: GitHub (or `gh`) failed, and `failure` says how. */
 export class DismissReviewError extends ApiError {
   constructor(readonly failure: DismissReviewFailure) {
-    super(`dismissing the review request failed: ${failure.kind}`, 502);
-    this.name = 'DismissReviewError';
+    super(`dismissing the review request failed: ${failure.kind}`, 502)
+    this.name = 'DismissReviewError'
   }
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, init);
+  const response = await fetch(path, init)
   if (!response.ok) {
-    const body = (await response.json().catch(() => null)) as ErrorResponse | null;
+    const body = (await response.json().catch(() => null)) as ErrorResponse | null
     throw new ApiError(
       body?.error ?? `garden server returned ${String(response.status)}`,
       response.status,
-    );
+    )
   }
-  return (await response.json()) as T;
+  return (await response.json()) as T
 }
 
 export function createSession(cwd: string): Promise<CreateSessionResponse> {
@@ -57,11 +57,11 @@ export function createSession(cwd: string): Promise<CreateSessionResponse> {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ cwd } satisfies CreateSessionRequest),
-  });
+  })
 }
 
 export function resumeSession(id: string): Promise<CreateSessionResponse> {
-  return request(`/sessions/${encodeURIComponent(id)}/resume`, { method: 'POST' });
+  return request(`/sessions/${encodeURIComponent(id)}/resume`, { method: 'POST' })
 }
 
 export function startReviewSession(
@@ -72,19 +72,19 @@ export function startReviewSession(
   return request(
     `/reviews/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/${String(number)}/session`,
     { method: 'POST' },
-  );
+  )
 }
 
 export function killSession(id: string): Promise<OkResponse> {
-  return request(`/sessions/${encodeURIComponent(id)}/kill`, { method: 'POST' });
+  return request(`/sessions/${encodeURIComponent(id)}/kill`, { method: 'POST' })
 }
 
 export function listRepos(): Promise<ReposResponse> {
-  return request('/repos');
+  return request('/repos')
 }
 
 export function getSettings(): Promise<SettingsResponse> {
-  return request('/settings');
+  return request('/settings')
 }
 
 export function updateSettings(patch: SettingsRequest): Promise<OkResponse> {
@@ -92,28 +92,28 @@ export function updateSettings(patch: SettingsRequest): Promise<OkResponse> {
     method: 'PUT',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(patch),
-  });
+  })
 }
 
 /** Which project an fs request resolves against: a listed `/repos` root or a session's cwd. */
-export type FsScope = { root: string } | { sessionId: string };
+export type FsScope = { root: string } | { sessionId: string }
 
 function scopeParams(scope: FsScope): URLSearchParams {
-  return new URLSearchParams('root' in scope ? { root: scope.root } : { session: scope.sessionId });
+  return new URLSearchParams('root' in scope ? { root: scope.root } : { session: scope.sessionId })
 }
 
 /** `refresh` is a fresh token per refresh round; see `TreeResponse`. */
 export function getFileTree(scope: FsScope, path: string, refresh?: string): Promise<TreeResponse> {
-  const query = scopeParams(scope);
-  query.set('path', path);
-  if (refresh !== undefined) query.set('refresh', refresh);
-  return request(`/fs/tree?${query.toString()}`);
+  const query = scopeParams(scope)
+  query.set('path', path)
+  if (refresh !== undefined) query.set('refresh', refresh)
+  return request(`/fs/tree?${query.toString()}`)
 }
 
 export function getFile(scope: FsScope, path: string): Promise<FileResponse> {
-  const query = scopeParams(scope);
-  query.set('path', path);
-  return request(`/fs/file?${query.toString()}`);
+  const query = scopeParams(scope)
+  query.set('path', path)
+  return request(`/fs/file?${query.toString()}`)
 }
 
 export function updateUiState(patch: UiStateRequest): Promise<OkResponse> {
@@ -121,7 +121,7 @@ export function updateUiState(patch: UiStateRequest): Promise<OkResponse> {
     method: 'PUT',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(patch),
-  });
+  })
 }
 
 export function createSwarm(name: string): Promise<CreateSwarmResponse> {
@@ -129,7 +129,7 @@ export function createSwarm(name: string): Promise<CreateSwarmResponse> {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ name } satisfies CreateSwarmRequest),
-  });
+  })
 }
 
 export function renameSwarm(id: string, name: string): Promise<OkResponse> {
@@ -137,19 +137,19 @@ export function renameSwarm(id: string, name: string): Promise<OkResponse> {
     method: 'PATCH',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ name } satisfies RenameSwarmRequest),
-  });
+  })
 }
 
 export function archiveSwarm(id: string): Promise<OkResponse> {
-  return request(`/swarms/${encodeURIComponent(id)}/archive`, { method: 'POST' });
+  return request(`/swarms/${encodeURIComponent(id)}/archive`, { method: 'POST' })
 }
 
 export function unarchiveSwarm(id: string): Promise<OkResponse> {
-  return request(`/swarms/${encodeURIComponent(id)}/unarchive`, { method: 'POST' });
+  return request(`/swarms/${encodeURIComponent(id)}/unarchive`, { method: 'POST' })
 }
 
 export function deleteSwarm(id: string): Promise<OkResponse> {
-  return request(`/swarms/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  return request(`/swarms/${encodeURIComponent(id)}`, { method: 'DELETE' })
 }
 
 export function setSessionPlacement(sessionId: string, placement: Placement): Promise<OkResponse> {
@@ -157,7 +157,7 @@ export function setSessionPlacement(sessionId: string, placement: Placement): Pr
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ placement } satisfies PlacementRequest),
-  });
+  })
 }
 
 export function addWatch(sessionId: string, body: AddWatchRequest): Promise<WatchResponse> {
@@ -165,35 +165,35 @@ export function addWatch(sessionId: string, body: AddWatchRequest): Promise<Watc
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
-  });
+  })
 }
 
 export function dismissAlert(sessionId: string): Promise<OkResponse> {
-  return request(`/sessions/${encodeURIComponent(sessionId)}/alert`, { method: 'DELETE' });
+  return request(`/sessions/${encodeURIComponent(sessionId)}/alert`, { method: 'DELETE' })
 }
 
 export function removeWatch(sessionId: string, pr: number, repo: string): Promise<OkResponse> {
-  const query = new URLSearchParams({ pr: String(pr), repo });
+  const query = new URLSearchParams({ pr: String(pr), repo })
   return request(`/sessions/${encodeURIComponent(sessionId)}/watches?${query.toString()}`, {
     method: 'DELETE',
-  });
+  })
 }
 
 /** Removes the signed-in user's review request on GitHub. Resolves on `204`, which has no body,
  *  so this does not go through `request()`. */
 export async function dismissReview(repo: string, number: number): Promise<void> {
-  const [owner = '', name = ''] = repo.split('/');
+  const [owner = '', name = ''] = repo.split('/')
   const response = await fetch(
     `/reviews/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/${String(number)}/dismiss`,
     { method: 'POST' },
-  );
-  if (response.ok) return;
+  )
+  if (response.ok) return
   const body = (await response.json().catch(() => null)) as
-    (Partial<DismissReviewFailure> & Partial<ErrorResponse>) | null;
+    (Partial<DismissReviewFailure> & Partial<ErrorResponse>) | null
   if (response.status === 502 && typeof body?.kind === 'string')
-    throw new DismissReviewError(body as DismissReviewFailure);
+    throw new DismissReviewError(body as DismissReviewFailure)
   throw new ApiError(
     body?.error ?? `garden server returned ${String(response.status)}`,
     response.status,
-  );
+  )
 }

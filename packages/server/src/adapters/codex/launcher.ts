@@ -1,22 +1,22 @@
-import { createHash, randomUUID } from 'node:crypto';
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { createHash, randomUUID } from 'node:crypto'
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 export interface CodexEndpoint {
-  version: 1;
-  generation: string;
-  endpoint: string;
-  pid: number;
+  version: 1
+  generation: string
+  endpoint: string
+  pid: number
 }
 
 export function codexEndpointPath(appDir: string, id: string): string {
-  if (!/^[a-z0-9_-]{1,128}$/i.test(id)) throw new Error('invalid Codex session id');
-  return join(appDir, 'native-endpoints', `${id}.json`);
+  if (!/^[a-z0-9_-]{1,128}$/i.test(id)) throw new Error('invalid Codex session id')
+  return join(appDir, 'native-endpoints', `${id}.json`)
 }
 
 export function readCodexEndpoint(appDir: string, id: string): CodexEndpoint | null {
   try {
-    const value = JSON.parse(readFileSync(codexEndpointPath(appDir, id), 'utf8')) as CodexEndpoint;
+    const value = JSON.parse(readFileSync(codexEndpointPath(appDir, id), 'utf8')) as CodexEndpoint
     if (
       value.version !== 1 ||
       typeof value.generation !== 'string' ||
@@ -25,30 +25,30 @@ export function readCodexEndpoint(appDir: string, id: string): CodexEndpoint | n
       !Number.isSafeInteger(value.pid) ||
       value.pid <= 0
     )
-      return null;
-    process.kill(value.pid, 0);
-    return value;
+      return null
+    process.kill(value.pid, 0)
+    return value
   } catch {
-    return null;
+    return null
   }
 }
 
 export function codexLauncherCommand(options: {
-  appDir: string;
-  id: string;
-  cwd: string;
-  backendCommand: readonly string[];
-  terminalCommand: readonly string[];
+  appDir: string
+  id: string
+  cwd: string
+  backendCommand: readonly string[]
+  terminalCommand: readonly string[]
 }): readonly string[] {
-  const descriptor = codexEndpointPath(options.appDir, options.id);
-  mkdirSync(join(options.appDir, 'native-endpoints'), { recursive: true, mode: 0o700 });
-  const script = join(options.appDir, 'codex-launcher.cjs');
-  const temporary = `${script}.${randomUUID()}.tmp`;
-  writeFileSync(temporary, LAUNCHER_SCRIPT, { mode: 0o600, flag: 'wx' });
-  renameSync(temporary, script);
+  const descriptor = codexEndpointPath(options.appDir, options.id)
+  mkdirSync(join(options.appDir, 'native-endpoints'), { recursive: true, mode: 0o700 })
+  const script = join(options.appDir, 'codex-launcher.cjs')
+  const temporary = `${script}.${randomUUID()}.tmp`
+  writeFileSync(temporary, LAUNCHER_SCRIPT, { mode: 0o600, flag: 'wx' })
+  renameSync(temporary, script)
   // /tmp avoids macOS's long per-user temporary paths and sockaddr_un's length limit.
-  const socketDir = `/tmp/garden-codex-${process.getuid?.() ?? 'user'}-${createHash('sha256').update(descriptor).digest('hex').slice(0, 20)}`;
-  return [process.execPath, script, JSON.stringify({ ...options, descriptor, socketDir })];
+  const socketDir = `/tmp/garden-codex-${process.getuid?.() ?? 'user'}-${createHash('sha256').update(descriptor).digest('hex').slice(0, 20)}`
+  return [process.execPath, script, JSON.stringify({ ...options, descriptor, socketDir })]
 }
 
 // tmux owns this process. No connection to Garden controls either child's lifetime.
@@ -164,4 +164,4 @@ try {
   readyTimer = setTimeout(() => fail(new Error('app-server did not become ready within 10 seconds')), 10000);
   checkReady();
 } catch (error) { fail(error); }
-`;
+`

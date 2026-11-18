@@ -1,5 +1,5 @@
-import type { SerializedDockview } from 'dockview-core';
-import type { DockviewApi, DockviewPanelApi } from 'dockview-react';
+import type { SerializedDockview } from 'dockview-core'
+import type { DockviewApi, DockviewPanelApi } from 'dockview-react'
 
 /**
  * Applies `layout` to the stage. `reuseExistingPanels` matches on panel id and a panel id is a
@@ -8,8 +8,8 @@ import type { DockviewApi, DockviewPanelApi } from 'dockview-react';
  */
 export function applyLayout(api: DockviewApi, layout: SerializedDockview): void {
   // fromJSON on a maximized stage would rebuild the grid underneath the hidden siblings.
-  if (api.hasMaximizedGroup()) api.exitMaximizedGroup();
-  api.fromJSON(layout, { reuseExistingPanels: true });
+  if (api.hasMaximizedGroup()) api.exitMaximizedGroup()
+  api.fromJSON(layout, { reuseExistingPanels: true })
 }
 
 /**
@@ -17,9 +17,9 @@ export function applyLayout(api: DockviewApi, layout: SerializedDockview): void 
  * maximized: focusing the pane the user already expanded isn't a request to leave it.
  */
 export function exitMaximizedUnlessFocused(api: DockviewApi, focusedGroupId: string): void {
-  if (!api.hasMaximizedGroup()) return;
-  if (api.getGroup(focusedGroupId)?.api.isMaximized()) return;
-  api.exitMaximizedGroup();
+  if (!api.hasMaximizedGroup()) return
+  if (api.getGroup(focusedGroupId)?.api.isMaximized()) return
+  api.exitMaximizedGroup()
 }
 
 /**
@@ -32,9 +32,9 @@ export function togglePaneMaximised(
   focus: () => void,
 ): void {
   if (panel.isMaximized()) {
-    panel.exitMaximized();
-    return;
+    panel.exitMaximized()
+    return
   }
-  focus();
-  panel.maximize();
+  focus()
+  panel.maximize()
 }

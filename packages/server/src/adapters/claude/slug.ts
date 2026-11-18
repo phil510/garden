@@ -5,7 +5,7 @@
  * (`dbt_snowflake` collides with `dbt-snowflake`) — never reconstruct a path from a slug.
  */
 export function slugify(path: string): string {
-  return path.replace(/[/._]/g, '-');
+  return path.replace(/[/._]/g, '-')
 }
 
 /**
@@ -16,8 +16,8 @@ export function slugify(path: string): string {
  * `-Extend2`.
  */
 export function inScopeDirs(dirNames: readonly string[], roots: readonly string[]): string[] {
-  const rootSlugs = roots.map(slugify);
+  const rootSlugs = roots.map(slugify)
   return dirNames.filter((dir) =>
     rootSlugs.some((root) => dir === root || dir.startsWith(`${root}-`)),
-  );
+  )
 }

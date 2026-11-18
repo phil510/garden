@@ -1,28 +1,28 @@
-import { homedir } from 'node:os';
-import { join } from 'node:path';
-import { createInterface } from 'node:readline/promises';
-import { DEFAULT_CONFIG_FILE, ensureConfigFile, loadConfig } from '../config.js';
-import type { Io } from './commands.js';
-import { writeAll } from './io.js';
+import { homedir } from 'node:os'
+import { join } from 'node:path'
+import { createInterface } from 'node:readline/promises'
+import { DEFAULT_CONFIG_FILE, ensureConfigFile, loadConfig } from '../config.js'
+import type { Io } from './commands.js'
+import { writeAll } from './io.js'
 import {
   classifyRecordedPid,
   isProcessRunning,
   readPidFile,
   removePidFile,
   type PidRecord,
-} from './pid.js';
-import { fetchHealthPid, type HealthPidResult } from './serverProcess.js';
-import { killTmuxServer } from './tmux.js';
+} from './pid.js'
+import { fetchHealthPid, type HealthPidResult } from './serverProcess.js'
+import { killTmuxServer } from './tmux.js'
 
 export interface StopDeps {
-  readonly readPid: (path: string) => PidRecord | null;
-  readonly removePid: (path: string) => void;
-  readonly isProcessRunning: (pid: number) => boolean;
-  readonly healthPid: (healthUrl: string) => Promise<HealthPidResult>;
-  readonly kill: (pid: number, signal: NodeJS.Signals) => void;
-  readonly home: string;
-  readonly stopTimeoutMs: number;
-  readonly pollIntervalMs: number;
+  readonly readPid: (path: string) => PidRecord | null
+  readonly removePid: (path: string) => void
+  readonly isProcessRunning: (pid: number) => boolean
+  readonly healthPid: (healthUrl: string) => Promise<HealthPidResult>
+  readonly kill: (pid: number, signal: NodeJS.Signals) => void
+  readonly home: string
+  readonly stopTimeoutMs: number
+  readonly pollIntervalMs: number
 }
 
 export const defaultStopDeps: StopDeps = {
@@ -31,80 +31,80 @@ export const defaultStopDeps: StopDeps = {
   isProcessRunning,
   healthPid: fetchHealthPid,
   kill: (pid, signal) => {
-    process.kill(pid, signal);
+    process.kill(pid, signal)
   },
   home: homedir(),
   stopTimeoutMs: 5000,
   pollIntervalMs: 50,
-};
+}
 
 /** `garden stop` — stop the server. tmux and sessions are untouched. */
 export async function runStop(io: Io, deps: StopDeps = defaultStopDeps): Promise<0 | 1> {
-  const config = loadConfig(process.env, ensureConfigFile(deps.home), deps.home);
-  const pidPath = join(config.appDir, 'server.pid');
-  const record = deps.readPid(pidPath);
+  const config = loadConfig(process.env, ensureConfigFile(deps.home), deps.home)
+  const pidPath = join(config.appDir, 'server.pid')
+  const record = deps.readPid(pidPath)
 
   // Probe the port the server started on, not the configured one, which may have changed since.
-  const healthUrl = `http://${config.host}:${String(record?.port ?? config.port)}/health`;
-  const status = await classifyRecordedPid(record?.pid ?? null, deps, healthUrl);
+  const healthUrl = `http://${config.host}:${String(record?.port ?? config.port)}/health`
+  const status = await classifyRecordedPid(record?.pid ?? null, deps, healthUrl)
 
   if (record === null || status === 'stale') {
     // A recorded pid that is dead, or that /health says is some other process, is stale
     // bookkeeping, not a running server — and must never be signalled.
-    deps.removePid(pidPath);
-    await writeAll(io.stdout, 'garden is not running\n');
-    return 0;
+    deps.removePid(pidPath)
+    await writeAll(io.stdout, 'garden is not running\n')
+    return 0
   }
 
-  const { pid } = record;
+  const { pid } = record
   if (status === 'unresponsive') {
     await writeAll(
       io.stderr,
       `garden: process ${String(pid)} is alive but its /health did not answer, so it can't be confirmed as garden and was not signalled. If it is a hung garden, stop it with: kill ${String(pid)}\n`,
-    );
-    return 1;
+    )
+    return 1
   }
 
-  deps.kill(pid, 'SIGTERM');
-  const deadline = Date.now() + deps.stopTimeoutMs;
+  deps.kill(pid, 'SIGTERM')
+  const deadline = Date.now() + deps.stopTimeoutMs
   while (deps.isProcessRunning(pid)) {
     if (Date.now() >= deadline) {
       await writeAll(
         io.stderr,
         `garden: server (pid ${String(pid)}) did not stop within ${String(deps.stopTimeoutMs)}ms\n`,
-      );
-      return 1;
+      )
+      return 1
     }
-    await new Promise((resolve) => setTimeout(resolve, deps.pollIntervalMs));
+    await new Promise((resolve) => setTimeout(resolve, deps.pollIntervalMs))
   }
 
-  deps.removePid(pidPath);
-  await writeAll(io.stdout, 'garden stopped\n');
-  return 0;
+  deps.removePid(pidPath)
+  await writeAll(io.stdout, 'garden stopped\n')
+  return 0
 }
 
 export interface StopAllDeps {
-  readonly confirm: (message: string) => Promise<boolean>;
-  readonly stop: (io: Io, home: string) => Promise<0 | 1>;
-  readonly killTmuxServer: (confPath: string, socket: string) => Promise<void>;
-  readonly home: string;
-  readonly appDir: string;
-  readonly tmuxSocket: string;
+  readonly confirm: (message: string) => Promise<boolean>
+  readonly stop: (io: Io, home: string) => Promise<0 | 1>
+  readonly killTmuxServer: (confPath: string, socket: string) => Promise<void>
+  readonly home: string
+  readonly appDir: string
+  readonly tmuxSocket: string
 }
 
 async function promptConfirm(message: string): Promise<boolean> {
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  const rl = createInterface({ input: process.stdin, output: process.stdout })
   try {
-    const answer = await rl.question(message);
-    return /^y(es)?$/i.test(answer.trim());
+    const answer = await rl.question(message)
+    return /^y(es)?$/i.test(answer.trim())
   } finally {
-    rl.close();
+    rl.close()
   }
 }
 
 function defaultStopAllDeps(): StopAllDeps {
-  const home = homedir();
-  const { appDir, tmuxSocket } = loadConfig(process.env, DEFAULT_CONFIG_FILE, home);
+  const home = homedir()
+  const { appDir, tmuxSocket } = loadConfig(process.env, DEFAULT_CONFIG_FILE, home)
   return {
     confirm: promptConfirm,
     stop: (io, home) => runStop(io, { ...defaultStopDeps, home }),
@@ -112,7 +112,7 @@ function defaultStopAllDeps(): StopAllDeps {
     home,
     appDir,
     tmuxSocket,
-  };
+  }
 }
 
 /** `garden stop --all` — stop the server, then kill the garden tmux server. Unlike plain
@@ -125,22 +125,22 @@ export async function runStopAll(
   if (!skipConfirm) {
     const message =
       `This stops garden and kills every session on tmux socket ${deps.tmuxSocket}. ` +
-      `Live sessions will lose in-flight work. ${deps.appDir} is kept. Continue? [y/N] `;
+      `Live sessions will lose in-flight work. ${deps.appDir} is kept. Continue? [y/N] `
     if (!(await deps.confirm(message))) {
-      await writeAll(io.stdout, 'aborted\n');
-      return 0;
+      await writeAll(io.stdout, 'aborted\n')
+      return 0
     }
   }
 
-  const stopResult = await deps.stop(io, deps.home);
-  if (stopResult !== 0) return stopResult;
+  const stopResult = await deps.stop(io, deps.home)
+  if (stopResult !== 0) return stopResult
 
   try {
-    await deps.killTmuxServer(join(deps.appDir, 'tmux.conf'), deps.tmuxSocket);
+    await deps.killTmuxServer(join(deps.appDir, 'tmux.conf'), deps.tmuxSocket)
   } catch (error) {
-    await writeAll(io.stderr, `garden: ${(error as Error).message}\n`);
-    return 1;
+    await writeAll(io.stderr, `garden: ${(error as Error).message}\n`)
+    return 1
   }
-  await writeAll(io.stdout, 'garden stopped; tmux server killed\n');
-  return 0;
+  await writeAll(io.stdout, 'garden stopped; tmux server killed\n')
+  return 0
 }

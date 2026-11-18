@@ -1,13 +1,13 @@
-import { DEFAULT_UI_STATE } from '@garden/shared';
-import { aSession } from '@garden/shared/fixtures';
-import { describe, expect, it } from 'vitest';
-import type { Logger, OverlayState } from '../../app/ports.js';
-import type { Projection } from '../../app/projection.js';
-import { SessionNotFoundError } from '../../app/sessions.js';
-import { SwarmCycleError, SwarmNotFoundError } from '../../app/swarms.js';
-import type { SwarmsDeps } from '../../app/swarms.js';
-import { createApp } from '../server.js';
-import { swarmRoutes } from './swarms.js';
+import { DEFAULT_UI_STATE } from '@garden/shared'
+import { aSession } from '@garden/shared/fixtures'
+import { describe, expect, it } from 'vitest'
+import type { Logger, OverlayState } from '../../app/ports.js'
+import type { Projection } from '../../app/projection.js'
+import { SessionNotFoundError } from '../../app/sessions.js'
+import { SwarmCycleError, SwarmNotFoundError } from '../../app/swarms.js'
+import type { SwarmsDeps } from '../../app/swarms.js'
+import { createApp } from '../server.js'
+import { swarmRoutes } from './swarms.js'
 
 const emptyOverlay: OverlayState = {
   version: 2,
@@ -18,191 +18,191 @@ const emptyOverlay: OverlayState = {
   digests: [],
   pipes: {},
   reviews: { links: {} },
-};
+}
 
 function fakeProjection(overrides: Partial<Projection> = {}): Projection {
   return {
     sessions: () => [],
     uiState: () => {
-      throw new Error('not used by this test');
+      throw new Error('not used by this test')
     },
     dispatch: () => {
-      throw new Error('not used by this test');
+      throw new Error('not used by this test')
     },
     updateUiState: () => {
-      throw new Error('not used by this test');
+      throw new Error('not used by this test')
     },
     subscribe: () => () => undefined,
     subscribeUiState: () => () => undefined,
     overlay: () => {
-      throw new Error('not used by this test');
+      throw new Error('not used by this test')
     },
     updateOverlay: () => {
-      throw new Error('not used by this test');
+      throw new Error('not used by this test')
     },
     subscribeOverlay: () => () => undefined,
     placementOf: () => {
-      throw new Error('not used by this test');
+      throw new Error('not used by this test')
     },
     ...overrides,
-  };
+  }
 }
 
 function buildApp(deps: SwarmsDeps, logger?: Logger) {
-  const app = createApp(logger);
-  app.register((instance) => swarmRoutes(instance, deps));
-  return app;
+  const app = createApp(logger)
+  app.register((instance) => swarmRoutes(instance, deps))
+  return app
 }
 
 describe('POST /swarms', () => {
   it('rejects a body with no name', async () => {
-    const app = buildApp({ projection: fakeProjection() });
-    const response = await app.inject({ method: 'POST', url: '/swarms', payload: {} });
-    expect(response.statusCode).toBe(400);
-  });
+    const app = buildApp({ projection: fakeProjection() })
+    const response = await app.inject({ method: 'POST', url: '/swarms', payload: {} })
+    expect(response.statusCode).toBe(400)
+  })
 
   it('forwards a valid body and answers 201 with the new id', async () => {
     const app = buildApp({
       projection: fakeProjection({
         updateOverlay: (mutate) => mutate(emptyOverlay),
       }),
-    });
-    const response = await app.inject({ method: 'POST', url: '/swarms', payload: { name: 'A' } });
-    expect(response.statusCode).toBe(201);
-    const body: unknown = response.json();
-    expect(typeof (body as { id: unknown }).id).toBe('string');
-  });
-});
+    })
+    const response = await app.inject({ method: 'POST', url: '/swarms', payload: { name: 'A' } })
+    expect(response.statusCode).toBe(201)
+    const body: unknown = response.json()
+    expect(typeof (body as { id: unknown }).id).toBe('string')
+  })
+})
 
 describe('PATCH /swarms/:id', () => {
   it('rejects a body with no name', async () => {
-    const app = buildApp({ projection: fakeProjection() });
-    const response = await app.inject({ method: 'PATCH', url: '/swarms/s1', payload: {} });
-    expect(response.statusCode).toBe(400);
-  });
+    const app = buildApp({ projection: fakeProjection() })
+    const response = await app.inject({ method: 'PATCH', url: '/swarms/s1', payload: {} })
+    expect(response.statusCode).toBe(400)
+  })
 
   it('maps SwarmNotFoundError to 404', async () => {
     const app = buildApp({
       projection: fakeProjection({
         updateOverlay: () => {
-          throw new SwarmNotFoundError('no such swarm: s1');
+          throw new SwarmNotFoundError('no such swarm: s1')
         },
       }),
-    });
+    })
     const response = await app.inject({
       method: 'PATCH',
       url: '/swarms/s1',
       payload: { name: 'A' },
-    });
-    expect(response.statusCode).toBe(404);
-  });
-});
+    })
+    expect(response.statusCode).toBe(404)
+  })
+})
 
 describe('POST /swarms/:id/archive', () => {
   it('answers ok on success', async () => {
     const overlay: OverlayState = {
       ...emptyOverlay,
       ui: { ...emptyOverlay.ui, swarms: [{ id: 's1', name: 'A', archived: false }] },
-    };
+    }
     const app = buildApp({
       projection: fakeProjection({ updateOverlay: (mutate) => mutate(overlay) }),
-    });
-    const response = await app.inject({ method: 'POST', url: '/swarms/s1/archive' });
-    expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ ok: true });
-  });
+    })
+    const response = await app.inject({ method: 'POST', url: '/swarms/s1/archive' })
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toEqual({ ok: true })
+  })
 
   it('maps SwarmNotFoundError to 404', async () => {
     const app = buildApp({
       projection: fakeProjection({
         updateOverlay: () => {
-          throw new SwarmNotFoundError('no such swarm: s1');
+          throw new SwarmNotFoundError('no such swarm: s1')
         },
       }),
-    });
-    const response = await app.inject({ method: 'POST', url: '/swarms/s1/archive' });
-    expect(response.statusCode).toBe(404);
-  });
-});
+    })
+    const response = await app.inject({ method: 'POST', url: '/swarms/s1/archive' })
+    expect(response.statusCode).toBe(404)
+  })
+})
 
 describe('POST /swarms/:id/unarchive', () => {
   it('answers ok on success', async () => {
     const overlay: OverlayState = {
       ...emptyOverlay,
       ui: { ...emptyOverlay.ui, swarms: [{ id: 's1', name: 'A', archived: true }] },
-    };
+    }
     const app = buildApp({
       projection: fakeProjection({ updateOverlay: (mutate) => mutate(overlay) }),
-    });
-    const response = await app.inject({ method: 'POST', url: '/swarms/s1/unarchive' });
-    expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ ok: true });
-  });
+    })
+    const response = await app.inject({ method: 'POST', url: '/swarms/s1/unarchive' })
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toEqual({ ok: true })
+  })
 
   it('maps SwarmNotFoundError to 404', async () => {
     const app = buildApp({
       projection: fakeProjection({
         updateOverlay: () => {
-          throw new SwarmNotFoundError('no such swarm: s1');
+          throw new SwarmNotFoundError('no such swarm: s1')
         },
       }),
-    });
-    const response = await app.inject({ method: 'POST', url: '/swarms/s1/unarchive' });
-    expect(response.statusCode).toBe(404);
-  });
-});
+    })
+    const response = await app.inject({ method: 'POST', url: '/swarms/s1/unarchive' })
+    expect(response.statusCode).toBe(404)
+  })
+})
 
 describe('DELETE /swarms/:id', () => {
   it('answers ok on success', async () => {
     const overlay: OverlayState = {
       ...emptyOverlay,
       ui: { ...emptyOverlay.ui, swarms: [{ id: 's1', name: 'A', archived: false }] },
-    };
+    }
     const app = buildApp({
       projection: fakeProjection({ updateOverlay: (mutate) => mutate(overlay) }),
-    });
-    const response = await app.inject({ method: 'DELETE', url: '/swarms/s1' });
-    expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ ok: true });
-  });
+    })
+    const response = await app.inject({ method: 'DELETE', url: '/swarms/s1' })
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toEqual({ ok: true })
+  })
 
   it('maps SwarmNotFoundError to 404', async () => {
     const app = buildApp({
       projection: fakeProjection({
         updateOverlay: () => {
-          throw new SwarmNotFoundError('no such swarm: s1');
+          throw new SwarmNotFoundError('no such swarm: s1')
         },
       }),
-    });
-    const response = await app.inject({ method: 'DELETE', url: '/swarms/s1' });
-    expect(response.statusCode).toBe(404);
-  });
-});
+    })
+    const response = await app.inject({ method: 'DELETE', url: '/swarms/s1' })
+    expect(response.statusCode).toBe(404)
+  })
+})
 
 describe('POST /sessions/:id/placement', () => {
   it('rejects an invalid placement shape', async () => {
-    const app = buildApp({ projection: fakeProjection() });
+    const app = buildApp({ projection: fakeProjection() })
     const response = await app.inject({
       method: 'POST',
       url: '/sessions/a/placement',
       payload: { placement: { type: 'swarm' } },
-    });
-    expect(response.statusCode).toBe(400);
-  });
+    })
+    expect(response.statusCode).toBe(400)
+  })
 
   it('forwards a valid parent placement and answers ok', async () => {
-    const overlay: OverlayState = { ...emptyOverlay, tmuxNames: { a: 'garden-a', b: 'garden-b' } };
+    const overlay: OverlayState = { ...emptyOverlay, tmuxNames: { a: 'garden-a', b: 'garden-b' } }
     const app = buildApp({
       projection: fakeProjection({ updateOverlay: (mutate) => mutate(overlay) }),
-    });
+    })
     const response = await app.inject({
       method: 'POST',
       url: '/sessions/a/placement',
       payload: { placement: { type: 'parent', parentId: 'b' } },
-    });
-    expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ ok: true });
-  });
+    })
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toEqual({ ok: true })
+  })
 
   it.each([
     ['a literal URL dot segment', '.'],
@@ -211,33 +211,33 @@ describe('POST /sessions/:id/placement', () => {
       'Migration readiness across permissions, customer-specific configuration, and observability before launch 🚀 / + &',
     ],
   ])('places a session with %s', async (_case, name) => {
-    let overlay: OverlayState = { ...emptyOverlay, tmuxNames: { caller: 'garden-caller' } };
+    let overlay: OverlayState = { ...emptyOverlay, tmuxNames: { caller: 'garden-caller' } }
     const app = buildApp({
       projection: fakeProjection({
         sessions: () => [aSession({ id: 'child', sessionName: name })],
         updateOverlay: (mutate) => (overlay = mutate(overlay)),
       }),
-    });
+    })
     const response = await app.inject({
       method: 'POST',
       url: `/sessions/-/placement?${new URLSearchParams({ target: name }).toString()}`,
       payload: { placement: { type: 'parent', parentId: 'caller' } },
-    });
-    expect(response.json()).toEqual({ ok: true });
-    expect(overlay.ui.placements).toEqual({ child: { parent: 'caller' } });
-  });
+    })
+    expect(response.json()).toEqual({ ok: true })
+    expect(overlay.ui.placements).toEqual({ child: { parent: 'caller' } })
+  })
 
   it('rejects repeated targets before placing a session named for the placeholder', async () => {
     const app = buildApp({
       projection: fakeProjection({ sessions: () => [aSession({ id: 'child', sessionName: '-' })] }),
-    });
+    })
     const response = await app.inject({
       method: 'POST',
       url: '/sessions/-/placement?target=one&target=two',
       payload: { placement: { type: 'parent', parentId: 'caller' } },
-    });
-    expect(response.statusCode).toBe(400);
-  });
+    })
+    expect(response.statusCode).toBe(400)
+  })
 
   it('returns the matching IDs when an exact adoption name is ambiguous', async () => {
     const app = buildApp({
@@ -248,47 +248,47 @@ describe('POST /sessions/:id/placement', () => {
         ],
         updateOverlay: (mutate) => mutate(emptyOverlay),
       }),
-    });
+    })
     const response = await app.inject({
       method: 'POST',
       url: '/sessions/Scout%20%2F%20Review/placement',
       payload: { placement: { type: 'parent', parentId: 'caller' } },
-    });
-    expect(response.statusCode).toBe(400);
+    })
+    expect(response.statusCode).toBe(400)
     expect(response.json()).toEqual({
       error: 'ambiguous session name "Scout / Review". Matching IDs: a, b',
-    });
-  });
+    })
+  })
 
   it('maps SessionNotFoundError to 404', async () => {
     const app = buildApp({
       projection: fakeProjection({
         updateOverlay: () => {
-          throw new SessionNotFoundError('no such session: a');
+          throw new SessionNotFoundError('no such session: a')
         },
       }),
-    });
+    })
     const response = await app.inject({
       method: 'POST',
       url: '/sessions/a/placement',
       payload: { placement: { type: 'none' } },
-    });
-    expect(response.statusCode).toBe(404);
-  });
+    })
+    expect(response.statusCode).toBe(404)
+  })
 
   it('maps SwarmCycleError to 409', async () => {
     const app = buildApp({
       projection: fakeProjection({
         updateOverlay: () => {
-          throw new SwarmCycleError('would create a cycle');
+          throw new SwarmCycleError('would create a cycle')
         },
       }),
-    });
+    })
     const response = await app.inject({
       method: 'POST',
       url: '/sessions/a/placement',
       payload: { placement: { type: 'parent', parentId: 'b' } },
-    });
-    expect(response.statusCode).toBe(409);
-  });
-});
+    })
+    expect(response.statusCode).toBe(409)
+  })
+})

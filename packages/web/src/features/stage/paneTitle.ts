@@ -1,19 +1,19 @@
-import type { SessionPlacement, SessionState, SwarmRecord } from '@garden/shared';
-import { lastPathSegment } from '../sidebar/lastPathSegment';
-import { resolveTopLevelSwarmId } from '../sidebar/groupSwarms';
+import type { SessionPlacement, SessionState, SwarmRecord } from '@garden/shared'
+import { lastPathSegment } from '../sidebar/lastPathSegment'
+import { resolveTopLevelSwarmId } from '../sidebar/groupSwarms'
 
 /**
  * The pane header's title line: `<project>: <title>` when the session's repo root is known,
  * bare `<title>` otherwise. `repoRoot` is repo-stable, unlike the worktree-varying `cwd`.
  */
 export function paneTitle(session: SessionState): string {
-  const title = session.title ?? session.cwd;
-  return session.repoRoot === null ? title : `${lastPathSegment(session.repoRoot)}: ${title}`;
+  const title = session.title ?? session.cwd
+  return session.repoRoot === null ? title : `${lastPathSegment(session.repoRoot)}: ${title}`
 }
 
 export interface SwarmChip {
-  id: string;
-  name: string;
+  id: string
+  name: string
 }
 
 /**
@@ -25,8 +25,8 @@ export function swarmChipFor(
   placements: Record<string, SessionPlacement>,
   swarms: SwarmRecord[],
 ): SwarmChip | null {
-  const swarmId = resolveTopLevelSwarmId(placements, session.id);
-  if (swarmId === undefined) return null;
-  const swarm = swarms.find((candidate) => candidate.id === swarmId);
-  return swarm === undefined ? null : { id: swarm.id, name: swarm.name };
+  const swarmId = resolveTopLevelSwarmId(placements, session.id)
+  if (swarmId === undefined) return null
+  const swarm = swarms.find((candidate) => candidate.id === swarmId)
+  return swarm === undefined ? null : { id: swarm.id, name: swarm.name }
 }

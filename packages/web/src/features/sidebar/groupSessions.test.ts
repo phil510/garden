@@ -1,115 +1,115 @@
-import { aSession } from '@garden/shared/fixtures';
-import type { SessionMap, UiState } from '@garden/shared';
-import { describe, expect, it } from 'vitest';
-import { groupSessions } from './groupSessions';
+import { aSession } from '@garden/shared/fixtures'
+import type { SessionMap, UiState } from '@garden/shared'
+import { describe, expect, it } from 'vitest'
+import { groupSessions } from './groupSessions'
 
 const uiState: Pick<UiState, 'groupOrder' | 'pinnedRepos' | 'collapsedRepos' | 'hideDeadRepos'> = {
   groupOrder: [],
   pinnedRepos: [],
   collapsedRepos: [],
   hideDeadRepos: [],
-};
+}
 
 const asMap = (...sessions: ReturnType<typeof aSession>[]): SessionMap =>
-  Object.fromEntries(sessions.map((s) => [s.id, s]));
+  Object.fromEntries(sessions.map((s) => [s.id, s]))
 
 describe('groupSessions', () => {
   it('folds two worktrees of one repo into a single group', () => {
-    const repo = aSession({ id: 'sid-1', cwd: '/Users/dev/repo', repoRoot: '/Users/dev/repo' });
+    const repo = aSession({ id: 'sid-1', cwd: '/Users/dev/repo', repoRoot: '/Users/dev/repo' })
     const worktree = aSession({
       id: 'sid-2',
       cwd: '/Users/dev/repo/.worktrees/feat',
       repoRoot: '/Users/dev/repo',
-    });
-    const groups = groupSessions(asMap(repo, worktree), uiState);
-    expect(groups).toHaveLength(1);
-    expect(groups[0]?.repoRoot).toBe('/Users/dev/repo');
-    expect(groups[0]?.sessionIds.sort()).toEqual(['sid-1', 'sid-2']);
-  });
+    })
+    const groups = groupSessions(asMap(repo, worktree), uiState)
+    expect(groups).toHaveLength(1)
+    expect(groups[0]?.repoRoot).toBe('/Users/dev/repo')
+    expect(groups[0]?.sessionIds.sort()).toEqual(['sid-1', 'sid-2'])
+  })
 
   it('derives the repo name from the last path segment', () => {
-    const session = aSession({ id: 'sid-1', repoRoot: '/Users/dev/garden' });
-    const [group] = groupSessions(asMap(session), uiState);
-    expect(group?.repoName).toBe('garden');
-  });
+    const session = aSession({ id: 'sid-1', repoRoot: '/Users/dev/garden' })
+    const [group] = groupSessions(asMap(session), uiState)
+    expect(group?.repoName).toBe('garden')
+  })
 
   it('omits a session with no known repo root from every group', () => {
-    const session = aSession({ id: 'sid-1', repoRoot: null });
-    expect(groupSessions(asMap(session), uiState)).toEqual([]);
-  });
+    const session = aSession({ id: 'sid-1', repoRoot: null })
+    expect(groupSessions(asMap(session), uiState)).toEqual([])
+  })
 
   it('counts only live sessions towards liveCount', () => {
-    const live = aSession({ id: 'sid-1', repoRoot: '/repo', liveness: 'live' });
-    const dead = aSession({ id: 'sid-2', repoRoot: '/repo', liveness: 'dead' });
-    const [group] = groupSessions(asMap(live, dead), uiState);
-    expect(group?.liveCount).toBe(1);
-  });
+    const live = aSession({ id: 'sid-1', repoRoot: '/repo', liveness: 'live' })
+    const dead = aSession({ id: 'sid-2', repoRoot: '/repo', liveness: 'dead' })
+    const [group] = groupSessions(asMap(live, dead), uiState)
+    expect(group?.liveCount).toBe(1)
+  })
 
   it('reports expanded from the overlay state', () => {
-    const session = aSession({ id: 'sid-1', repoRoot: '/repo' });
-    const groups = groupSessions(asMap(session), { ...uiState, collapsedRepos: ['/repo'] });
-    expect(groups[0]?.collapsed).toBe(false);
-  });
+    const session = aSession({ id: 'sid-1', repoRoot: '/repo' })
+    const groups = groupSessions(asMap(session), { ...uiState, collapsedRepos: ['/repo'] })
+    expect(groups[0]?.collapsed).toBe(false)
+  })
 
   it('collapses by default when no prior choice is recorded', () => {
-    const session = aSession({ id: 'sid-1', repoRoot: '/repo' });
-    const [group] = groupSessions(asMap(session), uiState);
-    expect(group?.collapsed).toBe(true);
-  });
+    const session = aSession({ id: 'sid-1', repoRoot: '/repo' })
+    const [group] = groupSessions(asMap(session), uiState)
+    expect(group?.collapsed).toBe(true)
+  })
 
   it('flags hideDead only for a repo listed in hideDeadRepos, independent of others', () => {
-    const hidden = aSession({ id: 'sid-1', repoRoot: '/hidden' });
-    const shown = aSession({ id: 'sid-2', repoRoot: '/shown' });
+    const hidden = aSession({ id: 'sid-1', repoRoot: '/hidden' })
+    const shown = aSession({ id: 'sid-2', repoRoot: '/shown' })
     const groups = groupSessions(asMap(hidden, shown), {
       ...uiState,
       hideDeadRepos: ['/hidden'],
-    });
-    expect(groups.find((g) => g.repoRoot === '/hidden')?.hideDead).toBe(true);
-    expect(groups.find((g) => g.repoRoot === '/shown')?.hideDead).toBe(false);
-  });
+    })
+    expect(groups.find((g) => g.repoRoot === '/hidden')?.hideDead).toBe(true)
+    expect(groups.find((g) => g.repoRoot === '/shown')?.hideDead).toBe(false)
+  })
 
   it('orders unpinned groups by most recent activity, newest first', () => {
-    const stale = aSession({ id: 'sid-1', repoRoot: '/stale', lastActivity: 1000 });
-    const fresh = aSession({ id: 'sid-2', repoRoot: '/fresh', lastActivity: 2000 });
-    const groups = groupSessions(asMap(stale, fresh), uiState);
-    expect(groups.map((g) => g.repoRoot)).toEqual(['/fresh', '/stale']);
-  });
+    const stale = aSession({ id: 'sid-1', repoRoot: '/stale', lastActivity: 1000 })
+    const fresh = aSession({ id: 'sid-2', repoRoot: '/fresh', lastActivity: 2000 })
+    const groups = groupSessions(asMap(stale, fresh), uiState)
+    expect(groups.map((g) => g.repoRoot)).toEqual(['/fresh', '/stale'])
+  })
 
   it('orders every pinned group before every unpinned group regardless of activity', () => {
-    const unpinnedFresh = aSession({ id: 'sid-1', repoRoot: '/unpinned', lastActivity: 9000 });
-    const pinnedStale = aSession({ id: 'sid-2', repoRoot: '/pinned', lastActivity: 100 });
+    const unpinnedFresh = aSession({ id: 'sid-1', repoRoot: '/unpinned', lastActivity: 9000 })
+    const pinnedStale = aSession({ id: 'sid-2', repoRoot: '/pinned', lastActivity: 100 })
     const groups = groupSessions(asMap(unpinnedFresh, pinnedStale), {
       ...uiState,
       pinnedRepos: ['/pinned'],
-    });
-    expect(groups.map((g) => g.repoRoot)).toEqual(['/pinned', '/unpinned']);
-  });
+    })
+    expect(groups.map((g) => g.repoRoot)).toEqual(['/pinned', '/unpinned'])
+  })
 
   it('orders sessionIds within a group by most recent activity, newest first', () => {
-    const stale = aSession({ id: 'sid-stale', repoRoot: '/repo', lastActivity: 100 });
-    const fresh = aSession({ id: 'sid-fresh', repoRoot: '/repo', lastActivity: 9000 });
-    const [group] = groupSessions(asMap(stale, fresh), uiState);
-    expect(group?.sessionIds).toEqual(['sid-fresh', 'sid-stale']);
-  });
+    const stale = aSession({ id: 'sid-stale', repoRoot: '/repo', lastActivity: 100 })
+    const fresh = aSession({ id: 'sid-fresh', repoRoot: '/repo', lastActivity: 9000 })
+    const [group] = groupSessions(asMap(stale, fresh), uiState)
+    expect(group?.sessionIds).toEqual(['sid-fresh', 'sid-stale'])
+  })
 
   it('orders pinned groups by the user drag order rather than activity', () => {
-    const first = aSession({ id: 'sid-1', repoRoot: '/first', lastActivity: 100 });
-    const second = aSession({ id: 'sid-2', repoRoot: '/second', lastActivity: 9000 });
+    const first = aSession({ id: 'sid-1', repoRoot: '/first', lastActivity: 100 })
+    const second = aSession({ id: 'sid-2', repoRoot: '/second', lastActivity: 9000 })
     const groups = groupSessions(asMap(first, second), {
       ...uiState,
       pinnedRepos: ['/first', '/second'],
       groupOrder: ['/first', '/second'],
-    });
-    expect(groups.map((g) => g.repoRoot)).toEqual(['/first', '/second']);
-  });
+    })
+    expect(groups.map((g) => g.repoRoot)).toEqual(['/first', '/second'])
+  })
   it('falls back to activity to order a pinned group absent from groupOrder', () => {
-    const ordered = aSession({ id: 'sid-1', repoRoot: '/ordered', lastActivity: 100 });
-    const unordered = aSession({ id: 'sid-2', repoRoot: '/unordered', lastActivity: 9000 });
+    const ordered = aSession({ id: 'sid-1', repoRoot: '/ordered', lastActivity: 100 })
+    const unordered = aSession({ id: 'sid-2', repoRoot: '/unordered', lastActivity: 9000 })
     const groups = groupSessions(asMap(ordered, unordered), {
       ...uiState,
       pinnedRepos: ['/ordered', '/unordered'],
       groupOrder: ['/ordered'],
-    });
-    expect(groups.map((g) => g.repoRoot)).toEqual(['/ordered', '/unordered']);
-  });
-});
+    })
+    expect(groups.map((g) => g.repoRoot)).toEqual(['/ordered', '/unordered'])
+  })
+})

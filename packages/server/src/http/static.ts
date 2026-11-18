@@ -1,7 +1,7 @@
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
-import fastifyStatic from '@fastify/static';
-import type { FastifyInstance } from 'fastify';
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
+import fastifyStatic from '@fastify/static'
+import type { FastifyInstance } from 'fastify'
 
 const API_PATH_PREFIXES = [
   '/health',
@@ -15,12 +15,12 @@ const API_PATH_PREFIXES = [
   '/digests',
   '/settings',
   '/attach',
-];
+]
 
 function isApiPath(pathname: string): boolean {
   return API_PATH_PREFIXES.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
-  );
+  )
 }
 
 /**
@@ -32,23 +32,23 @@ export function resolveClientDir(
   moduleDir: string,
   exists: (path: string) => boolean = existsSync,
 ): string {
-  const bundled = join(moduleDir, 'web');
+  const bundled = join(moduleDir, 'web')
   if (exists(bundled)) {
-    return bundled;
+    return bundled
   }
-  return join(moduleDir, '../../../web/dist');
+  return join(moduleDir, '../../../web/dist')
 }
 
 export function registerStaticRoutes(app: FastifyInstance, clientDir: string): void {
-  app.register(fastifyStatic, { root: clientDir });
+  app.register(fastifyStatic, { root: clientDir })
 
   app.setNotFoundHandler((request, reply) => {
-    const pathname = new URL(request.url ?? '', 'http://localhost').pathname;
+    const pathname = new URL(request.url ?? '', 'http://localhost').pathname
     // An unmatched API route must stay a 404, not silently fall through to the SPA shell.
     if (request.method !== 'GET' || isApiPath(pathname)) {
-      reply.code(404).send();
-      return;
+      reply.code(404).send()
+      return
     }
-    reply.sendFile('index.html');
-  });
+    reply.sendFile('index.html')
+  })
 }

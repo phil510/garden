@@ -1,8 +1,8 @@
-import { tmpdir } from 'node:os';
-import { describe, expect, it } from 'vitest';
-import { listPanes, newSession } from '../../packages/server/src/adapters/tmux.js';
-import { until } from './support/poll.js';
-import { withTmuxServer } from './support/tmux-server.js';
+import { tmpdir } from 'node:os'
+import { describe, expect, it } from 'vitest'
+import { listPanes, newSession } from '../../packages/server/src/adapters/tmux.js'
+import { until } from './support/poll.js'
+import { withTmuxServer } from './support/tmux-server.js'
 
 describe('a session whose command exits', () => {
   it.each([
@@ -18,17 +18,17 @@ describe('a session whose command exits', () => {
         port: 4310,
         sessionId: 'ephemeral-id',
         command: ['sh', '-c', script],
-      });
+      })
 
       const panes = await until(
         'the pane to be reported dead',
         () => listPanes(target),
         (list) => list[0]?.dead === true,
-      );
+      )
 
       // The session outlived its command: that is the whole liveness model.
-      expect(panes).toHaveLength(1);
-      expect(panes[0]).toEqual({ session: 'ephemeral', dead: true, exitCode: code });
-    });
-  });
-});
+      expect(panes).toHaveLength(1)
+      expect(panes[0]).toEqual({ session: 'ephemeral', dead: true, exitCode: code })
+    })
+  })
+})

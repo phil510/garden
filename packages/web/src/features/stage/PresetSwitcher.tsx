@@ -1,12 +1,12 @@
-import { STAGE_PRESETS, type StagePreset } from '@garden/shared';
-import type { ReactNode } from 'react';
-import { updateUiState } from '../../api/client';
-import { reportCommandFailure } from '../../api/reportCommandFailure';
-import { useUiStore } from '../../state/uiStore';
+import { STAGE_PRESETS, type StagePreset } from '@garden/shared'
+import type { ReactNode } from 'react'
+import { updateUiState } from '../../api/client'
+import { reportCommandFailure } from '../../api/reportCommandFailure'
+import { useUiStore } from '../../state/uiStore'
 
 interface PresetButton {
-  label: string;
-  icon: ReactNode;
+  label: string
+  icon: ReactNode
 }
 
 /** Preset icons, each a miniature of the arrangement it selects. */
@@ -54,12 +54,12 @@ const BUTTONS: Record<StagePreset, PresetButton> = {
       </>
     ),
   },
-};
+}
 
 /** The preset is a server-owned field like every other: the click issues the command and the
  *  new arrangement — with any pane the smaller preset dropped — arrives back over `WS /events`. */
 export function PresetSwitcher() {
-  const preset = useUiStore((state) => state.uiState.preset);
+  const preset = useUiStore((state) => state.uiState.preset)
 
   return (
     <div className="preset-group" role="group" aria-label="Stage preset">
@@ -71,12 +71,12 @@ export function PresetSwitcher() {
           title={BUTTONS[key].label}
           aria-pressed={key === preset}
           onClick={() => {
-            updateUiState({ preset: key }).catch(reportCommandFailure);
+            updateUiState({ preset: key }).catch(reportCommandFailure)
           }}
         >
           <svg viewBox="0 0 24 20">{BUTTONS[key].icon}</svg>
         </button>
       ))}
     </div>
-  );
+  )
 }

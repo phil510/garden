@@ -1,7 +1,7 @@
-import type { DigestDetail } from '@garden/shared';
-import { describe, expect, it } from 'vitest';
-import { DigestNotFoundError, getDigest } from './digests.js';
-import type { Projection } from './projection.js';
+import type { DigestDetail } from '@garden/shared'
+import { describe, expect, it } from 'vitest'
+import { DigestNotFoundError, getDigest } from './digests.js'
+import type { Projection } from './projection.js'
 
 const aDetail = (id: string): DigestDetail => ({
   id,
@@ -20,7 +20,7 @@ const aDetail = (id: string): DigestDetail => ({
     statuses: [],
     conflicts: [],
   },
-});
+})
 
 const depsHolding = (...ids: string[]) => ({
   projection: {
@@ -28,14 +28,14 @@ const depsHolding = (...ids: string[]) => ({
       digests: ids.map((id) => ({ sessionId: 's1', detail: aDetail(id) })),
     }),
   } as unknown as Pick<Projection, 'overlay'>,
-});
+})
 
 describe('getDigest', () => {
   it('returns the archived detail with that id, whichever session it was delivered to', () => {
-    expect(getDigest(depsHolding('a', 'b'), 'b')).toEqual(aDetail('b'));
-  });
+    expect(getDigest(depsHolding('a', 'b'), 'b')).toEqual(aDetail('b'))
+  })
 
   it('throws DigestNotFoundError for an id that is not archived', () => {
-    expect(() => getDigest(depsHolding('a'), 'zzz')).toThrow(DigestNotFoundError);
-  });
-});
+    expect(() => getDigest(depsHolding('a'), 'zzz')).toThrow(DigestNotFoundError)
+  })
+})

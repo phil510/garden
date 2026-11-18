@@ -1,32 +1,32 @@
-import type { RepoEntry } from '@garden/shared';
-import { mostSpecificEntry } from '../features/filetree/projectPaths';
+import type { RepoEntry } from '@garden/shared'
+import { mostSpecificEntry } from '../features/filetree/projectPaths'
 
-export type FilePanelTab = 'files' | 'editor';
+export type FilePanelTab = 'files' | 'editor'
 
 export interface PersistedRootState {
   /** Root-relative directory paths. */
-  expanded: string[];
+  expanded: string[]
   /** Root-relative file path. */
-  openFile: string | null;
-  tab: FilePanelTab;
+  openFile: string | null
+  tab: FilePanelTab
 }
 
 /** What survives a reload; `byRoot` keys and `root` are `RepoEntry.path` values. A removed field is
  *  tolerated and dropped on load; an incompatible change bumps the storage key's version rather
  *  than migrating. */
 export interface PersistedFilePanel {
-  root: string | null;
-  byRoot: Record<string, PersistedRootState>;
+  root: string | null
+  byRoot: Record<string, PersistedRootState>
 }
 
-export const FILE_PANEL_STORAGE_KEY = 'garden.filePanel.v1';
+export const FILE_PANEL_STORAGE_KEY = 'garden.filePanel.v1'
 
 export function defaultFilePanel(): PersistedFilePanel {
-  return { root: null, byRoot: {} };
+  return { root: null, byRoot: {} }
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
+  typeof value === 'object' && value !== null && !Array.isArray(value)
 
 function isRootState(value: unknown): value is PersistedRootState {
   return (
@@ -35,7 +35,7 @@ function isRootState(value: unknown): value is PersistedRootState {
     value.expanded.every((path) => typeof path === 'string') &&
     (value.openFile === null || typeof value.openFile === 'string') &&
     (value.tab === 'files' || value.tab === 'editor')
-  );
+  )
 }
 
 function isPersistedFilePanel(value: unknown): value is PersistedFilePanel {
@@ -44,20 +44,20 @@ function isPersistedFilePanel(value: unknown): value is PersistedFilePanel {
     (value.root === null || typeof value.root === 'string') &&
     isRecord(value.byRoot) &&
     Object.values(value.byRoot).every(isRootState)
-  );
+  )
 }
 
 /** Strict whole-value validation: anything unreadable or off-shape is discarded, never merged. */
 export function parseFilePanel(raw: string | null): PersistedFilePanel {
-  if (raw === null) return defaultFilePanel();
+  if (raw === null) return defaultFilePanel()
   try {
-    const parsed: unknown = JSON.parse(raw);
-    if (!isPersistedFilePanel(parsed)) return defaultFilePanel();
+    const parsed: unknown = JSON.parse(raw)
+    if (!isPersistedFilePanel(parsed)) return defaultFilePanel()
     // Rebuilt rather than returned so a field this version no longer has (`showGitignored`) is
     // dropped instead of being written back on the next save.
-    return { root: parsed.root, byRoot: parsed.byRoot };
+    return { root: parsed.root, byRoot: parsed.byRoot }
   } catch {
-    return defaultFilePanel();
+    return defaultFilePanel()
   }
 }
 
@@ -68,8 +68,8 @@ export function chooseStartupRoot(
   focusedCwd: string | null,
 ): string | null {
   if (persistedRoot !== null && repos.some((repo) => repo.path === persistedRoot)) {
-    return persistedRoot;
+    return persistedRoot
   }
-  const jump = focusedCwd === null ? null : mostSpecificEntry(repos, focusedCwd);
-  return jump?.path ?? repos[0]?.path ?? null;
+  const jump = focusedCwd === null ? null : mostSpecificEntry(repos, focusedCwd)
+  return jump?.path ?? repos[0]?.path ?? null
 }

@@ -4,6 +4,6 @@
  * separators has no segment to show, so it stands in for itself.
  */
 export function lastPathSegment(path: string): string {
-  const segments = path.split('/').filter((segment) => segment.length > 0);
-  return segments[segments.length - 1] ?? path;
+  const segments = path.split('/').filter((segment) => segment.length > 0)
+  return segments[segments.length - 1] ?? path
 }

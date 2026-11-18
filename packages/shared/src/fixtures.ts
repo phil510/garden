@@ -1,8 +1,8 @@
-import type { ReviewItem, ReviewQueue, SessionState, WatchSummary } from './index.js';
+import type { ReviewItem, ReviewQueue, SessionState, WatchSummary } from './index.js'
 
 // One shared array so two default sessions are `Object.is`-equal on `watches`, as the server's
 // reducer keeps them.
-const NO_WATCHES: WatchSummary[] = [];
+const NO_WATCHES: WatchSummary[] = []
 
 export function aSession(overrides: Partial<SessionState> = {}): SessionState {
   return {
@@ -24,7 +24,7 @@ export function aSession(overrides: Partial<SessionState> = {}): SessionState {
     pipeConnected: false,
     pipeLastConnectedAt: null,
     ...overrides,
-  };
+  }
 }
 
 export function aReviewItem(overrides: Partial<ReviewItem> = {}): ReviewItem {
@@ -40,9 +40,9 @@ export function aReviewItem(overrides: Partial<ReviewItem> = {}): ReviewItem {
     clonePath: null,
     sessionId: null,
     ...overrides,
-  };
+  }
 }
 
 export function aReviewQueue(overrides: Partial<ReviewQueue> = {}): ReviewQueue {
-  return { items: [], polledAt: '2026-11-04T12:05:00Z', fault: null, ...overrides };
+  return { items: [], polledAt: '2026-11-04T12:05:00Z', fault: null, ...overrides }
 }

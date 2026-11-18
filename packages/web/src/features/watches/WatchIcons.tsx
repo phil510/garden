@@ -11,7 +11,7 @@ export function EyeIcon() {
       <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
       <circle cx="12" cy="12" r="3" />
     </svg>
-  );
+  )
 }
 
 export function PrIcon() {
@@ -29,7 +29,7 @@ export function PrIcon() {
       <circle cx="18" cy="18" r="2.5" />
       <path d="M6 8.5v7M18 15.5V10a3 3 0 0 0-3-3h-4M13 4.5 10.5 7 13 9.5" />
     </svg>
-  );
+  )
 }
 
 export function BellIcon() {
@@ -45,7 +45,7 @@ export function BellIcon() {
       <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
       <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
     </svg>
-  );
+  )
 }
 
 export function ReviewsIcon() {
@@ -61,5 +61,5 @@ export function ReviewsIcon() {
       <path d="M4 5h16v11H9l-5 4Z" />
       <path d="m9 10 2 2 4-4" />
     </svg>
-  );
+  )
 }

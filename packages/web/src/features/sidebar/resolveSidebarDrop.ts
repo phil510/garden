@@ -1,23 +1,23 @@
-import type { Placement, SessionPlacement } from '@garden/shared';
+import type { Placement, SessionPlacement } from '@garden/shared'
 
 export type DropOutcome =
   | { type: 'reorder'; activeSwarmId: string; overSwarmId: string }
   | { type: 'place'; sessionId: string; placement: Placement }
-  | { type: 'noop' };
+  | { type: 'noop' }
 
 export interface DropActive {
   /** 'swarm-reorder' for a swarm-header drag, 'session' for a row drag; anything else (or
    *  undefined) is a foreign drag this sidebar's DndContext shouldn't act on. */
-  type: string | undefined;
-  id: string;
+  type: string | undefined
+  id: string
 }
 
 export interface DropOver {
   /** 'swarm-reorder' (the whole swarm-group's own sortable — header-vs-header only),
    *  'swarm-header' (the header's own droppable — a session drops here), or 'solo'. */
-  type: string | undefined;
-  id: string;
-  swarmId?: string | undefined;
+  type: string | undefined
+  id: string
+  swarmId?: string | undefined
 }
 
 /**
@@ -35,32 +35,32 @@ export function resolveSidebarDrop(
   over: DropOver | null,
   currentPlacement: SessionPlacement | undefined,
 ): DropOutcome {
-  if (over === null) return { type: 'noop' };
+  if (over === null) return { type: 'noop' }
 
   if (active.type === 'swarm-reorder') {
-    if (over.type !== 'swarm-reorder' || over.id === active.id) return { type: 'noop' };
-    return { type: 'reorder', activeSwarmId: active.id, overSwarmId: over.id };
+    if (over.type !== 'swarm-reorder' || over.id === active.id) return { type: 'noop' }
+    return { type: 'reorder', activeSwarmId: active.id, overSwarmId: over.id }
   }
 
-  if (active.type !== 'session') return { type: 'noop' };
+  if (active.type !== 'session') return { type: 'noop' }
 
   if (over.type === 'swarm-header' && over.swarmId !== undefined) {
     const alreadyTopLevelHere =
-      currentPlacement?.parent === undefined && currentPlacement?.swarmId === over.swarmId;
-    if (alreadyTopLevelHere) return { type: 'noop' };
+      currentPlacement?.parent === undefined && currentPlacement?.swarmId === over.swarmId
+    if (alreadyTopLevelHere) return { type: 'noop' }
     return {
       type: 'place',
       sessionId: active.id,
       placement: { type: 'swarm', swarmId: over.swarmId },
-    };
+    }
   }
 
   if (over.type === 'solo') {
     const alreadySoloRoot =
-      currentPlacement?.parent === undefined && currentPlacement?.swarmId === undefined;
-    if (alreadySoloRoot) return { type: 'noop' };
-    return { type: 'place', sessionId: active.id, placement: { type: 'none' } };
+      currentPlacement?.parent === undefined && currentPlacement?.swarmId === undefined
+    if (alreadySoloRoot) return { type: 'noop' }
+    return { type: 'place', sessionId: active.id, placement: { type: 'none' } }
   }
 
-  return { type: 'noop' };
+  return { type: 'noop' }
 }

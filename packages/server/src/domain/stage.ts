@@ -1,8 +1,8 @@
-import { presetCapacity, type StagePreset } from '@garden/shared';
+import { presetCapacity, type StagePreset } from '@garden/shared'
 
 export interface StageLayout {
-  slots: (string | null)[];
-  focusedSlot: number;
+  slots: (string | null)[]
+  focusedSlot: number
 }
 
 /**
@@ -16,9 +16,9 @@ export function switchPreset(
   focusedSlot: number,
   preset: StagePreset,
 ): StageLayout {
-  const capacity = presetCapacity(preset);
-  const next: (string | null)[] = [];
-  for (let i = 0; i < capacity; i++) next.push(slots[i] ?? null);
-  const focusFits = focusedSlot >= 0 && focusedSlot < capacity;
-  return { slots: next, focusedSlot: focusFits ? focusedSlot : 0 };
+  const capacity = presetCapacity(preset)
+  const next: (string | null)[] = []
+  for (let i = 0; i < capacity; i++) next.push(slots[i] ?? null)
+  const focusFits = focusedSlot >= 0 && focusedSlot < capacity
+  return { slots: next, focusedSlot: focusFits ? focusedSlot : 0 }
 }

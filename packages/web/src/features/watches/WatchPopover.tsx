@@ -5,96 +5,96 @@ import {
   useState,
   type FormEvent,
   type MouseEvent as ReactMouseEvent,
-} from 'react';
-import { ApiError, addWatch } from '../../api/client';
-import { computeContextMenuPosition } from '../../components/contextMenuPosition';
-import '../../components/context-menu.css';
-import { FORM_KINDS, initialWatchForm, toAddWatchRequest, type FormKind } from './watchForm';
-import './watches.css';
+} from 'react'
+import { ApiError, addWatch } from '../../api/client'
+import { computeContextMenuPosition } from '../../components/contextMenuPosition'
+import '../../components/context-menu.css'
+import { FORM_KINDS, initialWatchForm, toAddWatchRequest, type FormKind } from './watchForm'
+import './watches.css'
 
 interface WatchPopoverProps {
-  x: number;
-  y: number;
-  sessionId: string;
-  sessionTitle: string;
-  onClose: () => void;
+  x: number
+  y: number
+  sessionId: string
+  sessionTitle: string
+  onClose: () => void
 }
 
 /** The "Watch a PR…" form, shown at the row context menu's position. Server rejections (an
  *  unresolvable repo, say) are shown inline so the user can correct the form. */
 export function WatchPopover({ x, y, sessionId, sessionTitle, onClose }: WatchPopoverProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const prInputRef = useRef<HTMLInputElement>(null);
-  const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
-  const [form, setForm] = useState(initialWatchForm);
-  const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null)
+  const prInputRef = useRef<HTMLInputElement>(null)
+  const [position, setPosition] = useState<{ left: number; top: number } | null>(null)
+  const [form, setForm] = useState(initialWatchForm)
+  const [error, setError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
 
   useLayoutEffect(() => {
-    const container = containerRef.current;
-    if (container === null) return;
+    const container = containerRef.current
+    if (container === null) return
     setPosition(
       computeContextMenuPosition(
         { x, y },
         { width: container.offsetWidth, height: container.offsetHeight },
         { width: window.innerWidth, height: window.innerHeight },
       ),
-    );
-  }, [x, y]);
+    )
+  }, [x, y])
 
   useEffect(() => {
-    prInputRef.current?.focus();
-  }, []);
+    prInputRef.current?.focus()
+  }, [])
 
-  const submittingRef = useRef(false);
-  const onCloseRef = useRef(onClose);
+  const submittingRef = useRef(false)
+  const onCloseRef = useRef(onClose)
   useLayoutEffect(() => {
-    onCloseRef.current = onClose;
-  }, [onClose]);
+    onCloseRef.current = onClose
+  }, [onClose])
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (submittingRef.current) return;
-      if (event.key === 'Escape') onCloseRef.current();
+      if (submittingRef.current) return
+      if (event.key === 'Escape') onCloseRef.current()
     }
     function onMouseDown(event: MouseEvent) {
-      if (submittingRef.current) return;
-      if (!containerRef.current?.contains(event.target as Node)) onCloseRef.current();
+      if (submittingRef.current) return
+      if (!containerRef.current?.contains(event.target as Node)) onCloseRef.current()
     }
-    document.addEventListener('keydown', onKeyDown);
-    document.addEventListener('mousedown', onMouseDown);
+    document.addEventListener('keydown', onKeyDown)
+    document.addEventListener('mousedown', onMouseDown)
     return () => {
-      document.removeEventListener('keydown', onKeyDown);
-      document.removeEventListener('mousedown', onMouseDown);
-    };
-  }, []);
+      document.removeEventListener('keydown', onKeyDown)
+      document.removeEventListener('mousedown', onMouseDown)
+    }
+  }, [])
 
   function stopBubbling(event: ReactMouseEvent) {
-    event.stopPropagation();
+    event.stopPropagation()
   }
 
   function onContainerContextMenu(event: ReactMouseEvent) {
-    event.preventDefault();
-    event.stopPropagation();
+    event.preventDefault()
+    event.stopPropagation()
   }
 
   async function submit(event: FormEvent) {
-    event.preventDefault();
-    const result = toAddWatchRequest(form);
+    event.preventDefault()
+    const result = toAddWatchRequest(form)
     if (!result.ok) {
-      setError(result.message);
-      return;
+      setError(result.message)
+      return
     }
-    setError(null);
-    setSubmitting(true);
-    submittingRef.current = true;
+    setError(null)
+    setSubmitting(true)
+    submittingRef.current = true
     try {
-      await addWatch(sessionId, result.body);
-      onCloseRef.current();
+      await addWatch(sessionId, result.body)
+      onCloseRef.current()
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : 'Could not start the watch.');
-      setSubmitting(false);
-      submittingRef.current = false;
+      setError(caught instanceof ApiError ? caught.message : 'Could not start the watch.')
+      setSubmitting(false)
+      submittingRef.current = false
     }
   }
 
@@ -102,7 +102,7 @@ export function WatchPopover({ x, y, sessionId, sessionTitle, onClose }: WatchPo
     setForm((current) => ({
       ...current,
       kinds: { ...current.kinds, [kind]: !current.kinds[kind] },
-    }));
+    }))
   }
 
   return (
@@ -181,5 +181,5 @@ export function WatchPopover({ x, y, sessionId, sessionTitle, onClose }: WatchPo
         </div>
       </form>
     </div>
-  );
+  )
 }

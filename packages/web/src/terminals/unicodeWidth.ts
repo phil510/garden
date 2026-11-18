@@ -4,9 +4,9 @@
 // its `UnicodeService` bit-packing helpers (`src/common/services/UnicodeService.ts`, same tag).
 // Ported rather than taken as a dependency: no published `@xterm/addon-unicode11` version has a
 // peer-compatible path to the `@xterm/xterm@6.0.0` this repo pins (see `decisions.md`).
-import type { IUnicodeVersionProvider } from '@xterm/xterm';
+import type { IUnicodeVersionProvider } from '@xterm/xterm'
 
-type Range = readonly [number, number];
+type Range = readonly [number, number]
 
 const BMP_COMBINING: Range[] = [
   [0x0300, 0x036f],
@@ -223,7 +223,7 @@ const BMP_COMBINING: Range[] = [
   [0xfe20, 0xfe2f],
   [0xfeff, 0xfeff],
   [0xfff9, 0xfffb],
-];
+]
 const HIGH_COMBINING: Range[] = [
   [0x101fd, 0x101fd],
   [0x102e0, 0x102e0],
@@ -342,7 +342,7 @@ const HIGH_COMBINING: Range[] = [
   [0xe0001, 0xe0001],
   [0xe0020, 0xe007f],
   [0xe0100, 0xe01ef],
-];
+]
 const BMP_WIDE: Range[] = [
   [0x1100, 0x115f],
   [0x231a, 0x231b],
@@ -405,7 +405,7 @@ const BMP_WIDE: Range[] = [
   [0xfe68, 0xfe6b],
   [0xff01, 0xff60],
   [0xffe0, 0xffe6],
-];
+]
 const HIGH_WIDE: Range[] = [
   [0x16fe0, 0x16fe3],
   [0x17000, 0x187f7],
@@ -460,78 +460,78 @@ const HIGH_WIDE: Range[] = [
   [0x1fa90, 0x1fa95],
   [0x20000, 0x2fffd],
   [0x30000, 0x3fffd],
-];
+]
 
 // Indices below are always in [0, data.length - 1], which `noUncheckedIndexedAccess` can't see —
 // the `!`s assert what the bounds checks above and the loop invariant already guarantee.
 function bisearch(ucs: number, data: readonly Range[]): boolean {
-  let min = 0;
-  let max = data.length - 1;
-  if (ucs < data[0]![0] || ucs > data[max]![1]) return false;
+  let min = 0
+  let max = data.length - 1
+  if (ucs < data[0]![0] || ucs > data[max]![1]) return false
   while (max >= min) {
-    const mid = (min + max) >> 1;
-    const [start, end] = data[mid]!;
+    const mid = (min + max) >> 1
+    const [start, end] = data[mid]!
     if (ucs > end) {
-      min = mid + 1;
+      min = mid + 1
     } else if (ucs < start) {
-      max = mid - 1;
+      max = mid - 1
     } else {
-      return true;
+      return true
     }
   }
-  return false;
+  return false
 }
 
 // BMP lookup table, lazily built on first `wcwidth` call and cached for the module's lifetime —
 // mirrors the memoization upstream's provider does in its constructor.
-let bmpTable: Uint8Array | undefined;
+let bmpTable: Uint8Array | undefined
 
 function buildBmpTable(): Uint8Array {
-  const table = new Uint8Array(65536);
-  table.fill(1);
-  table[0] = 0;
-  table.fill(0, 1, 32);
-  table.fill(0, 0x7f, 0xa0);
-  for (const [start, end] of BMP_COMBINING) table.fill(0, start, end + 1);
-  for (const [start, end] of BMP_WIDE) table.fill(2, start, end + 1);
-  return table;
+  const table = new Uint8Array(65536)
+  table.fill(1)
+  table[0] = 0
+  table.fill(0, 1, 32)
+  table.fill(0, 0x7f, 0xa0)
+  for (const [start, end] of BMP_COMBINING) table.fill(0, start, end + 1)
+  for (const [start, end] of BMP_WIDE) table.fill(2, start, end + 1)
+  return table
 }
 
 function wcwidth(codepoint: number): 0 | 1 | 2 {
-  if (codepoint < 32) return 0;
-  if (codepoint < 127) return 1;
+  if (codepoint < 32) return 0
+  if (codepoint < 127) return 1
   if (codepoint < 65536) {
-    bmpTable ??= buildBmpTable();
-    return bmpTable[codepoint] as 0 | 1 | 2;
+    bmpTable ??= buildBmpTable()
+    return bmpTable[codepoint] as 0 | 1 | 2
   }
-  if (bisearch(codepoint, HIGH_COMBINING)) return 0;
-  if (bisearch(codepoint, HIGH_WIDE)) return 2;
-  return 1;
+  if (bisearch(codepoint, HIGH_COMBINING)) return 0
+  if (bisearch(codepoint, HIGH_WIDE)) return 2
+  return 1
 }
 
 // Bit layout ported from xterm's `UnicodeService` (non-exported outside the package): bit 0 is
 // the join flag, bits 1-2 are the width, the rest is a "state" nibble this provider never uses
 // (always packed as 0).
 export function extractWidth(value: number): 0 | 1 | 2 {
-  return ((value >> 1) & 0x3) as 0 | 1 | 2;
+  return ((value >> 1) & 0x3) as 0 | 1 | 2
 }
 
 export function packProperties(width: number, shouldJoin: boolean): number {
-  return ((width & 3) << 1) | (shouldJoin ? 1 : 0);
+  return ((width & 3) << 1) | (shouldJoin ? 1 : 0)
 }
 
 function charProperties(codepoint: number, preceding: number): number {
-  let width: number = wcwidth(codepoint);
-  let shouldJoin = width === 0 && preceding !== 0;
+  let width: number = wcwidth(codepoint)
+  let shouldJoin = width === 0 && preceding !== 0
   if (shouldJoin) {
-    const precedingWidth = extractWidth(preceding);
+    const precedingWidth = extractWidth(preceding)
     if (precedingWidth === 0) {
-      shouldJoin = false;
+      shouldJoin = false
     } else if (precedingWidth > width) {
-      width = precedingWidth;
+      width = precedingWidth
     }
   }
-  return packProperties(width, shouldJoin);
+  return packProperties(width, shouldJoin)
 }
 
 /** Unicode width provider matching tmux's wide-char table (verified against tmux 3.6a),
@@ -542,4 +542,4 @@ export const unicodeV11Provider: IUnicodeVersionProvider = {
   version: '11',
   wcwidth,
   charProperties,
-};
+}

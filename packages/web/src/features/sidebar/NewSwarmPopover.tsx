@@ -4,75 +4,75 @@ import {
   useRef,
   useState,
   type MouseEvent as ReactMouseEvent,
-} from 'react';
-import { computeContextMenuPosition } from '../../components/contextMenuPosition';
-import '../../components/context-menu.css';
+} from 'react'
+import { computeContextMenuPosition } from '../../components/contextMenuPosition'
+import '../../components/context-menu.css'
 
 interface NewSwarmPopoverProps {
-  x: number;
-  y: number;
-  initialName: string;
-  onCancel: () => void;
-  onCreate: (name: string) => void;
+  x: number
+  y: number
+  initialName: string
+  onCancel: () => void
+  onCreate: (name: string) => void
 }
 
 /** The standalone "New swarm…" form swapped in at the same position as the row's context
  *  menu. It is a popover rather than a submenu-nested form because ContextMenu can't host
  *  arbitrary child content inside an item. Pre-fills and selects the session's own title. */
 export function NewSwarmPopover({ x, y, initialName, onCancel, onCreate }: NewSwarmPopoverProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
-  const [name, setName] = useState(initialName);
+  const containerRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [position, setPosition] = useState<{ left: number; top: number } | null>(null)
+  const [name, setName] = useState(initialName)
 
   useLayoutEffect(() => {
-    const container = containerRef.current;
-    if (container === null) return;
+    const container = containerRef.current
+    if (container === null) return
     setPosition(
       computeContextMenuPosition(
         { x, y },
         { width: container.offsetWidth, height: container.offsetHeight },
         { width: window.innerWidth, height: window.innerHeight },
       ),
-    );
-  }, [x, y]);
+    )
+  }, [x, y])
 
   useEffect(() => {
-    inputRef.current?.focus();
-    inputRef.current?.select();
-  }, []);
+    inputRef.current?.focus()
+    inputRef.current?.select()
+  }, [])
 
-  const onCancelRef = useRef(onCancel);
+  const onCancelRef = useRef(onCancel)
   useLayoutEffect(() => {
-    onCancelRef.current = onCancel;
-  }, [onCancel]);
+    onCancelRef.current = onCancel
+  }, [onCancel])
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') onCancelRef.current();
+      if (event.key === 'Escape') onCancelRef.current()
     }
     function onMouseDown(event: MouseEvent) {
-      if (!containerRef.current?.contains(event.target as Node)) onCancelRef.current();
+      if (!containerRef.current?.contains(event.target as Node)) onCancelRef.current()
     }
-    document.addEventListener('keydown', onKeyDown);
-    document.addEventListener('mousedown', onMouseDown);
+    document.addEventListener('keydown', onKeyDown)
+    document.addEventListener('mousedown', onMouseDown)
     return () => {
-      document.removeEventListener('keydown', onKeyDown);
-      document.removeEventListener('mousedown', onMouseDown);
-    };
-  }, []);
+      document.removeEventListener('keydown', onKeyDown)
+      document.removeEventListener('mousedown', onMouseDown)
+    }
+  }, [])
 
   function stopBubbling(event: ReactMouseEvent) {
-    event.stopPropagation();
+    event.stopPropagation()
   }
 
   function onContainerContextMenu(event: ReactMouseEvent) {
-    event.preventDefault();
-    event.stopPropagation();
+    event.preventDefault()
+    event.stopPropagation()
   }
 
   function commit() {
-    onCreate(name.trim() || initialName);
+    onCreate(name.trim() || initialName)
   }
 
   return (
@@ -94,8 +94,8 @@ export function NewSwarmPopover({ x, y, initialName, onCancel, onCreate }: NewSw
         onChange={(event) => setName(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === 'Enter') {
-            event.preventDefault();
-            commit();
+            event.preventDefault()
+            commit()
           }
         }}
       />
@@ -108,5 +108,5 @@ export function NewSwarmPopover({ x, y, initialName, onCancel, onCreate }: NewSw
         </button>
       </div>
     </div>
-  );
+  )
 }

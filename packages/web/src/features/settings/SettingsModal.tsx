@@ -1,17 +1,17 @@
-import { useEffect, useRef, useState, type ChangeEvent, type MouseEvent } from 'react';
-import { getSettings, updateSettings } from '../../api/client';
-import { reportCommandFailure } from '../../api/reportCommandFailure';
-import { saveSettings } from './saveSettings';
+import { useEffect, useRef, useState, type ChangeEvent, type MouseEvent } from 'react'
+import { getSettings, updateSettings } from '../../api/client'
+import { reportCommandFailure } from '../../api/reportCommandFailure'
+import { saveSettings } from './saveSettings'
 import {
   fieldsFromSettings,
   settingsProblem,
   toSettingsRequest,
   type SettingsFields,
-} from './settingsFields';
-import './settings.css';
+} from './settingsFields'
+import './settings.css'
 
 interface SettingsModalProps {
-  onClose: () => void;
+  onClose: () => void
 }
 
 export function SettingsModal({ onClose }: SettingsModalProps) {
@@ -21,68 +21,68 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     ignoreAuthors: '',
     quietWindowMinutes: '',
     pollIntervalMinutes: '',
-  });
-  const commandName = fields.harness === 'codex' ? 'Codex' : 'Claude Code';
-  const commandEnv = fields.harness === 'codex' ? 'GARDEN_CODEX_COMMAND' : 'GARDEN_CLAUDE_COMMAND';
-  const request = toSettingsRequest(fields);
-  const problem = settingsProblem(fields);
+  })
+  const commandName = fields.harness === 'codex' ? 'Codex' : 'Claude Code'
+  const commandEnv = fields.harness === 'codex' ? 'GARDEN_CODEX_COMMAND' : 'GARDEN_CLAUDE_COMMAND'
+  const request = toSettingsRequest(fields)
+  const problem = settingsProblem(fields)
   const setField = (key: keyof SettingsFields) => (event: ChangeEvent<HTMLInputElement>) =>
-    setFields((prev) => ({ ...prev, [key]: event.target.value }));
-  const [loaded, setLoaded] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [loadFailed, setLoadFailed] = useState(false);
+    setFields((prev) => ({ ...prev, [key]: event.target.value }))
+  const [loaded, setLoaded] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [loadFailed, setLoadFailed] = useState(false)
 
   // Always fetches on mount rather than trusting a value carried over from a prior open —
   // config.json may have changed on disk since then.
   useEffect(() => {
-    let cancelled = false;
+    let cancelled = false
     getSettings()
       .then((settings) => {
         if (!cancelled) {
-          setFields(fieldsFromSettings(settings));
-          setLoaded(true);
+          setFields(fieldsFromSettings(settings))
+          setLoaded(true)
         }
       })
       .catch((err: unknown) => {
-        reportCommandFailure(err);
-        if (!cancelled) setLoadFailed(true);
-      });
+        reportCommandFailure(err)
+        if (!cancelled) setLoadFailed(true)
+      })
     return () => {
-      cancelled = true;
-    };
-  }, []);
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') onClose()
     }
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [onClose]);
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [onClose])
 
   // Closing (or Escape) while a save is in flight must not set state on an unmounted modal.
-  const mountedRef = useRef(true);
+  const mountedRef = useRef(true)
   useEffect(() => {
-    mountedRef.current = true;
+    mountedRef.current = true
     return () => {
-      mountedRef.current = false;
-    };
-  }, []);
+      mountedRef.current = false
+    }
+  }, [])
 
   function onOverlayClick(event: MouseEvent<HTMLDivElement>) {
-    if (event.target === event.currentTarget) onClose();
+    if (event.target === event.currentTarget) onClose()
   }
 
   function save() {
-    if (request === null) return;
-    setSaving(true);
+    if (request === null) return
+    setSaving(true)
     void saveSettings(request, { update: updateSettings, reread: getSettings })
       .then((settings) => {
-        if (settings !== null && mountedRef.current) setFields(fieldsFromSettings(settings));
+        if (settings !== null && mountedRef.current) setFields(fieldsFromSettings(settings))
       })
       .finally(() => {
-        if (mountedRef.current) setSaving(false);
-      });
+        if (mountedRef.current) setSaving(false)
+      })
   }
 
   return (
@@ -170,5 +170,5 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
         </div>
       </div>
     </div>
-  );
+  )
 }

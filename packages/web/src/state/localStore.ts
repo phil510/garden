@@ -1,78 +1,78 @@
-import { create } from 'zustand';
+import { create } from 'zustand'
 import {
   FILE_PANEL_STORAGE_KEY,
   parseFilePanel,
   type FilePanelTab,
   type PersistedFilePanel,
   type PersistedRootState,
-} from './filePanelPersistence';
+} from './filePanelPersistence'
 
 /** A `path:line` request for the viewer. `root` paths are root-relative to a listed project;
  *  `session` paths are relative to that session's cwd and are never persisted. */
 export interface OpenFileRequest {
-  source: { kind: 'root'; root: string } | { kind: 'session'; sessionId: string };
-  path: string;
+  source: { kind: 'root'; root: string } | { kind: 'session'; sessionId: string }
+  path: string
   /** Null means "no jump target" — a plain tree click, as opposed to a real `path:line` link. */
-  line: number | null;
+  line: number | null
 }
 
-const SIDEBAR_WIDTH_MIN = 180;
-const SIDEBAR_WIDTH_MAX = 560;
-const FILE_PANEL_WIDTH_MIN = 220;
-const FILE_PANEL_WIDTH_MAX = 640;
+const SIDEBAR_WIDTH_MIN = 180
+const SIDEBAR_WIDTH_MAX = 560
+const FILE_PANEL_WIDTH_MIN = 220
+const FILE_PANEL_WIDTH_MAX = 640
 
 /** Floor left for `.stage-wrap` (and whatever dockview panes it holds) once both sidebars have
  *  taken their share of the viewport. Each sidebar's own min/max only bounds that one field, so
  *  without this a drag that's individually valid on both sides can still squeeze the stage down
  *  to a sliver — see `resizeSidebarBy`/`resizeFilePanelBy`. */
-const STAGE_MIN_WIDTH = 200;
+const STAGE_MIN_WIDTH = 200
 
 function readStorage(key: string): string | null {
   try {
-    return localStorage.getItem(key);
+    return localStorage.getItem(key)
   } catch {
-    return null;
+    return null
   }
 }
 
-const emptyRootState = (): PersistedRootState => ({ expanded: [], openFile: null, tab: 'files' });
+const emptyRootState = (): PersistedRootState => ({ expanded: [], openFile: null, tab: 'files' })
 
 function withRootState(
   panel: PersistedFilePanel,
   root: string,
   patch: (current: PersistedRootState) => Partial<PersistedRootState>,
 ): PersistedFilePanel {
-  const current = panel.byRoot[root] ?? emptyRootState();
-  return { ...panel, byRoot: { ...panel.byRoot, [root]: { ...current, ...patch(current) } } };
+  const current = panel.byRoot[root] ?? emptyRootState()
+  return { ...panel, byRoot: { ...panel.byRoot, [root]: { ...current, ...patch(current) } } }
 }
 
-const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max)
 
-export type SidebarMode = 'repos' | 'swarms';
+export type SidebarMode = 'repos' | 'swarms'
 
 interface LocalStore {
   /** Keyed by whatever id the caller scrolls — a pane, a tree, a list. */
-  scrollOffsets: Record<string, number>;
-  setScrollOffset: (key: string, offset: number) => void;
+  scrollOffsets: Record<string, number>
+  setScrollOffset: (key: string, offset: number) => void
   /** The sidebar's [ Repos | Swarms ] toggle. Per-browser like every other field in this
    *  store: it resets to `repos` on reload rather than round-tripping through state.json — no
    *  AC requires the toggle itself to survive a reload, only swarm collapse/order (via
    *  UiState). */
-  sidebarMode: SidebarMode;
-  setSidebarMode: (mode: SidebarMode) => void;
+  sidebarMode: SidebarMode
+  setSidebarMode: (mode: SidebarMode) => void
   /** The file panel's shown root and per-root browsing state. The only field here that
    *  survives a reload (see the subscription below). */
-  filePanel: PersistedFilePanel;
-  setPanelRoot: (root: string | null) => void;
-  toggleExpandedPath: (root: string, path: string) => void;
-  setOpenFile: (root: string, path: string | null) => void;
-  setPanelTab: (root: string, tab: FilePanelTab) => void;
+  filePanel: PersistedFilePanel
+  setPanelRoot: (root: string | null) => void
+  toggleExpandedPath: (root: string, path: string) => void
+  setOpenFile: (root: string, path: string | null) => void
+  setPanelTab: (root: string, tab: FilePanelTab) => void
   /** Bumped to ask the tree and viewer to refetch what they have loaded. */
-  fsRefreshEpoch: number;
-  bumpFsRefresh: () => void;
+  fsRefreshEpoch: number
+  bumpFsRefresh: () => void
   /** Drag-resized sidebar widths, clamped to a usable range. Reset to their defaults on reload
    *  like every other field here — not round-tripped through server state. */
-  sidebarWidth: number;
+  sidebarWidth: number
   /** Applies an incremental delta (e.g. a pointermove's movementX) against the *current* store
    *  value rather than a value the caller read earlier — a drag fires many of these per render,
    *  so resolving against a React-render snapshot of sidebarWidth would drop deltas whenever a
@@ -80,23 +80,23 @@ interface LocalStore {
    *  `otherPanelReserved` (the file panel's width, or 0 when it's closed) let the caller fold in
    *  the room `.stage-wrap` needs so the two sidebars' independent clamps can't jointly squeeze
    *  it below `STAGE_MIN_WIDTH`. */
-  resizeSidebarBy: (deltaPx: number, viewportWidth: number, otherPanelReserved: number) => void;
-  filePanelWidth: number;
-  resizeFilePanelBy: (deltaPx: number, viewportWidth: number, otherPanelReserved: number) => void;
+  resizeSidebarBy: (deltaPx: number, viewportWidth: number, otherPanelReserved: number) => void
+  filePanelWidth: number
+  resizeFilePanelBy: (deltaPx: number, viewportWidth: number, otherPanelReserved: number) => void
   /** A `path:line` clicked in a pane's terminal output. Each call stores a fresh object, so a
    *  second click on the same path with another line is still a new request. */
-  openFileRequest: OpenFileRequest | null;
-  requestOpenFile: (source: OpenFileRequest['source'], path: string, line: number | null) => void;
+  openFileRequest: OpenFileRequest | null
+  requestOpenFile: (source: OpenFileRequest['source'], path: string, line: number | null) => void
   /** Counts connections of the event socket. A pane keys its attach on this and opens a fresh
    *  socket on reconnect — the failure modes that drop this socket (server restart, sleep/wake)
    *  usually take pane attaches with them, and rebuilding a pane that was still fine costs only
    *  its local scrollback. */
-  connectionEpoch: number;
-  noteConnected: () => void;
+  connectionEpoch: number
+  noteConnected: () => void
   /** A swarm the pane-header chip asked the Swarms sidebar to scroll to and flash. A one-shot
    *  target the sidebar clears after acting on it, same shape as `openFileRequest`. */
-  selectedSwarmId: string | null;
-  setSelectedSwarmId: (id: string | null) => void;
+  selectedSwarmId: string | null
+  setSelectedSwarmId: (id: string | null) => void
 }
 
 export const useLocalStore = create<LocalStore>((set) => ({
@@ -126,21 +126,21 @@ export const useLocalStore = create<LocalStore>((set) => ({
   sidebarWidth: 280,
   resizeSidebarBy: (deltaPx, viewportWidth, otherPanelReserved) =>
     set((state) => {
-      const roomForStage = viewportWidth - otherPanelReserved - STAGE_MIN_WIDTH;
-      const effectiveMax = Math.min(SIDEBAR_WIDTH_MAX, Math.max(SIDEBAR_WIDTH_MIN, roomForStage));
-      return { sidebarWidth: clamp(state.sidebarWidth + deltaPx, SIDEBAR_WIDTH_MIN, effectiveMax) };
+      const roomForStage = viewportWidth - otherPanelReserved - STAGE_MIN_WIDTH
+      const effectiveMax = Math.min(SIDEBAR_WIDTH_MAX, Math.max(SIDEBAR_WIDTH_MIN, roomForStage))
+      return { sidebarWidth: clamp(state.sidebarWidth + deltaPx, SIDEBAR_WIDTH_MIN, effectiveMax) }
     }),
   filePanelWidth: 320,
   resizeFilePanelBy: (deltaPx, viewportWidth, otherPanelReserved) =>
     set((state) => {
       // Half the viewport on a wide display, but never less than the 640px floor that governs
       // narrow ones — so behaviour there is unchanged.
-      const proportionalMax = Math.max(FILE_PANEL_WIDTH_MAX, viewportWidth / 2);
-      const roomForStage = viewportWidth - otherPanelReserved - STAGE_MIN_WIDTH;
-      const effectiveMax = Math.min(proportionalMax, Math.max(FILE_PANEL_WIDTH_MIN, roomForStage));
+      const proportionalMax = Math.max(FILE_PANEL_WIDTH_MAX, viewportWidth / 2)
+      const roomForStage = viewportWidth - otherPanelReserved - STAGE_MIN_WIDTH
+      const effectiveMax = Math.min(proportionalMax, Math.max(FILE_PANEL_WIDTH_MIN, roomForStage))
       return {
         filePanelWidth: clamp(state.filePanelWidth + deltaPx, FILE_PANEL_WIDTH_MIN, effectiveMax),
-      };
+      }
     }),
   openFileRequest: null,
   requestOpenFile: (source, path, line) => set({ openFileRequest: { source, path, line } }),
@@ -148,13 +148,13 @@ export const useLocalStore = create<LocalStore>((set) => ({
   noteConnected: () => set((state) => ({ connectionEpoch: state.connectionEpoch + 1 })),
   selectedSwarmId: null,
   setSelectedSwarmId: (id) => set({ selectedSwarmId: id }),
-}));
+}))
 
 useLocalStore.subscribe((state, previous) => {
-  if (state.filePanel === previous.filePanel) return;
+  if (state.filePanel === previous.filePanel) return
   try {
-    localStorage.setItem(FILE_PANEL_STORAGE_KEY, JSON.stringify(state.filePanel));
+    localStorage.setItem(FILE_PANEL_STORAGE_KEY, JSON.stringify(state.filePanel))
   } catch {
     // Storage is unavailable or full; the panel state just stops surviving reloads.
   }
-});
+})

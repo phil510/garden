@@ -1,34 +1,34 @@
-import { fakeHarness } from '../../app/harness.fixture.js';
-import { createReviewStore } from '../../app/reviews.js';
-import { memoryOverlay } from '../../app/reviews.fixture.js';
-import { describe, expect, it } from 'vitest';
-import type { Projection } from '../../app/projection.js';
-import type { ServerDeps } from '../server.js';
-import { createServer } from '../server.js';
+import { fakeHarness } from '../../app/harness.fixture.js'
+import { createReviewStore } from '../../app/reviews.js'
+import { memoryOverlay } from '../../app/reviews.fixture.js'
+import { describe, expect, it } from 'vitest'
+import type { Projection } from '../../app/projection.js'
+import type { ServerDeps } from '../server.js'
+import { createServer } from '../server.js'
 
 function fakeProjection(): Projection {
   return {
     sessions: () => [],
     uiState: () => {
-      throw new Error('not used by this test');
+      throw new Error('not used by this test')
     },
     dispatch: () => undefined,
     updateUiState: () => {
-      throw new Error('not used by this test');
+      throw new Error('not used by this test')
     },
     subscribe: () => () => undefined,
     subscribeUiState: () => () => undefined,
     overlay: () => {
-      throw new Error('not used by this test');
+      throw new Error('not used by this test')
     },
     updateOverlay: () => {
-      throw new Error('not used by this test');
+      throw new Error('not used by this test')
     },
     subscribeOverlay: () => () => undefined,
     placementOf: () => {
-      throw new Error('not used by this test');
+      throw new Error('not used by this test')
     },
-  };
+  }
 }
 
 function fakeDeps(): ServerDeps {
@@ -51,10 +51,10 @@ function fakeDeps(): ServerDeps {
     },
     configPort: {
       read: () => {
-        throw new Error('not used by this test');
+        throw new Error('not used by this test')
       },
       write: () => {
-        throw new Error('not used by this test');
+        throw new Error('not used by this test')
       },
     },
     git: {
@@ -64,7 +64,7 @@ function fakeDeps(): ServerDeps {
     },
     attach: {
       attach: () => {
-        throw new Error('not used by this test');
+        throw new Error('not used by this test')
       },
     },
     repos: {
@@ -75,19 +75,19 @@ function fakeDeps(): ServerDeps {
     harnessName: 'claude' as const,
     deadSessionCap: 10,
     harness: fakeHarness(),
-  };
+  }
 }
 
 describe('GET /health', () => {
   it('is mounted and answers 200 with an ok status and its own pid', async () => {
-    const app = createServer(fakeDeps());
+    const app = createServer(fakeDeps())
     try {
-      const response = await app.inject({ method: 'GET', url: '/health' });
+      const response = await app.inject({ method: 'GET', url: '/health' })
 
-      expect(response.statusCode).toBe(200);
-      expect(response.json()).toEqual({ status: 'ok', pid: process.pid });
+      expect(response.statusCode).toBe(200)
+      expect(response.json()).toEqual({ status: 'ok', pid: process.pid })
     } finally {
-      await app.close();
+      await app.close()
     }
-  });
-});
+  })
+})

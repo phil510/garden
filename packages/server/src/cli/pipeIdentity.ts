@@ -6,8 +6,8 @@
  * connection on; the Claude session id is only compared, never used as a key.
  */
 export function ownPipeSession(env: NodeJS.ProcessEnv): string | null {
-  const gardenId = env.GARDEN_SESSION_ID;
-  if (gardenId === undefined || gardenId === '') return null;
-  if (env.GARDEN_HARNESS === 'codex') return gardenId;
-  return gardenId === env.CLAUDE_CODE_SESSION_ID ? gardenId : null;
+  const gardenId = env.GARDEN_SESSION_ID
+  if (gardenId === undefined || gardenId === '') return null
+  if (env.GARDEN_HARNESS === 'codex') return gardenId
+  return gardenId === env.CLAUDE_CODE_SESSION_ID ? gardenId : null
 }

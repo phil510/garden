@@ -1,18 +1,18 @@
-import type { HarnessSignal } from '../../domain/types.js';
+import type { HarnessSignal } from '../../domain/types.js'
 
 export interface CodexHook {
-  session_id: string;
-  cwd: string;
-  transcript_path: string | null;
-  hook_event_name: string;
-  source?: string;
-  _garden_order?: string;
-  _garden_generation?: string;
+  session_id: string
+  cwd: string
+  transcript_path: string | null
+  hook_event_name: string
+  source?: string
+  _garden_order?: string
+  _garden_generation?: string
 }
 
 export function codexHook(body: unknown): CodexHook | null {
-  if (typeof body !== 'object' || body === null || Array.isArray(body)) return null;
-  const value = body as Record<string, unknown>;
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) return null
+  const value = body as Record<string, unknown>
   if (
     typeof value['session_id'] !== 'string' ||
     !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value['session_id']) ||
@@ -26,8 +26,8 @@ export function codexHook(body: unknown): CodexHook | null {
     (value['_garden_order'] !== undefined &&
       (typeof value['_garden_order'] !== 'string' || !/^\d{1,30}$/.test(value['_garden_order'])))
   )
-    return null;
-  return value as unknown as CodexHook;
+    return null
+  return value as unknown as CodexHook
 }
 
 export function codexSignal(
@@ -46,5 +46,5 @@ export function codexSignal(
           ? false
           : null,
     conversationCleared,
-  };
+  }
 }

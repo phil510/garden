@@ -1,49 +1,49 @@
-import { rmSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
-import { createInterface } from 'node:readline/promises';
-import { DEFAULT_CONFIG_FILE, loadConfig } from '../config.js';
-import type { Io } from './commands.js';
-import { writeAll } from './io.js';
-import { defaultStopDeps, runStop } from './stop.js';
-import { killTmuxServer } from './tmux.js';
+import { rmSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
+import { createInterface } from 'node:readline/promises'
+import { DEFAULT_CONFIG_FILE, loadConfig } from '../config.js'
+import type { Io } from './commands.js'
+import { writeAll } from './io.js'
+import { defaultStopDeps, runStop } from './stop.js'
+import { killTmuxServer } from './tmux.js'
 
 export interface UninstallDeps {
-  readonly confirm: (appDir: string) => Promise<boolean>;
-  readonly stop: (io: Io, home: string) => Promise<0 | 1>;
-  readonly killTmuxServer: (confPath: string, socket: string) => Promise<void>;
-  readonly removeAppDir: (path: string) => void;
-  readonly home: string;
-  readonly appDir: string;
-  readonly tmuxSocket: string;
+  readonly confirm: (appDir: string) => Promise<boolean>
+  readonly stop: (io: Io, home: string) => Promise<0 | 1>
+  readonly killTmuxServer: (confPath: string, socket: string) => Promise<void>
+  readonly removeAppDir: (path: string) => void
+  readonly home: string
+  readonly appDir: string
+  readonly tmuxSocket: string
 }
 
 async function promptConfirm(appDir: string): Promise<boolean> {
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  const rl = createInterface({ input: process.stdin, output: process.stdout })
   try {
     const answer = await rl.question(
       `This stops garden, kills every tmux session it manages, and deletes ${appDir}. Continue? [y/N] `,
-    );
-    return /^y(es)?$/i.test(answer.trim());
+    )
+    return /^y(es)?$/i.test(answer.trim())
   } finally {
-    rl.close();
+    rl.close()
   }
 }
 
 function defaultUninstallDeps(): UninstallDeps {
-  const home = homedir();
-  const { appDir, tmuxSocket } = loadConfig(process.env, DEFAULT_CONFIG_FILE, home);
+  const home = homedir()
+  const { appDir, tmuxSocket } = loadConfig(process.env, DEFAULT_CONFIG_FILE, home)
   return {
     confirm: promptConfirm,
     stop: (io, home) => runStop(io, { ...defaultStopDeps, home }),
     killTmuxServer,
     removeAppDir: (path) => {
-      rmSync(path, { recursive: true, force: true });
+      rmSync(path, { recursive: true, force: true })
     },
     home,
     appDir,
     tmuxSocket,
-  };
+  }
 }
 
 /** `garden uninstall` — stop the server, kill the garden tmux server, delete its app directory. */
@@ -53,21 +53,21 @@ export async function runUninstall(
   deps: UninstallDeps = defaultUninstallDeps(),
 ): Promise<0 | 1> {
   if (!skipConfirm && !(await deps.confirm(deps.appDir))) {
-    await writeAll(io.stdout, 'aborted\n');
-    return 0;
+    await writeAll(io.stdout, 'aborted\n')
+    return 0
   }
 
-  const stopResult = await deps.stop(io, deps.home);
-  if (stopResult !== 0) return stopResult;
+  const stopResult = await deps.stop(io, deps.home)
+  if (stopResult !== 0) return stopResult
 
   try {
-    await deps.killTmuxServer(join(deps.appDir, 'tmux.conf'), deps.tmuxSocket);
+    await deps.killTmuxServer(join(deps.appDir, 'tmux.conf'), deps.tmuxSocket)
   } catch (error) {
-    await writeAll(io.stderr, `garden: ${(error as Error).message}\n`);
-    return 1;
+    await writeAll(io.stderr, `garden: ${(error as Error).message}\n`)
+    return 1
   }
-  deps.removeAppDir(deps.appDir);
+  deps.removeAppDir(deps.appDir)
 
-  await writeAll(io.stdout, 'garden uninstalled\n');
-  return 0;
+  await writeAll(io.stdout, 'garden uninstalled\n')
+  return 0
 }

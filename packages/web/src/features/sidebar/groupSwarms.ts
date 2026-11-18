@@ -1,42 +1,42 @@
-import type { SessionMap, SessionPlacement, SessionState, UiState } from '@garden/shared';
+import type { SessionMap, SessionPlacement, SessionState, UiState } from '@garden/shared'
 
 export interface SwarmTreeNode {
-  sessionId: string;
-  children: SwarmTreeNode[];
+  sessionId: string
+  children: SwarmTreeNode[]
 }
 
 export interface SwarmGroup {
-  swarmId: string;
-  name: string;
-  liveCount: number;
-  collapsed: boolean;
-  hideDead: boolean;
+  swarmId: string
+  name: string
+  liveCount: number
+  collapsed: boolean
+  hideDead: boolean
   /** The raw record flag — unlike `finished`, doesn't also fold in "every member dead" — for
    *  the header menu's Archive/Unarchive label and dispatch. */
-  archived: boolean;
-  finished: boolean;
-  roots: SwarmTreeNode[];
+  archived: boolean
+  finished: boolean
+  roots: SwarmTreeNode[]
   /** Most recent member `lastActivity` (0 for a swarm with no members) — the same figure
    *  `swarmOrder`-less sort already uses internally, exposed for the "Add to swarm" menu's
    *  own recency sort over active swarms. */
-  recency: number;
+  recency: number
 }
 
 export interface GroupedSwarms {
-  swarms: SwarmGroup[];
-  solo: SwarmTreeNode[];
+  swarms: SwarmGroup[]
+  solo: SwarmTreeNode[]
   /** Root-level Solo member count before hide-dead filtering, so the Solo section (and its
    *  hide-dead toggle) stays visible even when filtering empties the visible list — same as
    *  a swarm group's "Nothing to show" state, rather than the toggle vanishing with nothing
    *  left to un-hide. */
-  soloTotal: number;
-  soloHideDead: boolean;
+  soloTotal: number
+  soloHideDead: boolean
 }
 
 type SwarmsUiState = Pick<
   UiState,
   'swarms' | 'placements' | 'swarmOrder' | 'collapsedSwarms' | 'hideDeadSwarms'
->;
+>
 
 /**
  * Walks `parent` up to a top-level ancestor (a placement with `swarmId` set, or a
@@ -51,20 +51,20 @@ export function resolveTopLevelSwarmId(
   placements: Record<string, SessionPlacement>,
   sessionId: string,
 ): string | undefined {
-  const visited = new Set<string>();
-  let currentId: string | undefined = sessionId;
+  const visited = new Set<string>()
+  let currentId: string | undefined = sessionId
   while (currentId !== undefined) {
-    if (visited.has(currentId)) return undefined;
-    visited.add(currentId);
-    const entry: SessionPlacement | undefined = placements[currentId];
-    if (entry === undefined) return undefined;
-    if (entry.swarmId !== undefined) return entry.swarmId;
-    currentId = entry.parent;
+    if (visited.has(currentId)) return undefined
+    visited.add(currentId)
+    const entry: SessionPlacement | undefined = placements[currentId]
+    if (entry === undefined) return undefined
+    if (entry.swarmId !== undefined) return entry.swarmId
+    currentId = entry.parent
   }
-  return undefined;
+  return undefined
 }
 
-export const SOLO_BUCKET_ID = 'solo';
+export const SOLO_BUCKET_ID = 'solo'
 
 /** Removes dead leaves bottom-up: a node survives if it has any surviving child (a live
  *  descendant of a hidden dead predecessor must still show, so the predecessor stays too —
@@ -79,11 +79,11 @@ function filterDeadLeaves(
 ): SwarmTreeNode | null {
   const children = node.children
     .map((child) => filterDeadLeaves(child, sessions, hideDead))
-    .filter((child): child is SwarmTreeNode => child !== null);
-  if (!hideDead || children.length > 0) return { ...node, children };
-  const session = sessions[node.sessionId];
-  if (session?.liveness === 'dead') return null;
-  return { ...node, children };
+    .filter((child): child is SwarmTreeNode => child !== null)
+  if (!hideDead || children.length > 0) return { ...node, children }
+  const session = sessions[node.sessionId]
+  if (session?.liveness === 'dead') return null
+  return { ...node, children }
 }
 
 /**
@@ -94,38 +94,38 @@ function filterDeadLeaves(
  * vanishing from the sidebar.
  */
 export function groupSwarms(sessions: SessionMap, uiState: SwarmsUiState): GroupedSwarms {
-  const knownSwarms = new Map(uiState.swarms.map((swarm) => [swarm.id, swarm]));
-  const allSessions = Object.values(sessions);
-  const knownSessionIds = new Set(allSessions.map((session) => session.id));
+  const knownSwarms = new Map(uiState.swarms.map((swarm) => [swarm.id, swarm]))
+  const allSessions = Object.values(sessions)
+  const knownSessionIds = new Set(allSessions.map((session) => session.id))
 
-  const bucketOf = new Map<string, string>();
+  const bucketOf = new Map<string, string>()
   for (const session of allSessions) {
-    const resolved = resolveTopLevelSwarmId(uiState.placements, session.id);
+    const resolved = resolveTopLevelSwarmId(uiState.placements, session.id)
     bucketOf.set(
       session.id,
       resolved !== undefined && knownSwarms.has(resolved) ? resolved : SOLO_BUCKET_ID,
-    );
+    )
   }
 
   // A session's visual parent is its raw `parent` pointer, but only when that id names a
   // session actually present in the live session map — otherwise there is no row to nest
   // it under (a pruned, or not-yet-known, ancestor; see docs/architecture.md §1 on
   // cross-source desync), so it becomes a top-level node in its own bucket instead.
-  const childrenByParent = new Map<string, string[]>();
-  const rootIdsByBucket = new Map<string, string[]>();
+  const childrenByParent = new Map<string, string[]>()
+  const rootIdsByBucket = new Map<string, string[]>()
   for (const session of allSessions) {
-    const parent = uiState.placements[session.id]?.parent;
-    const visualParent = parent !== undefined && knownSessionIds.has(parent) ? parent : undefined;
+    const parent = uiState.placements[session.id]?.parent
+    const visualParent = parent !== undefined && knownSessionIds.has(parent) ? parent : undefined
     if (visualParent === undefined) {
-      const bucket = bucketOf.get(session.id) ?? SOLO_BUCKET_ID;
-      const roots = rootIdsByBucket.get(bucket);
-      if (roots === undefined) rootIdsByBucket.set(bucket, [session.id]);
-      else roots.push(session.id);
-      continue;
+      const bucket = bucketOf.get(session.id) ?? SOLO_BUCKET_ID
+      const roots = rootIdsByBucket.get(bucket)
+      if (roots === undefined) rootIdsByBucket.set(bucket, [session.id])
+      else roots.push(session.id)
+      continue
     }
-    const siblings = childrenByParent.get(visualParent);
-    if (siblings === undefined) childrenByParent.set(visualParent, [session.id]);
-    else siblings.push(session.id);
+    const siblings = childrenByParent.get(visualParent)
+    if (siblings === undefined) childrenByParent.set(visualParent, [session.id])
+    else siblings.push(session.id)
   }
 
   // `visualParent` is restricted to live sessions the same way `resolveTopLevelSwarmId`
@@ -135,35 +135,35 @@ export function groupSwarms(sessions: SessionMap, uiState: SwarmsUiState): Group
   // same credible risk `pruneOverlay` already treats it as server-side. Without this, a
   // cyclic `parent` chain would recurse forever rather than just resolving oddly.
   function buildNode(sessionId: string, visited: ReadonlySet<string> = new Set()): SwarmTreeNode {
-    if (visited.has(sessionId)) return { sessionId, children: [] };
-    const nextVisited = new Set(visited).add(sessionId);
-    const childIds = childrenByParent.get(sessionId) ?? [];
+    if (visited.has(sessionId)) return { sessionId, children: [] }
+    const nextVisited = new Set(visited).add(sessionId)
+    const childIds = childrenByParent.get(sessionId) ?? []
     const children = childIds
       .map((id) => sessions[id])
       .filter((s): s is SessionState => s !== undefined)
       .sort((a, b) => b.lastActivity - a.lastActivity)
-      .map((s) => buildNode(s.id, nextVisited));
-    return { sessionId, children };
+      .map((s) => buildNode(s.id, nextVisited))
+    return { sessionId, children }
   }
 
   function sortedRoots(bucket: string): SessionState[] {
     return (rootIdsByBucket.get(bucket) ?? [])
       .map((id) => sessions[id])
       .filter((s): s is SessionState => s !== undefined)
-      .sort((a, b) => b.lastActivity - a.lastActivity);
+      .sort((a, b) => b.lastActivity - a.lastActivity)
   }
 
-  const collapsedSwarms = new Set(uiState.collapsedSwarms);
-  const hideDeadSwarms = new Set(uiState.hideDeadSwarms);
-  const order = new Map(uiState.swarmOrder.map((id, index) => [id, index]));
+  const collapsedSwarms = new Set(uiState.collapsedSwarms)
+  const hideDeadSwarms = new Set(uiState.hideDeadSwarms)
+  const order = new Map(uiState.swarmOrder.map((id, index) => [id, index]))
 
   const swarms: SwarmGroup[] = Array.from(knownSwarms.values(), (swarm) => {
-    const memberIds = allSessions.filter((session) => bucketOf.get(session.id) === swarm.id);
-    const liveCount = memberIds.filter((session) => session.liveness === 'live').length;
+    const memberIds = allSessions.filter((session) => bucketOf.get(session.id) === swarm.id)
+    const liveCount = memberIds.filter((session) => session.liveness === 'live').length
     const finished =
-      swarm.archived || (memberIds.length > 0 && memberIds.every((s) => s.liveness === 'dead'));
-    const hideDead = hideDeadSwarms.has(swarm.id);
-    const recency = Math.max(0, ...memberIds.map((s) => s.lastActivity));
+      swarm.archived || (memberIds.length > 0 && memberIds.every((s) => s.liveness === 'dead'))
+    const hideDead = hideDeadSwarms.has(swarm.id)
+    const recency = Math.max(0, ...memberIds.map((s) => s.lastActivity))
 
     return {
       swarmId: swarm.id,
@@ -181,37 +181,36 @@ export function groupSwarms(sessions: SessionMap, uiState: SwarmsUiState): Group
         .map((session) => buildNode(session.id))
         .map((node) => filterDeadLeaves(node, sessions, hideDead))
         .filter((node): node is SwarmTreeNode => node !== null),
-    };
-  });
+    }
+  })
 
   swarms.sort((a, b) => {
-    const aOrder = order.get(a.swarmId);
-    const bOrder = order.get(b.swarmId);
+    const aOrder = order.get(a.swarmId)
+    const bOrder = order.get(b.swarmId)
     // Unlike groupSessions.ts's pinned/unpinned split, every swarm is equally subject to
     // swarmOrder, so both sides falling back to the same sentinel (neither ordered) has to
     // be guarded explicitly here — Infinity minus Infinity is NaN, an invalid comparator
     // result groupSessions.ts never hits because its `pinned &&` guard skips orderDelta
     // entirely for two unpinned groups.
     if (aOrder !== undefined || bOrder !== undefined) {
-      const orderDelta =
-        (aOrder ?? Number.POSITIVE_INFINITY) - (bOrder ?? Number.POSITIVE_INFINITY);
-      if (orderDelta !== 0) return orderDelta;
+      const orderDelta = (aOrder ?? Number.POSITIVE_INFINITY) - (bOrder ?? Number.POSITIVE_INFINITY)
+      if (orderDelta !== 0) return orderDelta
     }
-    return b.recency - a.recency;
-  });
+    return b.recency - a.recency
+  })
 
-  const soloRoots = sortedRoots(SOLO_BUCKET_ID).map((session) => buildNode(session.id));
-  const soloHideDead = hideDeadSwarms.has(SOLO_BUCKET_ID);
+  const soloRoots = sortedRoots(SOLO_BUCKET_ID).map((session) => buildNode(session.id))
+  const soloHideDead = hideDeadSwarms.has(SOLO_BUCKET_ID)
   const solo = soloRoots
     .map((node) => filterDeadLeaves(node, sessions, soloHideDead))
-    .filter((node): node is SwarmTreeNode => node !== null);
+    .filter((node): node is SwarmTreeNode => node !== null)
 
-  return { swarms, solo, soloTotal: soloRoots.length, soloHideDead };
+  return { swarms, solo, soloTotal: soloRoots.length, soloHideDead }
 }
 
 export interface ActiveSwarmOption {
-  swarmId: string;
-  name: string;
+  swarmId: string
+  name: string
 }
 
 /** Active (not finished/archived) swarms, most-recent-activity first — feeds the "Add to
@@ -223,5 +222,5 @@ export function activeSwarmsByRecency(swarms: readonly SwarmGroup[]): ActiveSwar
     .filter((swarm) => !swarm.finished)
     .slice()
     .sort((a, b) => b.recency - a.recency)
-    .map((swarm) => ({ swarmId: swarm.swarmId, name: swarm.name }));
+    .map((swarm) => ({ swarmId: swarm.swarmId, name: swarm.name }))
 }
