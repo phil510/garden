@@ -161,6 +161,26 @@ describe('createSession', () => {
   });
 });
 
+describe('literal URL dot-segment targets', () => {
+  it('preserves the literal target when passing supported commands to the server', async () => {
+    const paths: (string | undefined)[] = [];
+    await startServer((request, response) => {
+      paths.push(request.url);
+      sendJson(response, 200, { ok: true });
+    });
+    await killSession('.');
+    await resumeSession('..');
+    await sendSessionMessage('.', 'hello');
+    await placeSession('..', { type: 'parent', parentId: 'caller' });
+    expect(paths).toEqual([
+      '/sessions/-/kill?target=.',
+      '/sessions/-/resume?target=..',
+      '/sessions/-/messages?target=.',
+      '/sessions/-/placement?target=..',
+    ]);
+  });
+});
+
 describe('placeSession', () => {
   it('posts { placement } to the placement route', async () => {
     await startServer((request, response) => {

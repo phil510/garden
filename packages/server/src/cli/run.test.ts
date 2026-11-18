@@ -333,13 +333,13 @@ describe('runCli', () => {
     expect(calls).toEqual(['ls']);
   });
 
-  it('dispatches "kill <id-or-name>" and "resume <id-or-name>" with the positional as the id', async () => {
+  it('forwards named kill and resume targets without listing sessions', async () => {
     const { io } = collectingIo();
     const { client, calls } = recordingClient();
 
-    expect(await runCli('kill', ['abc'], io, client)).toBe(0);
-    expect(await runCli('resume', ['abc'], io, client)).toBe(0);
-    expect(calls).toEqual(['kill:abc', 'resume:abc']);
+    expect(await runCli('kill', ['Scout / Review'], io, client)).toBe(0);
+    expect(await runCli('resume', ['Scout / Review'], io, client)).toBe(0);
+    expect(calls).toEqual(['kill:Scout / Review', 'resume:Scout / Review']);
   });
 
   it('dispatches "adopt <id-or-name>" with the positional as the target', async () => {

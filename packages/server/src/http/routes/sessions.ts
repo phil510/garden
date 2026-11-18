@@ -17,6 +17,7 @@ import {
   sendSessionMessage,
 } from '../../app/sessions.js';
 import type { SessionsDeps } from '../../app/sessions.js';
+import { sessionTarget, type SessionTargetRoute } from '../sessionTarget.js';
 
 function isCreateSessionRequest(body: unknown): body is CreateSessionRequest {
   if (typeof body !== 'object' || body === null) return false;
@@ -146,7 +147,7 @@ export function sessionRoutes(app: FastifyInstance, deps: SessionsDeps) {
     } satisfies CreateSessionResponse);
   });
 
-  app.post<{ Params: { id: string } }>('/sessions/:id/resume', async (request, reply) => {
+  app.post<SessionTargetRoute>('/sessions/:id/resume', async (request, reply) => {
     const body: unknown = request.body;
     if (!isResumeSessionRequest(body))
       return reply
@@ -154,23 +155,23 @@ export function sessionRoutes(app: FastifyInstance, deps: SessionsDeps) {
         .send({ error: 'invalid resume-session request' } satisfies ErrorResponse);
     const result: CreateSessionResponse = await resumeSession(deps, {
       ...body,
-      id: request.params.id,
+      id: sessionTarget(request),
     });
     return reply.send(result);
   });
 
-  app.post<{ Params: { id: string } }>('/sessions/:id/messages', async (request, reply) => {
+  app.post<SessionTargetRoute>('/sessions/:id/messages', async (request, reply) => {
     const body: unknown = request.body;
     if (!isSessionMessageRequest(body))
       return reply.code(400).send({
         error: 'message must be nonempty text without terminal control characters',
       } satisfies ErrorResponse);
-    await sendSessionMessage(deps, request.params.id, body.message);
+    await sendSessionMessage(deps, sessionTarget(request), body.message);
     return reply.send({ ok: true } satisfies OkResponse);
   });
 
-  app.post<{ Params: { id: string } }>('/sessions/:id/kill', async (request, reply) => {
-    await killSession(deps, { id: request.params.id });
+  app.post<SessionTargetRoute>('/sessions/:id/kill', async (request, reply) => {
+    await killSession(deps, { id: sessionTarget(request) });
     return reply.send({ ok: true } satisfies OkResponse);
   });
 }

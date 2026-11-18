@@ -43,31 +43,80 @@ function fixture() {
 }
 
 describe('Codex lifecycle persistence', () => {
-  it('persists pending before launch, rolls a failed launch back, and resumes the current bound id after clear', () => {
+  it('reserves names before launch, rolls failed reservations back, and retains names across rebinding', async () => {
     const f = fixture();
     try {
       const harness = createCodexHarness(f.options);
-      const rollback = harness.beforeLaunch({ id: 'failed', cwd: f.directory });
-      expect(createCodexHarness(f.options).pendingSessions()).toEqual([
-        { id: 'failed', cwd: f.directory },
-      ]);
-      rollback.rollback();
-      expect(createCodexHarness(f.options).pendingSessions()).toEqual([]);
-      harness.beforeLaunch({ id: 'garden', cwd: f.directory });
+      const failed = harness.beforeLaunch({ id: 'failed', cwd: f.directory });
+      const pending = createCodexHarness(f.options);
+      expect(pending.pendingSessions()).toEqual([{ id: 'failed', cwd: f.directory }]);
+      expect((await pending.readSessionNames()).names).toEqual({ failed: failed.sessionName });
+      failed.rollback();
+      expect((await createCodexHarness(f.options).readSessionNames()).names).toEqual({});
+      const launched = harness.beforeLaunch({ id: 'garden', cwd: f.directory });
       expect(
         launch(harness.resumeCommand({ id: 'garden', cwd: f.directory })).terminalCommand,
       ).not.toContain('resume');
       harness.parseHook(f.hook(), 'garden');
+      const nextCwd = join(f.directory, 'different-project');
       const cleared = harness.parseHook(
-        f.hook({ session_id: nativeB, transcript_path: f.pathB, source: 'clear' }),
+        f.hook({ session_id: nativeB, transcript_path: f.pathB, source: 'clear', cwd: nextCwd }),
         'garden',
       );
       expect(cleared?.conversationCleared).toBe(true);
       const restarted = createCodexHarness(f.options);
       expect(
-        launch(restarted.resumeCommand({ id: 'garden', cwd: f.directory })).terminalCommand,
+        launch(restarted.resumeCommand({ id: 'garden', cwd: nextCwd })).terminalCommand,
       ).toEqual(expect.arrayContaining(['resume', nativeB]));
+      const resumed = restarted.beforeLaunch({ id: 'garden', cwd: nextCwd });
+      expect(resumed.sessionName).toBe(launched.sessionName);
+      resumed.rollback();
+      expect((await restarted.readSessionNames()).names).toEqual({ garden: launched.sessionName });
       expect(restarted.pendingSessions()).toEqual([]);
+    } finally {
+      f.close();
+    }
+  });
+
+  it('backfills version-1 pending and bound names without reclaiming an existing reservation', async () => {
+    const f = fixture();
+    try {
+      const pending = {
+        cwd: join(f.directory, 'Build Scripts!'),
+        codexId: null,
+        transcriptPath: null,
+      };
+      const bound = {
+        cwd: join(f.directory, 'Data Tools'),
+        codexId: nativeA,
+        transcriptPath: f.pathA,
+      };
+      const candidate = createCodexHarness(f.options).beforeLaunch({
+        id: 'pending',
+        cwd: pending.cwd,
+      });
+      const aliasPath = join(f.appDir, 'codex-aliases.json');
+      const reserved = { ...pending, name: candidate.sessionName };
+      writeFileSync(
+        aliasPath,
+        JSON.stringify({ version: 1, sessions: { pending, bound, reserved } }),
+      );
+
+      const harness = createCodexHarness(f.options);
+      const { names } = await harness.readSessionNames();
+      expect(names['pending']).toMatch(/^build-scripts-/);
+      expect(names['bound']).toMatch(/^data-tools-/);
+      expect(names['reserved']).toBe(candidate.sessionName);
+      expect(new Set(Object.values(names)).size).toBe(3);
+      expect(JSON.parse(readFileSync(aliasPath, 'utf8'))).toEqual({
+        version: 1,
+        sessions: {
+          pending: { ...pending, name: names['pending'] },
+          bound: { ...bound, name: names['bound'] },
+          reserved,
+        },
+      });
+      expect((await createCodexHarness(f.options).readSessionNames()).names).toEqual(names);
     } finally {
       f.close();
     }

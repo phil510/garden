@@ -1,10 +1,12 @@
 import { aHarnessSignal } from '../domain/signals.fixture.js';
 import { DEFAULT_UI_STATE } from '@garden/shared';
 import type { Delta, UiState } from '@garden/shared';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { GardenEvent } from '../domain/types.js';
 import type { OverlayState, StorePort } from './ports.js';
 import { createProjection } from './projection.js';
+import { createSessionNameRefresh } from './sessionNames.js';
+import { resolveSessionTarget } from './sessionTargets.js';
 
 const emptyOverlay: OverlayState = {
   version: 2,
@@ -629,5 +631,68 @@ describe('swarms and placements', () => {
 
     expect(writes).toBe(0);
     expect(seen).toEqual([]);
+  });
+});
+
+describe('session name snapshots', () => {
+  it('uses only the current registry name for an existing Garden row', async () => {
+    const projection = createProjection(fakeStore().port);
+    projection.dispatch(transcript());
+    const readSessionNames = vi
+      .fn()
+      .mockResolvedValueOnce({ names: { 'sid-1': 'Scout' }, skipped: 0 })
+      .mockResolvedValueOnce({ names: { 'sid-1': 'Scout again' }, skipped: 0 })
+      .mockResolvedValueOnce({ names: { 'new-native-id': 'Scout again' }, skipped: 0 });
+    const refresh = createSessionNameRefresh(
+      projection,
+      { readSessionNames },
+      {
+        warn: vi.fn(),
+        error: vi.fn(),
+      },
+    );
+
+    await refresh();
+    expect(resolveSessionTarget(projection.sessions(), 'Scout').id).toBe('sid-1');
+    await refresh();
+    expect(() => resolveSessionTarget(projection.sessions(), 'Scout')).toThrow('no such session');
+    expect(resolveSessionTarget(projection.sessions(), 'Scout again').id).toBe('sid-1');
+    await refresh();
+    expect(() => resolveSessionTarget(projection.sessions(), 'Scout again')).toThrow(
+      'no such session',
+    );
+    expect(resolveSessionTarget(projection.sessions(), 'sid-1')).toMatchObject({
+      sessionName: null,
+      title: 'Wire the fold',
+    });
+  });
+
+  it('prevents overlapping registry scans and clears names after a failed read', async () => {
+    const projection = createProjection(fakeStore().port);
+    projection.dispatch(signalEvent());
+    let finishRead: (() => void) | undefined;
+    const slow = new Promise<{ names: Record<string, string>; skipped: number }>((resolve) => {
+      finishRead = () => resolve({ names: { 'sid-1': 'Scout' }, skipped: 0 });
+    });
+    const readSessionNames = vi
+      .fn()
+      .mockReturnValueOnce(slow)
+      .mockRejectedValueOnce(new Error('no registry'));
+    const error = vi.fn();
+    const refresh = createSessionNameRefresh(
+      projection,
+      { readSessionNames },
+      { warn: vi.fn(), error },
+    );
+
+    const first = refresh();
+    await refresh();
+    expect(readSessionNames).toHaveBeenCalledOnce();
+    finishRead!();
+    await first;
+    expect(projection.sessions()[0]?.sessionName).toBe('Scout');
+    await refresh();
+    expect(projection.sessions()[0]?.sessionName).toBeNull();
+    expect(error).toHaveBeenCalledWith(expect.stringContaining('no registry'));
   });
 });

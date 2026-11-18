@@ -1,4 +1,5 @@
 import { DEFAULT_UI_STATE } from '@garden/shared';
+import { aSession } from '@garden/shared/fixtures';
 import { describe, expect, it } from 'vitest';
 import type { Logger, OverlayState } from '../../app/ports.js';
 import type { Projection } from '../../app/projection.js';
@@ -201,6 +202,44 @@ describe('POST /sessions/:id/placement', () => {
     });
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ ok: true });
+  });
+
+  it('places a session named for a literal URL dot segment', async () => {
+    let overlay: OverlayState = { ...emptyOverlay, tmuxNames: { caller: 'garden-caller' } };
+    const app = buildApp({
+      projection: fakeProjection({
+        sessions: () => [aSession({ id: 'child', sessionName: '.' })],
+        updateOverlay: (mutate) => (overlay = mutate(overlay)),
+      }),
+    });
+    const response = await app.inject({
+      method: 'POST',
+      url: '/sessions/-/placement?target=.',
+      payload: { placement: { type: 'parent', parentId: 'caller' } },
+    });
+    expect(response.json()).toEqual({ ok: true });
+    expect(overlay.ui.placements).toEqual({ child: { parent: 'caller' } });
+  });
+
+  it('returns the matching IDs when an exact adoption name is ambiguous', async () => {
+    const app = buildApp({
+      projection: fakeProjection({
+        sessions: () => [
+          aSession({ id: 'b', sessionName: 'Scout / Review' }),
+          aSession({ id: 'a', sessionName: 'Scout / Review' }),
+        ],
+        updateOverlay: (mutate) => mutate(emptyOverlay),
+      }),
+    });
+    const response = await app.inject({
+      method: 'POST',
+      url: '/sessions/Scout%20%2F%20Review/placement',
+      payload: { placement: { type: 'parent', parentId: 'caller' } },
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({
+      error: 'ambiguous session name "Scout / Review". Matching IDs: a, b',
+    });
   });
 
   it('maps SessionNotFoundError to 404', async () => {

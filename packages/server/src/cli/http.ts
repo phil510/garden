@@ -52,13 +52,18 @@ export function pipeUrl(sessionId: string): string {
   return `ws://${hostPort()}${pipeStreamPath(sessionId)}`;
 }
 
+function sessionActionPath(target: string, action: string): string {
+  if (target === '.' || target === '..') return `/sessions/-/${action}?target=${target}`;
+  return `/sessions/${encodeURIComponent(target)}/${action}`;
+}
+
 /** Resolves the current conversation on the server, keeping native harness ids private. */
 export function sendSessionMessage(
   sessionId: string,
   message: string,
   signal?: AbortSignal,
 ): Promise<OkResponse> {
-  return request(`/sessions/${encodeURIComponent(sessionId)}/messages`, {
+  return request(sessionActionPath(sessionId, 'messages'), {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ message }),
@@ -137,7 +142,7 @@ export function resumeSession(
   options: SpawnOptions = {},
 ): Promise<CreateSessionResponse> {
   const body: ResumeSessionRequest = definedSpawnOptions(options);
-  return request(`/sessions/${encodeURIComponent(id)}/resume`, {
+  return request(sessionActionPath(id, 'resume'), {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
@@ -145,12 +150,12 @@ export function resumeSession(
 }
 
 export function killSession(id: string): Promise<OkResponse> {
-  return request(`/sessions/${encodeURIComponent(id)}/kill`, { method: 'POST' });
+  return request(sessionActionPath(id, 'kill'), { method: 'POST' });
 }
 
 export function placeSession(id: string, placement: Placement): Promise<OkResponse> {
   const body: PlacementRequest = { placement };
-  return request(`/sessions/${encodeURIComponent(id)}/placement`, {
+  return request(sessionActionPath(id, 'placement'), {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
