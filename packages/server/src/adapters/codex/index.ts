@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import {
   closeSync,
   existsSync,
@@ -14,7 +14,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
-import { isAbsolute, join, relative, sep } from 'node:path';
+import { basename, isAbsolute, join, relative, sep } from 'node:path';
 import type { EffortLevel } from '@garden/shared';
 import type { PermissionMode } from '../../config.js';
 import { codexHook, codexSignal } from './hooks.js';
@@ -27,6 +27,7 @@ const execFileAsync = promisify(execFile);
 
 interface Alias {
   cwd: string;
+  name: string;
   codexId: string | null;
   transcriptPath: string | null;
   bindingOrder?: string;
@@ -66,6 +67,19 @@ function within(root: string, path: string): boolean {
   return suffix !== '' && suffix !== '..' && !suffix.startsWith(`..${sep}`) && !isAbsolute(suffix);
 }
 
+function allocateName(cwd: string, id: string, taken: ReadonlySet<string>): string {
+  const project = basename(cwd)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .slice(0, 24)
+    .replace(/^-|-$/g, '');
+  const suffix = createHash('sha256').update(id).digest('hex').slice(0, 6);
+  const base = `${project || 'session'}-${suffix}`;
+  let name = base;
+  for (let index = 2; taken.has(name); index += 1) name = `${base}-${index}`;
+  return name;
+}
+
 export function createCodexHarness(options: Options) {
   const aliasPath = join(options.appDir, 'codex-aliases.json');
   const spoolDir = join(options.appDir, 'codex-session-start-spool');
@@ -94,6 +108,8 @@ export function createCodexHarness(options: Options) {
     const sessions = object(stored?.['sessions']);
     if (stored?.['version'] !== 1 || sessions === null)
       throw new Error(`invalid Codex aliases: ${aliasPath}`);
+    const legacy: [string, Omit<Alias, 'name'>][] = [];
+    const names = new Set<string>();
     for (const [id, raw] of Object.entries(sessions)) {
       const entry = object(raw);
       if (
@@ -111,8 +127,21 @@ export function createCodexHarness(options: Options) {
           (typeof entry['bindingOrder'] !== 'string' || !/^\d{1,30}$/.test(entry['bindingOrder'])))
       )
         throw new Error(`invalid Codex alias for ${id}`);
-      aliases[id] = entry as unknown as Alias;
+      const name = entry['name'];
+      if (name === undefined) legacy.push([id, entry as unknown as Omit<Alias, 'name'>]);
+      else {
+        if (typeof name !== 'string' || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name) || names.has(name))
+          throw new Error(`invalid Codex alias name for ${id}`);
+        names.add(name);
+        aliases[id] = entry as unknown as Alias;
+      }
     }
+    for (const [id, entry] of legacy) {
+      const name = allocateName(entry.cwd, id, names);
+      names.add(name);
+      aliases[id] = { ...entry, name };
+    }
+    if (legacy.length > 0) save(aliases);
   }
 
   function save(next: Record<string, Alias>): void {
@@ -176,6 +205,7 @@ export function createCodexHarness(options: Options) {
             ...aliases,
             [gardenSessionId]: {
               cwd: hook.cwd,
+              name: prior.name,
               codexId: hook.session_id,
               transcriptPath: hook.transcript_path,
               ...(hook._garden_order === undefined ? {} : { bindingOrder: hook._garden_order }),
@@ -228,11 +258,21 @@ export function createCodexHarness(options: Options) {
       if (!validGardenId(request.id) || !isAbsolute(request.cwd))
         throw new Error('invalid Codex launch identity or cwd');
       const prior = aliases[request.id];
-      const entry = { cwd: request.cwd, codexId: null, transcriptPath: null };
+      const entry = prior ?? {
+        cwd: request.cwd,
+        name: allocateName(
+          request.cwd,
+          request.id,
+          new Set(Object.values(aliases).map((alias) => alias.name)),
+        ),
+        codexId: null,
+        transcriptPath: null,
+      };
       if (prior === undefined) save({ ...aliases, [request.id]: entry });
       const launch = { reported: false };
       launches.set(request.id, launch);
       return {
+        sessionName: entry.name,
         rollback() {
           launches.delete(request.id);
           if (prior !== undefined || aliases[request.id] !== entry) return;
@@ -392,7 +432,10 @@ export function createCodexHarness(options: Options) {
       },
     },
     readSessionNames() {
-      return Promise.resolve({ names: {}, skipped: 0 });
+      const names = Object.fromEntries(
+        Object.entries(aliases).map(([id, alias]) => [id, alias.name]),
+      );
+      return Promise.resolve({ names, skipped: 0 });
     },
   };
 }
