@@ -1,11 +1,15 @@
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import { once } from 'node:events';
 import {
+  closeSync,
   existsSync,
+  fstatSync,
   mkdirSync,
   mkdtempSync,
+  openSync,
   readFileSync,
   readdirSync,
+  readSync,
   renameSync,
   realpathSync,
   rmSync,
@@ -91,8 +95,24 @@ async function post(url: string, path: string, body: unknown) {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
   });
-  if (!response.ok) throw new Error(`${path}: ${await response.text()}`);
+  if (!response.ok) throw new Error(`${path} (${response.status}): ${await response.text()}`);
   return response;
+}
+
+function logTail(path: string): string {
+  try {
+    const fd = openSync(path, 'r');
+    try {
+      const size = fstatSync(fd).size;
+      const tail = Buffer.alloc(Math.min(size, 4096));
+      const bytesRead = readSync(fd, tail, 0, tail.length, size - tail.length);
+      return tail.toString('utf8', 0, bytesRead) || '(empty)';
+    } finally {
+      closeSync(fd);
+    }
+  } catch {
+    return '(unavailable)';
+  }
 }
 
 interface Alias {
@@ -137,6 +157,16 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
       };
       const tmux = async (args: readonly string[]) =>
         (await exec('tmux', ['-L', socket, ...args], { timeout: 5000 })).stdout;
+      const paneState = async (name: string) => {
+        const format =
+          '#{pane_id}\t#{pane_pid}\t#{pane_dead}\t#{pane_dead_status}\t#{pane_dead_signal}';
+        const [paneId, pid, dead, exitStatus, exitSignal] = (
+          await tmux(['display-message', '-p', '-t', name, format])
+        )
+          .trimEnd()
+          .split('\t');
+        return { paneId, pid, dead: dead === '1', exitStatus, exitSignal };
+      };
       const ready = (name: string) =>
         until(
           'fake Codex stdin readiness',
@@ -338,21 +368,41 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
           (list) => list.some((row) => row.id === never.id && row.title === 'first after resume'),
         );
         const boundAfterClear = aliases(appDir)[id]!.codexId;
-        await send(tmuxName, '/end');
-        await until(
-          'ended pane',
-          () => rows(url),
-          (list) => list.some((row) => row.id === id && row.liveness === 'dead'),
-        );
-        await post(url, `/sessions/${id}/resume`, {});
-        await until(
-          'resume launch to use current private native id',
-          () =>
-            Promise.resolve(
-              JSON.parse(readFileSync(join(codexHome, `launch-${id}.json`), 'utf8')) as string[],
-            ),
-          (args) => args.includes('resume') && args.includes(boundAfterClear!),
-        );
+        let resumeHttp: string | undefined;
+        try {
+          await send(tmuxName, '/end');
+          await until(
+            'Garden to report the ended session as dead',
+            () => rows(url),
+            (list) => list.some((row) => row.id === id && row.liveness === 'dead'),
+          );
+          const response = await post(url, `/sessions/${id}/resume`, {});
+          resumeHttp = `${response.status} ${await response.text()}`;
+          await until(
+            'resume launch to use current private native id',
+            () =>
+              Promise.resolve(
+                JSON.parse(readFileSync(join(codexHome, `launch-${id}.json`), 'utf8')) as string[],
+              ),
+            (args) => args.includes('resume') && args.includes(boundAfterClear!),
+          );
+        } catch (error) {
+          const [state, output] = await Promise.all([
+            paneState(tmuxName)
+              .then((pane) => JSON.stringify(pane))
+              .catch(() => '(unavailable)'),
+            tmux(['capture-pane', '-p', '-S', '-20', '-t', tmuxName])
+              .then((pane) => pane.trimEnd().slice(-4096))
+              .catch(() => '(unavailable)'),
+          ]);
+          const backend = logTail(join(appDir, 'native-endpoints', `${id}.log`));
+          console.error(
+            `Fake Codex end/resume failed for ${id}\n` +
+              `Resume HTTP: ${resumeHttp ?? '(no successful response)'}\n` +
+              `Pane state: ${state}\nPane output:\n${output}\nBackend log tail:\n${backend}`,
+          );
+          throw error;
+        }
       } finally {
         if (child) await stop(child);
         await tmux(['kill-server']).catch(() => {});
