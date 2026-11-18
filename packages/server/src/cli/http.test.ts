@@ -3,7 +3,7 @@ import { createServer } from 'node:http';
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   claimReview,
   CliHttpError,
@@ -59,6 +59,7 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+  vi.unstubAllGlobals();
   await new Promise<void>((resolve) => {
     if (server?.listening) server.close(() => resolve());
     else resolve();
@@ -287,9 +288,63 @@ describe('errors', () => {
     );
   });
 
-  it('reports the server as not running when the connection is refused', async () => {
-    process.env.GARDEN_PORT = '1';
-    await expect(listSessions()).rejects.toThrow(/not running/);
+  it('reports the server as not running only after a refused connection', async () => {
+    await startServer((_request, response) => sendJson(response, 200, { sessions: [] }));
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+    });
+
+    await expect(listSessions()).rejects.toMatchObject({
+      message: `garden server is not running at http://127.0.0.1:${process.env.GARDEN_PORT ?? ''}/sessions`,
+      cause: { cause: { code: 'ECONNREFUSED' } },
+    });
+  });
+
+  it.each(['EPERM', 'EACCES'])(
+    'reports %s as denied network access with the endpoint',
+    async (code) => {
+      process.env.GARDEN_PORT = '47123';
+      const cause = new TypeError('fetch failed', {
+        cause: Object.assign(new Error('connect denied'), { code }),
+      });
+      vi.stubGlobal('fetch', () => Promise.reject(cause));
+
+      await expect(listSessions()).rejects.toMatchObject({
+        message: `cannot reach garden server at http://127.0.0.1:47123/sessions: ${code}: connect denied — check this command's network permissions`,
+        cause,
+      });
+    },
+  );
+
+  it('keeps an unknown transport failure visible without start-server advice', async () => {
+    process.env.GARDEN_PORT = '47123';
+    const cause = new TypeError('fetch failed', {
+      cause: new Error('unexpected transport failure'),
+    });
+    vi.stubGlobal('fetch', () => Promise.reject(cause));
+
+    await expect(listSessions()).rejects.toMatchObject({
+      message:
+        'cannot reach garden server at http://127.0.0.1:47123/sessions: unexpected transport failure',
+      cause,
+    });
+  });
+
+  it('reports cancellation rather than claiming the server is stopped', async () => {
+    await startServer((_request, response) => sendJson(response, 200, { ok: true }));
+    const controller = new AbortController();
+    const cause = new Error('message cancelled');
+    controller.abort(cause);
+
+    await expect(sendSessionMessage('s1', 'hello', controller.signal)).rejects.toMatchObject({
+      message: `cannot reach garden server at http://127.0.0.1:${process.env.GARDEN_PORT ?? ''}/sessions/s1/messages: message cancelled`,
+      cause,
+    });
+  });
+
+  it('preserves configuration validation errors before attempting a connection', async () => {
+    process.env.GARDEN_PORT = 'invalid';
+    await expect(listSessions()).rejects.toThrow('GARDEN_PORT must be an integer');
   });
 });
 

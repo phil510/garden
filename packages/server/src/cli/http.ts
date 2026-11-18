@@ -83,11 +83,23 @@ async function request<T>(
   init?: RequestInit,
   describeError?: (body: unknown) => string,
 ): Promise<T> {
+  const url = `${baseUrl()}${path}`;
   let response: Response;
   try {
-    response = await fetch(`${baseUrl()}${path}`, init);
+    response = await fetch(url, init);
   } catch (cause) {
-    throw new CliHttpError('garden server is not running — start it with `garden`', { cause });
+    const failure = cause instanceof Error && cause.cause !== undefined ? cause.cause : cause;
+    const code = (failure as { code?: unknown } | null)?.code;
+    if (code === 'ECONNREFUSED') {
+      throw new CliHttpError(`garden server is not running at ${url}`, {
+        cause,
+      });
+    }
+    const detail = failure instanceof Error ? failure.message : String(failure);
+    const reason = typeof code === 'string' ? `${code}: ${detail}` : detail;
+    const advice =
+      code === 'EPERM' || code === 'EACCES' ? " — check this command's network permissions" : '';
+    throw new CliHttpError(`cannot reach garden server at ${url}: ${reason}${advice}`, { cause });
   }
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as ErrorResponse | null;

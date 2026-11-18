@@ -42,6 +42,7 @@ interface Launch {
 }
 interface Options {
   appDir: string;
+  instanceEnv: Readonly<Record<string, string>>;
   /** Read-only Codex session roots; never recursively scanned. */
   transcriptRoots: readonly string[];
   command?: readonly string[];
@@ -243,11 +244,20 @@ export function createCodexHarness(options: Options) {
   }
 
   function launchCommand(request: Launch, terminalCommand: readonly string[]) {
+    const shellContext = { ...options.instanceEnv, GARDEN_SESSION_ID: request.id };
     return codexLauncherCommand({
       appDir: options.appDir,
       id: request.id,
       cwd: request.cwd,
-      backendCommand: [...readCommand(), 'app-server', ...hookArguments],
+      backendCommand: [
+        ...readCommand(),
+        'app-server',
+        ...hookArguments,
+        ...Object.entries(shellContext).flatMap(([name, value]) => [
+          '-c',
+          `shell_environment_policy.set.${name}=${JSON.stringify(value)}`,
+        ]),
+      ],
       terminalCommand,
     });
   }
