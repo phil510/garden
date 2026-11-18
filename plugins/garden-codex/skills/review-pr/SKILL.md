@@ -9,9 +9,10 @@ Independent reviewers keep each lens from inheriting the first reviewer's conclu
 bundled Anthropic prompts in fresh native Codex subagents; installing named TOML roles is not
 required. This skill authorizes delegation for this review.
 
-1. Establish the repository, requested PR/base or local changes, and review scope from the user.
-   Inspect git status and the relevant diff; use `gh` when reviewing a GitHub PR. Include staged,
-   unstaged, and relevant untracked changes for a local review. Read applicable project instructions.
+1. Establish the repository, requested PR/base or local changes, and review scope from the user or
+   calling workflow. Inspect git status and the relevant diff; use `gh` when reviewing a GitHub PR.
+   Include staged, unstaged, and relevant untracked changes for a local review. Read applicable
+   project instructions.
 2. Select requested lenses, or all applicable lenses by default:
 
    | Lens                                       | Prompt under `../../agents/` |
@@ -28,9 +29,11 @@ required. This skill authorizes delegation for this review.
    for the default review, add specialists whose subject changed, and run simplification after the
    initial review. Honor a caller's narrower lens selection and review cap.
 
-3. Spawn a fresh native generic subagent for each selected lens. Give it the repository/worktree,
-   exact diff scope, relevant project instructions, and its prompt path to read in full. Inherit
-   the current model unless the caller specifies otherwise. The prompt's Claude frontmatter,
+3. Spawn a fresh native subagent for each selected lens. Use a generic agent with the bundled
+   prompt path to read in full, or an available persona requested by the caller for that lens.
+   Give each reviewer the repository/worktree, exact review scope, and relevant project
+   instructions. Inherit the current model unless the caller specifies otherwise and the tool
+   supports an override. The prompt's Claude frontmatter,
    tool names and invocation examples are source metadata, not Codex role registration: use the
    native tools available in this session and apply both AGENTS.md and CLAUDE.md where relevant.
    Run sequentially unless parallel review was requested. If native delegation is unavailable,

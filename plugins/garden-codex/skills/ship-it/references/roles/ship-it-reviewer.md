@@ -105,55 +105,24 @@ and the user decides whether a fix round runs at all.
    Anything the brief's Verify command or CI already enforces is not a finding — a lint or layering
    violation fails that gate on its own rather than waiting on you.
 
-3. **Dispatch the review.** Two decisions are yours: which agents run, and at what model. A wide
-   roster mostly buys overlap: reviewers reading the same diff tend to find the same serious
-   problems independently, so the marginal reviewer past the first few mostly adds duplicates.
-   Three slots keeps the convergent signal and drops the redundant reads.
+3. **Run `garden-codex:review-pr`.** Read and follow the installed sibling skill at
+   `${SKILLDIR}/../review-pr/SKILL.md` for specialist dispatch and consolidation. Specify the
+   lenses for this round so the skill can apply the stage's reviewer cap.
 
-   Each slot names a lens. For a toolkit lens, spawn a fresh generic native agent and tell it
-   to read `${SKILLDIR}/../../agents/<role>.md`. Those bundled prompts
-   are instructions, not registered agent types: ignore Claude frontmatter model/tool metadata
-   and use the current native tool schema. Follow the full prompt body with the assigned scope,
-   current project instructions and a read-only brief, including for the simplifier. Do not invoke
-   the general review-pr skill here: this stage owns its slot selection and cap. An available
-   native persona may carry a lens when appropriate; never assume a named role is installed.
+   - **Small brief.** General correctness and project guidelines only (one reviewer).
+   - **Standard or spec-backed brief.** General review, one simplification lens, and one
+     optional specialist for the concrete question step 2 left least settled (up to three
+     reviewers). When step 2 found a new mechanism, ask the simplifier whether it should exist.
+     An available native persona can carry the simplification or specialist lens when it fits
+     the question. General review covers comments.
 
-   - **Slot 1 — general code review, always.** Project guidelines, bugs, general quality:
-     bundled `code-reviewer.md`.
-   - **Slot 2 — one simplification lens.** bundled `code-simplifier.md`, or a
-     simplicity-minded persona (`ken-thompson`, say) in its place when step 2 found new mechanisms.
-     Same lens either way: tidy the mechanism, or ask whether it should exist at all — a diff that
-     added a mechanism needs the second question asked. Brief it to report findings and change
-     nothing on disk — a simplifier assumes it may edit, and you may not.
-   - **Slot 3 — one specialist, for the claim step 2's tracing left least settled.** Pick whichever
-     names the actual blind spot in a sentence: from the bundled toolkit, `pr-test-analyzer.md` (test
-     files changed), `silent-failure-hunter.md` (error handling changed), `type-design-analyzer.md`
-     (types added or modified); or a persona agent the session offers for that blind spot —
-     assumptions the others take as given, correctness and invariants, data models and migrations,
-     test strategy, system boundaries, prose clarity, the right mental model. Leave the slot empty
-     when it can't be named that concretely — an unnamed pick buys overlap with slots 1-2, not
-     coverage. Pick from what the diff warrants, not from what the brief names.
+   Give the review the worktree, PR and baseline, the brief's claims, and the dependency contracts
+   you traced. Include the test tiers the brief's Verify command runs for any coverage reviewer.
+   Request parallel dispatch as capacity allows. Request a Luna model for easy, bounded reviews
+   and a Sol model for substantive reviews when the native tool supports those overrides.
 
-   Comment accuracy is not a separate dispatch: comment issues that matter surface through slot 1
-   and land `advisory` under step 5's rule.
-
-   A lens that fits neither slot 2 nor slot 3 this round is dropped, not covered — no later step
-   re-checks its blind spot, and a fourth dispatch isn't the fix either. That's the accepted cost
-   of the cap, disclosed rather than mitigated.
-
-   **Scaling.** On a `Size: small` brief, slot 1 alone is the whole review. On a standard
-   brief, fill slots 1 and 2, and slot 3 only for a concrete blind spot — three agents at most.
-   Use an available Luna model for easy bounded reviews and an available Sol model for substantive
-   review, dense logic, concurrency, security or data migrations. Choose from the current tool
-   schema; if overrides are unavailable, inherit the current model. The cap is on slots, not model.
-
-   **Dispatch.** Use the native spawn operation (`spawn-details.md`) with fresh context and the role prompt path, in one
-   parallel batch when capacity allows; otherwise batch the same slots without adding reviewers.
-   Brief every agent with step 2's scope — the brief's claims, the dependency contracts you traced,
-   the baseline — because an agent handed only a diff can only find what is in the diff. Whichever
-   agent covers test coverage, tell it which test tiers the brief's Verify command actually runs,
-   so an ungated tier doesn't come back as a "missing test" finding. Merge all findings: dedup,
-   classify by severity, drop anything a prior round already addressed.
+   Use the skill's findings as input to this round. Include your findings from step 2, drop
+   findings a prior round addressed, and apply the severity and disposition rules below.
 
 4. **Validate Tasks↔AC coverage** in `${SHIPITDIR}/plan.md`. The planner produced a Tasks↔AC
    coverage table; your job is to verify it. Flag any acceptance criterion that has no covering
