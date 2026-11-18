@@ -1,10 +1,12 @@
-import { spawn } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
+import { once } from 'node:events';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
 import { WebSocketServer } from 'ws';
 import type { WebSocket } from 'ws';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -15,7 +17,9 @@ const GARDEN_BIN = join(repoRoot, 'packages', 'server', 'bin', 'garden.ts');
 // A bare `tsx` specifier resolves against the process's own cwd, and the `tsx` CLI is a wrapper
 // process that would hide the pipe's own pid, so the loader goes in by absolute path.
 const TSX_LOADER = join(repoRoot, 'node_modules', 'tsx', 'dist', 'loader.mjs');
-const PIPE_ARGV = ['--import', TSX_LOADER, GARDEN_BIN, 'events', '--follow'];
+const GARDEN_ARGV = ['--import', TSX_LOADER, GARDEN_BIN];
+const PIPE_ARGV = [...GARDEN_ARGV, 'events', '--follow'];
+const execFileAsync = promisify(execFile);
 
 // Stands in for Claude: spawns the pipe as a monitor would (stdout a socketpair it holds),
 // reports the pipe's pid, relays what the pipe writes, and then idles.
@@ -97,6 +101,8 @@ describe('garden events --follow as a real process', () => {
     return {
       ...process.env,
       HOME: home,
+      GARDEN_APP_DIR: undefined,
+      GARDEN_HARNESS: undefined,
       GARDEN_PORT: String(port),
       GARDEN_SESSION_ID: undefined,
       CLAUDE_CODE_SESSION_ID: undefined,
@@ -104,8 +110,11 @@ describe('garden events --follow as a real process', () => {
     };
   }
 
-  function spawnPipe(overrides: Record<string, string | undefined>): ChildProcess {
-    const child = spawn(process.execPath, PIPE_ARGV, {
+  function spawnPipe(
+    overrides: Record<string, string | undefined>,
+    args = PIPE_ARGV,
+  ): ChildProcess {
+    const child = spawn(process.execPath, args, {
       env: env(overrides),
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -164,6 +173,50 @@ describe('garden events --follow as a real process', () => {
     parent.kill('SIGKILL');
 
     await diesWith(pid);
+  });
+
+  it('rejects digest forwarding from nested Claude even with the Codex selector', async () => {
+    await expect(
+      execFileAsync(
+        process.execPath,
+        [...GARDEN_ARGV, '--codex', 'events', '--follow', '--forward-to-session'],
+        {
+          env: env({
+            GARDEN_HARNESS: 'claude',
+            GARDEN_SESSION_ID: 'outer',
+            CLAUDE_CODE_SESSION_ID: 'nested',
+          }),
+          timeout: 5000,
+        },
+      ),
+    ).rejects.toMatchObject({
+      code: 1,
+      stderr:
+        'garden: usage: garden events --follow --forward-to-session requires a Codex garden session\n',
+    });
+    expect(connections).toHaveLength(0);
+  });
+
+  it('connects a Codex forwarder to its inherited port even with the Claude selector', async () => {
+    const child = spawnPipe({ GARDEN_HARNESS: 'codex', GARDEN_SESSION_ID: 's1' }, [
+      ...GARDEN_ARGV,
+      '--claude',
+      'events',
+      '--follow',
+      '--forward-to-session',
+    ]);
+    const exited = once(child, 'exit');
+    try {
+      await Promise.race([
+        once(wss, 'connection', { signal: AbortSignal.timeout(5000) }),
+        exited.then(([code]) => {
+          throw new Error(`forwarder exited before connecting (code ${String(code)})`);
+        }),
+      ]);
+    } finally {
+      child.kill('SIGTERM');
+      await exited;
+    }
   });
 
   it('delivers a digest through fd 1 and dies with its Claude process when following', async () => {

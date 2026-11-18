@@ -33,6 +33,8 @@ if (!args.ok) {
   process.exit(1);
 }
 const { command, rest, isDetached, harness } = args;
+// Instance routing uses the selected harness. Event ownership uses the caller's inherited one.
+const callerEnv = harness === undefined ? process.env : { ...process.env };
 if (harness !== undefined) process.env.GARDEN_HARNESS = harness;
 // A bare selector requests startup even from a pane that inherited the server marker.
 const action = decideEntrypointAction(
@@ -47,7 +49,7 @@ switch (action.kind) {
     await runServer(isDetached);
     break;
   case 'cli':
-    process.exit(await runCli(action.command, rest, io));
+    process.exit(await runCli(action.command, rest, io, undefined, undefined, callerEnv));
     break;
   case 'start':
     process.exit(await runStart(io));
