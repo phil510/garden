@@ -331,13 +331,14 @@ describe('errors', () => {
   });
 
   it('reports cancellation rather than claiming the server is stopped', async () => {
+    const id = '8fb1bdb0-acd1-4195-9d52-88dea91f21db';
     await startServer((_request, response) => sendJson(response, 200, { ok: true }));
     const controller = new AbortController();
     const cause = new Error('message cancelled');
     controller.abort(cause);
 
-    await expect(sendSessionMessage('s1', 'hello', controller.signal)).rejects.toMatchObject({
-      message: `cannot reach garden server at http://127.0.0.1:${process.env.GARDEN_PORT ?? ''}/sessions/s1/messages: message cancelled`,
+    await expect(sendSessionMessage(id, 'hello', controller.signal)).rejects.toMatchObject({
+      message: `cannot reach garden server at http://127.0.0.1:${process.env.GARDEN_PORT ?? ''}/sessions/${id}/messages: message cancelled`,
       cause,
     });
   });
