@@ -114,8 +114,7 @@ and the user decides whether a fix round runs at all.
    to read `${SKILLDIR}/../../agents/<role>.md`. Those bundled prompts
    are instructions, not registered agent types: ignore Claude frontmatter model/tool metadata
    and use the current native tool schema. Follow the full prompt body with the assigned scope,
-   current project instructions and a read-only brief, including for the simplifier. Do not invoke
-   the general review-pr skill here: this stage owns its slot selection and cap. An available
+   current project instructions and a read-only brief, including for the simplifier. An available
    native persona may carry a lens when appropriate; never assume a named role is installed.
 
    - **Slot 1 — general code review, always.** Project guidelines, bugs, general quality:
@@ -154,6 +153,12 @@ and the user decides whether a fix round runs at all.
    agent covers test coverage, tell it which test tiers the brief's Verify command actually runs,
    so an ungated tier doesn't come back as a "missing test" finding. Merge all findings: dedup,
    classify by severity, drop anything a prior round already addressed.
+
+   If a required selected reviewer cannot run or complete, the internal review is incomplete.
+   Escalate `error` through `worker-protocol.md`, recording the missing review, why it could not
+   finish and any partial findings in the escalation event's `## Details`; use that event itself
+   as `Artifact` instead of saving a review-round file. Round files count completed reviews toward
+   the cap. Stop without reporting clean or dirty or ticking stage 3.
 
 4. **Validate Tasks↔AC coverage** in `${SHIPITDIR}/plan.md`. The planner produced a Tasks↔AC
    coverage table; your job is to verify it. Flag any acceptance criterion that has no covering
@@ -247,8 +252,9 @@ and the user decides whether a fix round runs at all.
 
 6. **Decide: clean or dirty?**
 
-   **Clean** = no findings with `Disposition: fix`, and the Tasks↔AC coverage validates (or there
-   is no coverage table to check). `advisory` findings are OK in a clean round.
+   **Clean** = every required selected reviewer completed, no findings have `Disposition: fix`,
+   and the Tasks↔AC coverage validates (or there is no coverage table to check). `advisory` findings
+   are OK in a clean round.
 
    **Dirty** = at least one `Disposition: fix` finding, or an uncovered AC.
 
@@ -626,9 +632,9 @@ Before you report, stop every process you started: local servers, background com
 probes. A process left behind outlives the run and the worktree, holds ports, and nobody will go
 looking for it.
 
-Your escalation reasons are `review_cap` (internal round cap only) and `ambiguity`. The PR-thread
-replies you post in external mode are a _separate_ channel — PR voice, not your orchestrator
-signal.
+Your escalation reasons are `review_cap` (internal round cap only), `error` (incomplete internal
+review), and `ambiguity`. The PR-thread replies you post in external mode are a _separate_
+channel — PR voice, not your orchestrator signal.
 
 Do not open a reviewer→developer channel; the developer fix-round is dispatched by the
 orchestrator.

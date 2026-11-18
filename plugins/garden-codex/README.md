@@ -1,7 +1,7 @@
 # garden Codex plugin
 
-Seven skills for a Codex-only garden instance: `orchestrate-sessions`, `message-session`, `alert`,
-`review-queue`, `watch-pr`, `review-pr` and `ship-it`. Install `garden-codex` from this repo's `garden`
+Six skills for a Codex-only garden instance: `orchestrate-sessions`, `message-session`, `alert`,
+`review-queue`, `watch-pr` and `ship-it`. Install `garden-codex` from this repo's `garden`
 marketplace through `.agents/plugins/marketplace.json`, which lists only `garden-codex`.
 The separate Claude catalog lists `garden-claude`. This package includes Codex hooks
 and bundled reviewer prompts, with no Claude monitors or automatic named-agent installation.
@@ -28,12 +28,11 @@ and [cache replacement](https://github.com/openai/codex/blob/rust-v0.169.0/codex
 
 ## Bundled reviews
 
-`review-pr` dispatches fresh native Codex subagents with six bundled Anthropic reviewer prompts.
-It resolves paths from the installed skill, passes the diff scope and project instructions, and
-aggregates findings. The prompt files are not automatically registered native roles; there is no
+`ship-it` dispatches fresh native Codex subagents with bundled Anthropic reviewer prompts
+selected for each internal review round. It passes the review scope and project instructions,
+and aggregates findings. The prompt files are not automatically registered native roles; there is no
 TOML installation or user configuration change. See the [upstream source, license and update
-procedure](third-party.md). Review requests constrain the simplifier to findings; explicit
-simplification requests may authorize edits.
+procedure](third-party.md). Internal review constrains the simplifier to findings.
 
 ## Ship-it
 
