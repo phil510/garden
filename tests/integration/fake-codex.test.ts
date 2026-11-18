@@ -1,6 +1,7 @@
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import { once } from 'node:events';
 import {
+  appendFileSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -228,6 +229,27 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
           title: firstTitle,
           sessionName,
         });
+        const indexPath = join(codexHome, 'session_index.jsonl');
+        const externalTitle = 'Renamed by another backend';
+        // A separate backend shares the index and sends no notification on this connection.
+        appendFileSync(
+          indexPath,
+          JSON.stringify({
+            id: firstNative,
+            thread_name: externalTitle,
+            updated_at: new Date().toISOString(),
+          }) + '\n',
+        );
+        const externallyRenamed = await until(
+          'external rename while the owning backend stays connected',
+          () => rows(url),
+          (list) => list.some((row) => row.id === id && row.title === externalTitle),
+        );
+        expect(externallyRenamed.find((row) => row.id === id)).toMatchObject({
+          status: 'waiting',
+          sessionName,
+          tmuxName,
+        });
         await send(tmuxName, '/work');
         await until(
           'working status from native backend',
@@ -269,7 +291,6 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
         const pending = (await (await post(url, '/sessions', { cwd })).json()) as NamedSession;
         expect(pending.sessionName).not.toBe(sessionName);
         await ready(pending.tmuxName);
-        const indexPath = join(codexHome, 'session_index.jsonl');
         const savedIndex = join(codexHome, 'held-session-index.jsonl');
         // Restart Garden without the index so the surviving backend must hydrate the title.
         renameSync(indexPath, savedIndex);

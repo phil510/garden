@@ -68,7 +68,7 @@ function fixture() {
     appDir: '/app',
     bindings: () => bindings,
     onSignal: (signal) => signals.push(signal),
-    onTitle: (_binding, _endpoint, title) => titles.push(title),
+    onTitle: (_binding, title) => titles.push(title),
   });
   stops.push(() => observer.close());
   const connect = () => {

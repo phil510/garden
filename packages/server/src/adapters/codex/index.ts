@@ -99,7 +99,7 @@ export function createCodexHarness(options: Options) {
   const readSessionIndex = createSessionIndex(options.codexHome);
   const liveTitles = new Map<
     string,
-    { generation: number; endpoint: string; title: string | null; observedAt: number }
+    { generation: number; title: string | null; observedAt: number }
   >();
   let aliases: Record<string, Alias> = Object.create(null) as Record<string, Alias>;
 
@@ -335,10 +335,9 @@ export function createCodexHarness(options: Options) {
           if (launch !== undefined) launch.reported = true;
           onSignal(signal);
         },
-        onTitle: (binding, endpoint, title) =>
+        onTitle: (binding, title) =>
           liveTitles.set(binding.id, {
             generation: binding.generation,
-            endpoint: JSON.stringify(endpoint),
             title,
             observedAt: Date.now(),
           }),
@@ -467,14 +466,13 @@ export function createCodexHarness(options: Options) {
         const indexed = indexedTitles.get(alias.codexId);
         const live = liveTitles.get(id);
         let title = indexed?.title ?? null;
-        if (live !== undefined && live.generation === (generations.get(id) ?? 0)) {
-          const endpoint = readCodexEndpoint(options.appDir, id);
-          if (live.endpoint !== JSON.stringify(endpoint) && indexHasCaughtUp(indexed, live)) {
-            liveTitles.delete(id);
-          } else {
-            // The index can lag a live observation even after its backend exits.
-            title = live.title;
-          }
+        if (
+          live !== undefined &&
+          live.generation === (generations.get(id) ?? 0) &&
+          !indexHasCaughtUp(indexed, live)
+        ) {
+          // Codex can report a rename even when its index append fails.
+          title = live.title;
         }
         if (title !== null) nativeTitles[id] = title;
       }

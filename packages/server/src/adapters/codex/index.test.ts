@@ -65,7 +65,7 @@ function fixture() {
 }
 
 describe('Codex lifecycle persistence', () => {
-  it('keeps a live title across retirement until the index agrees or has a later title', async () => {
+  it('recognizes an indexed title that confirms or follows a live observation', async () => {
     const f = fixture();
     try {
       const file = join(f.directory, 'session_index.jsonl');

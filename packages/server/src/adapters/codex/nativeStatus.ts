@@ -1,6 +1,6 @@
 import WebSocket from 'ws';
 import type { HarnessSignal, ReportedStatus } from '../../domain/types.js';
-import { readCodexEndpoint, type CodexEndpoint } from './launcher.js';
+import { readCodexEndpoint } from './launcher.js';
 
 export interface NativeBinding {
   id: string;
@@ -35,7 +35,7 @@ export function observeNativeStatus(options: {
   appDir: string;
   bindings: () => NativeBinding[];
   onSignal: (signal: HarnessSignal) => void;
-  onTitle?: (binding: NativeBinding, endpoint: CodexEndpoint, title: string | null) => void;
+  onTitle?: (binding: NativeBinding, title: string | null) => void;
   pollMs?: number;
 }) {
   const entries = new Map<string, { key: string; socket?: WebSocket; stop: () => void }>();
@@ -167,7 +167,7 @@ export function observeNativeStatus(options: {
             const title = nativeTitle(message.params.threadName);
             if (title !== undefined) {
               titleRevision++;
-              options.onTitle?.(binding, endpoint, title);
+              options.onTitle?.(binding, title);
             }
           }
           return;
@@ -194,7 +194,7 @@ export function observeNativeStatus(options: {
           if (thread?.id !== binding.codexId) return;
           if (titleRevision === snapshotTitleRevision) {
             const title = nativeTitle(thread.name);
-            if (title !== undefined) options.onTitle?.(binding, endpoint, title);
+            if (title !== undefined) options.onTitle?.(binding, title);
           }
           if (statusRevision === snapshotStatusRevision) report(nativeStatus(thread.status));
         }
