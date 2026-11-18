@@ -104,19 +104,18 @@ async function promptConfirm(message: string): Promise<boolean> {
   }
 }
 
-const defaultHome = homedir();
-// The file is not read here: stop --all only needs the app dir and socket, both of which
-// come from the environment or their defaults, never from config.json.
-const defaultConfig = loadConfig(process.env, DEFAULT_CONFIG_FILE, defaultHome);
-
-export const defaultStopAllDeps: StopAllDeps = {
-  confirm: promptConfirm,
-  stop: (io, home) => runStop(io, { ...defaultStopDeps, home }),
-  killTmuxServer,
-  home: defaultHome,
-  appDir: defaultConfig.appDir,
-  tmuxSocket: defaultConfig.tmuxSocket,
-};
+function defaultStopAllDeps(): StopAllDeps {
+  const home = homedir();
+  const { appDir, tmuxSocket } = loadConfig(process.env, DEFAULT_CONFIG_FILE, home);
+  return {
+    confirm: promptConfirm,
+    stop: (io, home) => runStop(io, { ...defaultStopDeps, home }),
+    killTmuxServer,
+    home,
+    appDir,
+    tmuxSocket,
+  };
+}
 
 /** The server answers with `/sessions` while it's still up; once it's stopped there's nothing
  *  to ask. `null` means the server was unreachable, not that the count is zero. */
@@ -151,7 +150,7 @@ export async function runStopAll(
   io: Io,
   skipConfirm: boolean,
   client: CliClient = defaultClient,
-  deps: StopAllDeps = defaultStopAllDeps,
+  deps: StopAllDeps = defaultStopAllDeps(),
 ): Promise<0 | 1> {
   if (!skipConfirm) {
     const liveCount = await liveSessionCount(client);

@@ -32,13 +32,23 @@ there is no separate step. If the hook ever goes missing, `pnpm rebuild lefthook
 
 ## Configuration
 
-`GARDEN_HARNESS` selects the instance for every command, including `stop` and `stop --all`.
-Unset or `claude` uses port `4310`, tmux socket `garden-claude`, and app dir `~/.garden-claude`.
+Use `garden --claude` or `garden --codex` to start or open the selected instance. Put the flag
+before a command to target that instance, for example `garden --claude ls` or
+`garden --codex stop`. The flags are mutually exclusive. A flag takes precedence over
+`GARDEN_HARNESS`. With neither set, Garden selects Claude.
+
+Claude defaults to port `4310`, tmux socket `garden-claude`, and app directory `~/.garden-claude`.
 Existing Claude installs need the [coordinated migration](docs/2026-11-16-claude-instance-migration.md) before adopting these defaults.
-`codex` uses port `4311`, socket `garden-codex`, and app dir `~/.garden-codex`.
-`GARDEN_PORT`, `GARDEN_TMUX_SOCKET`, and `GARDEN_APP_DIR` override the selected instance's
-values individually. Spawned and resumed panes inherit the full effective instance, so
-commands inside them reach their own server even with overrides.
+Codex defaults to port `4311`, socket `garden-codex`, and app directory `~/.garden-codex`.
+
+`GARDEN_TMUX_SOCKET` and `GARDEN_APP_DIR` override the selected harness's socket and app
+directory. For the port, `GARDEN_PORT` takes precedence over the config file, followed by the
+harness default. All three environment overrides still apply when you pass a harness flag.
+
+Garden sets those three variables in every pane it launches or resumes, using the effective
+instance values. A harness flag typed in a pane can still reach that pane's server or tmux
+socket through the inherited values. To use the other harness's own settings, run the command
+from a shell without those overrides or unset them for that invocation.
 
 garden reads `<appDir>/config.json` on startup, writing a default one on first run. Fields:
 
@@ -81,7 +91,7 @@ For process lifecycle, status observation and session identity, see the
 
 ## Dev loop
 
-`pnpm build` builds every package. Linking the `garden` bin globally makes the `garden` command start the server and open the console in a Chrome app window.
+`pnpm build` builds every package. Linking the `garden` bin globally lets you start either instance with `garden --claude` or `garden --codex`. The command opens the selected console in a Chrome app window, or prints its URL when Chrome is unavailable.
 
 For UI work, skip the build. Run `pnpm dev:sandbox:server` in one terminal and `pnpm dev:sandbox:web` in another, then open the URL vite prints. The sandbox is a second, fully isolated garden instance — its own port, tmux socket, app dir, and transcripts dir — so it runs concurrently with an installed `garden` without either one reaching the other's sessions or state. `dev:sandbox:server` runs the server from TypeScript source and writes no pid file, so `garden stop` will not reach it — Ctrl-C stops it. `dev:sandbox:web` serves the client with HMR and proxies the API routes and both WebSockets to the sandbox server, whichever port it's running on.
 

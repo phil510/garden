@@ -30,28 +30,27 @@ async function promptConfirm(appDir: string): Promise<boolean> {
   }
 }
 
-const defaultHome = homedir();
-// The file is not read here: uninstall only needs the app dir and socket, both of
-// which come from the environment or their defaults, never from config.json.
-const defaultConfig = loadConfig(process.env, DEFAULT_CONFIG_FILE, defaultHome);
-
-export const defaultUninstallDeps: UninstallDeps = {
-  confirm: promptConfirm,
-  stop: (io, home) => runStop(io, { ...defaultStopDeps, home }),
-  killTmuxServer,
-  removeAppDir: (path) => {
-    rmSync(path, { recursive: true, force: true });
-  },
-  home: defaultHome,
-  appDir: defaultConfig.appDir,
-  tmuxSocket: defaultConfig.tmuxSocket,
-};
+function defaultUninstallDeps(): UninstallDeps {
+  const home = homedir();
+  const { appDir, tmuxSocket } = loadConfig(process.env, DEFAULT_CONFIG_FILE, home);
+  return {
+    confirm: promptConfirm,
+    stop: (io, home) => runStop(io, { ...defaultStopDeps, home }),
+    killTmuxServer,
+    removeAppDir: (path) => {
+      rmSync(path, { recursive: true, force: true });
+    },
+    home,
+    appDir,
+    tmuxSocket,
+  };
+}
 
 /** `garden uninstall` — stop the server, kill the garden tmux server, delete its app directory. */
 export async function runUninstall(
   io: Io,
   skipConfirm: boolean,
-  deps: UninstallDeps = defaultUninstallDeps,
+  deps: UninstallDeps = defaultUninstallDeps(),
 ): Promise<0 | 1> {
   if (!skipConfirm && !(await deps.confirm(deps.appDir))) {
     await writeAll(io.stdout, 'aborted\n');

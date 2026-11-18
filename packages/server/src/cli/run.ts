@@ -8,6 +8,7 @@ import {
   isStatus,
   parseNonNegativeInt,
 } from '@garden/shared';
+import type { Harness } from '../config.js';
 import type { CliClient, Io, ReviewRef } from './commands.js';
 import {
   defaultClient,
@@ -32,7 +33,7 @@ import { runEventsFollow } from './events.js';
 import { writeAll } from './io.js';
 import { openLifeline } from './lifeline.js';
 import { SERVER_DETACHED_FLAG } from './start.js';
-import { defaultStopAllDeps, runStop, runStopAll, type StopAllDeps } from './stop.js';
+import { runStop, runStopAll, type StopAllDeps } from './stop.js';
 import { runUninstall } from './uninstall.js';
 
 const CLI_COMMANDS = [
@@ -60,27 +61,44 @@ export function isCliCommand(command: string | undefined): command is CliCommand
 
 export function usageLines(): string {
   return (
-    'usage: garden [new <dir> | ls | kill <id> | resume <id> | send <id> <message> | adopt <id> | ' +
+    'usage: garden [--claude | --codex] [new <dir> | ls | kill <id> | resume <id> | send <id> <message> | adopt <id> | ' +
     'watch <pr> | unwatch <pr> | unwatch --all | watches | alert <text> | alert clear | digest <id> | ' +
     'reviews list | reviews start <owner/name#N> | reviews claim <owner/name#N> | reviews dismiss <owner/name#N> | events --follow [--forward-to-session] | ' +
-    'stop [--all] | uninstall]\n'
+    'stop [--all] | uninstall]\n' +
+    'Use at most one harness flag before the command. It overrides GARDEN_HARNESS, which defaults to claude.\n' +
+    'GARDEN_PORT, GARDEN_APP_DIR, and GARDEN_TMUX_SOCKET still override the selected instance settings.\n'
   );
 }
 
-/**
- * Splits `SERVER_DETACHED_FLAG` off the front of `argv`, when it's there. Only a leading
- * position counts — `spawnServer` always puts it right after `scriptPath`, so a real
- * subcommand argument that happens to share the same literal string (e.g. `garden new
- * --detached`, naming a directory) is left in `rest` untouched rather than silently dropped.
- */
-export function parseEntrypointArgv(argv: readonly string[]): {
-  readonly command: string | undefined;
-  readonly rest: readonly string[];
-  readonly isDetached: boolean;
-} {
+type EntrypointArgs =
+  | {
+      readonly ok: true;
+      readonly command: string | undefined;
+      readonly rest: readonly string[];
+      readonly isDetached: boolean;
+      readonly harness: Harness | undefined;
+    }
+  | { readonly ok: false; readonly message: string };
+
+/** Consume the internal detached marker and harness selectors before the command. */
+export function parseEntrypointArgv(argv: readonly string[]): EntrypointArgs {
   const isDetached = argv[0] === SERVER_DETACHED_FLAG;
-  const [command, ...rest] = isDetached ? argv.slice(1) : argv;
-  return { command, rest, isDetached };
+  let index = isDetached ? 1 : 0;
+  let harness: Harness | undefined;
+
+  for (;;) {
+    const flag = argv[index];
+    if (flag !== '--claude' && flag !== '--codex') break;
+    const selected = flag === '--claude' ? 'claude' : 'codex';
+    if (harness !== undefined && harness !== selected) {
+      return { ok: false, message: 'cannot combine --claude and --codex' };
+    }
+    harness = selected;
+    index++;
+  }
+
+  const [command, ...rest] = argv.slice(index);
+  return { ok: true, command, rest, isDetached, harness };
 }
 
 export type EntrypointAction =
@@ -236,7 +254,7 @@ export async function runCli(
   rest: readonly string[],
   io: Io,
   client: CliClient = defaultClient,
-  stopAllDeps: StopAllDeps = defaultStopAllDeps,
+  stopAllDeps?: StopAllDeps,
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<0 | 1> {
   const parsedArgs = tryParseArgs({

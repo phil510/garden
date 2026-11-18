@@ -156,34 +156,63 @@ describe('isCliCommand', () => {
 });
 
 describe('parseEntrypointArgv', () => {
-  it('reports not detached and no command for an empty argv', () => {
-    expect(parseEntrypointArgv([])).toEqual({ command: undefined, rest: [], isDetached: false });
+  it('leaves the harness and command unset for an empty argv', () => {
+    expect(parseEntrypointArgv([])).toEqual({
+      ok: true,
+      command: undefined,
+      rest: [],
+      isDetached: false,
+      harness: undefined,
+    });
   });
 
-  it('reports detached and no command for the detached re-invocation shape', () => {
-    // What `spawnServer` actually passes: the flag alone, nothing else.
+  it('keeps the internal detached startup invocation', () => {
     expect(parseEntrypointArgv(['--detached'])).toEqual({
+      ok: true,
       command: undefined,
       rest: [],
       isDetached: true,
+      harness: undefined,
     });
   });
 
-  it('splits a known subcommand and its own args out, undisturbed, when not detached', () => {
-    expect(parseEntrypointArgv(['ls', '--json'])).toEqual({
-      command: 'ls',
-      rest: ['--json'],
+  it.each(['claude', 'codex'])('selects %s without a subcommand', (harness) => {
+    expect(parseEntrypointArgv([`--${harness}`])).toEqual({
+      ok: true,
+      command: undefined,
+      rest: [],
       isDetached: false,
+      harness,
     });
   });
 
-  it("does not strip a subcommand argument that happens to share the flag's own literal text", () => {
-    // e.g. `garden new --detached`, naming a directory called "--detached" — only a
-    // leading position counts as the marker, so this must reach `rest` untouched.
-    expect(parseEntrypointArgv(['new', '--detached'])).toEqual({
-      command: 'new',
-      rest: ['--detached'],
+  it('splits a known subcommand from its arguments after a selector', () => {
+    expect(parseEntrypointArgv(['--codex', 'stop', '--all', '--yes'])).toEqual({
+      ok: true,
+      command: 'stop',
+      rest: ['--all', '--yes'],
       isDetached: false,
+      harness: 'codex',
+    });
+  });
+
+  it('preserves selector and detached literals after the subcommand', () => {
+    expect(parseEntrypointArgv(['send', 'id', '--codex', '--detached'])).toEqual({
+      ok: true,
+      command: 'send',
+      rest: ['id', '--codex', '--detached'],
+      isDetached: false,
+      harness: undefined,
+    });
+  });
+
+  it.each([
+    ['--claude', '--codex'],
+    ['--codex', '--claude'],
+  ])('rejects %s followed by %s before processing the command', (first, second) => {
+    expect(parseEntrypointArgv([first, second, 'stop'])).toEqual({
+      ok: false,
+      message: 'cannot combine --claude and --codex',
     });
   });
 });
