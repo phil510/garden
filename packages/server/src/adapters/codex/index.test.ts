@@ -20,7 +20,13 @@ function fixture() {
   const appDir = join(directory, 'app');
   const rollouts = join(directory, 'sessions');
   mkdirSync(rollouts);
-  const options = { appDir, transcriptRoots: [rollouts], logger };
+  const instanceEnv = {
+    GARDEN_HARNESS: 'codex',
+    GARDEN_PORT: '49123',
+    GARDEN_TMUX_SOCKET: 'isolated-codex',
+    GARDEN_APP_DIR: appDir,
+  };
+  const options = { appDir, instanceEnv, transcriptRoots: [rollouts], logger };
   const pathA = join(rollouts, 'rollout-a.jsonl');
   const pathB = join(rollouts, 'rollout-b.jsonl');
   const hook = (overrides = {}) => ({
@@ -380,6 +386,56 @@ it('reads the current command for every new and resumed launch', () => {
       ...command,
       'resume',
     ]);
+  } finally {
+    f.close();
+  }
+});
+
+it('supplies each private backend its own shell context without replacing user policy', () => {
+  const f = fixture();
+  try {
+    const instanceEnv = {
+      ...f.options.instanceEnv,
+      GARDEN_APP_DIR: `${f.appDir}/quotes " slash \\ newline\n dollar $()`,
+    };
+    const command = [
+      'codex',
+      '-c',
+      'shell_environment_policy.inherit="core"',
+      '-c',
+      'shell_environment_policy.include_only=["PATH"]',
+      '-c',
+      'shell_environment_policy.set.USER_VALUE="keep"',
+    ];
+    const harness = createCodexHarness({ ...f.options, instanceEnv, command });
+    const request = { id: 'garden', cwd: f.directory };
+    harness.beforeLaunch(request);
+    const pendingResume = harness.resumeCommand(request);
+    harness.parseHook(f.hook(), request.id);
+    for (const [id, generated] of [
+      ['other-session', harness.spawnCommand({ ...request, id: 'other-session' })],
+      [request.id, pendingResume],
+      [request.id, harness.resumeCommand(request)],
+    ] as const) {
+      const { backendCommand, terminalCommand } = launch(generated);
+      expect(backendCommand.slice(0, command.length + 1)).toEqual([...command, 'app-server']);
+      const addedOverrides = backendCommand
+        .slice(command.length + 1)
+        .filter((arg) => arg.startsWith('shell_environment_policy.'));
+      const context = Object.fromEntries(
+        addedOverrides.map((override) => {
+          expect(backendCommand[backendCommand.indexOf(override) - 1]).toBe('-c');
+          const equals = override.indexOf('=');
+          return [
+            override.slice('shell_environment_policy.set.'.length, equals),
+            JSON.parse(override.slice(equals + 1)) as string,
+          ];
+        }),
+      );
+      expect(context).toEqual({ ...instanceEnv, GARDEN_SESSION_ID: id });
+      expect(terminalCommand.slice(0, command.length)).toEqual(command);
+      expect(terminalCommand.some((arg) => addedOverrides.includes(arg))).toBe(false);
+    }
   } finally {
     f.close();
   }
