@@ -1,6 +1,6 @@
 import WebSocket from 'ws';
 import type { HarnessSignal, ReportedStatus } from '../../domain/types.js';
-import { readCodexEndpoint } from './launcher.js';
+import { readCodexEndpoint, type CodexEndpoint } from './launcher.js';
 
 export interface NativeBinding {
   id: string;
@@ -24,11 +24,18 @@ export function nativeStatus(value: unknown): ReportedStatus {
   return { status: status?.type === 'idle' ? 'waiting' : 'unknown', reason: null };
 }
 
+function nativeTitle(name: unknown): string | null | undefined {
+  if (name == null) return null;
+  if (typeof name === 'string') return name.trim() === '' ? null : name;
+  return undefined;
+}
+
 /** A passive connection observes only the TUI's already-bound thread. It never owns a turn. */
 export function observeNativeStatus(options: {
   appDir: string;
   bindings: () => NativeBinding[];
   onSignal: (signal: HarnessSignal) => void;
+  onTitle?: (binding: NativeBinding, endpoint: CodexEndpoint, title: string | null) => void;
   pollMs?: number;
 }) {
   const entries = new Map<string, { key: string; socket?: WebSocket; stop: () => void }>();
@@ -104,8 +111,10 @@ export function observeNativeStatus(options: {
         },
       });
       report(nativeStatus(null));
-      let revision = 0;
-      let snapshotRevision = 0;
+      let statusRevision = 0;
+      let titleRevision = 0;
+      let snapshotStatusRevision = 0;
+      let snapshotTitleRevision = 0;
       function deadline() {
         clearTimeout(timer);
         timer = setTimeout(() => socket.terminate(), 5000);
@@ -134,8 +143,8 @@ export function observeNativeStatus(options: {
           id?: number;
           method?: string;
           error?: unknown;
-          result?: { thread?: { id?: string; status?: unknown } };
-          params?: { threadId?: string; status?: unknown };
+          result?: { thread?: { id?: string; status?: unknown; name?: unknown } };
+          params?: { threadId?: string; status?: unknown; threadName?: unknown };
         };
         try {
           const bytes = Array.isArray(data)
@@ -147,15 +156,19 @@ export function observeNativeStatus(options: {
         } catch {
           return;
         }
+        if (message === null || typeof message !== 'object') return;
         // Native server requests belong to the TUI; never answer them or treat their arrival as approval state.
         if (message.method !== undefined) {
-          if (
-            message.id === undefined &&
-            message.method === 'thread/status/changed' &&
-            message.params?.threadId === binding.codexId
-          ) {
-            revision++;
+          if (message.id !== undefined || message.params?.threadId !== binding.codexId) return;
+          if (message.method === 'thread/status/changed') {
+            statusRevision++;
             report(nativeStatus(message.params.status));
+          } else if (message.method === 'thread/name/updated') {
+            const title = nativeTitle(message.params.threadName);
+            if (title !== undefined) {
+              titleRevision++;
+              options.onTitle?.(binding, endpoint, title);
+            }
           }
           return;
         }
@@ -165,7 +178,8 @@ export function observeNativeStatus(options: {
         }
         if (message.id === 1) {
           socket.send(JSON.stringify({ method: 'initialized' }));
-          snapshotRevision = revision;
+          snapshotStatusRevision = statusRevision;
+          snapshotTitleRevision = titleRevision;
           deadline();
           socket.send(
             JSON.stringify({
@@ -176,8 +190,13 @@ export function observeNativeStatus(options: {
           );
         } else if (message.id === 2) {
           clearTimeout(timer);
-          if (revision === snapshotRevision && message.result?.thread?.id === binding.codexId)
-            report(nativeStatus(message.result.thread.status));
+          const thread = message.result?.thread;
+          if (thread?.id !== binding.codexId) return;
+          if (titleRevision === snapshotTitleRevision) {
+            const title = nativeTitle(thread.name);
+            if (title !== undefined) options.onTitle?.(binding, endpoint, title);
+          }
+          if (statusRevision === snapshotStatusRevision) report(nativeStatus(thread.status));
         }
       });
       socket.on('error', () => {
