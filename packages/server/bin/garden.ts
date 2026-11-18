@@ -27,8 +27,20 @@ async function runServer(detached: boolean): Promise<void> {
   }
 }
 
-const { command, rest, isDetached } = parseEntrypointArgv(process.argv.slice(2));
-const action = decideEntrypointAction(command, process.env[SERVER_PROCESS_ENV] === '1');
+const args = parseEntrypointArgv(process.argv.slice(2));
+if (!args.ok) {
+  await writeAll(process.stderr, `garden: ${args.message}\n`);
+  process.exit(1);
+}
+const { command, rest, isDetached, harness } = args;
+// Instance routing uses the selected harness. Event ownership uses the caller's inherited one.
+const callerEnv = harness === undefined ? process.env : { ...process.env };
+if (harness !== undefined) process.env.GARDEN_HARNESS = harness;
+// A bare selector requests startup even from a pane that inherited the server marker.
+const action = decideEntrypointAction(
+  command,
+  harness === undefined && process.env[SERVER_PROCESS_ENV] === '1',
+);
 
 switch (action.kind) {
   case 'server':
@@ -37,7 +49,7 @@ switch (action.kind) {
     await runServer(isDetached);
     break;
   case 'cli':
-    process.exit(await runCli(action.command, rest, io));
+    process.exit(await runCli(action.command, rest, io, undefined, undefined, callerEnv));
     break;
   case 'start':
     process.exit(await runStart(io));

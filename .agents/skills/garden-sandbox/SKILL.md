@@ -48,19 +48,16 @@ sandbox. The Chrome window `pnpm screenshot` controls talks to the same garden s
 browser does, so nothing you do in it is contained. It can drag but never types, so against
 a real instance the blast radius is the second tier below; the three tiers are:
 
-- **Typing into an attached pane is the dangerous one.** Keystrokes go straight through to the
-  real pty, which is the user's actual running Claude Code session or shell. There is no
-  sandbox and no undo — you would be typing into their session.
+- **Typing into an attached pane is the dangerous one.** Keystrokes go directly to the user's
+  running agent session or shell.
 - **Dragging stage or sidebar chrome persists server-side.** Preset, slots, layout,
   group order, pins, collapsed repos and the dead-session filter are written to disk and shared,
   so they change what the user sees in their own window. Run such drags against the sandbox.
 - **Panel resizes, scrolling and expanding file-tree nodes are client-local** and harmless — they never leave
   this browser.
 
-None of this applies against the sandbox. Its panes run the fake Claude, not a real Claude Code
-session or shell, so there is no real pty to type into; and its chrome-persistence writes land in
-the sandbox's own state (`~/.garden-sandbox/config.json` by default), not the user's real config,
-so there is no real user state to disturb.
+Sandbox panes run the fake harness, so keystrokes reach only the sandbox process. Layout changes
+are saved in the sandbox's own state (`~/.garden-sandbox/config.json` by default).
 
 ## Screenshotting
 
