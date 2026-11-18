@@ -287,6 +287,7 @@ export async function main(detached: boolean): Promise<void> {
     config.harness === 'codex'
       ? createCodexHarness({
           appDir: config.appDir,
+          codexHome,
           instanceEnv: instanceEnvironment(config),
           transcriptRoots: [join(codexHome, 'sessions'), join(codexHome, 'archived_sessions')],
           logger,

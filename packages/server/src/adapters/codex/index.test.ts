@@ -1,5 +1,14 @@
 import { execFile } from 'node:child_process';
-import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  appendFileSync,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -26,7 +35,13 @@ function fixture() {
     GARDEN_TMUX_SOCKET: 'isolated-codex',
     GARDEN_APP_DIR: appDir,
   };
-  const options = { appDir, instanceEnv, transcriptRoots: [rollouts], logger };
+  const options = {
+    appDir,
+    codexHome: directory,
+    instanceEnv,
+    transcriptRoots: [rollouts],
+    logger,
+  };
   const pathA = join(rollouts, 'rollout-a.jsonl');
   const pathB = join(rollouts, 'rollout-b.jsonl');
   const hook = (overrides = {}) => ({
@@ -49,6 +64,42 @@ function fixture() {
 }
 
 describe('Codex lifecycle persistence', () => {
+  it('uses the latest valid index row for the current binding without reading a rollout', async () => {
+    const f = fixture();
+    try {
+      const harness = createCodexHarness(f.options);
+      const { sessionName } = harness.beforeLaunch({ id: 'garden', cwd: f.directory });
+      harness.parseHook(f.hook(), 'garden');
+      const index = join(f.directory, 'session_index.jsonl');
+      expect(await harness.readSessionNames()).toMatchObject({
+        names: { garden: sessionName },
+        nativeTitles: {},
+      });
+      const row = (id: string, thread_name: string) =>
+        JSON.stringify({ id, thread_name, updated_at: new Date().toISOString() }) + '\n';
+      writeFileSync(index, row(nativeA, 'Original') + row(nativeB, 'Other thread'));
+      expect((await harness.readSessionNames()).nativeTitles).toEqual({ garden: 'Original' });
+      appendFileSync(index, row(nativeA, '  Renamed 🪴  ') + 'garbled\nnull\n');
+      expect((await harness.readSessionNames()).nativeTitles).toEqual({ garden: '  Renamed 🪴  ' });
+      renameSync(index, f.pathA);
+      expect(await harness.readSessionNames()).toMatchObject({
+        names: { garden: sessionName },
+        nativeTitles: { garden: '  Renamed 🪴  ' },
+      });
+      writeFileSync(index, row(nativeA, 'Original') + row(nativeA, ' ') + row(nativeB, 'Forked'));
+      expect((await harness.readSessionNames()).nativeTitles).toEqual({});
+      harness.parseHook(
+        f.hook({ source: 'fork', session_id: nativeB, transcript_path: f.pathB }),
+        'garden',
+      );
+      expect(await harness.readSessionNames()).toMatchObject({
+        names: { garden: sessionName },
+        nativeTitles: { garden: 'Forked' },
+      });
+    } finally {
+      f.close();
+    }
+  });
   it('reserves names before launch, rolls failed reservations back, and retains names across rebinding', async () => {
     const f = fixture();
     try {
