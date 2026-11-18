@@ -258,6 +258,8 @@ backend must be ended and resumed to acquire one.
 The same connection reads the thread name on connect and receives native rename notifications.
 The metadata refresh also reads Codex's session index for the alias-bound thread, so titles can
 appear before the backend connects or after it exits. A disconnect keeps the last observed title.
+After the backend exits, the indexed title takes over once it matches the live observation or has
+a later timestamp.
 The reducer retains the transcript fallback independently and clears both title sources when the
 alias binds a different conversation. The Garden handle stays with the alias.
 

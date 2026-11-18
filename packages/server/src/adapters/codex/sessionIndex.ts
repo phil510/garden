@@ -3,7 +3,16 @@ import { join } from 'node:path';
 
 export interface IndexedTitle {
   title: string | null;
-  row: string;
+  updatedAt: number;
+}
+
+export function indexHasCaughtUp(
+  indexed: IndexedTitle | undefined,
+  live: { title: string | null; observedAt: number },
+): boolean {
+  return (
+    indexed !== undefined && (indexed.title === live.title || indexed.updatedAt > live.observedAt)
+  );
 }
 
 export function createSessionIndex(codexHome: string) {
@@ -39,7 +48,7 @@ export function createSessionIndex(codexHome: string) {
           )
             next.set(entry.id, {
               title: entry.thread_name.trim() === '' ? null : entry.thread_name,
-              row,
+              updatedAt: Date.parse(entry.updated_at),
             });
         } catch {
           // A malformed line leaves the previous valid entry for its thread in place.

@@ -20,7 +20,7 @@ import type { PermissionMode } from '../../config.js';
 import { codexHook, codexSignal } from './hooks.js';
 import { codexLauncherCommand, readCodexEndpoint } from './launcher.js';
 import { observeNativeStatus } from './nativeStatus.js';
-import { createSessionIndex, type IndexedTitle } from './sessionIndex.js';
+import { createSessionIndex, indexHasCaughtUp } from './sessionIndex.js';
 import { parseCodexTranscript } from './transcript.js';
 import type { HarnessSignal, TranscriptRecord } from '../../domain/types.js';
 
@@ -97,10 +97,9 @@ export function createCodexHarness(options: Options) {
   const generations = new Map<string, number>();
   const launches = new Map<string, { reported: boolean }>();
   const readSessionIndex = createSessionIndex(options.codexHome);
-  let indexedTitles: ReadonlyMap<string, IndexedTitle> = new Map();
   const liveTitles = new Map<
     string,
-    { generation: number; endpoint: string; title: string | null; indexRow: string | undefined }
+    { generation: number; endpoint: string; title: string | null; observedAt: number }
   >();
   let aliases: Record<string, Alias> = Object.create(null) as Record<string, Alias>;
 
@@ -341,7 +340,7 @@ export function createCodexHarness(options: Options) {
             generation: binding.generation,
             endpoint: JSON.stringify(endpoint),
             title,
-            indexRow: indexedTitles.get(binding.codexId)?.row,
+            observedAt: Date.now(),
           }),
         bindings: () =>
           Object.entries(aliases).flatMap(([id, alias]) =>
@@ -459,7 +458,7 @@ export function createCodexHarness(options: Options) {
       },
     },
     async readSessionMetadata() {
-      indexedTitles = await readSessionIndex();
+      const indexedTitles = await readSessionIndex();
       const names: Record<string, string> = Object.create(null) as Record<string, string>;
       const nativeTitles: Record<string, string> = Object.create(null) as Record<string, string>;
       for (const [id, alias] of Object.entries(aliases)) {
@@ -469,10 +468,8 @@ export function createCodexHarness(options: Options) {
         const live = liveTitles.get(id);
         let title = indexed?.title ?? null;
         if (live !== undefined && live.generation === (generations.get(id) ?? 0)) {
-          if (live.endpoint === JSON.stringify(readCodexEndpoint(options.appDir, id))) {
-            live.indexRow = indexed?.row;
-            title = live.title;
-          } else if (indexed?.title === live.title || indexed?.row !== live.indexRow) {
+          const endpoint = readCodexEndpoint(options.appDir, id);
+          if (live.endpoint !== JSON.stringify(endpoint) && indexHasCaughtUp(indexed, live)) {
             liveTitles.delete(id);
           } else {
             // The index can lag a live observation even after its backend exits.

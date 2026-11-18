@@ -14,6 +14,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { createCodexHarness } from './index.js';
 import { codexEndpointPath } from './launcher.js';
+import { createSessionIndex, indexHasCaughtUp } from './sessionIndex.js';
 function launch(command: readonly string[]): {
   terminalCommand: string[];
   backendCommand: string[];
@@ -64,6 +65,34 @@ function fixture() {
 }
 
 describe('Codex lifecycle persistence', () => {
+  it('keeps a live title across retirement until the index agrees or has a later title', async () => {
+    const f = fixture();
+    try {
+      const file = join(f.directory, 'session_index.jsonl');
+      const readIndex = createSessionIndex(f.directory);
+      const observedAt = Date.parse('2026-11-18T19:00:05Z');
+      const live = { title: 'Observed title', observedAt };
+      const row = (id: string, title: string, updatedAt: number) =>
+        JSON.stringify({
+          id,
+          thread_name: title,
+          updated_at: new Date(updatedAt).toISOString(),
+        }) + '\n';
+      writeFileSync(
+        file,
+        row(nativeA, 'Intermediate title', observedAt - 1) +
+          row(nativeB, 'Later rename in another conversation', observedAt + 1),
+      );
+      expect(indexHasCaughtUp((await readIndex()).get(nativeA), live)).toBe(false);
+      appendFileSync(file, row(nativeA, 'Observed title', observedAt - 1));
+      expect(indexHasCaughtUp((await readIndex()).get(nativeA), live)).toBe(true);
+      appendFileSync(file, row(nativeA, 'External rename', observedAt + 1));
+      expect(indexHasCaughtUp((await readIndex()).get(nativeA), live)).toBe(true);
+    } finally {
+      f.close();
+    }
+  });
+
   it('uses the latest valid index row for the current binding without reading a rollout', async () => {
     const f = fixture();
     try {
