@@ -40,7 +40,10 @@ garden resume <id> --json
 garden kill <id>
 ```
 
-`adopt` changes grouping, not the peer's assignment. `kill` ends its process; resume continues
+For a one-off `adopt`, `resume`, `kill`, or `send`, you can use the exact `sessionName` from
+`garden ls --json`. For a peer you will track, look up and retain its Garden `id` before
+adopting it or sending another command. Garden uses that UUID across changes to the native
+Codex conversation. `adopt` updates grouping. `kill` ends the process, and `resume` continues
 its conversation when one exists. Do not kill yourself expecting to issue your own resume.
 Consult `garden` usage and the current CLI source for additional flags, rather than
 copying Claude-specific model names or a stale command reference.

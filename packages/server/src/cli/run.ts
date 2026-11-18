@@ -61,10 +61,11 @@ export function isCliCommand(command: string | undefined): command is CliCommand
 
 export function usageLines(): string {
   return (
-    'usage: garden [--claude | --codex] [new <dir> | ls | kill <id> | resume <id> | send <id> <message> | adopt <id> | ' +
+    'usage: garden [--claude | --codex] [new <dir> | ls | kill <id-or-name> | resume <id-or-name> | send <id-or-name> <message> | adopt <id-or-name> | ' +
     'watch <pr> | unwatch <pr> | unwatch --all | watches | alert <text> | alert clear | digest <id> | ' +
     'reviews list | reviews start <owner/name#N> | reviews claim <owner/name#N> | reviews dismiss <owner/name#N> | events --follow [--forward-to-session] | ' +
     'stop [--all] | uninstall]\n' +
+    'Use the full Garden UUID or an exact session name. Send is available on Codex.\n' +
     'Use at most one harness flag before the command. It overrides GARDEN_HARNESS, which defaults to claude.\n' +
     'GARDEN_PORT, GARDEN_APP_DIR, and GARDEN_TMUX_SOCKET still override the selected instance settings.\n'
   );
@@ -304,22 +305,22 @@ export async function runCli(
     }
     case 'send':
       return positionals.length !== 2 || !positionals[0] || !positionals[1]?.trim()
-        ? usage(io, 'garden send <id> <message>')
+        ? usage(io, 'garden send <id-or-name> <message>')
         : runSend(io, positionals[0], positionals[1], json, client);
     case 'kill':
       return positionals[0] === undefined
-        ? usage(io, 'garden kill <id>')
+        ? usage(io, 'garden kill <id-or-name>')
         : runKill(io, positionals[0], json, client);
     case 'resume': {
-      if (positionals[0] === undefined) return usage(io, 'garden resume <id>');
+      if (positionals[0] === undefined) return usage(io, 'garden resume <id-or-name>');
       const spawn = parseSpawnOptions(values);
       return spawn.ok
         ? runResume(io, positionals[0], json, client, spawn.options)
-        : usage(io, `garden resume <id> ${SPAWN_FLAGS_USAGE}`);
+        : usage(io, `garden resume <id-or-name> ${SPAWN_FLAGS_USAGE}`);
     }
     case 'adopt':
       return positionals[0] === undefined
-        ? usage(io, 'garden adopt <id>')
+        ? usage(io, 'garden adopt <id-or-name>')
         : runAdopt(io, positionals[0], json, client);
     case 'watch': {
       const pr = parsePr(positionals[0]);

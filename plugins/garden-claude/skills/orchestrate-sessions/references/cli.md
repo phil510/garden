@@ -61,7 +61,8 @@ Output is a **bare array** of `SessionState` objects — not `{"sessions": [...]
 
 | field          | meaning                                                                               |
 | -------------- | ------------------------------------------------------------------------------------- |
-| `id`           | session identifier — what `kill` and `resume` take, not `tmuxName`                    |
+| `id`           | canonical Garden UUID for durable addressing                                          |
+| `sessionName`  | current Claude registry name, or `null`                                               |
 | `cwd`          | working directory the session was created in                                          |
 | `repoRoot`     | git repo root, or `null` if not in a repo                                             |
 | `branch`       | checked-out branch, or `null`                                                         |
@@ -102,10 +103,15 @@ descendants — resolved before the since-days/live/status trimming above is app
 descendant of a dead orchestrator old enough to be dropped by the default 7-day window still
 appears under `--swarm`, even though that orchestrator itself does not.
 
+## Target a session
+
+Use its full Garden UUID or the exact current `sessionName` for `kill`, `resume`, and `adopt`.
+Garden reports matching UUIDs when a name is ambiguous. Keep the UUID for peers you track.
+
 ## Kill a session
 
 ```
-garden kill <id> --json
+garden kill <id-or-name> --json
 ```
 
 Output: `{ "ok": true }`.
@@ -113,7 +119,7 @@ Output: `{ "ok": true }`.
 ## Resume a session
 
 ```
-garden resume <id> [--model <model>] [--effort <level>] --json
+garden resume <id-or-name> [--model <model>] [--effort <level>] --json
 ```
 
 Output: `{ "id": "...", "tmuxName": "..." }` — same shape as create. The session id survives;
@@ -125,10 +131,10 @@ stores neither, so pass them again on each resume that should keep them.
 ## Adopt a session
 
 ```
-garden adopt <id> --json
+garden adopt <id-or-name> --json
 ```
 
-Sets `<id>`'s `parent` to the calling session. Requires `GARDEN_SESSION_ID` in the calling
+Sets the target's `parent` to the calling session. Requires `GARDEN_SESSION_ID` in the calling
 session's own environment — unset, this fails with exit 1 and `garden: GARDEN_SESSION_ID is not
 set` on stderr, and moves nothing. An adopt that would create a cycle is rejected the same way
 every other failure is: exit 1, `garden: <message>` on stderr. Output: `{ "ok": true }`.
