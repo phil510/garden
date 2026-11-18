@@ -1,12 +1,12 @@
 # garden Claude plugin
 
-The Claude Code plugin for garden. Seven skills: `orchestrate-sessions` drives the session lifecycle
+The Claude Code plugin for garden. Six skills: `orchestrate-sessions` drives the session lifecycle
 through garden's CLI, `alert` tells an agent when to raise `garden alert` for the human,
 `message-session` resolves a session's messaging address, `review-queue` reads and acts on the
 review-request queue with `garden reviews`, `watch-pr` tells an agent when to start,
 react to and stop a PR watch, and `ship-it` runs a scoped change end-to-end as
 a background pipeline (plan, develop, draft PR, internal review, optional review-bot loop, ready
-flip, watch through merge), invoked as `/garden-claude:ship-it`. `review-pr` runs the bundled specialist review toolkit. The four ship-it workers ship as agents,
+flip, watch through merge), invoked as `/garden-claude:ship-it`. The four ship-it workers ship as agents,
 `garden-claude:ship-it-planner`, `garden-claude:ship-it-developer`, `garden-claude:ship-it-reviewer` and
 `garden-claude:ship-it-review-loop`, which only the `ship-it` orchestrator spawns. Installed from the
 Claude marketplace catalog at `.claude-plugin/marketplace.json`, which lists only `garden-claude`.
@@ -103,9 +103,9 @@ Existing `.ship-it/` state remains in the worktree and can be resumed with
 
 ## Reviewers and parity
 
-`review-pr` and ship-it use the bundled reviewers; a separate `pr-review-toolkit` plugin is not
+`ship-it` uses the bundled reviewers; a separate `pr-review-toolkit` plugin is not
 required. The [source and license record](third-party.md) describes the editable Garden forks in `agents/`
-and their review workflow. Review loops remain optional (default `none`); a configured but missing
+used by the internal review stage. Review loops remain optional (default `none`); a configured but missing
 loop skill blocks its run explicitly. No personal bot-loop or comment-fetching skill is bundled
 or required by default.
 

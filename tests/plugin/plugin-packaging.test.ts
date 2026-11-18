@@ -45,24 +45,29 @@ describe('plugin packaging', () => {
     }
   });
 
-  it('resolves every Claude review aspect to a registered reviewer in its installed package', () => {
+  it('resolves Claude ship-it reviewer types in its installed package', () => {
     const installed = install('garden-claude');
-    const skill = readFileSync(join(installed, 'skills/review-pr/SKILL.md'), 'utf8');
-    const names = [...skill.matchAll(/`garden-claude:([a-z-]+)`/g)].map((match) => match[1]!);
+    const reviewer = readFileSync(join(installed, 'agents/ship-it-reviewer.md'), 'utf8');
+    const names = [...reviewer.matchAll(/`garden-claude:([a-z-]+)`/g)].map((match) => match[1]!);
     expect(names.length).toBeGreaterThan(0);
     for (const name of new Set(names)) readReviewer(join(installed, 'agents', `${name}.md`));
   });
 
-  it('resolves every documented Codex review lens from the installed skill directory', () => {
+  it('resolves Codex ship-it reviewer prompts from the installed skill directory', () => {
     const installed = install('garden-codex');
-    const skillDirectory = join(installed, 'skills/review-pr');
-    const skill = readFileSync(join(skillDirectory, 'SKILL.md'), 'utf8');
-    const names = [...skill.matchAll(/\|\s+`([a-z-]+\.md)`\s+\|/g)].map((match) => match[1]!);
-    const directoryReference = /Prompt under `([^`]+)`/.exec(skill);
+    const skillDirectory = join(installed, 'skills/ship-it');
+    const reviewer = readFileSync(
+      join(skillDirectory, 'references/roles/ship-it-reviewer.md'),
+      'utf8',
+    );
+    const slots = /- \*\*Slot 1\b([\s\S]+?)\*\*Scaling\.\*\*/.exec(reviewer);
+    expect(slots).not.toBeNull();
+    const names = [...slots![1]!.matchAll(/`([a-z-]+\.md)`/g)].map((match) => match[1]!);
+    const directoryReference = /`\$\{SKILLDIR\}\/([^`]+)\/<role>\.md`/.exec(reviewer);
     expect(directoryReference).not.toBeNull();
     const promptDirectory = join(skillDirectory, directoryReference![1]!);
     expect(relative(installed, promptDirectory)).not.toMatch(/^\.\./);
     expect(names.length).toBeGreaterThan(0);
-    for (const name of names) readReviewer(join(promptDirectory, name));
+    for (const name of new Set(names)) readReviewer(join(promptDirectory, name));
   });
 });
