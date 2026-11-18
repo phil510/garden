@@ -306,8 +306,8 @@ describe('runCli', () => {
   it.each([
     ['new', ['/repo', '--effort', 'extreme'], 'garden new <dir>'],
     ['new', ['/repo', '--model=-x'], 'garden new <dir>'],
-    ['resume', ['abc', '--effort', 'bogus'], 'garden resume <id>'],
-    ['resume', ['abc', '--model='], 'garden resume <id>'],
+    ['resume', ['abc', '--effort', 'bogus'], 'garden resume <id-or-name>'],
+    ['resume', ['abc', '--model='], 'garden resume <id-or-name>'],
   ] as const)(
     'rejects a bad flag value on "%s" before calling the server',
     async (command, args, form) => {
@@ -333,16 +333,16 @@ describe('runCli', () => {
     expect(calls).toEqual(['ls']);
   });
 
-  it('dispatches "kill <id>" and "resume <id>" with the positional as the id', async () => {
+  it('forwards named kill and resume targets without listing sessions', async () => {
     const { io } = collectingIo();
     const { client, calls } = recordingClient();
 
-    expect(await runCli('kill', ['abc'], io, client)).toBe(0);
-    expect(await runCli('resume', ['abc'], io, client)).toBe(0);
-    expect(calls).toEqual(['kill:abc', 'resume:abc']);
+    expect(await runCli('kill', ['Scout / Review'], io, client)).toBe(0);
+    expect(await runCli('resume', ['Scout / Review'], io, client)).toBe(0);
+    expect(calls).toEqual(['kill:Scout / Review', 'resume:Scout / Review']);
   });
 
-  it('dispatches "adopt <id>" with the positional as the target', async () => {
+  it('dispatches "adopt <id-or-name>" with the positional as the target', async () => {
     const { io } = collectingIo();
     const { client, calls } = recordingClient();
 
@@ -374,7 +374,7 @@ describe('runCli', () => {
 
     expect(exitCode).toBe(1);
     expect(calls).toEqual([]);
-    expect(stderr).toEqual(['garden: usage: garden adopt <id>\n']);
+    expect(stderr).toEqual(['garden: usage: garden adopt <id-or-name>\n']);
   });
 
   it('recognises --json anywhere after the subcommand', async () => {

@@ -52,13 +52,22 @@ export function pipeUrl(sessionId: string): string {
   return `ws://${hostPort()}${pipeStreamPath(sessionId)}`;
 }
 
+const uuidPattern = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+
+function sessionActionPath(target: string, action: string): string {
+  if (uuidPattern.test(target)) return `/sessions/${encodeURIComponent(target)}/${action}`;
+  // Query values avoid the router's path parameter limit and URL dot-segment normalization.
+  const query = new URLSearchParams({ target });
+  return `/sessions/-/${action}?${query.toString()}`;
+}
+
 /** Resolves the current conversation on the server, keeping native harness ids private. */
 export function sendSessionMessage(
   sessionId: string,
   message: string,
   signal?: AbortSignal,
 ): Promise<OkResponse> {
-  return request(`/sessions/${encodeURIComponent(sessionId)}/messages`, {
+  return request(sessionActionPath(sessionId, 'messages'), {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ message }),
@@ -149,7 +158,7 @@ export function resumeSession(
   options: SpawnOptions = {},
 ): Promise<CreateSessionResponse> {
   const body: ResumeSessionRequest = definedSpawnOptions(options);
-  return request(`/sessions/${encodeURIComponent(id)}/resume`, {
+  return request(sessionActionPath(id, 'resume'), {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
@@ -157,12 +166,12 @@ export function resumeSession(
 }
 
 export function killSession(id: string): Promise<OkResponse> {
-  return request(`/sessions/${encodeURIComponent(id)}/kill`, { method: 'POST' });
+  return request(sessionActionPath(id, 'kill'), { method: 'POST' });
 }
 
 export function placeSession(id: string, placement: Placement): Promise<OkResponse> {
   const body: PlacementRequest = { placement };
-  return request(`/sessions/${encodeURIComponent(id)}/placement`, {
+  return request(sessionActionPath(id, 'placement'), {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),

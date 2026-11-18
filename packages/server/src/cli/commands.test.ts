@@ -160,9 +160,13 @@ describe('runNew', () => {
     expect(sent).toEqual([process.cwd(), resolve(process.cwd(), 'sub/dir'), '/repo']);
   });
 
-  it('prints the minted id and tmux name on success', async () => {
+  it('prints the minted id, tmux name and available handle on success', async () => {
     const { io, stdout, stderr } = collectingIo();
-    const response: CreateSessionResponse = { id: 'abc', tmuxName: 'repo' };
+    const response: CreateSessionResponse = {
+      id: 'abc',
+      tmuxName: 'repo',
+      sessionName: 'repo-abc123',
+    };
     const client: CliClient = {
       ...throwingClient(new Error('unused')),
       createSession: () => Promise.resolve(response),
@@ -171,7 +175,7 @@ describe('runNew', () => {
     const exitCode = await runNew(io, '/repo', false, client);
 
     expect(exitCode).toBe(0);
-    expect(stdout).toEqual(['abc\trepo\n']);
+    expect(stdout).toEqual(['abc\trepo\trepo-abc123\n']);
     expect(stderr).toEqual([]);
   });
 
@@ -269,7 +273,7 @@ describe('runLs', () => {
     const { io, stdout } = collectingIo();
     const sessions: SessionsResponse = {
       sessions: [
-        aSession(),
+        aSession({ sessionName: 'Scout' }),
         aSession({ id: 'session-2', status: null, liveness: 'dead', title: null }),
       ],
     };
@@ -281,7 +285,9 @@ describe('runLs', () => {
     const exitCode = await runLs(io, false, client);
 
     expect(exitCode).toBe(0);
-    expect(stdout).toEqual(['session-1\tlive\tworking\tfix the bug\nsession-2\tdead\t-\t/repo\n']);
+    expect(stdout).toEqual([
+      'session-1\tlive\tworking\tfix the bug\tScout\nsession-2\tdead\t-\t/repo\n',
+    ]);
   });
 
   it('prints a placeholder line when there are no sessions', async () => {

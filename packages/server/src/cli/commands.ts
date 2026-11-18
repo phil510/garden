@@ -123,7 +123,8 @@ export function runNew(
     io,
     json,
     () => client.createSession(absoluteDir, callerSessionId, options),
-    (result) => `${result.id}\t${result.tmuxName}`,
+    ({ id, tmuxName, sessionName }) =>
+      [id, tmuxName, ...(sessionName === undefined ? [] : [sessionName])].join('\t'),
   );
 }
 
@@ -141,7 +142,15 @@ export function runLs(
       sessions.length === 0
         ? 'no sessions'
         : sessions
-            .map((s) => `${s.id}\t${s.liveness}\t${s.status ?? '-'}\t${s.title ?? s.cwd}`)
+            .map((s) =>
+              [
+                s.id,
+                s.liveness,
+                s.status ?? '-',
+                s.title ?? s.cwd,
+                ...(s.sessionName ? [s.sessionName] : []),
+              ].join('\t'),
+            )
             .join('\n'),
   );
 }

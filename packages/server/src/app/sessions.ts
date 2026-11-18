@@ -6,6 +6,7 @@ import { deriveTmuxName } from '../domain/tmuxName.js';
 import { SessionNotFoundError, SessionMessagingError } from './errors.js';
 import type { HarnessPort, TmuxPaneFact, TmuxPort } from './ports.js';
 import type { Projection } from './projection.js';
+import { resolveSessionTarget } from './sessionTargets.js';
 import { recordSpawn, setArchived } from './swarms.js';
 
 export { SessionNotFoundError } from './errors.js';
@@ -20,6 +21,7 @@ export interface CreateSessionRequest {
 export interface CreateSessionResult {
   readonly id: string;
   readonly tmuxName: string;
+  readonly sessionName?: string;
   /** Set when `callerSessionId` was forwarded but doesn't name a session garden knows
    *  about. Never sent on the wire — `http/routes/sessions.ts` turns it into a stderr
    *  warning instead. */
@@ -117,16 +119,19 @@ export async function createSession(
     throw error;
   }
   const reported = launch === undefined ? harness.initialStatus : launch.registrationStatus();
+  const name = launch?.sessionName === undefined ? {} : { sessionName: launch.sessionName };
 
   projection.dispatch({
     type: 'session-registered',
     id,
     tmuxName,
     cwd: request.cwd,
+    ...name,
     ...(reported === undefined ? {} : { reported }),
   });
 
-  if (request.callerSessionId === undefined) return { id, tmuxName };
+  const result = { id, tmuxName, ...name };
+  if (request.callerSessionId === undefined) return result;
 
   const callerTitle =
     projection.sessions().find((session) => session.id === request.callerSessionId)?.title ?? null;
@@ -134,9 +139,9 @@ export async function createSession(
     recordSpawn({ projection }, { callerId: request.callerSessionId, childId: id, callerTitle });
   } catch (error) {
     if (!(error instanceof SessionNotFoundError)) throw error;
-    return { id, tmuxName, unknownCaller: true };
+    return { ...result, unknownCaller: true };
   }
-  return { id, tmuxName };
+  return result;
 }
 
 /** If the resumed session resolves to a top-level swarm that is currently archived, clears
@@ -162,9 +167,10 @@ export async function resumeSession(
   request: ResumeSessionRequest,
 ): Promise<ResumeSessionResult> {
   const { tmux, projection, serverPort, harness, permissionMode } = deps;
-  const session = findSession(projection, request.id);
+  const session = resolveSessionTarget(projection.sessions(), request.id);
+  const { id } = session;
   const launchRequest = {
-    id: request.id,
+    id,
     cwd: session.cwd,
     ...(request.model === undefined ? {} : { model: request.model }),
     ...(request.effort === undefined ? {} : { effort: request.effort }),
@@ -177,7 +183,7 @@ export async function resumeSession(
   const reusePane = priorName !== null && panes.some((pane) => pane.session === priorName);
   const tmuxName = reusePane
     ? priorName
-    : deriveTmuxName(session.cwd, takenTmuxNames(projection, panes, request.id));
+    : deriveTmuxName(session.cwd, takenTmuxNames(projection, panes, id));
   try {
     const command = harness.resumeCommand(launchRequest);
     if (reusePane) await tmux.respawnPane({ name: tmuxName, command });
@@ -194,16 +200,18 @@ export async function resumeSession(
     throw error;
   }
   const reported = launch === undefined ? harness.initialStatus : launch.registrationStatus();
+  const name = launch?.sessionName === undefined ? {} : { sessionName: launch.sessionName };
   projection.dispatch({
     type: 'session-registered',
-    id: request.id,
+    id,
     tmuxName,
     cwd: session.cwd,
+    ...name,
     ...(reported === undefined ? {} : { reported }),
   });
-  const result = { id: request.id, tmuxName };
+  const result = { id, tmuxName };
 
-  unarchiveResumedSwarm(deps, request.id);
+  unarchiveResumedSwarm(deps, id);
   return result;
 }
 
@@ -214,22 +222,23 @@ export async function resumeSession(
  */
 export async function killSession(deps: SessionsDeps, request: KillSessionRequest): Promise<void> {
   const { tmux, projection } = deps;
-  const session = findSession(projection, request.id);
+  const session = resolveSessionTarget(projection.sessions(), request.id);
+  const { id } = session;
   if (session.tmuxName !== null) await tmux.killSession(session.tmuxName);
-  projection.dispatch({ type: 'session-unregistered', id: request.id });
+  projection.dispatch({ type: 'session-unregistered', id });
   // Re-read: the dying agent may have raised an alert while the tmux kill was in flight.
-  if (findSession(projection, request.id).alert !== null) {
-    projection.updateOverlay((base) => withoutAlert(base, request.id));
-    projection.dispatch({ type: 'alert-changed', sessionId: request.id, alert: null });
+  if (findSession(projection, id).alert !== null) {
+    projection.updateOverlay((base) => withoutAlert(base, id));
+    projection.dispatch({ type: 'alert-changed', sessionId: id, alert: null });
   }
 }
 
 export async function sendSessionMessage(
   deps: SessionsDeps,
-  id: string,
+  target: string,
   message: string,
 ): Promise<void> {
-  findSession(deps.projection, id);
+  const { id } = resolveSessionTarget(deps.projection.sessions(), target);
   if (deps.harness.sendMessage === undefined)
     throw new SessionMessagingError('garden send is not supported by the selected harness');
   await deps.harness.sendMessage(id, message, async () => {

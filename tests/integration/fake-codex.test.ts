@@ -16,7 +16,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import type { SessionState, SessionsResponse } from '@garden/shared';
+import type { CreateSessionResponse, SessionState, SessionsResponse } from '@garden/shared';
 import { describe, expect, it } from 'vitest';
 import { until } from './support/poll.js';
 import { withTmuxServer } from './support/tmux-server.js';
@@ -99,6 +99,8 @@ interface Alias {
   codexId: string | null;
   transcriptPath: string | null;
 }
+
+type NamedSession = CreateSessionResponse & { sessionName: string };
 function aliases(appDir: string): Record<string, Alias> {
   return (
     JSON.parse(readFileSync(join(appDir, 'codex-aliases.json'), 'utf8')) as {
@@ -154,7 +156,12 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
           model: 'gpt-5.3-codex',
           effort: 'high',
         });
-        const { id, tmuxName } = (await created.json()) as { id: string; tmuxName: string };
+        const { id, tmuxName, sessionName } = (await created.json()) as NamedSession;
+        expect(sessionName).toMatch(/^project-[a-z0-9-]+$/);
+        expect((await rows(url)).find((row) => row.id === id)).toMatchObject({
+          sessionName,
+          title: null,
+        });
         await ready(tmuxName);
         await until(
           'pending session to be live and waiting',
@@ -173,7 +180,7 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
           ]),
         );
         expect(launched).not.toContain('--no-daemon');
-        await post(url, `/sessions/${id}/messages`, { message: 'first prompt' });
+        await post(url, `/sessions/${sessionName}/messages`, { message: 'first prompt' });
         await until(
           'bound rollout to supply title and recap',
           () => rows(url),
@@ -181,11 +188,12 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
             list.some(
               (row) =>
                 row.id === id &&
+                row.sessionName === sessionName &&
                 row.title === 'first prompt' &&
                 row.recap === 'Response to first prompt',
             ),
         );
-        await post(url, `/sessions/${id}/messages`, { message: 'bound delivery' });
+        await post(url, `/sessions/${sessionName}/messages`, { message: 'bound delivery' });
         await until(
           'queue command to reach the loaded native conversation',
           () => rows(url),
@@ -219,8 +227,7 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
           (native) => native !== firstNative,
         );
         const cleared = (await rows(url)).find((row) => row.id === id)!;
-        expect(cleared.title).toBeNull();
-        expect(cleared.recap).toBeNull();
+        expect(cleared).toMatchObject({ sessionName, title: null, recap: null });
         await until(
           'new conversation native idle status',
           () => rows(url),
@@ -232,10 +239,8 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
           () => rows(url),
           (list) => list.some((row) => row.id === id && row.title === 'new conversation'),
         );
-        const pending = (await (await post(url, '/sessions', { cwd })).json()) as {
-          id: string;
-          tmuxName: string;
-        };
+        const pending = (await (await post(url, '/sessions', { cwd })).json()) as NamedSession;
+        expect(pending.sessionName).not.toBe(sessionName);
         await ready(pending.tmuxName);
         await stop(child);
         child = await start(env, url);
@@ -249,8 +254,12 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
         expect(restored.find((row) => row.id === id)).toMatchObject({
           title: 'new conversation',
           status: 'waiting',
+          sessionName,
         });
-        expect(restored.find((row) => row.id === pending.id)).toMatchObject({ status: 'waiting' });
+        expect(restored.find((row) => row.id === pending.id)).toMatchObject({
+          status: 'waiting',
+          sessionName: pending.sessionName,
+        });
         await stop(child);
         child = undefined;
         await send(pending.tmuxName, 'offline first prompt');
@@ -293,14 +302,21 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
           (list) => list.some((row) => row.id === id && row.title === 'after offline clear'),
         );
         expect(readdirSync(spoolDir)).toEqual([]);
-        const never = (await (await post(url, '/sessions', { cwd })).json()) as {
-          id: string;
-          tmuxName: string;
-        };
+        const never = (await (await post(url, '/sessions', { cwd })).json()) as NamedSession;
         await ready(never.tmuxName);
-        await post(url, `/sessions/${never.id}/kill`, {});
+        await post(url, `/sessions/${never.sessionName}/kill`, {});
         expect(aliases(appDir)[never.id]?.codexId).toBeNull();
-        await post(url, `/sessions/${never.id}/resume`, { effort: 'medium' });
+        await stop(child);
+        child = await start(env, url);
+        expect((await rows(url)).find((row) => row.id === never.id)).toMatchObject({
+          liveness: 'dead',
+          sessionName: never.sessionName,
+        });
+        const resumed = (await (
+          await post(url, `/sessions/${never.sessionName}/resume`, { effort: 'medium' })
+        ).json()) as CreateSessionResponse;
+        expect(resumed.id).toBe(never.id);
+        await ready(resumed.tmuxName);
         await until(
           'never-prompted resume to start a fresh Codex process with same garden id',
           () =>
@@ -313,7 +329,9 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
             args.some((arg) => arg === 'model_reasoning_effort="medium"') &&
             !args.includes('resume'),
         );
-        await post(url, `/sessions/${never.id}/messages`, { message: 'first after resume' });
+        await post(url, `/sessions/${never.sessionName}/messages`, {
+          message: 'first after resume',
+        });
         await until(
           'resumed pending session to bind',
           () => rows(url),

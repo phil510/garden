@@ -65,9 +65,9 @@ can be restarted from garden so a fresh session picks the variable up.
 
 Reach for `garden adopt <id> --json` instead when the session already exists and wasn't spawned
 under you — one a teammate started, or one that predates your own `GARDEN_SESSION_ID` — to place
-it under you after the fact. Brief it the same way you would a fresh spawn (run folder path,
-member-file name, report contract) — tell the peer its member file is `<its own $GARDEN_SESSION_ID>.md`,
-the same id you just adopted it with; adoption changes who placed the session, not what it owes the run.
+it under you after the fact. Look up and retain its Garden `id` from `garden ls --json` before
+adopting it into the run. Brief the peer like a fresh spawn and use that UUID for its
+`<session-id>.md` file.
 
 **Decide where new work goes when you assign it.** Reuse a session when the next task shares its
 files and decisions and its current work has reached a stopping point; it
@@ -191,13 +191,12 @@ whatever the swarm size; only splitting into waves waits for a large swarm.
 
 ## Two naming systems
 
-A session has a garden/tmux name (`79-bounded-session-list`) and a Claude Code name that
-addresses it for messaging (`79-bounded-session-list-c0`). The suffix is a random disambiguator,
-not a hash or slice of anything you hold, and the session id is the only bridge between them. So
-resolve the address with `message-session`'s `resolve_session.sh`, every time. The messaging name
-belongs to one process: resume or restart a
-session and it comes back under a different one, so a name quoted from memory is stale the moment
-its process is — and a misdelivered note fails silently in both directions.
+Garden displays the current Claude Code registry name as `sessionName`. You can pass that exact
+name to `garden resume`, `garden kill`, or `garden adopt` for a one-off command. Keep the Garden
+UUID for run members because a Claude name can change or be reused.
+
+For native messaging, resolve the peer's current address through `message-session` every time.
+A remembered address can belong to a different process after resume or rename.
 
 `GARDEN_SESSION_ID` is garden's own identifier, not Claude Code's: the registry session id
 `message-session`'s `resolve_session.sh` reads from `~/.claude/sessions/<pid>.json` is a separate
@@ -300,7 +299,7 @@ session picking the run up, not live status.
 `GARDEN_SESSION_ID`, and `resumeSession` relaunches a killed session with `--resume <that id>`. So
 the id outlives a kill-then-resume and the `/clear`-driven identity change "Two naming systems"
 above describes, where the tmux name and the messaging name do not. You already have it — from
-`garden new --json`'s `id` field, `garden ls`, or the id you passed to `garden adopt` — so there's
+`garden new --json`'s `id` field or `garden ls --json` before adoption — so there's
 nothing to assign or check for collisions. Open the file with a line naming the member's task, so
 a folder of ids stays readable. It's a short snapshot of that member's goal, decisions, state, and
 next step — updated at milestones (assignment accepted, a material decision, a blocker,

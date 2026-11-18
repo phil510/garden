@@ -7,6 +7,7 @@ import {
   PathOutsideRootError,
 } from '../app/filesystem.js';
 import {
+  AmbiguousSessionNameError,
   AmbiguousWatchError,
   DigestNotFoundError,
   NoLocalCloneError,
@@ -24,6 +25,7 @@ type ErrorClass = new (...args: never[]) => Error;
 
 const STATUS_BY_ERROR: readonly (readonly [ErrorClass, number])[] = [
   [SessionNotFoundError, 404],
+  [AmbiguousSessionNameError, 400],
   [SessionMessagingError, 409],
   [SwarmNotFoundError, 404],
   [PathNotFoundError, 404],

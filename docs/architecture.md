@@ -70,7 +70,7 @@ merges them; nothing else computes a session fact.
 | status, reason                       | harness-neutral signals or launch registration (harness adapters hold the native event-to-status mappings)         |
 | branch                               | a live git lookup by cwd (`app/branches.ts`), re-asked each tick for live sessions                                 |
 | repo root                            | `git rev-parse --git-common-dir` on the cwd (`app/repoRoots.ts`), so worktrees fold into their main repo           |
-| Session display name                 | selected harness; Claude reads `~/.claude/sessions`, Codex supplies no name                                        |
+| Session display name                 | Claude registry snapshot or Garden handle persisted in the Codex alias store                                       |
 | watches                              | the watch records in `state.json`, projected onto the session by a `watches-changed` event                         |
 | alert                                | `garden alert` or the web Dismiss, persisted in `state.json` and projected by an `alert-changed` event             |
 | pipe connected                       | the registry in `app/pipes.ts` (open pipe streams), projected onto the session by a `pipe-changed` event           |
@@ -232,7 +232,8 @@ and delegates validation to the harness.
 Garden's id remains the primary key. The Codex adapter persists pending and bound aliases in
 its app directory and binds native ids and rollout paths from `SessionStart`, including after
 clear or fork. Pending aliases preserve never-prompted sessions; ended sessions keep their
-aliases for resume. Spool replay recovers bindings posted while garden was down. Codex reads
+aliases for resume. The alias stores a project-based session handle across native bindings.
+Spool replay recovers bindings posted while garden was down. Codex reads
 only bound rollouts, and invalidates reads when a binding changes, including reads during boot.
 It never discovers identities by scanning rollouts. Claude retains its project-slug discovery
 and bounded head/tail reads. Generic polling receives the selected layout instead of knowing
@@ -402,7 +403,9 @@ Digest lines are the only thing it writes to stdout.
 `app/sessions.ts` holds the three commands. Create and resume follow §4.1's order: tmux first,
 then dispatch `session-registered`. Kill dispatches `session-unregistered` after killing tmux. The
 use cases never touch the store: `dispatch` persists the tmux name map itself, so the projection
-is its only writer.
+is its only writer. Resume, kill, adopt and Codex send accept a Garden UUID or the exact current
+projected name. The app prefers an exact ID, rejects ambiguous names with their matching IDs,
+and carries the selected ID through the operation.
 
 - **Create** mints a Garden id and asks the selected harness for launch preparation and a
   command. Claude uses `--session-id`; Codex persists a pending alias before launch and binds

@@ -1,4 +1,5 @@
 import { DEFAULT_UI_STATE } from '@garden/shared';
+import { aSession } from '@garden/shared/fixtures';
 import { describe, expect, it } from 'vitest';
 import type { Logger, OverlayState } from '../../app/ports.js';
 import type { Projection } from '../../app/projection.js';
@@ -201,6 +202,62 @@ describe('POST /sessions/:id/placement', () => {
     });
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ ok: true });
+  });
+
+  it.each([
+    ['a literal URL dot segment', '.'],
+    [
+      'a long name containing URL punctuation',
+      'Migration readiness across permissions, customer-specific configuration, and observability before launch 🚀 / + &',
+    ],
+  ])('places a session with %s', async (_case, name) => {
+    let overlay: OverlayState = { ...emptyOverlay, tmuxNames: { caller: 'garden-caller' } };
+    const app = buildApp({
+      projection: fakeProjection({
+        sessions: () => [aSession({ id: 'child', sessionName: name })],
+        updateOverlay: (mutate) => (overlay = mutate(overlay)),
+      }),
+    });
+    const response = await app.inject({
+      method: 'POST',
+      url: `/sessions/-/placement?${new URLSearchParams({ target: name }).toString()}`,
+      payload: { placement: { type: 'parent', parentId: 'caller' } },
+    });
+    expect(response.json()).toEqual({ ok: true });
+    expect(overlay.ui.placements).toEqual({ child: { parent: 'caller' } });
+  });
+
+  it('rejects repeated targets before placing a session named for the placeholder', async () => {
+    const app = buildApp({
+      projection: fakeProjection({ sessions: () => [aSession({ id: 'child', sessionName: '-' })] }),
+    });
+    const response = await app.inject({
+      method: 'POST',
+      url: '/sessions/-/placement?target=one&target=two',
+      payload: { placement: { type: 'parent', parentId: 'caller' } },
+    });
+    expect(response.statusCode).toBe(400);
+  });
+
+  it('returns the matching IDs when an exact adoption name is ambiguous', async () => {
+    const app = buildApp({
+      projection: fakeProjection({
+        sessions: () => [
+          aSession({ id: 'b', sessionName: 'Scout / Review' }),
+          aSession({ id: 'a', sessionName: 'Scout / Review' }),
+        ],
+        updateOverlay: (mutate) => mutate(emptyOverlay),
+      }),
+    });
+    const response = await app.inject({
+      method: 'POST',
+      url: '/sessions/Scout%20%2F%20Review/placement',
+      payload: { placement: { type: 'parent', parentId: 'caller' } },
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({
+      error: 'ambiguous session name "Scout / Review". Matching IDs: a, b',
+    });
   });
 
   it('maps SessionNotFoundError to 404', async () => {

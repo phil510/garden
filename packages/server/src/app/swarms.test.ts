@@ -206,11 +206,41 @@ describe('placeSession', () => {
 
   it('recognizes a target known only via tmuxNames (no projection.sessions() entry yet)', () => {
     const overlay: OverlayState = { ...emptyOverlay, tmuxNames: { a: 'garden-a', b: 'garden-b' } };
-    const { projection, current } = fakeProjection(overlay, []);
+    const { projection, current } = fakeProjection(overlay, [
+      aSession({ id: 'different', sessionName: 'a' }),
+    ]);
 
     placeSession({ projection }, { sessionId: 'a', placement: { type: 'parent', parentId: 'b' } });
 
-    expect(current().ui.placements['a']).toEqual({ parent: 'b' });
+    expect(current().ui.placements).toEqual({ a: { parent: 'b' } });
+  });
+
+  it('places a named child under the canonical caller and validates cycles on the resolved ID', () => {
+    const { projection, current, writes } = fakeProjection(emptyOverlay, [
+      aSession({ id: 'child', sessionName: 'Scout' }),
+      aSession({ id: 'caller', sessionName: 'Leader' }),
+    ]);
+
+    const adopt = (sessionId: string, parentId: string) =>
+      placeSession({ projection }, { sessionId, placement: { type: 'parent', parentId } });
+    expect(() => adopt('Scout', 'Leader')).toThrow(SessionNotFoundError);
+    expect(() => adopt('Scout', 'child')).toThrow(SwarmCycleError);
+    expect(writes).toEqual([]);
+
+    adopt('Scout', 'caller');
+
+    expect(current().ui.placements).toEqual({ child: { parent: 'caller' } });
+    expect(writes).toHaveLength(1);
+  });
+
+  it('requires an ID for placement types other than parent', () => {
+    const { projection, writes } = fakeProjection(emptyOverlay, [
+      aSession({ id: 'child', sessionName: 'Scout' }),
+    ]);
+    expect(() =>
+      placeSession({ projection }, { sessionId: 'Scout', placement: { type: 'none' } }),
+    ).toThrow(SessionNotFoundError);
+    expect(writes).toEqual([]);
   });
 
   it('sets exactly the swarm placement, replacing any prior parent', () => {

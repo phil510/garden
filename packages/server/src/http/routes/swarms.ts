@@ -17,6 +17,7 @@ import {
   unarchiveSwarm,
 } from '../../app/swarms.js';
 import type { SwarmsDeps } from '../../app/swarms.js';
+import { sessionTarget, type SessionTargetRoute } from '../sessionTarget.js';
 
 function isCreateSwarmRequest(body: unknown): body is CreateSwarmRequest {
   if (typeof body !== 'object' || body === null) return false;
@@ -75,10 +76,10 @@ export function swarmRoutes(app: FastifyInstance, deps: SwarmsDeps) {
     return reply.send({ ok: true } satisfies OkResponse);
   });
 
-  app.post<{ Params: { id: string } }>('/sessions/:id/placement', (request, reply) => {
+  app.post<SessionTargetRoute>('/sessions/:id/placement', (request, reply) => {
     if (!isPlacementRequest(request.body))
       return reply.code(400).send({ error: 'invalid placement request' } satisfies ErrorResponse);
-    placeSession(deps, { sessionId: request.params.id, placement: request.body.placement });
+    placeSession(deps, { sessionId: sessionTarget(request), placement: request.body.placement });
     return reply.send({ ok: true } satisfies OkResponse);
   });
 }
