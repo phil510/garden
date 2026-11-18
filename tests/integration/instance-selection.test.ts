@@ -83,7 +83,11 @@ interface Instance extends Api {
 async function withInstances(
   fn: (ctx: {
     instances: Record<Harness, Instance>;
-    run: (args: string[], overrides?: NodeJS.ProcessEnv) => Promise<{ stdout: string }>;
+    run: (
+      args: string[],
+      overrides?: NodeJS.ProcessEnv,
+      input?: string,
+    ) => Promise<{ stdout: string }>;
     hasSession: (harness: Harness) => Promise<void>;
     serverRunning: (harness: Harness) => Promise<boolean>;
     opened: string;
@@ -141,11 +145,14 @@ async function withInstances(
           claude: await setup('claude', claude),
           codex: await setup('codex', codex),
         };
-        const run = (args: string[], overrides: NodeJS.ProcessEnv = {}) =>
-          execFileAsync(process.execPath, ['--import', loader, cli, ...args], {
+        const run = (args: string[], overrides: NodeJS.ProcessEnv = {}, input?: string) => {
+          const result = execFileAsync(process.execPath, ['--import', loader, cli, ...args], {
             env: { ...env, ...overrides },
             timeout: 15_000,
           });
+          if (input !== undefined) result.child.stdin?.end(input);
+          return result;
+        };
         const hasSession = async (harness: Harness) => {
           await tmux(harness, 'has-session');
         };
@@ -294,10 +301,10 @@ describe('CLI instance isolation', () => {
       expect(JSON.parse((await run(['--codex', 'ls', '--json'], env)).stdout)).toMatchObject([
         { id: 'codex-session' },
       ]);
-      const { stdout } = await run(['--codex', 'stop', '--all', '--yes'], {
-        ...env,
-        GARDEN_PORT: String(claude.port),
-      });
+      const { stdout } = await run(['--codex', 'stop', '--all'], env, 'yes\n');
+      expect(stdout).toContain(`kills every session on tmux socket ${claude.socket}`);
+      expect(stdout).toContain('Live sessions will lose in-flight work');
+      expect(stdout).toContain(`${claude.appDir} is kept`);
       expect(stdout).toContain('garden stopped; tmux server killed');
       expect(existsSync(join(claude.appDir, 'server.pid'))).toBe(false);
       await expect.poll(() => serverRunning('claude')).toBe(false);

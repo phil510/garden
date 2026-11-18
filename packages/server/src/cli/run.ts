@@ -410,9 +410,7 @@ export async function runCli(
       });
     }
     case 'stop':
-      return values.all === true
-        ? runStopAll(io, values.yes === true, client, stopAllDeps)
-        : runStop(io);
+      return values.all === true ? runStopAll(io, values.yes === true, stopAllDeps) : runStop(io);
     case 'uninstall':
       return runUninstall(io, values.yes === true);
   }

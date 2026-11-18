@@ -625,7 +625,7 @@ function fakeStopAllDeps(overrides: Partial<StopAllDeps> = {}): {
 }
 
 describe('runCli dispatch of "stop --all"', () => {
-  it('confirms, stops, and kills tmux when --all is set', async () => {
+  it('confirms, stops, and kills tmux without asking the HTTP client for sessions', async () => {
     const { io } = collectingIo();
     const { client, calls: clientCalls } = recordingClient();
     const { deps, calls } = fakeStopAllDeps();
@@ -633,11 +633,11 @@ describe('runCli dispatch of "stop --all"', () => {
     const exitCode = await runCli('stop', ['--all'], io, client, deps);
 
     expect(exitCode).toBe(0);
-    expect(clientCalls).toEqual(['ls']);
+    expect(clientCalls).toEqual([]);
     expect(calls).toEqual(['confirm', 'stop', 'killTmuxServer']);
   });
 
-  it('skips confirmation and the session-count fetch when --all --yes are both set', async () => {
+  it('skips confirmation when --all --yes are both set', async () => {
     const { io } = collectingIo();
     const { client, calls: clientCalls } = recordingClient();
     const { deps, calls } = fakeStopAllDeps();

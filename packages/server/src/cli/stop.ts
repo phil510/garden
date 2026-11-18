@@ -2,9 +2,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { DEFAULT_CONFIG_FILE, ensureConfigFile, loadConfig } from '../config.js';
-import type { CliClient, Io } from './commands.js';
-import { defaultClient } from './commands.js';
-import { CliHttpError } from './http.js';
+import type { Io } from './commands.js';
 import { writeAll } from './io.js';
 import {
   classifyRecordedPid,
@@ -117,44 +115,18 @@ function defaultStopAllDeps(): StopAllDeps {
   };
 }
 
-/** The server answers with `/sessions` while it's still up; once it's stopped there's nothing
- *  to ask. `null` means the server was unreachable, not that the count is zero. */
-async function liveSessionCount(client: CliClient): Promise<number | null> {
-  try {
-    const { sessions } = await client.listSessions();
-    return sessions.filter((s) => s.liveness === 'live').length;
-  } catch (error) {
-    if (error instanceof CliHttpError) return null;
-    throw error;
-  }
-}
-
-function confirmMessage(liveCount: number | null, appDir: string): string {
-  // Built as a possessive already, since "session's" (singular) and "sessions'" (plural)
-  // take the apostrophe in different places — a suffix appended after the fact can't do both.
-  const sessionsPossessive =
-    liveCount === null
-      ? "an uncounted number of live sessions'"
-      : liveCount === 1
-        ? "1 live session's"
-        : `${String(liveCount)} live sessions'`;
-  return (
-    `This stops garden and kills every tmux session it manages, losing ${sessionsPossessive} ` +
-    `in-flight work. ${appDir} is kept. Continue? [y/N] `
-  );
-}
-
 /** `garden stop --all` — stop the server, then kill the garden tmux server. Unlike plain
  *  `garden stop`, this is a hard stop: every session's in-flight work is lost. */
 export async function runStopAll(
   io: Io,
   skipConfirm: boolean,
-  client: CliClient = defaultClient,
   deps: StopAllDeps = defaultStopAllDeps(),
 ): Promise<0 | 1> {
   if (!skipConfirm) {
-    const liveCount = await liveSessionCount(client);
-    if (!(await deps.confirm(confirmMessage(liveCount, deps.appDir)))) {
+    const message =
+      `This stops garden and kills every session on tmux socket ${deps.tmuxSocket}. ` +
+      `Live sessions will lose in-flight work. ${deps.appDir} is kept. Continue? [y/N] `;
+    if (!(await deps.confirm(message))) {
       await writeAll(io.stdout, 'aborted\n');
       return 0;
     }
