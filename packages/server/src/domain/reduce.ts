@@ -102,6 +102,10 @@ export function reduce(state: GardenState, event: GardenEvent): GardenState {
         ...state,
         tmuxNames: { ...state.tmuxNames, [event.id]: event.tmuxName },
         sessions: { ...state.sessions, [event.id]: { ...prev, cwd: event.cwd } },
+        sessionNames:
+          event.sessionName === undefined
+            ? state.sessionNames
+            : { ...state.sessionNames, [event.id]: event.sessionName },
         // Registering means a process was just started under this id, whether by create or
         // by resume. Whatever ended the previous run no longer describes the session.
         ended: { ...state.ended, [event.id]: false },

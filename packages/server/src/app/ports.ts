@@ -157,6 +157,7 @@ export interface TranscriptLayout {
 }
 
 export interface HarnessLaunch {
+  readonly sessionName?: string;
   rollback(): void;
   registrationStatus(): ReportedStatus | undefined;
 }

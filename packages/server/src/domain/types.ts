@@ -41,6 +41,7 @@ export type GardenEvent =
       tmuxName: string;
       cwd: string;
       reported?: ReportedStatus;
+      sessionName?: string;
     }
   | { type: 'session-unregistered'; id: string }
   | { type: 'transcript-changed'; path: string; record: TranscriptRecord }

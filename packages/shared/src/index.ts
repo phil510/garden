@@ -227,6 +227,7 @@ export type ResumeSessionRequest = SpawnOptions;
 export interface CreateSessionResponse {
   id: string;
   tmuxName: string;
+  sessionName?: string;
 }
 export interface OkResponse {
   ok: true;

@@ -142,6 +142,7 @@ export function sessionRoutes(app: FastifyInstance, deps: SessionsDeps) {
     return reply.send({
       id: result.id,
       tmuxName: result.tmuxName,
+      ...(result.sessionName === undefined ? {} : { sessionName: result.sessionName }),
     } satisfies CreateSessionResponse);
   });
 

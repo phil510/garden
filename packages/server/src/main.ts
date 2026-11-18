@@ -31,6 +31,7 @@ import {
 import type { TmuxTarget } from './adapters/tmux.js';
 import { createAttachRegistry, type AttachRegistry } from './app/attach.js';
 import { createBranchSweeper } from './app/branches.js';
+import { createSessionNameRefresh } from './app/sessionNames.js';
 import { createTranscriptReplay, type TranscriptReplay } from './app/transcriptReplay.js';
 import { createPoller } from './app/poller.js';
 import { createReviewPoller } from './app/reviewPoller.js';
@@ -169,18 +170,6 @@ async function dispatchTmuxSnapshot(projection: Projection, tmux: TmuxPort): Pro
   projection.dispatch({ type: 'tmux-snapshot', sessions: toSessionFacts(await tmux.listPanes()) });
 }
 
-async function dispatchSessionNames(
-  projection: Projection,
-  harness: HarnessPort,
-  logger: Logger,
-): Promise<void> {
-  const { names, skipped } = await harness.readSessionNames();
-  if (skipped > 0) {
-    logger.warn(`skipped ${String(skipped)} unreadable harness registry file(s)`);
-  }
-  projection.dispatch({ type: 'session-names-loaded', names });
-}
-
 function drainBindingSpool(
   harness: HarnessPort,
   projection: Projection,
@@ -211,6 +200,7 @@ async function replay(
   logger: Logger,
   harness: HarnessPort,
   git: GitPort,
+  refreshSessionNames: () => Promise<void>,
 ): Promise<void> {
   projection.dispatch({ type: 'store-loaded', tmuxNames: { ...store.read().tmuxNames } });
   // Isolated like the steps below: unreadable watch state is not a reason to fail boot.
@@ -252,12 +242,10 @@ async function replay(
   }
   await dispatchTmuxSnapshot(projection, tmux);
   try {
-    // Same boundary as the poll tick's own try/catch: a registry read failure is a missing
-    // display name, not a reason to fail boot.
-    await dispatchSessionNames(projection, harness, logger);
+    await refreshSessionNames();
   } catch (error) {
     logger.error(
-      `session registry read failed: ${error instanceof Error ? error.message : String(error)}`,
+      `session name projection failed: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
   await transcriptReplay.run();
@@ -314,6 +302,7 @@ export async function main(detached: boolean): Promise<void> {
   const transcripts: TranscriptPort = createTranscripts(harness.transcripts, logger);
   const git = gitPort();
   const projection = createProjection(store);
+  const refreshSessionNames = createSessionNameRefresh(projection, harness, logger);
   const pipes = createPipes({ projection, git });
   const attach: AttachRegistry = createAttachRegistry({
     pty: ptyPort({ socket: config.tmuxSocket, confPath }),
@@ -335,7 +324,17 @@ export async function main(detached: boolean): Promise<void> {
   });
 
   drainBindingSpool(harness, projection, watcher, logger);
-  await replay(projection, pipes, store, tmux, transcriptReplay, logger, harness, git);
+  await replay(
+    projection,
+    pipes,
+    store,
+    tmux,
+    transcriptReplay,
+    logger,
+    harness,
+    git,
+    refreshSessionNames,
+  );
   const statusObserver = harness.observeStatus?.((signal) => {
     applyHarnessSignal({ projection, liveTranscripts: watcher }, signal);
   });
@@ -383,9 +382,9 @@ export async function main(detached: boolean): Promise<void> {
     });
     // Its own try/catch, not chained onto the tmux snapshot's promise: a registry read
     // failure must not swallow that tick's liveness dispatch.
-    dispatchSessionNames(projection, harness, logger).catch((error: unknown) => {
+    refreshSessionNames().catch((error: unknown) => {
       logger.error(
-        `session registry poll failed: ${error instanceof Error ? error.message : String(error)}`,
+        `session name projection failed: ${error instanceof Error ? error.message : String(error)}`,
       );
     });
     // Its own catch too, for the same reason as above — see the first sweep after listen for what
