@@ -151,8 +151,8 @@ async function waitForPreviousLauncher() {
   if (!launcherAlive(previous)) return previous;
 
   // tmux can start the replacement while the old launcher is still reaping its children.
-  const deadline = Date.now() + shutdownGraceMs + 1000;
-  while (Date.now() < deadline && launcherAlive(previous)) await delay(30);
+  const deadline = performance.now() + shutdownGraceMs + 1000;
+  while (performance.now() < deadline && launcherAlive(previous)) await delay(30);
   const current = readPreviousLauncher();
   if (launcherAlive(previous) || launcherAlive(current)) {
     throw new Error('Codex session already has a live launcher');
