@@ -52,9 +52,13 @@ export function pipeUrl(sessionId: string): string {
   return `ws://${hostPort()}${pipeStreamPath(sessionId)}`;
 }
 
+const uuidPattern = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+
 function sessionActionPath(target: string, action: string): string {
-  if (target === '.' || target === '..') return `/sessions/-/${action}?target=${target}`;
-  return `/sessions/${encodeURIComponent(target)}/${action}`;
+  if (uuidPattern.test(target)) return `/sessions/${encodeURIComponent(target)}/${action}`;
+  // Query values avoid the router's path parameter limit and URL dot-segment normalization.
+  const query = new URLSearchParams({ target });
+  return `/sessions/-/${action}?${query.toString()}`;
 }
 
 /** Resolves the current conversation on the server, keeping native harness ids private. */

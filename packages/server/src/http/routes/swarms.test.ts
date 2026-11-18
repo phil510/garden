@@ -204,21 +204,39 @@ describe('POST /sessions/:id/placement', () => {
     expect(response.json()).toEqual({ ok: true });
   });
 
-  it('places a session named for a literal URL dot segment', async () => {
+  it.each([
+    ['a literal URL dot segment', '.'],
+    [
+      'a long name containing URL punctuation',
+      'Migration readiness across permissions, customer-specific configuration, and observability before launch 🚀 / + &',
+    ],
+  ])('places a session with %s', async (_case, name) => {
     let overlay: OverlayState = { ...emptyOverlay, tmuxNames: { caller: 'garden-caller' } };
     const app = buildApp({
       projection: fakeProjection({
-        sessions: () => [aSession({ id: 'child', sessionName: '.' })],
+        sessions: () => [aSession({ id: 'child', sessionName: name })],
         updateOverlay: (mutate) => (overlay = mutate(overlay)),
       }),
     });
     const response = await app.inject({
       method: 'POST',
-      url: '/sessions/-/placement?target=.',
+      url: `/sessions/-/placement?${new URLSearchParams({ target: name }).toString()}`,
       payload: { placement: { type: 'parent', parentId: 'caller' } },
     });
     expect(response.json()).toEqual({ ok: true });
     expect(overlay.ui.placements).toEqual({ child: { parent: 'caller' } });
+  });
+
+  it('rejects repeated targets before placing a session named for the placeholder', async () => {
+    const app = buildApp({
+      projection: fakeProjection({ sessions: () => [aSession({ id: 'child', sessionName: '-' })] }),
+    });
+    const response = await app.inject({
+      method: 'POST',
+      url: '/sessions/-/placement?target=one&target=two',
+      payload: { placement: { type: 'parent', parentId: 'caller' } },
+    });
+    expect(response.statusCode).toBe(400);
   });
 
   it('returns the matching IDs when an exact adoption name is ambiguous', async () => {

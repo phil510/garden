@@ -161,18 +161,22 @@ describe('createSession', () => {
   });
 });
 
-describe('literal URL dot-segment targets', () => {
+describe('session name transport', () => {
   it('preserves the literal target when passing supported commands to the server', async () => {
     const paths: (string | undefined)[] = [];
     await startServer((request, response) => {
       paths.push(request.url);
       sendJson(response, 200, { ok: true });
     });
+    const longName =
+      'Migration readiness across permissions, customer-specific configuration, and observability before launch 🚀 / + &';
+    await killSession(longName);
     await killSession('.');
     await resumeSession('..');
     await sendSessionMessage('.', 'hello');
     await placeSession('..', { type: 'parent', parentId: 'caller' });
     expect(paths).toEqual([
+      `/sessions/-/kill?${new URLSearchParams({ target: longName }).toString()}`,
       '/sessions/-/kill?target=.',
       '/sessions/-/resume?target=..',
       '/sessions/-/messages?target=.',
@@ -183,26 +187,27 @@ describe('literal URL dot-segment targets', () => {
 
 describe('placeSession', () => {
   it('posts { placement } to the placement route', async () => {
+    const id = '8fb1bdb0-acd1-4195-9d52-88dea91f21db';
     await startServer((request, response) => {
       void (async () => {
         expect(request.method).toBe('POST');
-        expect(request.url).toBe('/sessions/a/placement');
+        expect(request.url).toBe(`/sessions/${id}/placement`);
         expect(JSON.parse(await readBody(request))).toEqual({
           placement: { type: 'parent', parentId: 'b' },
         });
         sendJson(response, 200, { ok: true });
       })();
     });
-    await expect(placeSession('a', { type: 'parent', parentId: 'b' })).resolves.toEqual({
+    await expect(placeSession(id, { type: 'parent', parentId: 'b' })).resolves.toEqual({
       ok: true,
     });
   });
 });
 
 describe('resumeSession', () => {
-  it('posts to the resume route with the id URL-encoded', async () => {
+  it('posts to the resume route with the name URL-encoded', async () => {
     await startServer((request, response) => {
-      expect(request.url).toBe('/sessions/a%2Fb/resume');
+      expect(request.url).toBe('/sessions/-/resume?target=a%2Fb');
       sendJson(response, 200, { id: 'a/b', tmuxName: 'repo' });
     });
     await expect(resumeSession('a/b')).resolves.toEqual({ id: 'a/b', tmuxName: 'repo' });
@@ -224,11 +229,12 @@ describe('resumeSession', () => {
 
 describe('killSession', () => {
   it('posts to the kill route and returns ok', async () => {
+    const id = '8fb1bdb0-acd1-4195-9d52-88dea91f21db';
     await startServer((request, response) => {
-      expect(request.url).toBe('/sessions/abc/kill');
+      expect(request.url).toBe(`/sessions/${id}/kill`);
       sendJson(response, 200, { ok: true });
     });
-    await expect(killSession('abc')).resolves.toEqual({ ok: true });
+    await expect(killSession(id)).resolves.toEqual({ ok: true });
   });
 });
 
@@ -324,12 +330,12 @@ describe('review requests', () => {
 });
 
 describe('sendSessionMessage', () => {
-  it('sends quoted multiline text as JSON to the encoded garden id', async () => {
+  it('sends quoted multiline text as JSON to the encoded session name', async () => {
     const message = 'A "quoted" note\nnext line';
     await startServer((request, response) => {
       void readBody(request).then((body) => {
         expect(request.method).toBe('POST');
-        expect(request.url).toBe('/sessions/s%2F1/messages');
+        expect(request.url).toBe('/sessions/-/messages?target=s%2F1');
         expect(request.headers['content-type']).toBe('application/json');
         expect(JSON.parse(body)).toEqual({ message });
         sendJson(response, 200, { ok: true });
