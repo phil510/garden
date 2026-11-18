@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -194,6 +194,72 @@ describe('runStart', () => {
     // a garden-managed tmux pane inherits from, which is the bug an argv flag exists to avoid
     // by construction.
     expect(Object.keys(seenEnv ?? {}).some((key) => /detached/i.test(key))).toBe(false);
+  });
+
+  it.each([
+    { harness: 'claude', port: 4310 },
+    { harness: 'codex', port: 4311 },
+  ])(
+    'starts $harness with its own PID path and detached instance settings',
+    async ({ harness, port }) => {
+      vi.stubEnv('GARDEN_HARNESS', harness);
+      const appDir = join(home, `.garden-${harness}`);
+      const { io } = collectingIo();
+      const readPid = vi.fn<StartDeps['readPid']>(() => null);
+      const writePid = vi.fn<StartDeps['writePid']>();
+      const spawnServer = vi
+        .fn<StartDeps['spawnServer']>()
+        .mockResolvedValue({ kind: 'ready', pid: 999 });
+      const { deps } = baseDeps({ readPid, writePid, spawnServer });
+
+      expect(await runStart(io, deps)).toBe(0);
+
+      const pidPath = join(appDir, 'server.pid');
+      expect(readPid).toHaveBeenCalledWith(pidPath);
+      expect(writePid).toHaveBeenCalledWith(pidPath, 999, port);
+      expect(spawnServer).toHaveBeenCalledWith(
+        deps.scriptPath,
+        [SERVER_DETACHED_FLAG],
+        expect.objectContaining({
+          GARDEN_HARNESS: harness,
+          GARDEN_PORT: String(port),
+          GARDEN_TMUX_SOCKET: `garden-${harness}`,
+          GARDEN_APP_DIR: appDir,
+        }),
+        `http://127.0.0.1:${String(port)}/health`,
+      );
+    },
+  );
+
+  it('uses instance overrides for startup even when the config file sets a different port', async () => {
+    const appDir = join(home, 'sandbox');
+    mkdirSync(appDir);
+    writeFileSync(join(appDir, 'config.json'), JSON.stringify({ port: 4700 }));
+    vi.stubEnv('GARDEN_HARNESS', 'codex');
+    vi.stubEnv('GARDEN_APP_DIR', appDir);
+    vi.stubEnv('GARDEN_PORT', '4701');
+    vi.stubEnv('GARDEN_TMUX_SOCKET', 'garden-test-socket');
+    const { io } = collectingIo();
+    const writePid = vi.fn<StartDeps['writePid']>();
+    const spawnServer = vi
+      .fn<StartDeps['spawnServer']>()
+      .mockResolvedValue({ kind: 'ready', pid: 999 });
+    const { deps } = baseDeps({ writePid, spawnServer });
+
+    expect(await runStart(io, deps)).toBe(0);
+
+    expect(writePid).toHaveBeenCalledWith(join(appDir, 'server.pid'), 999, 4701);
+    expect(spawnServer).toHaveBeenCalledWith(
+      deps.scriptPath,
+      [SERVER_DETACHED_FLAG],
+      expect.objectContaining({
+        GARDEN_HARNESS: 'codex',
+        GARDEN_PORT: '4701',
+        GARDEN_TMUX_SOCKET: 'garden-test-socket',
+        GARDEN_APP_DIR: appDir,
+      }),
+      'http://127.0.0.1:4701/health',
+    );
   });
 
   it('reuses a server whose /health confirms the recorded pid instead of spawning a new one', async () => {
