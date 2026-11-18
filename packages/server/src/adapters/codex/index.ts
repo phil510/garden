@@ -458,7 +458,7 @@ export function createCodexHarness(options: Options) {
         return { ...parsed, record, signature: { size, mtimeMs } };
       },
     },
-    async readSessionNames() {
+    async readSessionMetadata() {
       indexedTitles = await readSessionIndex();
       const names: Record<string, string> = Object.create(null) as Record<string, string>;
       const nativeTitles: Record<string, string> = Object.create(null) as Record<string, string>;

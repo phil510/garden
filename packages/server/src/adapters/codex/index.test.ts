@@ -71,28 +71,30 @@ describe('Codex lifecycle persistence', () => {
       const { sessionName } = harness.beforeLaunch({ id: 'garden', cwd: f.directory });
       harness.parseHook(f.hook(), 'garden');
       const index = join(f.directory, 'session_index.jsonl');
-      expect(await harness.readSessionNames()).toMatchObject({
+      expect(await harness.readSessionMetadata()).toMatchObject({
         names: { garden: sessionName },
         nativeTitles: {},
       });
       const row = (id: string, thread_name: string) =>
         JSON.stringify({ id, thread_name, updated_at: new Date().toISOString() }) + '\n';
       writeFileSync(index, row(nativeA, 'Original') + row(nativeB, 'Other thread'));
-      expect((await harness.readSessionNames()).nativeTitles).toEqual({ garden: 'Original' });
+      expect((await harness.readSessionMetadata()).nativeTitles).toEqual({ garden: 'Original' });
       appendFileSync(index, row(nativeA, '  Renamed 🪴  ') + 'garbled\nnull\n');
-      expect((await harness.readSessionNames()).nativeTitles).toEqual({ garden: '  Renamed 🪴  ' });
+      expect((await harness.readSessionMetadata()).nativeTitles).toEqual({
+        garden: '  Renamed 🪴  ',
+      });
       renameSync(index, f.pathA);
-      expect(await harness.readSessionNames()).toMatchObject({
+      expect(await harness.readSessionMetadata()).toMatchObject({
         names: { garden: sessionName },
         nativeTitles: { garden: '  Renamed 🪴  ' },
       });
       writeFileSync(index, row(nativeA, 'Original') + row(nativeA, ' ') + row(nativeB, 'Forked'));
-      expect((await harness.readSessionNames()).nativeTitles).toEqual({});
+      expect((await harness.readSessionMetadata()).nativeTitles).toEqual({});
       harness.parseHook(
         f.hook({ source: 'fork', session_id: nativeB, transcript_path: f.pathB }),
         'garden',
       );
-      expect(await harness.readSessionNames()).toMatchObject({
+      expect(await harness.readSessionMetadata()).toMatchObject({
         names: { garden: sessionName },
         nativeTitles: { garden: 'Forked' },
       });
@@ -107,9 +109,9 @@ describe('Codex lifecycle persistence', () => {
       const failed = harness.beforeLaunch({ id: 'failed', cwd: f.directory });
       const pending = createCodexHarness(f.options);
       expect(pending.pendingSessions()).toEqual([{ id: 'failed', cwd: f.directory }]);
-      expect((await pending.readSessionNames()).names).toEqual({ failed: failed.sessionName });
+      expect((await pending.readSessionMetadata()).names).toEqual({ failed: failed.sessionName });
       failed.rollback();
-      expect((await createCodexHarness(f.options).readSessionNames()).names).toEqual({});
+      expect((await createCodexHarness(f.options).readSessionMetadata()).names).toEqual({});
       const launched = harness.beforeLaunch({ id: 'garden', cwd: f.directory });
       expect(
         launch(harness.resumeCommand({ id: 'garden', cwd: f.directory })).terminalCommand,
@@ -128,7 +130,9 @@ describe('Codex lifecycle persistence', () => {
       const resumed = restarted.beforeLaunch({ id: 'garden', cwd: nextCwd });
       expect(resumed.sessionName).toBe(launched.sessionName);
       resumed.rollback();
-      expect((await restarted.readSessionNames()).names).toEqual({ garden: launched.sessionName });
+      expect((await restarted.readSessionMetadata()).names).toEqual({
+        garden: launched.sessionName,
+      });
       expect(restarted.pendingSessions()).toEqual([]);
     } finally {
       f.close();
@@ -160,7 +164,7 @@ describe('Codex lifecycle persistence', () => {
       );
 
       const harness = createCodexHarness(f.options);
-      const { names } = await harness.readSessionNames();
+      const { names } = await harness.readSessionMetadata();
       expect(names['pending']).toMatch(/^build-scripts-/);
       expect(names['bound']).toMatch(/^data-tools-/);
       expect(names['reserved']).toBe(candidate.sessionName);
@@ -173,7 +177,7 @@ describe('Codex lifecycle persistence', () => {
           reserved,
         },
       });
-      expect((await createCodexHarness(f.options).readSessionNames()).names).toEqual(names);
+      expect((await createCodexHarness(f.options).readSessionMetadata()).names).toEqual(names);
     } finally {
       f.close();
     }
