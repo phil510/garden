@@ -42,9 +42,6 @@ draft PR, internal review, optional configured bot loop, ready gate, watch, merg
 Merge defaults to asking the user; the optional review loop defaults to `none`. Its four durable
 pipeline helpers and `.ship-it` artifacts use the same format as the Claude package.
 
-The Codex internal reviewer runs `review-pr` to dispatch specialists for the round. The
-reviewer chooses the lenses, applies the round cap, and records findings in the ship-it round file.
-
 Codex workers read bundled role prompts in fresh native contexts. Workers use the exposed native interface for
 reporting, waking idle owners and stopping: close when available, otherwise interrupt and retire
 the handle. Neither proves its shell commands stopped. Replacement and cleanup reconcile owned processes first. Compaction preserves live
