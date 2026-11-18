@@ -58,22 +58,24 @@ const path = require('node:path');
 const net = require('node:net');
 const { spawn } = require('node:child_process');
 const { randomUUID } = require('node:crypto');
+const { setTimeout: delay } = require('node:timers/promises');
 const options = JSON.parse(process.argv[2]);
 const generation = randomUUID();
 const socketPath = path.join(options.socketDir, generation + '.sock');
 const endpoint = 'unix://' + socketPath;
+const shutdownGraceMs = 1500;
 let backend, terminal, probe, readyTimer, retryTimer, killTimer;
 let stopping = false;
 let groupKilled = false;
 let exitCode = 1;
 function alive(child) { return child && child.pid && child.exitCode === null && child.signalCode === null; }
 function clean() {
+  try { fs.unlinkSync(socketPath); } catch {}
+  try { fs.rmdirSync(options.socketDir); } catch {}
   try {
     const current = JSON.parse(fs.readFileSync(options.descriptor, 'utf8'));
     if (current.generation === generation) fs.unlinkSync(options.descriptor);
   } catch {}
-  try { fs.unlinkSync(socketPath); } catch {}
-  try { fs.rmdirSync(options.socketDir); } catch {}
 }
 function backendGroupAlive() {
   if (!backend || !backend.pid || groupKilled) return false;
@@ -86,7 +88,6 @@ function signal(child, value, group) {
 function finish() {
   if (!stopping || alive(backend) || alive(terminal) || backendGroupAlive()) return;
   clearTimeout(killTimer);
-  clean();
   process.exit(exitCode);
 }
 function stop(code) {
@@ -103,14 +104,13 @@ function stop(code) {
     signal(backend, 'SIGKILL', true);
     groupKilled = true;
     finish();
-  }, 1500);
+  }, shutdownGraceMs);
   finish();
 }
 process.on('SIGHUP', () => stop(129));
 process.on('SIGTERM', () => stop(143));
 // The terminal shares the foreground process group and receives Ctrl-C itself.
 process.on('SIGINT', () => {});
-process.on('exit', clean);
 function fail(error) {
   console.error('Garden Codex launcher: ' + error.message);
   stop(1);
@@ -136,32 +136,54 @@ function checkReady() {
     if (!stopping) retryTimer = setTimeout(checkReady, 30);
   });
 }
-try {
-  fs.mkdirSync(options.socketDir, {mode:0o700});
-} catch (error) {
-  if (error.code !== 'EEXIST') throw error;
-  const info = fs.lstatSync(options.socketDir);
-  if (!info.isDirectory() || info.uid !== process.getuid() || (info.mode & 0o077)) throw new Error('unsafe Codex socket directory');
+function readPreviousLauncher() {
+  try { return JSON.parse(fs.readFileSync(options.descriptor, 'utf8')); } catch { return null; }
 }
-try {
-  const previous = JSON.parse(fs.readFileSync(options.descriptor, 'utf8'));
-  let live = false;
-  try { process.kill(previous.pid, 0); live = true; } catch {}
-  if (live) throw new Error('Codex session already has a live launcher');
-  const previousPath = typeof previous.endpoint === 'string' ? previous.endpoint.replace(/^unix:\/\//, '') : '';
+
+function launcherAlive(launcher) {
+  const pid = launcher?.pid;
+  if (!Number.isSafeInteger(pid) || pid <= 0) return false;
+  try { process.kill(pid, 0); return true; } catch { return false; }
+}
+
+async function waitForPreviousLauncher() {
+  const previous = readPreviousLauncher();
+  if (!launcherAlive(previous)) return previous;
+
+  // tmux can start the replacement while the old launcher is still reaping its children.
+  const deadline = performance.now() + shutdownGraceMs + 1000;
+  while (performance.now() < deadline && launcherAlive(previous)) await delay(30);
+  const current = readPreviousLauncher();
+  if (launcherAlive(previous) || launcherAlive(current)) {
+    throw new Error('Codex session already has a live launcher');
+  }
+  return current;
+}
+
+async function start() {
+  const previous = await waitForPreviousLauncher();
+  try {
+    fs.mkdirSync(options.socketDir, {mode:0o700});
+  } catch (error) {
+    if (error.code !== 'EEXIST') throw error;
+    const info = fs.lstatSync(options.socketDir);
+    if (!info.isDirectory() || info.uid !== process.getuid() || (info.mode & 0o077)) throw new Error('unsafe Codex socket directory');
+  }
+  process.on('exit', clean);
+  const previousPath = typeof previous?.endpoint === 'string' ? previous.endpoint.replace(/^unix:\/\//, '') : '';
   if (path.dirname(previousPath) === options.socketDir) {
     try { fs.unlinkSync(previousPath); } catch {}
   }
-} catch (error) {
-  if (error.message === 'Codex session already has a live launcher') throw error;
-}
-try {
   const log = fs.openSync(path.join(path.dirname(options.descriptor), path.basename(options.descriptor, '.json') + '.log'), 'a', 0o600);
-  backend = spawn(options.backendCommand[0], [...options.backendCommand.slice(1), '--listen', endpoint], {cwd:options.cwd,stdio:['ignore',log,log],detached:true,env:{...process.env,GARDEN_CODEX_GENERATION:generation}});
-  fs.closeSync(log);
+  try {
+    backend = spawn(options.backendCommand[0], [...options.backendCommand.slice(1), '--listen', endpoint], {cwd:options.cwd,stdio:['ignore',log,log],detached:true,env:{...process.env,GARDEN_CODEX_GENERATION:generation}});
+  } finally {
+    fs.closeSync(log);
+  }
   backend.once('error', fail);
   backend.once('exit', code => { stop(code === 0 ? 1 : code ?? 1); finish(); });
   readyTimer = setTimeout(() => fail(new Error('app-server did not become ready within 10 seconds')), 10000);
   checkReady();
-} catch (error) { fail(error); }
+}
+start().catch(fail);
 `;

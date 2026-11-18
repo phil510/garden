@@ -2,11 +2,15 @@ import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import { once } from 'node:events';
 import {
   appendFileSync,
+  closeSync,
   existsSync,
+  fstatSync,
   mkdirSync,
   mkdtempSync,
+  openSync,
   readFileSync,
   readdirSync,
+  readSync,
   renameSync,
   realpathSync,
   rmSync,
@@ -92,8 +96,24 @@ async function post(url: string, path: string, body: unknown) {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
   });
-  if (!response.ok) throw new Error(`${path}: ${await response.text()}`);
+  if (!response.ok) throw new Error(`${path} (${response.status}): ${await response.text()}`);
   return response;
+}
+
+function logTail(path: string): string {
+  try {
+    const fd = openSync(path, 'r');
+    try {
+      const size = fstatSync(fd).size;
+      const tail = Buffer.alloc(Math.min(size, 4096));
+      const bytesRead = readSync(fd, tail, 0, tail.length, size - tail.length);
+      return tail.toString('utf8', 0, bytesRead) || '(empty)';
+    } finally {
+      closeSync(fd);
+    }
+  } catch {
+    return '(unavailable)';
+  }
 }
 
 interface Alias {
@@ -138,6 +158,16 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
       };
       const tmux = async (args: readonly string[]) =>
         (await exec('tmux', ['-L', socket, ...args], { timeout: 5000 })).stdout;
+      const paneState = async (name: string) => {
+        const format =
+          '#{pane_id}\t#{pane_pid}\t#{pane_dead}\t#{pane_dead_status}\t#{pane_dead_signal}';
+        const [paneId, pid, dead, exitStatus, exitSignal] = (
+          await tmux(['display-message', '-p', '-t', name, format])
+        )
+          .trimEnd()
+          .split('\t');
+        return { paneId, pid, dead: dead === '1', exitStatus, exitSignal };
+      };
       const ready = (name: string) =>
         until(
           'fake Codex stdin readiness',
@@ -394,6 +424,8 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
           (list) => list.some((row) => row.id === never.id && row.title === 'first after resume'),
         );
         const boundAfterClear = aliases(appDir)[id]!.codexId;
+        expect(boundAfterClear).toEqual(expect.any(String));
+        expect(boundAfterClear).not.toBe(beforeOfflineClear);
         const coldTitle = 'Investigation after offline clear';
         await send(tmuxName, `/rename ${coldTitle}`);
         await until(
@@ -401,55 +433,106 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
           () => rows(url),
           (list) => list.some((row) => row.id === id && row.title === coldTitle),
         );
-        await send(tmuxName, '/end');
-        await until(
-          'ended pane and retired native endpoint',
-          () => rows(url),
-          (list) =>
-            list.some((row) => row.id === id && row.liveness === 'dead') &&
-            !existsSync(join(appDir, 'native-endpoints', `${id}.json`)),
-        );
-        await stop(child);
-        child = await start(env, url);
-        expect((await rows(url)).find((row) => row.id === id)).toMatchObject({
-          liveness: 'dead',
-          title: coldTitle,
-          sessionName,
-        });
-        const cli = async (...args: string[]) =>
-          (
-            await exec(
-              process.execPath,
-              ['--import', loader, join(root, 'packages/server/bin/garden.ts'), ...args],
-              { env: { ...env, GARDEN_SERVER_PROCESS: undefined }, timeout: 5000 },
-            )
-          ).stdout;
-        expect((await cli('ls')).split('\n')).toContain(
-          [id, 'dead', '-', coldTitle, sessionName].join('\t'),
-        );
-        expect(
-          (JSON.parse(await cli('ls', '--json')) as SessionState[]).find((s) => s.id === id),
-        ).toMatchObject({ title: coldTitle, sessionName });
-        await post(url, `/sessions/${sessionName}/resume`, {});
-        await until(
-          'resume launch to use current private native id',
-          () =>
-            Promise.resolve(
-              JSON.parse(readFileSync(join(codexHome, `launch-${id}.json`), 'utf8')) as string[],
-            ),
-          (args) => args.includes('resume') && args.includes(boundAfterClear!),
-        );
-        await ready(tmuxName);
-        await post(url, `/sessions/${sessionName}/messages`, { message: 'resumed' });
-        const afterResume = await until(
-          'follow-up after resume reaches the same session',
-          () => rows(url),
-          (list) => list.some((row) => row.id === id && row.recap === 'Response to resumed'),
-        );
-        expect(afterResume.find((row) => row.id === id)).toMatchObject({
-          title: coldTitle,
-          sessionName,
-        });
+        const launchPath = join(codexHome, `launch-${id}.json`);
+        const launchArgs = () =>
+          Promise.resolve(JSON.parse(readFileSync(launchPath, 'utf8')) as string[]);
+        const remoteEndpoint = (args: string[]) => args[args.indexOf('--remote') + 1];
+        const endAndResume = async (
+          command: '/end' | '/end-with-slow-shutdown',
+          prompt: string,
+        ) => {
+          let resumeHttp: string | undefined;
+          try {
+            const previousEndpoint = remoteEndpoint(await launchArgs());
+            await send(tmuxName, command);
+            await until(
+              'Garden to report the ended session as dead',
+              () => rows(url),
+              (list) => list.some((row) => row.id === id && row.liveness === 'dead'),
+            );
+            if (command === '/end') {
+              const pane = await until(
+                'tmux to record the prior launcher exit',
+                () => paneState(tmuxName),
+                (state) =>
+                  state.dead && (state.exitStatus !== undefined || state.exitSignal !== undefined),
+              );
+              expect(pane).toMatchObject({ exitStatus: '0', exitSignal: undefined });
+              expect(existsSync(join(appDir, 'native-endpoints', `${id}.json`))).toBe(false);
+              if (child) await stop(child);
+              child = undefined;
+              child = await start(env, url);
+              expect((await rows(url)).find((row) => row.id === id)).toMatchObject({
+                liveness: 'dead',
+                title: coldTitle,
+                sessionName,
+              });
+              const cli = async (...args: string[]) =>
+                (
+                  await exec(
+                    process.execPath,
+                    ['--import', loader, join(root, 'packages/server/bin/garden.ts'), ...args],
+                    { env: { ...env, GARDEN_SERVER_PROCESS: undefined }, timeout: 5000 },
+                  )
+                ).stdout;
+              expect((await cli('ls')).split('\n')).toContain(
+                [id, 'dead', '-', coldTitle, sessionName].join('\t'),
+              );
+              expect(
+                (JSON.parse(await cli('ls', '--json')) as SessionState[]).find((s) => s.id === id),
+              ).toMatchObject({ title: coldTitle, sessionName });
+            } else {
+              expect((await paneState(tmuxName)).dead).toBe(false);
+            }
+
+            const target = command === '/end' ? sessionName : id;
+            const response = await post(url, `/sessions/${target}/resume`, {});
+            const body = await response.text();
+            resumeHttp = `${response.status} ${body}`;
+            const resumed = JSON.parse(body) as CreateSessionResponse;
+            expect(resumed).toEqual({ id, tmuxName });
+            const args = await until(
+              'replacement Codex terminal to connect to its new backend',
+              launchArgs,
+              (launch) => remoteEndpoint(launch) !== previousEndpoint,
+            );
+            expect(args[0]).toBe('resume');
+            expect(args[args.indexOf('--remote') - 1]).toBe(boundAfterClear);
+            await ready(resumed.tmuxName);
+            if (command === '/end') {
+              await post(url, `/sessions/${sessionName}/messages`, { message: prompt });
+            } else {
+              await send(resumed.tmuxName, prompt);
+            }
+            const afterResume = await until(
+              'replacement terminal to process a new prompt in the same Garden session',
+              () => rows(url),
+              (list) => list.some((row) => row.id === id && row.recap === `Response to ${prompt}`),
+            );
+            expect(afterResume.find((row) => row.id === id)).toMatchObject({
+              title: coldTitle,
+              sessionName,
+            });
+          } catch (error) {
+            const [state, output] = await Promise.all([
+              paneState(tmuxName)
+                .then((pane) => JSON.stringify(pane))
+                .catch(() => '(unavailable)'),
+              tmux(['capture-pane', '-p', '-S', '-20', '-t', tmuxName])
+                .then((pane) => pane.trimEnd().slice(-4096))
+                .catch(() => '(unavailable)'),
+            ]);
+            const backend = logTail(join(appDir, 'native-endpoints', `${id}.log`));
+            console.error(
+              `Fake Codex ${command}/resume failed for ${id}\n` +
+                `Resume HTTP: ${resumeHttp ?? '(no successful response)'}\n` +
+                `Pane state: ${state}\nPane output:\n${output}\nBackend log tail:\n${backend}`,
+            );
+            throw error;
+          }
+        };
+        await endAndResume('/end', 'after clean exit');
+        await endAndResume('/end-with-slow-shutdown', 'after early resume');
       } finally {
         if (child) await stop(child);
         await tmux(['kill-server']).catch(() => {});

@@ -1,6 +1,13 @@
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { createServer } from 'node:http';
@@ -125,6 +132,12 @@ async function hook(event: string): Promise<void> {
   });
 }
 async function turn(message: string) {
+  if (message === '/end-with-slow-shutdown') {
+    // Leave the terminal open after the hook and make the launcher reap this backend.
+    process.once('SIGTERM', () => {});
+    await hook('SessionEnd');
+    return;
+  }
   if (message === '/end') {
     await hook('SessionEnd');
     terminal?.send(JSON.stringify({ method: 'fake/end' }));
@@ -238,10 +251,10 @@ sockets.on('connection', (client) => {
           title = rows.findLast((row) => row.id === id)?.thread_name ?? null;
         }
       }
-      writeFileSync(
-        join(home, `launch-${process.env.GARDEN_SESSION_ID ?? 'unknown'}.json`),
-        JSON.stringify(launch),
-      );
+      const record = join(home, `launch-${process.env.GARDEN_SESSION_ID ?? 'unknown'}.json`);
+      const temporary = `${record}.${process.pid}.tmp`;
+      writeFileSync(temporary, JSON.stringify(launch));
+      renameSync(temporary, record);
       output('[fake-codex] READY');
     } else if (message.method === 'fake/input' || message.method === 'fake/queue') {
       const text = typeof message.params === 'string' ? message.params : params.message!;
