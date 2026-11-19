@@ -174,7 +174,7 @@ describe('session name transport', () => {
     await killSession(longName)
     await killSession('.')
     await resumeSession('..')
-    await sendSessionMessage('.', 'hello')
+    await sendSessionMessage('.', { message: 'hello' })
     await placeSession('..', { type: 'parent', parentId: 'caller' })
     expect(paths).toEqual([
       `/sessions/-/kill?${new URLSearchParams({ target: longName }).toString()}`,
@@ -337,7 +337,9 @@ describe('errors', () => {
     const cause = new Error('message cancelled')
     controller.abort(cause)
 
-    await expect(sendSessionMessage(id, 'hello', controller.signal)).rejects.toMatchObject({
+    await expect(
+      sendSessionMessage(id, { message: 'hello' }, controller.signal),
+    ).rejects.toMatchObject({
       message: `cannot reach garden server at http://127.0.0.1:${process.env.GARDEN_PORT ?? ''}/sessions/${id}/messages: message cancelled`,
       cause,
     })
@@ -386,22 +388,25 @@ describe('review requests', () => {
 })
 
 describe('sendSessionMessage', () => {
-  it('sends quoted multiline text as JSON to the encoded session name', async () => {
-    const message = 'A "quoted" note\nnext line'
+  it('sends caller context and quoted multiline text as JSON to the encoded session name', async () => {
+    const body = {
+      message: '  A "quoted" note\n\tnext line  \n',
+      source: { type: 'session', callerSessionId: 's2' },
+    } as const
     await startServer((request, response) => {
-      void readBody(request).then((body) => {
+      void readBody(request).then((raw) => {
         expect(request.method).toBe('POST')
         expect(request.url).toBe('/sessions/-/messages?target=s%2F1')
         expect(request.headers['content-type']).toBe('application/json')
-        expect(JSON.parse(body)).toEqual({ message })
+        expect(JSON.parse(raw)).toEqual(body)
         sendJson(response, 200, { ok: true })
       })
     })
-    await expect(sendSessionMessage('s/1', message)).resolves.toEqual({ ok: true })
+    await expect(sendSessionMessage('s/1', body)).resolves.toEqual({ ok: true })
   })
 
   it('rejects a refused enqueue so the caller can retain the digest', async () => {
     await startServer((_request, response) => sendJson(response, 409, { error: 'session is dead' }))
-    await expect(sendSessionMessage('s1', 'hello')).rejects.toThrow('session is dead')
+    await expect(sendSessionMessage('s1', { message: 'hello' })).rejects.toThrow('session is dead')
   })
 })

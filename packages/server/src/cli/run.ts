@@ -303,10 +303,22 @@ export async function runCli(
       })
       return parsed.ok ? runLs(io, json, client, parsed.filter) : usage(io, parsed.message)
     }
-    case 'send':
-      return positionals.length !== 2 || !positionals[0] || !positionals[1]?.trim()
-        ? usage(io, 'garden send <id-or-name> <message>')
-        : runSend(io, positionals[0], positionals[1], json, client)
+    case 'send': {
+      const [target, message] = positionals
+      if (positionals.length !== 2 || !target || !message?.trim())
+        return usage(io, 'garden send <id-or-name> <message>')
+      const callerSessionId = env.GARDEN_SESSION_ID
+      return runSend(
+        io,
+        target,
+        {
+          message,
+          ...(callerSessionId ? { source: { type: 'session', callerSessionId } } : {}),
+        },
+        json,
+        client,
+      )
+    }
     case 'kill':
       return positionals[0] === undefined
         ? usage(io, 'garden kill <id-or-name>')
@@ -405,7 +417,10 @@ export async function runCli(
         stderr: io.stderr,
         gone,
         ...(values['forward-to-session']
-          ? { forward: (id, line, signal) => client.sendSessionMessage(id, line, signal) }
+          ? {
+              forward: (id, message, signal) =>
+                client.sendSessionMessage(id, { message, source: { type: 'pr-watch' } }, signal),
+            }
           : {}),
       })
     }

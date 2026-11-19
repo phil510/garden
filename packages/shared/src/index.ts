@@ -175,6 +175,7 @@ export interface PlacementRequest {
 
 export interface SendSessionMessageRequest {
   message: string
+  source?: { type: 'session'; callerSessionId: string } | { type: 'pr-watch' }
 }
 
 export interface SessionsResponse {

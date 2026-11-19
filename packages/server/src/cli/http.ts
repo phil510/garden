@@ -13,6 +13,7 @@ import type {
   PlacementRequest,
   RaiseAlertRequest,
   ResumeSessionRequest,
+  SendSessionMessageRequest,
   ReviewQueue,
   SessionsFilter,
   SessionsResponse,
@@ -64,13 +65,13 @@ function sessionActionPath(target: string, action: string): string {
 /** Resolves the current conversation on the server, keeping native harness ids private. */
 export function sendSessionMessage(
   sessionId: string,
-  message: string,
+  body: SendSessionMessageRequest,
   signal?: AbortSignal,
 ): Promise<OkResponse> {
   return request(sessionActionPath(sessionId, 'messages'), {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ message }),
+    body: JSON.stringify(body),
     signal: signal
       ? AbortSignal.any([signal, AbortSignal.timeout(30_000)])
       : AbortSignal.timeout(30_000),
