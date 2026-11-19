@@ -29,6 +29,7 @@ A concurrent sandbox needs its own port, tmux socket and app dir — see `docs/t
 - Branch names: `<type>/<issue-number>-<slug>` — type is one of `feat|fix|chore|docs`, chosen from the nature of the change; the number is the GitHub issue. **This is a GitHub issue number, not an Extend `XAD-####` ticket ID.**
 - Commit messages: descriptive sentences, in logical chunks that each stand on their own. No conventional-commits prefixes (`feat:`, `fix:`, etc.).
 - PRs follow `.github/pull_request_template.md` and include `Closes #N`.
+- Garden PRs have no external review bot. Set ship-it’s `Review loop` to `none`.
 - Use the `gh` CLI for issues and PRs. Issue templates live in `.github/ISSUE_TEMPLATE/`.
 - The plugins live in `plugins/garden-claude/` and `plugins/garden-codex/`. Read each package
   README for its manifest and update behavior, and `plugins/maintaining.md` for parity review.

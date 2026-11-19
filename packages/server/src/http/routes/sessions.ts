@@ -41,8 +41,8 @@ function isResumeSessionRequest(body: unknown): body is ResumeSessionRequest | u
   return hasValidSpawnOptions(body as Record<string, unknown>)
 }
 
-function isSessionMessageRequest(body: unknown): body is SendSessionMessageRequest {
-  if (typeof body !== 'object' || body === null) return false
+function isSessionMessageBody(body: unknown): body is { message: string; source?: unknown } {
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) return false
   const message = (body as Record<string, unknown>)['message']
   if (typeof message !== 'string' || message.trim() === '') return false
   for (let index = 0; index < message.length; index += 1) {
@@ -50,6 +50,13 @@ function isSessionMessageRequest(body: unknown): body is SendSessionMessageReque
     if ((code < 32 && code !== 9 && code !== 10) || code === 127) return false
   }
   return true
+}
+
+function isMessageSource(source: unknown): source is SendSessionMessageRequest['source'] {
+  if (source === undefined) return true
+  if (typeof source !== 'object' || source === null || Array.isArray(source)) return false
+  const { type, callerSessionId } = source as Record<string, unknown>
+  return type === 'pr-watch' || (type === 'session' && typeof callerSessionId === 'string')
 }
 
 interface SessionsQuerystring {
@@ -162,11 +169,16 @@ export function sessionRoutes(app: FastifyInstance, deps: SessionsDeps) {
 
   app.post<SessionTargetRoute>('/sessions/:id/messages', async (request, reply) => {
     const body: unknown = request.body
-    if (!isSessionMessageRequest(body))
+    if (!isSessionMessageBody(body))
       return reply.code(400).send({
         error: 'message must be nonempty text without terminal control characters',
       } satisfies ErrorResponse)
-    await sendSessionMessage(deps, sessionTarget(request), body.message)
+    if (!isMessageSource(body.source))
+      return reply.code(400).send({ error: 'invalid message source' } satisfies ErrorResponse)
+    await sendSessionMessage(deps, sessionTarget(request), {
+      message: body.message,
+      ...(body.source === undefined ? {} : { source: body.source }),
+    })
     return reply.send({ ok: true } satisfies OkResponse)
   })
 

@@ -75,8 +75,8 @@ function recordingClient(
       calls.push(`resume:${id}${spawnSuffix(options)}`)
       return Promise.resolve(created)
     },
-    sendSessionMessage: (id, message) => {
-      calls.push(`send:${id}:${message}`)
+    sendSessionMessage: (id, request) => {
+      calls.push(`send:${id}:${JSON.stringify(request)}`)
       return Promise.resolve(ok)
     },
     killSession: (id) => {
@@ -575,11 +575,18 @@ describe('runCli', () => {
     },
   )
 
-  it('sends one multiline argument to the garden id without changing its text', async () => {
+  it.each([
+    [
+      { GARDEN_SESSION_ID: 'injected-caller' },
+      { type: 'session', callerSessionId: 'injected-caller' },
+    ],
+    [{}, undefined],
+  ])('sends the unchanged multiline argument with caller context from %j', async (env, source) => {
     const { io, stdout } = collectingIo()
     const { client, calls } = recordingClient()
-    expect(await runCli('send', ['s1', 'hello\nworld', '--json'], io, client)).toBe(0)
-    expect(calls).toEqual(['send:s1:hello\nworld'])
+    const message = '  hello\n\tworld  \n'
+    expect(await runCli('send', ['s1', message, '--json'], io, client, undefined, env)).toBe(0)
+    expect(calls).toEqual([`send:s1:${JSON.stringify({ message, source })}`])
     expect(stdout).toEqual(['{"ok":true}\n'])
   })
 
