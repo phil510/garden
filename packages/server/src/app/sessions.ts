@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { EffortLevel, SessionState } from '@garden/shared'
+import type { EffortLevel, SendSessionMessageRequest, SessionState } from '@garden/shared'
 import type { PermissionMode } from '../config.js'
 import { withoutAlert } from '../domain/alerts.js'
 import { deriveTmuxName } from '../domain/tmuxName.js'
@@ -233,14 +233,30 @@ export async function killSession(deps: SessionsDeps, request: KillSessionReques
   }
 }
 
+function messageHeader(
+  sessions: readonly SessionState[],
+  source: SendSessionMessageRequest['source'],
+): string {
+  if (source?.type === 'pr-watch') return '[PR watch notification]'
+  const sender =
+    source?.type === 'session'
+      ? sessions.find((session) => session.id === source.callerSessionId)
+      : undefined
+  if (sender === undefined) return '[Message from external shell]'
+  const name = sender.sessionName ? `/${sender.sessionName}` : ''
+  return `[Message from session ${sender.id}${name}]`
+}
+
 export async function sendSessionMessage(
   deps: SessionsDeps,
   target: string,
-  message: string,
+  request: SendSessionMessageRequest,
 ): Promise<void> {
-  const { id } = resolveSessionTarget(deps.projection.sessions(), target)
+  const sessions = deps.projection.sessions()
+  const { id } = resolveSessionTarget(sessions, target)
   if (deps.harness.sendMessage === undefined)
     throw new SessionMessagingError('garden send is not supported by the selected harness')
+  const message = `${messageHeader(sessions, request.source)}\n\n${request.message}`
   await deps.harness.sendMessage(id, message, async () => {
     const current = findSession(deps.projection, id)
     const panes = await deps.tmux.listPanes()

@@ -800,6 +800,21 @@ describe('POST session messages', () => {
         ).statusCode,
       ).toBe(400)
     }
+    for (const source of [
+      null,
+      [],
+      'pr-watch',
+      { type: 'other' },
+      { type: 'session', callerSessionId: 123 },
+    ]) {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/sessions/garden/messages',
+        payload: { message: 'must not deliver', source },
+      })
+      expect(response.statusCode).toBe(400)
+      expect(response.json()).toEqual({ error: 'invalid message source' })
+    }
     const message = 'literal $(touch no) `echo no`\nsecond line'
     const response = await app.inject({
       method: 'POST',
@@ -808,7 +823,7 @@ describe('POST session messages', () => {
     })
     expect(response.statusCode).toBe(200)
     expect(response.json()).toEqual({ ok: true })
-    expect(delivered).toEqual([['garden', message]])
+    expect(delivered).toEqual([['garden', `[Message from external shell]\n\n${message}`]])
     await app.close()
   })
   it('returns a clear unsupported response on Claude and a missing-session response for unknown ids', async () => {

@@ -1060,8 +1060,8 @@ describe('session message delivery', () => {
         sendMessage: (_id: string, _message: string, pending: () => Promise<void>) => pending(),
       },
     }
-    await sendSessionMessage(deps, 'garden', 'first prompt')
-    expect(sent).toEqual([['pane', 'first prompt']])
+    await sendSessionMessage(deps, 'garden', { message: 'first prompt' })
+    expect(sent).toEqual([['pane', '[Message from external shell]\n\nfirst prompt']])
   })
   it('rejects sending a first prompt to a dead pending pane and rejects unsupported harnesses', async () => {
     const { projection } = fakeProjection([aSession({ id: 'garden', liveness: 'dead' })])
@@ -1071,7 +1071,7 @@ describe('session message delivery', () => {
       tmux: fakeTmux(),
       harness: fakeClaudeHarness('/settings', () => ['claude']),
     }
-    await expect(sendSessionMessage(deps, 'garden', 'hello')).rejects.toThrow(
+    await expect(sendSessionMessage(deps, 'garden', { message: 'hello' })).rejects.toThrow(
       'not supported by the selected harness',
     )
     await expect(
@@ -1084,7 +1084,7 @@ describe('session message delivery', () => {
           },
         },
         'garden',
-        'hello',
+        { message: 'hello' },
       ),
     ).rejects.toThrow('Resume this pending session')
   })

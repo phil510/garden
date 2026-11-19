@@ -175,7 +175,10 @@ export function sessionRoutes(app: FastifyInstance, deps: SessionsDeps) {
       } satisfies ErrorResponse)
     if (!isMessageSource(body.source))
       return reply.code(400).send({ error: 'invalid message source' } satisfies ErrorResponse)
-    await sendSessionMessage(deps, sessionTarget(request), body.message)
+    await sendSessionMessage(deps, sessionTarget(request), {
+      message: body.message,
+      ...(body.source === undefined ? {} : { source: body.source }),
+    })
     return reply.send({ ok: true } satisfies OkResponse)
   })
 

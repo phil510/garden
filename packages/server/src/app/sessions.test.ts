@@ -1,3 +1,4 @@
+import type { SendSessionMessageRequest } from '@garden/shared'
 import { aSession } from '@garden/shared/fixtures'
 import { describe, expect, it, vi } from 'vitest'
 import type { Projection } from './projection.js'
@@ -163,18 +164,70 @@ describe('session operation targets', () => {
         await submitPending()
       },
     )
-    await sendSessionMessage(
-      { ...deps, harness: { ...deps.harness, sendMessage } },
-      sessionName,
-      'hello',
+    await sendSessionMessage({ ...deps, harness: { ...deps.harness, sendMessage } }, sessionName, {
+      message: 'hello',
+    })
+    const expected = '[Message from external shell]\n\nhello'
+    expect(sendMessage).toHaveBeenCalledWith(id, expected, expect.any(Function))
+    expect(tmux.submitMessage).toHaveBeenCalledExactlyOnceWith(tmuxName, expected)
+  })
+
+  const callerId = '8fb1bdb0-acd1-4195-9d52-88dea91f21db'
+  const unnamedCallerId = 'e70efe68-2546-4c22-8003-ea7b457dbea1'
+  const callerName = 'upstream-work'
+  const cases = [
+    [
+      { type: 'session', callerSessionId: callerId },
+      `[Message from session ${callerId}/${callerName}]`,
+    ],
+    [
+      { type: 'session', callerSessionId: unnamedCallerId },
+      `[Message from session ${unnamedCallerId}]`,
+    ],
+    [{ type: 'session', callerSessionId: callerName }, '[Message from external shell]'],
+    [
+      { type: 'session', callerSessionId: 'native-conversation-id' },
+      '[Message from external shell]',
+    ],
+    [undefined, '[Message from external shell]'],
+    [{ type: 'pr-watch' }, '[PR watch notification]'],
+  ] satisfies ReadonlyArray<readonly [SendSessionMessageRequest['source'], string]>
+
+  describe.each(['queue', 'pending'])('%s delivery', (delivery) => {
+    it.each(cases)(
+      'formats source %j and preserves every body character',
+      async (source, header) => {
+        const { deps, tmux } = fixture([
+          aSession({ id: 'lookalike', sessionName: callerId }),
+          aSession({ id: callerId, sessionName: callerName, title: 'native-conversation-id' }),
+          aSession({ id: unnamedCallerId }),
+          session,
+        ])
+        const sendMessage = vi.fn(
+          async (_id: string, _message: string, submitPending: () => Promise<void>) => {
+            if (delivery === 'pending') await submitPending()
+          },
+        )
+        const message = '  hi\n\t second line  \n'
+        const expected = `${header}\n\n${message}`
+        await sendSessionMessage(
+          { ...deps, harness: { ...deps.harness, sendMessage } },
+          sessionName,
+          { message, ...(source === undefined ? {} : { source }) },
+        )
+        expect(sendMessage).toHaveBeenCalledExactlyOnceWith(id, expected, expect.any(Function))
+        if (delivery === 'pending') {
+          expect(tmux.submitMessage).toHaveBeenCalledExactlyOnceWith(tmuxName, expected)
+        } else {
+          expect(tmux.submitMessage).not.toHaveBeenCalled()
+        }
+      },
     )
-    expect(sendMessage).toHaveBeenCalledWith(id, 'hello', expect.any(Function))
-    expect(tmux.submitMessage).toHaveBeenCalledExactlyOnceWith(tmuxName, 'hello')
   })
 
   it('does not send through a harness with no message delivery', async () => {
     const { deps, tmux } = fixture()
-    await expect(sendSessionMessage(deps, id, 'hello')).rejects.toBeInstanceOf(
+    await expect(sendSessionMessage(deps, id, { message: 'hello' })).rejects.toBeInstanceOf(
       SessionMessagingError,
     )
     expect(tmux.submitMessage).not.toHaveBeenCalled()
