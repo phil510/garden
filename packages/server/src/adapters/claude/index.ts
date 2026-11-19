@@ -247,6 +247,6 @@ export function createClaudeHarness(options: {
       claudeCommand(options.readCommand(), 'resume', settingsPath, request),
     parseHook: parseClaudeHook,
     transcripts: createClaudeLayout(options.transcriptsDir, options.roots, options.logger),
-    readSessionNames: () => readClaudeSessionNames(options.sessionsDir),
+    readSessionMetadata: () => readClaudeSessionNames(options.sessionsDir),
   }
 }

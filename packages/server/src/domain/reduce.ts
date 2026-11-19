@@ -11,6 +11,8 @@ export const initialState: GardenState = {
   ended: {},
   reported: {},
   sessionNames: {},
+  transcriptTitles: {},
+  nativeTitles: {},
   watches: {},
   alerts: {},
   pipes: {},
@@ -55,6 +57,7 @@ function rederive(state: GardenState): GardenState {
     sessions[id] = {
       ...session,
       tmuxName,
+      title: state.nativeTitles[id] ?? state.transcriptTitles[id] ?? null,
       // Null covers both a cwd nothing has resolved yet and one that is not in a repo.
       repoRoot: state.repoRoots[session.cwd] ?? null,
       // `?? null` here covers only "never swept yet" — a swept-and-failed cwd is already
@@ -81,15 +84,22 @@ function foldTranscript(state: GardenState, record: TranscriptRecord): GardenSta
   const id = record.sessionId
   if (id === null) return state
   const prev = state.sessions[id] ?? blank(id)
+  const title = record.title ?? record.lastPrompt
   const session: SessionState = {
     ...prev,
     cwd: record.cwd ?? prev.cwd,
-    title: record.title ?? record.lastPrompt ?? prev.title,
     recap: record.recap ?? prev.recap,
     // A transcript with no timestamped line reports no activity, so the previous stands.
     lastActivity: Math.max(prev.lastActivity, record.lastActivity ?? 0),
   }
-  return { ...state, sessions: { ...state.sessions, [id]: session } }
+  return {
+    ...state,
+    sessions: { ...state.sessions, [id]: session },
+    transcriptTitles:
+      title === null || title === state.transcriptTitles[id]
+        ? state.transcriptTitles
+        : { ...state.transcriptTitles, [id]: title },
+  }
 }
 
 export function reduce(state: GardenState, event: GardenEvent): GardenState {
@@ -155,11 +165,21 @@ export function reduce(state: GardenState, event: GardenEvent): GardenState {
       const session: SessionState = {
         ...prev,
         cwd: prev.cwd === '' ? signal.cwd : prev.cwd,
-        ...(signal.resetConversation === true ? { title: null, recap: null, lastActivity: 0 } : {}),
+        ...(signal.resetConversation === true ? { recap: null, lastActivity: 0 } : {}),
+      }
+      let transcriptTitles = state.transcriptTitles
+      let nativeTitles = state.nativeTitles
+      if (signal.resetConversation === true) {
+        transcriptTitles = { ...transcriptTitles }
+        nativeTitles = { ...nativeTitles }
+        delete transcriptTitles[id]
+        delete nativeTitles[id]
       }
       return rederive({
         ...state,
         sessions: { ...state.sessions, [id]: session },
+        transcriptTitles,
+        nativeTitles,
         ended: signal.ended === null ? state.ended : { ...state.ended, [id]: signal.ended },
         reported:
           signal.reported === undefined
@@ -172,10 +192,8 @@ export function reduce(state: GardenState, event: GardenEvent): GardenState {
       for (const fact of event.sessions) tmux[fact.name] = fact
       return rederive({ ...state, tmux })
     }
-    case 'session-names-loaded':
-      // A full snapshot, replacing rather than merging: a registry entry can outlive its
-      // process, so a name that drops out of one snapshot must drop out of state too.
-      return rederive({ ...state, sessionNames: event.names })
+    case 'session-metadata-loaded':
+      return rederive({ ...state, sessionNames: event.names, nativeTitles: event.nativeTitles })
     case 'watches-changed': {
       const watches = { ...state.watches }
       if (event.watches.length === 0) delete watches[event.sessionId]

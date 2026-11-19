@@ -70,6 +70,12 @@ const pipeChanged: GardenEvent = {
   lastConnectedAt: now,
 }
 
+const metadataLoaded: GardenEvent = {
+  type: 'session-metadata-loaded',
+  names: { 'sid-1': 'garden-7a' },
+  nativeTitles: { 'sid-1': 'Native title' },
+}
+
 const sequences: GardenEvent[][] = [
   [],
   [storeLoaded],
@@ -107,6 +113,8 @@ const sequences: GardenEvent[][] = [
   [transcript({}, now), alertChanged, { ...alertChanged, alert: null }],
   [transcript({}, now), pipeChanged],
   [pipeChanged, transcript({}, now)],
+  [transcript({}, now), metadataLoaded],
+  [metadataLoaded, transcript({}, now)],
   [
     transcript({}, now),
     {
@@ -235,10 +243,7 @@ const everyVariant: Record<GardenEvent['type'], GardenEvent> = {
   'watches-changed': watchesChanged,
   'alert-changed': alertChanged,
   'pipe-changed': pipeChanged,
-  'session-names-loaded': {
-    type: 'session-names-loaded',
-    names: { 'sid-1': 'garden-7a' },
-  },
+  'session-metadata-loaded': metadataLoaded,
 }
 
 const states = {

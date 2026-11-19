@@ -11,7 +11,7 @@ garden has five sources of truth about the outside world:
 - **tmux** — which sessions exist, which panes are alive, exit codes.
 - **transcripts** — the selected harness's conversation files: Claude project JSONL files or bound Codex rollouts.
 - **hooks** — the selected harness POSTs native events, translated to garden signals at the boundary.
-- **native status** — a passive Codex backend connection reports the bound thread's current status.
+- **native metadata** — a passive Codex backend connection reports the bound thread's status and title. The Codex session index supplies stored titles.
 - **clients** — the browser and the CLI issue commands.
 
 All five fold into one thing: a map of session id to session state. That map streams to
@@ -61,21 +61,22 @@ changing one.
 Each fact has one primary source, with three exceptions below the table. `domain/reduce.ts`
 merges them; nothing else computes a session fact.
 
-| Fact                                 | Source                                                                                                             |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| id, cwd, title, recap, last activity | transcript; launch registration supplies id/cwd before it exists, including pending Codex aliases replayed at boot |
-| tmux name                            | the id-to-name map in `state.json`, written by `dispatch` when a session is (un)registered                         |
-| liveness, exit code                  | tmux pane facts (`pane_dead`, `pane_dead_status`), overridden to dead by `ended`                                   |
-| `ended`                              | hooks: `SessionEnd` sets it, `SessionStart` clears it; `session-registered` also clears it                         |
-| status, reason                       | harness-neutral signals or launch registration (harness adapters hold the native event-to-status mappings)         |
-| branch                               | a live git lookup by cwd (`app/branches.ts`), re-asked each tick for live sessions                                 |
-| repo root                            | `git rev-parse --git-common-dir` on the cwd (`app/repoRoots.ts`), so worktrees fold into their main repo           |
-| Session display name                 | Claude registry snapshot or Garden handle persisted in the Codex alias store                                       |
-| watches                              | the watch records in `state.json`, projected onto the session by a `watches-changed` event                         |
-| alert                                | `garden alert` or the web Dismiss, persisted in `state.json` and projected by an `alert-changed` event             |
-| pipe connected                       | the registry in `app/pipes.ts` (open pipe streams), projected onto the session by a `pipe-changed` event           |
-| last pipe connection                 | `pipes` in `state.json`: session id to the last time a pipe was connected, replayed at boot                        |
-| shown                                | garden's stage state in `state.json`, not a session fact at all                                                    |
+| Fact                          | Source                                                                                                             |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| id, cwd, recap, last activity | transcript; launch registration supplies id/cwd before it exists, including pending Codex aliases replayed at boot |
+| title                         | Codex native thread name when present, otherwise the transcript's title or last prompt                             |
+| tmux name                     | the id-to-name map in `state.json`, written by `dispatch` when a session is (un)registered                         |
+| liveness, exit code           | tmux pane facts (`pane_dead`, `pane_dead_status`), overridden to dead by `ended`                                   |
+| `ended`                       | hooks: `SessionEnd` sets it, `SessionStart` clears it; `session-registered` also clears it                         |
+| status, reason                | harness-neutral signals or launch registration (harness adapters hold the native event-to-status mappings)         |
+| branch                        | a live git lookup by cwd (`app/branches.ts`), re-asked each tick for live sessions                                 |
+| repo root                     | `git rev-parse --git-common-dir` on the cwd (`app/repoRoots.ts`), so worktrees fold into their main repo           |
+| Session name                  | Claude registry snapshot or Garden handle persisted in the Codex alias store                                       |
+| watches                       | the watch records in `state.json`, projected onto the session by a `watches-changed` event                         |
+| alert                         | `garden alert` or the web Dismiss, persisted in `state.json` and projected by an `alert-changed` event             |
+| pipe connected                | the registry in `app/pipes.ts` (open pipe streams), projected onto the session by a `pipe-changed` event           |
+| last pipe connection          | `pipes` in `state.json`: session id to the last time a pipe was connected, replayed at boot                        |
+| shown                         | garden's stage state in `state.json`, not a session fact at all                                                    |
 
 The exceptions: `session-registered` clears `ended` because a process was just started under that
 id, which is how resume revives an ended session. It also supplies the cwd, as does a hook payload
@@ -217,7 +218,7 @@ app directory together; CLI commands and spawned panes use that full resolution.
 
 `HarnessPort` in `app/ports.ts` is selected in `main.ts`. It owns spawn and resume argv
 (including model, effort and permission mode), the per-process hook overlay, native hook
-validation and translation, transcript listing/path acceptance/record reading, display names,
+validation and translation, transcript listing/path acceptance/record reading, session metadata,
 and the status to register at launch. Native protocol translation belongs to the selected harness adapter, including pure parsers
 and command builders. App code sees only its `HarnessPort`; `main.ts` supplies the adapter.
 Adapters satisfy consumer ports structurally, without importing `app/`.
@@ -242,7 +243,7 @@ either native format.
 Codex's terminal and backend run as a pair under a tmux-owned launcher. Each backend has
 its own private Unix socket and inherits that session's environment and hook overlay, so hook
 identity stays scoped to the session. The launcher waits for the backend before starting the
-terminal and stops the pair when either exits. Garden disconnects its status observer on
+terminal and stops the pair when either exits. Garden disconnects its passive observer on
 shutdown without stopping either process.
 Message delivery uses the same backend through native `codex queue`.
 
@@ -253,6 +254,14 @@ report, and reconnect obtains a fresh snapshot. Binding changes and endpoint gen
 late events. The observer never answers approval requests; those belong to the native terminal.
 A bound session without a matching backend endpoint reports `unknown`. Sessions launched without a
 backend must be ended and resumed to acquire one.
+
+The same connection reads the thread name on connect and receives native rename notifications.
+The metadata refresh also reads Codex's session index for the alias-bound thread, including renames
+from other backends. It uses the indexed title before the backend connects and when the index has a
+later timestamp than the last live observation. The live title survives a disconnect and a missing
+or stale index entry.
+The reducer retains the transcript fallback independently and clears both title sources when the
+alias binds a different conversation. The Garden handle stays with the alias.
 
 ### 4.1 The projection is the spine
 
@@ -322,7 +331,7 @@ So the startup sequence is a replay, not a restore:
    for every persisted pipe time, likewise logged on failure.
 4. Project pending harness sessions: Codex aliases with a stored tmux mapping are re-registered
    with `waiting`; those without one are projected as ended. Then dispatch a full
-   `tmux-snapshot` and read the harness display names.
+   `tmux-snapshot` and read harness session metadata, including titles from the Codex session index.
 5. List the selected harness's transcript paths, reading files with bounded concurrency, and dispatch one
    `transcripts-replayed` holding every record in listing order. Its fold equals one
    `transcript-changed` per file but derives session state once, which is what keeps boot from

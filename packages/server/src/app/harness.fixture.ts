@@ -10,6 +10,6 @@ export function fakeHarness(): HarnessPort {
       accepts: () => false,
       readRecord: () => Promise.resolve(null),
     },
-    readSessionNames: () => Promise.resolve({ names: {}, skipped: 0 }),
+    readSessionMetadata: () => Promise.resolve({ names: {}, skipped: 0 }),
   }
 }

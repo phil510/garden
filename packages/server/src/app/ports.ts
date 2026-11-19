@@ -173,5 +173,9 @@ export interface HarnessPort {
   parseHook(body: unknown, gardenSessionId?: string): HarnessSignal | null
   readonly initialStatus?: ReportedStatus
   readonly transcripts: TranscriptLayout
-  readSessionNames(): Promise<{ names: Record<string, string>; skipped: number }>
+  readSessionMetadata(): Promise<{
+    names: Record<string, string>
+    nativeTitles?: Record<string, string>
+    skipped: number
+  }>
 }

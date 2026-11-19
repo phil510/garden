@@ -53,9 +53,13 @@ const signalEvent = (
   }),
 })
 
-const sessionNames = (names: Record<string, string>): GardenEvent => ({
-  type: 'session-names-loaded',
+const sessionMetadata = (
+  names: Record<string, string>,
+  nativeTitles: Record<string, string> = {},
+): GardenEvent => ({
+  type: 'session-metadata-loaded',
   names,
+  nativeTitles,
 })
 
 const aWatchSummary = (overrides: Partial<WatchSummary> = {}): WatchSummary => ({
@@ -88,6 +92,36 @@ const alertChanged = (alert: Alert | null, sessionId = 'sid-1'): GardenEvent => 
 })
 
 describe('reduce', () => {
+  it('keeps the newest prompt as a fallback while a native title and handle stay independent', () => {
+    const metadata = sessionMetadata({ 'sid-1': 'garden-7a' }, { 'sid-1': 'Native title' })
+    const state = fold([
+      metadata,
+      transcript({ title: null, lastPrompt: 'first prompt' }),
+      transcript({ title: null, lastPrompt: 'ok' }),
+      transcript({ title: null, lastPrompt: null }),
+    ])
+    expect(state.sessions['sid-1']).toMatchObject({
+      title: 'Native title',
+      sessionName: 'garden-7a',
+    })
+    const cleared = reduce(state, sessionMetadata({ 'sid-1': 'garden-7a' }))
+    expect(cleared.sessions['sid-1']).toMatchObject({ title: 'ok', sessionName: 'garden-7a' })
+  })
+
+  it('clears both title sources when a binding changes while keeping the same handle', () => {
+    const state = fold([
+      transcript(),
+      sessionMetadata({ 'sid-1': 'garden-7a' }, { 'sid-1': 'Previous native title' }),
+      {
+        type: 'harness-signal',
+        signal: aHarnessSignal({ sessionId: 'sid-1', resetConversation: true }),
+      },
+    ])
+    expect(state.sessions['sid-1']).toMatchObject({ title: null, sessionName: 'garden-7a' })
+    const next = reduce(state, transcript({ title: null, lastPrompt: 'new conversation' }))
+    expect(next.sessions['sid-1']?.title).toBe('new conversation')
+  })
+
   it('creates a session from a hook alone, under the hook id and with the hook cwd', () => {
     const state = fold([signalEvent('working', 'sid-9')])
     expect(state.sessions['sid-9']).toMatchObject({ id: 'sid-9', cwd: '/Users/dev/repo' })
@@ -442,7 +476,7 @@ describe('reduce', () => {
   })
 
   it('picks up a Claude-side name for a session the registry snapshot names', () => {
-    const state = fold([transcript(), sessionNames({ 'sid-1': 'garden-7a' })])
+    const state = fold([transcript(), sessionMetadata({ 'sid-1': 'garden-7a' })])
     expect(state.sessions['sid-1']?.sessionName).toBe('garden-7a')
   })
 
@@ -450,18 +484,22 @@ describe('reduce', () => {
     const state = fold([
       transcript(),
       transcript({ sessionId: 'sid-2' }),
-      sessionNames({ 'sid-1': 'garden-7a' }),
+      sessionMetadata({ 'sid-1': 'garden-7a' }),
     ])
     expect(state.sessions['sid-2']?.sessionName).toBeNull()
   })
 
   it('reverts to null when a name present in one snapshot is absent from the next', () => {
-    const state = fold([transcript(), sessionNames({ 'sid-1': 'garden-7a' }), sessionNames({})])
+    const state = fold([
+      transcript(),
+      sessionMetadata({ 'sid-1': 'garden-7a' }),
+      sessionMetadata({}),
+    ])
     expect(state.sessions['sid-1']?.sessionName).toBeNull()
   })
 
   it('lands a Claude-side name that arrived before the session was otherwise known', () => {
-    const state = fold([sessionNames({ 'sid-1': 'garden-7a' }), transcript()])
+    const state = fold([sessionMetadata({ 'sid-1': 'garden-7a' }), transcript()])
     expect(state.sessions['sid-1']?.sessionName).toBe('garden-7a')
   })
 

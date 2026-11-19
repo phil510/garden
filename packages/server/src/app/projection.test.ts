@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { GardenEvent } from '../domain/types.js'
 import type { OverlayState, StorePort } from './ports.js'
 import { createProjection } from './projection.js'
-import { createSessionNameRefresh } from './sessionNames.js'
+import { createSessionMetadataRefresh } from './sessionMetadata.js'
 import { resolveSessionTarget } from './sessionTargets.js'
 
 const emptyOverlay: OverlayState = {
@@ -636,14 +636,14 @@ describe('session name snapshots', () => {
   it('uses only the current registry name for an existing Garden row', async () => {
     const projection = createProjection(fakeStore().port)
     projection.dispatch(transcript())
-    const readSessionNames = vi
+    const readSessionMetadata = vi
       .fn()
       .mockResolvedValueOnce({ names: { 'sid-1': 'Scout' }, skipped: 0 })
       .mockResolvedValueOnce({ names: { 'sid-1': 'Scout again' }, skipped: 0 })
       .mockResolvedValueOnce({ names: { 'new-native-id': 'Scout again' }, skipped: 0 })
-    const refresh = createSessionNameRefresh(
+    const refresh = createSessionMetadataRefresh(
       projection,
-      { readSessionNames },
+      { readSessionMetadata },
       {
         warn: vi.fn(),
         error: vi.fn(),
@@ -672,20 +672,20 @@ describe('session name snapshots', () => {
     const slow = new Promise<{ names: Record<string, string>; skipped: number }>((resolve) => {
       finishRead = () => resolve({ names: { 'sid-1': 'Scout' }, skipped: 0 })
     })
-    const readSessionNames = vi
+    const readSessionMetadata = vi
       .fn()
       .mockReturnValueOnce(slow)
       .mockRejectedValueOnce(new Error('no registry'))
     const error = vi.fn()
-    const refresh = createSessionNameRefresh(
+    const refresh = createSessionMetadataRefresh(
       projection,
-      { readSessionNames },
+      { readSessionMetadata },
       { warn: vi.fn(), error },
     )
 
     const first = refresh()
     await refresh()
-    expect(readSessionNames).toHaveBeenCalledOnce()
+    expect(readSessionMetadata).toHaveBeenCalledOnce()
     finishRead!()
     await first
     expect(projection.sessions()[0]?.sessionName).toBe('Scout')

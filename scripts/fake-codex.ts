@@ -1,6 +1,13 @@
 import { execFile } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  writeFileSync,
+} from 'node:fs'
 import { join } from 'node:path'
 import { createInterface } from 'node:readline'
 import { createServer } from 'node:http'
@@ -11,6 +18,7 @@ const args = process.argv.slice(2)
 const home = process.env.CODEX_HOME
 if (home === undefined) throw new Error('fake Codex requires its own CODEX_HOME')
 const queueDir = join(home, 'queue')
+const indexPath = join(home, 'session_index.jsonl')
 mkdirSync(queueDir, { recursive: true })
 const remote = args[args.indexOf('--remote') + 1]
 if (args.includes('--remote')) {
@@ -73,6 +81,7 @@ let id: string = randomUUID()
 let path: string | null = null
 let source = 'startup'
 let started = false
+let title: string | null = null
 let queuePosition = 0
 let status: { type: string; activeFlags?: string[] } = { type: 'idle' }
 const observers = new Set<WebSocket>()
@@ -123,6 +132,12 @@ async function hook(event: string): Promise<void> {
   })
 }
 async function turn(message: string) {
+  if (message === '/end-with-slow-shutdown') {
+    // Leave the terminal open after the hook and make the launcher reap this backend.
+    process.once('SIGTERM', () => {})
+    await hook('SessionEnd')
+    return
+  }
   if (message === '/end') {
     await hook('SessionEnd')
     terminal?.send(JSON.stringify({ method: 'fake/end' }))
@@ -141,6 +156,7 @@ async function turn(message: string) {
   if (message === '/clear') {
     id = randomUUID()
     path = null
+    title = null
     source = 'clear'
     started = true
     queuePosition = 0
@@ -148,6 +164,21 @@ async function turn(message: string) {
     await hook('SessionStart')
     report({ type: 'idle' })
     output(`[fake-codex] CLEARED ${id}`)
+    return
+  }
+  if (message.startsWith('/rename ')) {
+    title = message.slice('/rename '.length).trim()
+    appendFileSync(
+      indexPath,
+      `${JSON.stringify({ id, thread_name: title, updated_at: new Date().toISOString() })}\n`,
+    )
+    for (const client of observers)
+      client.send(
+        JSON.stringify({
+          method: 'thread/name/updated',
+          params: { threadId: id, threadName: title },
+        }),
+      )
     return
   }
   materialize()
@@ -201,7 +232,9 @@ sockets.on('connection', (client) => {
       observers.add(client)
       client.send(JSON.stringify({ id: message.id, result: {} }))
     } else if (message.method === 'thread/read') {
-      client.send(JSON.stringify({ id: message.id, result: { thread: { id, status } } }))
+      client.send(
+        JSON.stringify({ id: message.id, result: { thread: { id, status, name: title } } }),
+      )
     } else if (message.method === 'fake/start') {
       terminal = client
       const launch = params.args!
@@ -209,11 +242,19 @@ sockets.on('connection', (client) => {
       if (resume >= 0) {
         id = launch.slice(resume + 1).find((arg) => /^[0-9a-f-]{36}$/.test(arg))!
         source = 'resume'
+        if (existsSync(indexPath)) {
+          const rows = readFileSync(indexPath, 'utf8')
+            .trim()
+            .split('\n')
+            .filter(Boolean)
+            .map((line) => JSON.parse(line) as { id: string; thread_name: string })
+          title = rows.findLast((row) => row.id === id)?.thread_name ?? null
+        }
       }
-      writeFileSync(
-        join(home, `launch-${process.env.GARDEN_SESSION_ID ?? 'unknown'}.json`),
-        JSON.stringify(launch),
-      )
+      const record = join(home, `launch-${process.env.GARDEN_SESSION_ID ?? 'unknown'}.json`)
+      const temporary = `${record}.${process.pid}.tmp`
+      writeFileSync(temporary, JSON.stringify(launch))
+      renameSync(temporary, record)
       output('[fake-codex] READY')
     } else if (message.method === 'fake/input' || message.method === 'fake/queue') {
       const text = typeof message.params === 'string' ? message.params : params.message!

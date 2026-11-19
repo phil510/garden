@@ -31,7 +31,7 @@ import {
 import type { TmuxTarget } from './adapters/tmux.js'
 import { createAttachRegistry, type AttachRegistry } from './app/attach.js'
 import { createBranchSweeper } from './app/branches.js'
-import { createSessionNameRefresh } from './app/sessionNames.js'
+import { createSessionMetadataRefresh } from './app/sessionMetadata.js'
 import { createTranscriptReplay, type TranscriptReplay } from './app/transcriptReplay.js'
 import { createPoller } from './app/poller.js'
 import { createReviewPoller } from './app/reviewPoller.js'
@@ -200,7 +200,7 @@ async function replay(
   logger: Logger,
   harness: HarnessPort,
   git: GitPort,
-  refreshSessionNames: () => Promise<void>,
+  refreshSessionMetadata: () => Promise<void>,
 ): Promise<void> {
   projection.dispatch({ type: 'store-loaded', tmuxNames: { ...store.read().tmuxNames } })
   // Isolated like the steps below: unreadable watch state is not a reason to fail boot.
@@ -242,10 +242,10 @@ async function replay(
   }
   await dispatchTmuxSnapshot(projection, tmux)
   try {
-    await refreshSessionNames()
+    await refreshSessionMetadata()
   } catch (error) {
     logger.error(
-      `session name projection failed: ${error instanceof Error ? error.message : String(error)}`,
+      `session metadata projection failed: ${error instanceof Error ? error.message : String(error)}`,
     )
   }
   await transcriptReplay.run()
@@ -287,6 +287,7 @@ export async function main(detached: boolean): Promise<void> {
     config.harness === 'codex'
       ? createCodexHarness({
           appDir: config.appDir,
+          codexHome,
           instanceEnv: instanceEnvironment(config),
           transcriptRoots: [join(codexHome, 'sessions'), join(codexHome, 'archived_sessions')],
           logger,
@@ -303,7 +304,7 @@ export async function main(detached: boolean): Promise<void> {
   const transcripts: TranscriptPort = createTranscripts(harness.transcripts, logger)
   const git = gitPort()
   const projection = createProjection(store)
-  const refreshSessionNames = createSessionNameRefresh(projection, harness, logger)
+  const refreshSessionMetadata = createSessionMetadataRefresh(projection, harness, logger)
   const pipes = createPipes({ projection, git })
   const attach: AttachRegistry = createAttachRegistry({
     pty: ptyPort({ socket: config.tmuxSocket, confPath }),
@@ -334,7 +335,7 @@ export async function main(detached: boolean): Promise<void> {
     logger,
     harness,
     git,
-    refreshSessionNames,
+    refreshSessionMetadata,
   )
   const statusObserver = harness.observeStatus?.((signal) => {
     applyHarnessSignal({ projection, liveTranscripts: watcher }, signal)
@@ -383,9 +384,9 @@ export async function main(detached: boolean): Promise<void> {
     })
     // Its own try/catch, not chained onto the tmux snapshot's promise: a registry read
     // failure must not swallow that tick's liveness dispatch.
-    refreshSessionNames().catch((error: unknown) => {
+    refreshSessionMetadata().catch((error: unknown) => {
       logger.error(
-        `session name projection failed: ${error instanceof Error ? error.message : String(error)}`,
+        `session metadata projection failed: ${error instanceof Error ? error.message : String(error)}`,
       )
     })
     // Its own catch too, for the same reason as above — see the first sweep after listen for what
