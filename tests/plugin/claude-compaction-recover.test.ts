@@ -1,10 +1,10 @@
 // Exercises plugins/garden-claude/hooks/scripts/recover.sh as a real subprocess — see
 // claude-compaction-warn.test.ts and docs/testing.md for why these run as subprocesses rather than
 // through a mocked execFile.
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
-import { cleanupTempDirs } from './support/temp-directories.js';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { afterEach, describe, expect, it } from 'vitest'
+import { cleanupTempDirs } from './support/temp-directories.js'
 import {
   GLOB_ROOT_ENV,
   markerExists,
@@ -19,138 +19,138 @@ import {
   claudeUsageLine,
   WARN_SH,
   writeClaudeTranscript,
-} from './support/claude-plugin.js';
+} from './support/claude-plugin.js'
 
 function runRecover(input: Record<string, unknown>, envOverrides: NodeJS.ProcessEnv = {}) {
-  return runClaudeHook(RECOVER_SH, input, envOverrides);
+  return runClaudeHook(RECOVER_SH, input, envOverrides)
 }
 
 function runWarn(input: Record<string, unknown>) {
-  return runClaudeHook(WARN_SH, { hook_event_name: 'PostToolUse', ...input });
+  return runClaudeHook(WARN_SH, { hook_event_name: 'PostToolUse', ...input })
 }
 
 describe('Claude compaction recovery hook', () => {
   afterEach(() => {
-    cleanupTempDirs();
-  });
+    cleanupTempDirs()
+  })
 
   it('prints the fallback pointer and verify-before-acting guidance when no status file exists', () => {
-    const scratchpad = tempClaudeDir();
+    const scratchpad = tempClaudeDir()
 
-    const result = runRecover({ session_id: 's-no-status', scratchpad_dir: scratchpad });
+    const result = runRecover({ session_id: 's-no-status', scratchpad_dir: scratchpad })
 
-    expect(result.code).toBe(0);
-    expect(result.stdout).toContain('no `compaction-status.md` was written before it');
-    expect(result.stdout).toContain('check them against the repo before acting on them');
-    expect(result.stdout).toContain('invoke every one that matches your task');
-    expect(result.stdout).toContain('the user named earlier');
-  });
+    expect(result.code).toBe(0)
+    expect(result.stdout).toContain('no `compaction-status.md` was written before it')
+    expect(result.stdout).toContain('check them against the repo before acting on them')
+    expect(result.stdout).toContain('invoke every one that matches your task')
+    expect(result.stdout).toContain('the user named earlier')
+  })
 
   it('points at the status file with read-first guidance and does not print its content', () => {
-    const scratchpad = tempClaudeDir();
-    writeFileSync(statusFilePath(scratchpad), 'Goal: ship the hooks\nNext step: open the PR\n');
+    const scratchpad = tempClaudeDir()
+    writeFileSync(statusFilePath(scratchpad), 'Goal: ship the hooks\nNext step: open the PR\n')
 
-    const result = runRecover({ session_id: 's-with-status', scratchpad_dir: scratchpad });
+    const result = runRecover({ session_id: 's-with-status', scratchpad_dir: scratchpad })
 
-    expect(result.code).toBe(0);
-    expect(result.stdout).toContain(statusFilePath(scratchpad));
-    expect(result.stdout).toContain('Read the file in full before doing anything else');
-    expect(result.stdout).toContain('complete copy of it is');
-    expect(result.stdout).toContain('check them against the repo');
-    expect(result.stdout).toContain('invoke every one that matches your task');
-    expect(result.stdout).toContain('the user named earlier');
-    expect(result.stdout).not.toContain('Goal: ship the hooks');
-    expect(result.stdout).not.toContain('Next step: open the PR');
-  });
+    expect(result.code).toBe(0)
+    expect(result.stdout).toContain(statusFilePath(scratchpad))
+    expect(result.stdout).toContain('Read the file in full before doing anything else')
+    expect(result.stdout).toContain('complete copy of it is')
+    expect(result.stdout).toContain('check them against the repo')
+    expect(result.stdout).toContain('invoke every one that matches your task')
+    expect(result.stdout).toContain('the user named earlier')
+    expect(result.stdout).not.toContain('Goal: ship the hooks')
+    expect(result.stdout).not.toContain('Next step: open the PR')
+  })
 
   it('deletes the marker when a status file was found', () => {
-    const scratchpad = tempClaudeDir();
-    writeFileSync(markerPath(scratchpad), '');
-    writeFileSync(statusFilePath(scratchpad), 'Goal: test marker reset\n');
+    const scratchpad = tempClaudeDir()
+    writeFileSync(markerPath(scratchpad), '')
+    writeFileSync(statusFilePath(scratchpad), 'Goal: test marker reset\n')
 
-    runRecover({ session_id: 's-marker-found', scratchpad_dir: scratchpad });
+    runRecover({ session_id: 's-marker-found', scratchpad_dir: scratchpad })
 
-    expect(markerExists(scratchpad)).toBe(false);
-  });
+    expect(markerExists(scratchpad)).toBe(false)
+  })
 
   it('deletes the marker when no status file was found', () => {
-    const scratchpad = tempClaudeDir();
-    writeFileSync(markerPath(scratchpad), '');
+    const scratchpad = tempClaudeDir()
+    writeFileSync(markerPath(scratchpad), '')
 
-    runRecover({ session_id: 's-marker-not-found', scratchpad_dir: scratchpad });
+    runRecover({ session_id: 's-marker-not-found', scratchpad_dir: scratchpad })
 
-    expect(markerExists(scratchpad)).toBe(false);
-  });
+    expect(markerExists(scratchpad)).toBe(false)
+  })
 
   it('exits 0 silently when jq is not installed', () => {
-    const scratchpad = tempClaudeDir();
-    writeFileSync(statusFilePath(scratchpad), 'Goal: test jq guard\n');
-    const binDir = pathWithoutJq();
+    const scratchpad = tempClaudeDir()
+    writeFileSync(statusFilePath(scratchpad), 'Goal: test jq guard\n')
+    const binDir = pathWithoutJq()
 
     const result = runRecover(
       { session_id: 's-no-jq', scratchpad_dir: scratchpad },
       { PATH: binDir },
-    );
+    )
 
-    expect(result.code).toBe(0);
-    expect(result.stdout).toBe('');
-  });
+    expect(result.code).toBe(0)
+    expect(result.stdout).toBe('')
+  })
 
   it('exits 0 silently when no scratchpad directory matches', () => {
-    const result = runRecover({ session_id: 'totally-unknown-session-id-does-not-exist' });
+    const result = runRecover({ session_id: 'totally-unknown-session-id-does-not-exist' })
 
-    expect(result.code).toBe(0);
-    expect(result.stdout).toBe('');
-  });
+    expect(result.code).toBe(0)
+    expect(result.stdout).toBe('')
+  })
 
   it('falls back to globbing <root>/claude-*/*/<session_id>/scratchpad when scratchpad_dir is absent', () => {
     // Mirrors claude-compaction-warn.test.ts's positive glob-fallback test: recover.sh carries its
     // own byte-for-byte copy of the same resolution logic, and every other test in this file
     // passes scratchpad_dir explicitly, so only this test proves recover.sh's copy actually
     // resolves a real directory rather than just handling the "no match" case.
-    const globRoot = tempGlobRoot();
-    const sessionId = `garden-hooks-test-glob-${process.pid}-${Date.now()}`;
+    const globRoot = tempGlobRoot()
+    const sessionId = `garden-hooks-test-glob-${process.pid}-${Date.now()}`
     const scratchpad = join(
       globRoot,
       'claude-garden-hooks-test',
       'encoded-project',
       sessionId,
       'scratchpad',
-    );
-    mkdirSync(scratchpad, { recursive: true });
-    writeFileSync(markerPath(scratchpad), '');
-    writeFileSync(statusFilePath(scratchpad), 'Goal: prove the glob fallback resolves\n');
+    )
+    mkdirSync(scratchpad, { recursive: true })
+    writeFileSync(markerPath(scratchpad), '')
+    writeFileSync(statusFilePath(scratchpad), 'Goal: prove the glob fallback resolves\n')
 
-    const result = runRecover({ session_id: sessionId }, { [GLOB_ROOT_ENV]: globRoot });
+    const result = runRecover({ session_id: sessionId }, { [GLOB_ROOT_ENV]: globRoot })
 
-    expect(result.code).toBe(0);
-    expect(result.stdout).toContain(statusFilePath(scratchpad));
-    expect(existsSync(markerPath(scratchpad))).toBe(false);
-  });
+    expect(result.code).toBe(0)
+    expect(result.stdout).toContain(statusFilePath(scratchpad))
+    expect(existsSync(markerPath(scratchpad))).toBe(false)
+  })
 
   it('re-arms the warning: a warn.sh call after recover.sh has cleared the marker warns again', () => {
-    const scratchpad = tempClaudeDir();
-    const transcript = writeClaudeTranscript(scratchpad, [claudeUsageLine(200000)]);
+    const scratchpad = tempClaudeDir()
+    const transcript = writeClaudeTranscript(scratchpad, [claudeUsageLine(200000)])
     const input = {
       session_id: 's-rearm',
       transcript_path: transcript,
       scratchpad_dir: scratchpad,
-    };
+    }
 
-    const firstWarn = runWarn(input);
-    expect(parseHookOutput(firstWarn.stdout).hookSpecificOutput.hookEventName).toBe('PostToolUse');
-    expect(markerExists(scratchpad)).toBe(true);
+    const firstWarn = runWarn(input)
+    expect(parseHookOutput(firstWarn.stdout).hookSpecificOutput.hookEventName).toBe('PostToolUse')
+    expect(markerExists(scratchpad)).toBe(true)
 
     // A second warn call in the same cycle stays quiet — the marker is still there.
-    expect(runWarn(input).stdout).toBe('');
+    expect(runWarn(input).stdout).toBe('')
 
     // Compaction happens: recover.sh runs and resets the marker.
-    runRecover({ session_id: 's-rearm', scratchpad_dir: scratchpad });
-    expect(markerExists(scratchpad)).toBe(false);
+    runRecover({ session_id: 's-rearm', scratchpad_dir: scratchpad })
+    expect(markerExists(scratchpad)).toBe(false)
 
     // The next crossing warns again.
-    const secondWarn = runWarn(input);
-    expect(parseHookOutput(secondWarn.stdout).hookSpecificOutput.hookEventName).toBe('PostToolUse');
-    expect(markerExists(scratchpad)).toBe(true);
-  });
-});
+    const secondWarn = runWarn(input)
+    expect(parseHookOutput(secondWarn.stdout).hookSpecificOutput.hookEventName).toBe('PostToolUse')
+    expect(markerExists(scratchpad)).toBe(true)
+  })
+})

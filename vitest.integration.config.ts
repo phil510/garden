@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config';
+import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
   test: {
@@ -9,4 +9,4 @@ export default defineConfig({
     // A real tmux server on one -L socket cannot serve two test files at once.
     fileParallelism: false,
   },
-});
+})

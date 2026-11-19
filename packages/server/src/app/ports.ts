@@ -1,101 +1,101 @@
-import type { EffortLevel } from '@garden/shared';
-import type { ConfigFile, PermissionMode } from '../config.js';
-import type { GhResult, GhWriteResult } from '../domain/github.js';
-import type { TranscriptParse } from '../domain/transcript.js';
+import type { EffortLevel } from '@garden/shared'
+import type { ConfigFile, PermissionMode } from '../config.js'
+import type { GhResult, GhWriteResult } from '../domain/github.js'
+import type { TranscriptParse } from '../domain/transcript.js'
 import type {
   GardenEvent,
   HarnessSignal,
   ReportedStatus,
   TranscriptRecord,
-} from '../domain/types.js';
-import type { OverlayState } from '../domain/overlay.js';
+} from '../domain/types.js'
+import type { OverlayState } from '../domain/overlay.js'
 
-export type { GardenEvent, OverlayState };
+export type { GardenEvent, OverlayState }
 
 /** app/ never sees the tmux target (socket, conf path): main.ts binds it once when it
  *  wires the adapter into this port. */
 export interface TmuxPaneFact {
-  readonly session: string;
-  readonly dead: boolean;
-  readonly exitCode: number | undefined;
+  readonly session: string
+  readonly dead: boolean
+  readonly exitCode: number | undefined
 }
 
 export interface TmuxNewSessionRequest {
-  readonly name: string;
-  readonly cwd: string;
-  readonly port: number;
-  readonly sessionId: string;
-  readonly command: readonly string[];
+  readonly name: string
+  readonly cwd: string
+  readonly port: number
+  readonly sessionId: string
+  readonly command: readonly string[]
 }
 
 export interface TmuxRespawnRequest {
-  readonly name: string;
-  readonly command: readonly string[];
+  readonly name: string
+  readonly command: readonly string[]
 }
 
 export interface TmuxPort {
-  listPanes(): Promise<TmuxPaneFact[]>;
-  newSession(request: TmuxNewSessionRequest): Promise<void>;
-  respawnPane(request: TmuxRespawnRequest): Promise<void>;
-  killSession(name: string): Promise<void>;
-  submitMessage?(name: string, message: string): Promise<void>;
+  listPanes(): Promise<TmuxPaneFact[]>
+  newSession(request: TmuxNewSessionRequest): Promise<void>
+  respawnPane(request: TmuxRespawnRequest): Promise<void>
+  killSession(name: string): Promise<void>
+  submitMessage?(name: string, message: string): Promise<void>
 }
 
 export interface StorePort {
-  read(): OverlayState;
-  write(state: OverlayState): void;
+  read(): OverlayState
+  write(state: OverlayState): void
 }
 
-export { ConfigWriteRefusedError } from '../config.js';
+export { ConfigWriteRefusedError } from '../config.js'
 
 /** `read` is tolerant, like `ensureConfigFile`: a missing or unusable file resolves to
  *  something usable, for live display. `write` is the strict half — it re-validates the
  *  on-disk file itself and refuses (throws `ConfigWriteRefusedError`) rather than
  *  serializing defaults over a file that failed to parse or validate. */
 export interface ConfigPort {
-  read(): ConfigFile;
-  write(patch: Partial<ConfigFile>): void;
+  read(): ConfigFile
+  write(patch: Partial<ConfigFile>): void
 }
 
 /** Tells the transcript watcher which files are being written right now, so they are polled
  *  every second instead of waiting for the slower discovery scan. */
 export interface LiveTranscripts {
-  track(path: string): void;
+  track(path: string): void
 }
 
 export interface TranscriptWatcher extends LiveTranscripts {
-  close(): Promise<void>;
+  close(): Promise<void>
 }
 
 export interface TranscriptPort {
-  isCurrent?(path: string, record: TranscriptRecord): boolean;
-  listFiles(): Promise<string[]>;
-  readRecord(path: string): Promise<TranscriptParse | null>;
+  isCurrent?(path: string, record: TranscriptRecord): boolean
+  listFiles(): Promise<string[]>
+  readRecord(path: string): Promise<TranscriptParse | null>
   watch(
     onEvent: (event: Extract<GardenEvent, { type: 'transcript-changed' }>) => void,
-  ): TranscriptWatcher;
+  ): TranscriptWatcher
 }
 
 export interface FsWatch {
-  close(): void;
+  close(): void
 }
 
 /** Watches one directory tree recursively. `onChange` is already debounced: one call per
  *  quiet period, and none after `close()`. */
 export interface FsWatchPort {
-  watch(root: string, onChange: () => void): FsWatch;
+  watch(root: string, onChange: () => void): FsWatch
 }
 
 export interface PaneSize {
-  readonly cols: number;
-  readonly rows: number;
+  readonly cols: number
+  readonly rows: number
 }
 
 /** One pty attached to one tmux session. Killing it detaches; the session survives. */
 export interface PaneAttachment {
-  write(data: string): void;
-  resize(size: PaneSize): void;
-  kill(): void;
+  write(data: string): void
+  resize(size: PaneSize): void
+  kill(): void
 }
 
 export interface PtyPort {
@@ -103,79 +103,79 @@ export interface PtyPort {
     tmuxName: string,
     size: PaneSize,
     handlers: { onData: (chunk: string) => void; onExit: () => void },
-  ): PaneAttachment;
+  ): PaneAttachment
 }
 
 export interface GitStatusEntry {
-  readonly path: string;
-  readonly status: string;
+  readonly path: string
+  readonly status: string
 }
 
 /** Conditional GETs against the GitHub REST API as the user's `gh` identity. `etag` is sent as
  *  `If-None-Match`; null asks unconditionally. */
 export interface GhPort {
-  get(path: string, etag: string | null): Promise<GhResult>;
+  get(path: string, etag: string | null): Promise<GhResult>
   /** Removes `login`'s review request on `repo`#`number`. */
-  removeReviewRequest(repo: string, number: number, login: string): Promise<GhWriteResult>;
+  removeReviewRequest(repo: string, number: number, login: string): Promise<GhWriteResult>
 }
 
 export interface GitPort {
-  repoRoot(cwd: string): Promise<string>;
-  isBareRepository(cwd: string): Promise<boolean>;
+  repoRoot(cwd: string): Promise<string>
+  isBareRepository(cwd: string): Promise<boolean>
   /** `cwd` relative to its working tree root, slash-terminated, empty at the root — the basis
    *  `status` reports its paths in. */
-  workTreePrefix(cwd: string): Promise<string>;
-  branch(cwd: string): Promise<string>;
+  workTreePrefix(cwd: string): Promise<string>
+  branch(cwd: string): Promise<string>
   /** The `origin` remote's URL; null when the repository has no `origin`. */
-  remoteUrl(cwd: string): Promise<string | null>;
-  status(cwd: string): Promise<GitStatusEntry[]>;
+  remoteUrl(cwd: string): Promise<string | null>
+  status(cwd: string): Promise<GitStatusEntry[]>
 }
 
 /** The slice of `adapters/logger.ts`'s `Logger` that `http/routes/sessions.ts` needs, declared
  *  locally rather than imported — `docs/architecture.md` §6 forbids `http/` importing
  *  `adapters/`, and `adapters/store.ts`'s `StoreLogger` is the existing precedent for this. */
 export interface Logger {
-  warn(message: string): void;
-  error(message: string): void;
+  warn(message: string): void
+  error(message: string): void
 }
 
 export interface HarnessLaunchRequest {
-  readonly id: string;
-  readonly cwd: string;
-  readonly model?: string;
-  readonly effort?: EffortLevel;
-  readonly permissionMode?: PermissionMode;
+  readonly id: string
+  readonly cwd: string
+  readonly model?: string
+  readonly effort?: EffortLevel
+  readonly permissionMode?: PermissionMode
 }
 
 export interface TranscriptLayout {
-  isCurrent?(path: string, record: TranscriptRecord): boolean;
-  listFiles(): Promise<string[]>;
-  accepts(path: string): boolean;
+  isCurrent?(path: string, record: TranscriptRecord): boolean
+  listFiles(): Promise<string[]>
+  accepts(path: string): boolean
   readRecord(
     path: string,
-  ): Promise<(TranscriptParse & { signature: { size: number; mtimeMs: number } }) | null>;
+  ): Promise<(TranscriptParse & { signature: { size: number; mtimeMs: number } }) | null>
 }
 
 export interface HarnessLaunch {
-  readonly sessionName?: string;
-  rollback(): void;
-  registrationStatus(): ReportedStatus | undefined;
+  readonly sessionName?: string
+  rollback(): void
+  registrationStatus(): ReportedStatus | undefined
 }
 
 export interface HarnessPort {
-  observeStatus?(onSignal: (signal: HarnessSignal) => void): { close(): void };
-  sendMessage?(id: string, message: string, submitPending: () => Promise<void>): Promise<void>;
-  beforeLaunch?(request: HarnessLaunchRequest): HarnessLaunch;
-  pendingSessions?(): { id: string; cwd: string }[];
-  replaySpool?(): HarnessSignal[];
-  spawnCommand(request: HarnessLaunchRequest): readonly string[];
-  resumeCommand(request: HarnessLaunchRequest): readonly string[];
-  parseHook(body: unknown, gardenSessionId?: string): HarnessSignal | null;
-  readonly initialStatus?: ReportedStatus;
-  readonly transcripts: TranscriptLayout;
+  observeStatus?(onSignal: (signal: HarnessSignal) => void): { close(): void }
+  sendMessage?(id: string, message: string, submitPending: () => Promise<void>): Promise<void>
+  beforeLaunch?(request: HarnessLaunchRequest): HarnessLaunch
+  pendingSessions?(): { id: string; cwd: string }[]
+  replaySpool?(): HarnessSignal[]
+  spawnCommand(request: HarnessLaunchRequest): readonly string[]
+  resumeCommand(request: HarnessLaunchRequest): readonly string[]
+  parseHook(body: unknown, gardenSessionId?: string): HarnessSignal | null
+  readonly initialStatus?: ReportedStatus
+  readonly transcripts: TranscriptLayout
   readSessionMetadata(): Promise<{
-    names: Record<string, string>;
-    nativeTitles?: Record<string, string>;
-    skipped: number;
-  }>;
+    names: Record<string, string>
+    nativeTitles?: Record<string, string>
+    skipped: number
+  }>
 }

@@ -14,60 +14,60 @@ import type {
   WatchesResponse,
   WatchResponse,
   WatchSummary,
-} from '@garden/shared';
-import { resolve } from 'node:path';
-import * as http from './http.js';
-import { CliHttpError } from './http.js';
-import { writeAll, type WritableLike } from './io.js';
+} from '@garden/shared'
+import { resolve } from 'node:path'
+import * as http from './http.js'
+import { CliHttpError } from './http.js'
+import { writeAll, type WritableLike } from './io.js'
 
 export interface Io {
-  readonly stdout: WritableLike;
-  readonly stderr: WritableLike;
+  readonly stdout: WritableLike
+  readonly stderr: WritableLike
 }
 
 /** The `garden` bin's own message for the verb that needs a caller session and finds
  *  none — `adopt` reads `GARDEN_SESSION_ID` as "self" and fails this way when it's unset. */
-const NO_CALLER_SESSION = 'GARDEN_SESSION_ID is not set';
+const NO_CALLER_SESSION = 'GARDEN_SESSION_ID is not set'
 
 /** The calls a subcommand needs. `./http.ts`'s exports satisfy this by shape. */
 export interface CliClient {
-  listSessions(filter?: SessionsFilter): Promise<SessionsResponse>;
+  listSessions(filter?: SessionsFilter): Promise<SessionsResponse>
   createSession(
     cwd: string,
     callerSessionId?: string,
     options?: SpawnOptions,
-  ): Promise<CreateSessionResponse>;
-  resumeSession(id: string, options?: SpawnOptions): Promise<CreateSessionResponse>;
-  killSession(id: string): Promise<OkResponse>;
-  sendSessionMessage(id: string, message: string, signal?: AbortSignal): Promise<OkResponse>;
-  placeSession(id: string, placement: Placement): Promise<OkResponse>;
+  ): Promise<CreateSessionResponse>
+  resumeSession(id: string, options?: SpawnOptions): Promise<CreateSessionResponse>
+  killSession(id: string): Promise<OkResponse>
+  sendSessionMessage(id: string, message: string, signal?: AbortSignal): Promise<OkResponse>
+  placeSession(id: string, placement: Placement): Promise<OkResponse>
   watch(
     sessionId: string,
     request: {
-      pr: number;
-      repo?: string;
-      kinds?: readonly string[];
-      ignoreChecks?: readonly string[];
-      unignoreChecks?: readonly string[];
+      pr: number
+      repo?: string
+      kinds?: readonly string[]
+      ignoreChecks?: readonly string[]
+      unignoreChecks?: readonly string[]
     },
-  ): Promise<WatchResponse>;
-  unwatch(sessionId: string, target: { pr: number; repo?: string }): Promise<OkResponse>;
-  watches(sessionId: string): Promise<WatchesResponse>;
-  raiseAlert(sessionId: string, text: string): Promise<AlertResponse>;
-  clearAlert(sessionId: string): Promise<OkResponse>;
-  digest(id: string): Promise<DigestResponse>;
-  reviews(): Promise<ReviewQueue>;
-  startReview(owner: string, name: string, number: number): Promise<StartReviewSessionResponse>;
+  ): Promise<WatchResponse>
+  unwatch(sessionId: string, target: { pr: number; repo?: string }): Promise<OkResponse>
+  watches(sessionId: string): Promise<WatchesResponse>
+  raiseAlert(sessionId: string, text: string): Promise<AlertResponse>
+  clearAlert(sessionId: string): Promise<OkResponse>
+  digest(id: string): Promise<DigestResponse>
+  reviews(): Promise<ReviewQueue>
+  startReview(owner: string, name: string, number: number): Promise<StartReviewSessionResponse>
   claimReview(
     owner: string,
     name: string,
     number: number,
     sessionId: string,
-  ): Promise<ClaimReviewResponse>;
-  dismissReview(owner: string, name: string, number: number): Promise<void>;
+  ): Promise<ClaimReviewResponse>
+  dismissReview(owner: string, name: string, number: number): Promise<void>
 }
 
-export const defaultClient: CliClient = http;
+export const defaultClient: CliClient = http
 
 export function runSend(
   io: Io,
@@ -81,16 +81,16 @@ export function runSend(
     json,
     () => client.sendSessionMessage(id, message),
     () => 'sent',
-  );
+  )
 }
 
 function printResult(io: Io, json: boolean, data: unknown, line: () => string): Promise<void> {
-  return writeAll(io.stdout, json ? `${JSON.stringify(data)}\n` : `${line()}\n`);
+  return writeAll(io.stdout, json ? `${JSON.stringify(data)}\n` : `${line()}\n`)
 }
 
 function printError(io: Io, error: unknown): Promise<void> {
-  const message = error instanceof Error ? error.message : String(error);
-  return writeAll(io.stderr, `garden: ${message}\n`);
+  const message = error instanceof Error ? error.message : String(error)
+  return writeAll(io.stderr, `garden: ${message}\n`)
 }
 
 async function runCommand<T>(
@@ -100,12 +100,12 @@ async function runCommand<T>(
   line: (result: T) => string,
 ): Promise<0 | 1> {
   try {
-    const result = await action();
-    await printResult(io, json, result, () => line(result));
-    return 0;
+    const result = await action()
+    await printResult(io, json, result, () => line(result))
+    return 0
   } catch (error) {
-    await printError(io, error);
-    return 1;
+    await printError(io, error)
+    return 1
   }
 }
 
@@ -116,16 +116,16 @@ export function runNew(
   client: CliClient = defaultClient,
   options: SpawnOptions = {},
 ): Promise<0 | 1> {
-  const callerSessionId = process.env.GARDEN_SESSION_ID;
+  const callerSessionId = process.env.GARDEN_SESSION_ID
   // The server's cwd is not the caller's, so a relative dir must be resolved here.
-  const absoluteDir = resolve(dir);
+  const absoluteDir = resolve(dir)
   return runCommand(
     io,
     json,
     () => client.createSession(absoluteDir, callerSessionId, options),
     ({ id, tmuxName, sessionName }) =>
       [id, tmuxName, ...(sessionName === undefined ? [] : [sessionName])].join('\t'),
-  );
+  )
 }
 
 export function runLs(
@@ -152,7 +152,7 @@ export function runLs(
               ].join('\t'),
             )
             .join('\n'),
-  );
+  )
 }
 
 export function runResume(
@@ -167,7 +167,7 @@ export function runResume(
     json,
     () => client.resumeSession(id, options),
     (result) => `${result.id}\t${result.tmuxName}`,
-  );
+  )
 }
 
 export function runKill(
@@ -181,7 +181,7 @@ export function runKill(
     json,
     () => client.killSession(id),
     () => 'killed',
-  );
+  )
 }
 
 export function runAdopt(
@@ -194,43 +194,43 @@ export function runAdopt(
     io,
     json,
     () => {
-      const self = process.env.GARDEN_SESSION_ID;
-      if (self === undefined) throw new Error(NO_CALLER_SESSION);
-      return client.placeSession(target, { type: 'parent', parentId: self });
+      const self = process.env.GARDEN_SESSION_ID
+      if (self === undefined) throw new Error(NO_CALLER_SESSION)
+      return client.placeSession(target, { type: 'parent', parentId: self })
     },
     () => 'adopted',
-  );
+  )
 }
 
 /** What the watch verbs read from the environment and flags: the session is the explicit
  *  `--session`, else the caller's own `GARDEN_SESSION_ID`. */
 function watchSession(env: NodeJS.ProcessEnv, explicit: string | undefined): string {
-  const session = explicit ?? env.GARDEN_SESSION_ID;
-  if (session === undefined || session === '') throw new Error(NO_CALLER_SESSION);
-  return session;
+  const session = explicit ?? env.GARDEN_SESSION_ID
+  if (session === undefined || session === '') throw new Error(NO_CALLER_SESSION)
+  return session
 }
 
 function watchLine(watch: WatchSummary): string {
   const ignoring =
-    watch.ignoredChecks.length === 0 ? '' : ` ignoring: ${watch.ignoredChecks.join(', ')}`;
+    watch.ignoredChecks.length === 0 ? '' : ` ignoring: ${watch.ignoredChecks.join(', ')}`
   return `${watch.repo}#${String(watch.pr)} ${watch.kinds.join(',')} ${watch.status}${
     watch.pendingDigest ? ' pending' : ''
-  }${ignoring}`;
+  }${ignoring}`
 }
 
 export interface WatchTarget {
-  readonly env: NodeJS.ProcessEnv;
-  readonly session: string | undefined;
-  readonly pr: number;
-  readonly repo: string | undefined;
+  readonly env: NodeJS.ProcessEnv
+  readonly session: string | undefined
+  readonly pr: number
+  readonly repo: string | undefined
 }
 
 export function runWatch(
   io: Io,
   target: WatchTarget & {
-    readonly kinds: readonly string[] | undefined;
-    readonly ignoreChecks?: readonly string[] | undefined;
-    readonly unignoreChecks?: readonly string[] | undefined;
+    readonly kinds: readonly string[] | undefined
+    readonly ignoreChecks?: readonly string[] | undefined
+    readonly unignoreChecks?: readonly string[] | undefined
   },
   json: boolean,
   client: CliClient = defaultClient,
@@ -247,7 +247,7 @@ export function runWatch(
         ...(target.unignoreChecks === undefined ? {} : { unignoreChecks: target.unignoreChecks }),
       }),
     (result) => watchLine(result.watch),
-  );
+  )
 }
 
 export function runUnwatch(
@@ -260,25 +260,25 @@ export function runUnwatch(
     io,
     json,
     async (): Promise<OkResponse> => {
-      const session = watchSession(target.env, target.session);
+      const session = watchSession(target.env, target.session)
       if (target.pr !== 'all') {
         return client.unwatch(session, {
           pr: target.pr,
           ...(target.repo === undefined ? {} : { repo: target.repo }),
-        });
+        })
       }
       for (const { pr, repo } of (await client.watches(session)).watches) {
         try {
-          await client.unwatch(session, { pr, repo });
+          await client.unwatch(session, { pr, repo })
         } catch (error) {
           // A watch removed since the list was read has nothing left to remove.
-          if (!(error instanceof CliHttpError && error.status === 404)) throw error;
+          if (!(error instanceof CliHttpError && error.status === 404)) throw error
         }
       }
-      return { ok: true };
+      return { ok: true }
     },
     () => 'unwatched',
-  );
+  )
 }
 
 export function runWatches(
@@ -292,14 +292,14 @@ export function runWatches(
     json,
     () => client.watches(watchSession(target.env, target.session)),
     ({ watches }) => (watches.length === 0 ? 'no watches' : watches.map(watchLine).join('\n')),
-  );
+  )
 }
 
 /** An alert is always the caller's own: there is no flag to raise one on another session. */
 function callerSession(env: NodeJS.ProcessEnv): string {
-  const session = env.GARDEN_SESSION_ID;
-  if (session === undefined || session === '') throw new Error(NO_CALLER_SESSION);
-  return session;
+  const session = env.GARDEN_SESSION_ID
+  if (session === undefined || session === '') throw new Error(NO_CALLER_SESSION)
+  return session
 }
 
 export function runAlert(
@@ -313,7 +313,7 @@ export function runAlert(
     json,
     () => client.raiseAlert(callerSession(target.env), target.text),
     () => 'alert raised',
-  );
+  )
 }
 
 export function runAlertClear(
@@ -327,7 +327,7 @@ export function runAlertClear(
     json,
     () => client.clearAlert(callerSession(target.env)),
     () => 'alert cleared',
-  );
+  )
 }
 
 /** A digest is global: it needs no session, so a worker with another `GARDEN_SESSION_ID` can
@@ -343,25 +343,25 @@ export function runDigest(
     json,
     async () => {
       try {
-        return await client.digest(id);
+        return await client.digest(id)
       } catch (error) {
         if (error instanceof CliHttpError && error.status === 404)
-          throw new Error(`no digest ${id} (expired or never recorded)`, { cause: error });
-        throw error;
+          throw new Error(`no digest ${id} (expired or never recorded)`, { cause: error })
+        throw error
       }
     },
     ({ digest }) => digest.line,
-  );
+  )
 }
 
 /** A review request named on the command line as `owner/name#N`. */
 export interface ReviewRef {
-  readonly owner: string;
-  readonly name: string;
-  readonly number: number;
+  readonly owner: string
+  readonly name: string
+  readonly number: number
 }
 
-const refKey = ({ owner, name, number }: ReviewRef) => `${owner}/${name}#${String(number)}`;
+const refKey = ({ owner, name, number }: ReviewRef) => `${owner}/${name}#${String(number)}`
 
 function reviewLine(item: ReviewItem): string {
   return [
@@ -371,15 +371,15 @@ function reviewLine(item: ReviewItem): string {
     item.updatedAt,
     item.sessionId ?? '-',
     item.title,
-  ].join('\t');
+  ].join('\t')
 }
 
 /** A queue fault is data, not an error: the items shown are the last good poll's. */
 function queueLines(queue: ReviewQueue): string {
-  const lines = queue.items.map(reviewLine);
+  const lines = queue.items.map(reviewLine)
   if (queue.fault !== null)
-    lines.push(`fault: ${queue.fault} (polled ${queue.polledAt ?? 'never'})`);
-  return lines.length === 0 ? 'no review requests' : lines.join('\n');
+    lines.push(`fault: ${queue.fault} (polled ${queue.polledAt ?? 'never'})`)
+  return lines.length === 0 ? 'no review requests' : lines.join('\n')
 }
 
 export function runReviewsList(
@@ -387,7 +387,7 @@ export function runReviewsList(
   json: boolean,
   client: CliClient = defaultClient,
 ): Promise<0 | 1> {
-  return runCommand(io, json, () => client.reviews(), queueLines);
+  return runCommand(io, json, () => client.reviews(), queueLines)
 }
 
 export function runReviewsStart(
@@ -401,7 +401,7 @@ export function runReviewsStart(
     json,
     () => client.startReview(ref.owner, ref.name, ref.number),
     (result) => result.sessionId,
-  );
+  )
 }
 
 export function runReviewsClaim(
@@ -410,7 +410,7 @@ export function runReviewsClaim(
   json: boolean,
   client: CliClient = defaultClient,
 ): Promise<0 | 1> {
-  const { ref } = target;
+  const { ref } = target
   return runCommand(
     io,
     json,
@@ -419,7 +419,7 @@ export function runReviewsClaim(
     (result) =>
       `linked ${refKey(ref)} to ${result.sessionId}` +
       (result.previousSessionId === null ? '' : ` (moved from ${result.previousSessionId})`),
-  );
+  )
 }
 
 export function runReviewsDismiss(
@@ -432,9 +432,9 @@ export function runReviewsDismiss(
     io,
     json,
     async (): Promise<OkResponse> => {
-      await client.dismissReview(ref.owner, ref.name, ref.number);
-      return { ok: true };
+      await client.dismissReview(ref.owner, ref.name, ref.number)
+      return { ok: true }
     },
     () => 'dismissed',
-  );
+  )
 }

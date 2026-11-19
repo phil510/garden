@@ -1,11 +1,11 @@
-import type { PointerEvent as ReactPointerEvent } from 'react';
+import type { PointerEvent as ReactPointerEvent } from 'react'
 
 interface ResizeHandleProps {
   /** Called on every pointermove while dragging, with the incremental delta since the
    *  previous event (not a cumulative delta from drag start) — callers add this straight
    *  onto their current width. */
-  onResize: (deltaPx: number) => void;
-  hidden?: boolean;
+  onResize: (deltaPx: number) => void
+  hidden?: boolean
 }
 
 /** A thin drag affordance between two flex panels, styled and behaving like dockview's own
@@ -13,19 +13,19 @@ interface ResizeHandleProps {
  *  bounds and clamping live in whatever store the caller's onResize writes to. */
 export function ResizeHandle({ onResize, hidden }: ResizeHandleProps) {
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    event.currentTarget.setPointerCapture(event.pointerId);
+    event.currentTarget.setPointerCapture(event.pointerId)
     // Pointer capture keeps move/up events routed to the handle, but text elsewhere on the
     // page is still selectable unless we say otherwise at the document level — the same
     // treatment dockview's own sash applies while its drag is live.
-    document.body.style.cursor = 'ew-resize';
-    document.body.style.userSelect = 'none';
-    document.body.style.touchAction = 'none';
-  };
+    document.body.style.cursor = 'ew-resize'
+    document.body.style.userSelect = 'none'
+    document.body.style.touchAction = 'none'
+  }
 
   const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
-    onResize(event.movementX);
-  };
+    if (!event.currentTarget.hasPointerCapture(event.pointerId)) return
+    onResize(event.movementX)
+  }
 
   // Shared cleanup for every way a drag can end. releasePointerCapture is a no-op when the
   // pointer isn't currently captured, so this stays safe to call from onLostPointerCapture too
@@ -33,11 +33,11 @@ export function ResizeHandle({ onResize, hidden }: ResizeHandleProps) {
   // ways pointerup/pointercancel don't cover (e.g. the handle going display:none mid-drag,
   // which is exactly what its own `hidden` prop does when the file panel is toggled closed).
   const handlePointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
-    event.currentTarget.releasePointerCapture(event.pointerId);
-    document.body.style.cursor = '';
-    document.body.style.userSelect = '';
-    document.body.style.touchAction = '';
-  };
+    event.currentTarget.releasePointerCapture(event.pointerId)
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
+    document.body.style.touchAction = ''
+  }
 
   return (
     <div
@@ -49,5 +49,5 @@ export function ResizeHandle({ onResize, hidden }: ResizeHandleProps) {
       onPointerCancel={handlePointerUp}
       onLostPointerCapture={handlePointerUp}
     />
-  );
+  )
 }

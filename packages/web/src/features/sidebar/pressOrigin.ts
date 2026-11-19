@@ -3,5 +3,5 @@
  *  an ordinary click, since the browser routes that mismatched press/release pair to their
  *  common ancestor rather than to either endpoint. */
 export function pressStartedInMenu(target: { closest(selector: string): unknown } | null): boolean {
-  return target !== null && target.closest('.context-menu') !== null;
+  return target !== null && target.closest('.context-menu') !== null
 }

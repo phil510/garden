@@ -1,27 +1,27 @@
-import { stat } from 'node:fs/promises';
-import type { TranscriptParse } from '../domain/transcript.js';
-import type { GardenEvent, TranscriptRecord } from '../domain/types.js';
+import { stat } from 'node:fs/promises'
+import type { TranscriptParse } from '../domain/transcript.js'
+import type { GardenEvent, TranscriptRecord } from '../domain/types.js'
 
 /** The slice of `Logger` this adapter needs, declared locally rather than imported —
  *  one adapter per external system, composed together only in main.ts. */
 export interface TranscriptLogger {
-  warn(message: string): void;
-  error(message: string): void;
+  warn(message: string): void
+  error(message: string): void
 }
 
 /** How often the live transcript paths are polled for a changed signature. */
-export const POLL_MS = 1_000;
+export const POLL_MS = 1_000
 
 /** How often the reconciliation scan looks for files garden doesn't know are live. */
-export const RECONCILE_MS = 10_000;
+export const RECONCILE_MS = 10_000
 
 /** How long a live path may go unchanged before the poll stops stat-ing it. The reconciliation
  *  scan promotes it back the next time it finds the file changed. */
-export const LIVE_IDLE_MS = 5 * 60_000;
+export const LIVE_IDLE_MS = 5 * 60_000
 
 export interface TranscriptSignature {
-  size: number;
-  mtimeMs: number;
+  size: number
+  mtimeMs: number
 }
 
 /**
@@ -37,51 +37,51 @@ export async function reconcileTranscripts(
   logger: TranscriptLogger,
 ): Promise<void> {
   for (const path of await layout.listFiles()) {
-    let size: number;
-    let mtimeMs: number;
+    let size: number
+    let mtimeMs: number
     try {
-      ({ size, mtimeMs } = await stat(path));
+      ;({ size, mtimeMs } = await stat(path))
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
         logger.error(
           `failed to stat transcript ${path} during reconciliation: ${(error as Error).message}`,
-        );
+        )
       }
-      continue;
+      continue
     }
-    const known = signatures.get(path);
-    if (known && known.size === size && known.mtimeMs === mtimeMs) continue;
-    await onStale(path);
+    const known = signatures.get(path)
+    if (known && known.size === size && known.mtimeMs === mtimeMs) continue
+    await onStale(path)
   }
 }
 
 export interface TranscriptWatcher {
   /** Marks a transcript path live, or refreshes its idle clock. Synchronous and I/O-free: it
    *  runs on every hook. The harness layout decides which paths are accepted. */
-  track(path: string): void;
-  close(): Promise<void>;
+  track(path: string): void
+  close(): Promise<void>
 }
 
 export interface TranscriptTiming {
-  pollMs?: number;
-  reconcileMs?: number;
-  liveIdleMs?: number;
+  pollMs?: number
+  reconcileMs?: number
+  liveIdleMs?: number
 }
 
 export interface TranscriptLayout {
-  isCurrent?(path: string, record: TranscriptRecord): boolean;
-  listFiles(): Promise<string[]>;
-  accepts(path: string): boolean;
-  readRecord(path: string): Promise<(TranscriptParse & { signature: TranscriptSignature }) | null>;
+  isCurrent?(path: string, record: TranscriptRecord): boolean
+  listFiles(): Promise<string[]>
+  accepts(path: string): boolean
+  readRecord(path: string): Promise<(TranscriptParse & { signature: TranscriptSignature }) | null>
 }
 
 export interface Transcripts {
-  isCurrent(path: string, record: TranscriptRecord): boolean;
-  listFiles(): Promise<string[]>;
-  readRecord(path: string): Promise<TranscriptParse | null>;
+  isCurrent(path: string, record: TranscriptRecord): boolean
+  listFiles(): Promise<string[]>
+  readRecord(path: string): Promise<TranscriptParse | null>
   watch(
     onEvent: (event: Extract<GardenEvent, { type: 'transcript-changed' }>) => void,
-  ): TranscriptWatcher;
+  ): TranscriptWatcher
 }
 
 /**
@@ -99,73 +99,73 @@ export function createTranscripts(
   logger: TranscriptLogger,
   timing: TranscriptTiming = {},
 ): Transcripts {
-  const { pollMs = POLL_MS, reconcileMs = RECONCILE_MS, liveIdleMs = LIVE_IDLE_MS } = timing;
-  const signatures = new Map<string, TranscriptSignature>();
+  const { pollMs = POLL_MS, reconcileMs = RECONCILE_MS, liveIdleMs = LIVE_IDLE_MS } = timing
+  const signatures = new Map<string, TranscriptSignature>()
 
   return {
     isCurrent: (path, record) => layout.isCurrent?.(path, record) ?? true,
     listFiles: () => layout.listFiles(),
     async readRecord(path) {
-      const result = await layout.readRecord(path);
-      if (result === null) return null;
-      const { signature, ...parsed } = result;
-      signatures.set(path, signature);
-      return parsed;
+      const result = await layout.readRecord(path)
+      if (result === null) return null
+      const { signature, ...parsed } = result
+      signatures.set(path, signature)
+      return parsed
     },
     watch(onEvent) {
-      const warnedFiles = new Set<string>();
+      const warnedFiles = new Set<string>()
       /** Live path → last time it was tracked or seen changed. */
-      const live = new Map<string, number>();
+      const live = new Map<string, number>()
 
       // The signature is the one readTranscriptRecord stamped the read with, taken before the
       // read, and it is recorded before dispatching: a write landing mid-read only makes it stale,
       // and a throwing `onEvent` can't skip it. A failed read records nothing, so a later tick
       // retries.
       async function reread(path: string): Promise<void> {
-        let parsed: (TranscriptParse & { signature: TranscriptSignature }) | null;
+        let parsed: (TranscriptParse & { signature: TranscriptSignature }) | null
         try {
-          parsed = await layout.readRecord(path);
+          parsed = await layout.readRecord(path)
         } catch (error) {
-          logger.error(`failed to read transcript ${path}: ${(error as Error).message}`);
-          return;
+          logger.error(`failed to read transcript ${path}: ${(error as Error).message}`)
+          return
         }
-        if (parsed === null || !(layout.isCurrent?.(path, parsed.record) ?? true)) return;
-        const { record, skipped, signature } = parsed;
-        signatures.set(path, signature);
+        if (parsed === null || !(layout.isCurrent?.(path, parsed.record) ?? true)) return
+        const { record, skipped, signature } = parsed
+        signatures.set(path, signature)
         if (skipped > 0 && !warnedFiles.has(path)) {
-          warnedFiles.add(path);
-          logger.warn(`skipped ${skipped} unparseable line(s) in ${path}`);
+          warnedFiles.add(path)
+          logger.warn(`skipped ${skipped} unparseable line(s) in ${path}`)
         }
-        onEvent({ type: 'transcript-changed', path, record });
+        onEvent({ type: 'transcript-changed', path, record })
       }
 
       async function pollLive(): Promise<void> {
         for (const path of [...live.keys()]) {
           if (!layout.accepts(path)) {
-            live.delete(path);
-            signatures.delete(path);
-            continue;
+            live.delete(path)
+            signatures.delete(path)
+            continue
           }
-          const now = Date.now();
+          const now = Date.now()
           if (now - live.get(path)! >= liveIdleMs) {
-            live.delete(path);
-            continue;
+            live.delete(path)
+            continue
           }
-          let size: number;
-          let mtimeMs: number;
+          let size: number
+          let mtimeMs: number
           try {
-            ({ size, mtimeMs } = await stat(path));
+            ;({ size, mtimeMs } = await stat(path))
           } catch (error) {
             // A session reports its transcript path before the file exists.
             if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-              logger.error(`failed to stat transcript ${path}: ${(error as Error).message}`);
+              logger.error(`failed to stat transcript ${path}: ${(error as Error).message}`)
             }
-            continue;
+            continue
           }
-          const known = signatures.get(path);
-          if (known && known.size === size && known.mtimeMs === mtimeMs) continue;
-          live.set(path, now);
-          await reread(path);
+          const known = signatures.get(path)
+          if (known && known.size === size && known.mtimeMs === mtimeMs) continue
+          live.set(path, now)
+          await reread(path)
         }
       }
 
@@ -174,48 +174,48 @@ export function createTranscripts(
           layout,
           signatures,
           async (path) => {
-            live.set(path, Date.now());
-            await reread(path);
+            live.set(path, Date.now())
+            await reread(path)
           },
           logger,
-        );
+        )
       }
 
       // Holds the in-flight tick's promise, not just a boolean: close() awaits it, so a tick
       // already running when close() is called finishes its dispatches before close() resolves.
       // A tick still running when the next is due is skipped rather than queued.
       function singleFlight(name: string, tick: () => Promise<void>) {
-        let running: Promise<void> | undefined;
+        let running: Promise<void> | undefined
         const start = () => {
           running ??= tick()
             .catch((error: unknown) => {
               logger.error(
                 `transcript ${name} failed: ${error instanceof Error ? error.message : String(error)}`,
-              );
+              )
             })
             .finally(() => {
-              running = undefined;
-            });
-        };
-        return { start, settled: () => running };
+              running = undefined
+            })
+        }
+        return { start, settled: () => running }
       }
 
-      const pollTick = singleFlight('poll', pollLive);
-      const reconcileTick = singleFlight('reconciliation', reconcile);
-      const pollTimer = setInterval(pollTick.start, pollMs);
-      const reconcileTimer = setInterval(reconcileTick.start, reconcileMs);
+      const pollTick = singleFlight('poll', pollLive)
+      const reconcileTick = singleFlight('reconciliation', reconcile)
+      const pollTimer = setInterval(pollTick.start, pollMs)
+      const reconcileTimer = setInterval(reconcileTick.start, reconcileMs)
 
       return {
         track(path) {
-          if (!layout.accepts(path)) return;
-          live.set(path, Date.now());
+          if (!layout.accepts(path)) return
+          live.set(path, Date.now())
         },
         async close() {
-          clearInterval(pollTimer);
-          clearInterval(reconcileTimer);
-          await Promise.all([pollTick.settled(), reconcileTick.settled()]);
+          clearInterval(pollTimer)
+          clearInterval(reconcileTimer)
+          await Promise.all([pollTick.settled(), reconcileTick.settled()])
         },
-      };
+      }
     },
-  };
+  }
 }

@@ -1,6 +1,6 @@
 export interface GitStatusBadge {
-  readonly letter: 'M' | 'A' | 'U';
-  readonly className: string;
+  readonly letter: 'M' | 'A' | 'U'
+  readonly className: string
 }
 
 /**
@@ -10,9 +10,9 @@ export interface GitStatusBadge {
  * "modified". Ignored paths and merge conflicts carry no badge.
  */
 export function gitStatusBadge(code: string | null): GitStatusBadge | null {
-  if (code === null || code === '!!') return null;
-  if (code === '??') return { letter: 'U', className: 'gstat gU' };
-  if (/[ARC]/.test(code)) return { letter: 'A', className: 'gstat gA' };
-  if (/[MD]/.test(code)) return { letter: 'M', className: 'gstat gM' };
-  return null;
+  if (code === null || code === '!!') return null
+  if (code === '??') return { letter: 'U', className: 'gstat gU' }
+  if (/[ARC]/.test(code)) return { letter: 'A', className: 'gstat gA' }
+  if (/[MD]/.test(code)) return { letter: 'M', className: 'gstat gM' }
+  return null
 }

@@ -1,8 +1,8 @@
-import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
-import { parseCodexTranscript } from './transcript.js';
+import { readFileSync } from 'node:fs'
+import { describe, expect, it } from 'vitest'
+import { parseCodexTranscript } from './transcript.js'
 const line = (type: string, payload: unknown, timestamp = '2026-11-15T00:00:00Z') =>
-  JSON.stringify({ type, payload, timestamp });
+  JSON.stringify({ type, payload, timestamp })
 
 describe('Codex rollout projection', () => {
   it('projects captured native messages, excluding injected context before the first user turn', () => {
@@ -11,22 +11,22 @@ describe('Codex rollout projection', () => {
       'utf8',
     )
       .trimEnd()
-      .split('\n');
+      .split('\n')
     expect(parseCodexTranscript(records[0]!, 'garden').record).toMatchObject({
       lastPrompt: null,
       recap: null,
-    });
+    })
     expect(parseCodexTranscript(records.slice(0, 3).join('\n'), 'garden').record).toMatchObject({
       lastPrompt: 'Reply exactly FIRST_OK. Do not use tools or access files.',
       recap: 'FIRST_OK',
-    });
+    })
     expect(parseCodexTranscript(records.join('\n'), 'garden').record).toMatchObject({
       sessionId: 'garden',
       lastPrompt: 'Reply exactly QUEUE_OK. Do not use tools or access files.',
       recap: 'QUEUE_OK',
       lastActivity: Date.parse('2026-11-16T18:22:57.549Z'),
-    });
-  });
+    })
+  })
 
   it('joins matching text parts and excludes context, other roles, tools and non-text parts', () => {
     const parsed = parseCodexTranscript(
@@ -73,12 +73,12 @@ describe('Codex rollout projection', () => {
         line('response_item', { type: 'message', role: 'user', content: null }),
       ].join('\n'),
       'garden',
-    );
+    )
     expect(parsed.record).toMatchObject({
       lastPrompt: 'first paragraph\nsecond paragraph',
       recap: 'answer paragraph\nanother paragraph',
-    });
-  });
+    })
+  })
 
   it('keeps the final answer when later progress and mirrored legacy events arrive', () => {
     const parsed = parseCodexTranscript(
@@ -107,9 +107,9 @@ describe('Codex rollout projection', () => {
         line('event_msg', { type: 'agent_message', message: 'progress' }),
       ].join('\n'),
       'garden',
-    );
-    expect(parsed.record).toMatchObject({ lastPrompt: 'prompt', recap: 'final response' });
-  });
+    )
+    expect(parsed.record).toMatchObject({ lastPrompt: 'prompt', recap: 'final response' })
+  })
 
   it('ignores phased legacy progress before and after an answer while preserving unphased answers', () => {
     const progress = ['commentary', 'partial_answer'].flatMap((phase) => [
@@ -120,8 +120,8 @@ describe('Codex rollout projection', () => {
         content: [{ type: 'output_text', text: 'working' }],
       }),
       line('event_msg', { type: 'agent_message', phase, message: 'working' }),
-    ]);
-    expect(parseCodexTranscript(progress.join('\n'), 'garden').record.recap).toBeNull();
+    ])
+    expect(parseCodexTranscript(progress.join('\n'), 'garden').record.recap).toBeNull()
     for (const phase of ['final_answer', null, undefined]) {
       expect(
         parseCodexTranscript(
@@ -132,9 +132,9 @@ describe('Codex rollout projection', () => {
           ].join('\n'),
           'garden',
         ).record.recap,
-      ).toBe('answer');
+      ).toBe('answer')
     }
-  });
+  })
 
   it('accepts messages without optional phase or input annotations from older rollouts', () => {
     expect(
@@ -153,8 +153,8 @@ describe('Codex rollout projection', () => {
         ].join('\n'),
         'garden',
       ).record,
-    ).toMatchObject({ lastPrompt: 'legacy prompt', recap: 'legacy answer' });
-  });
+    ).toMatchObject({ lastPrompt: 'legacy prompt', recap: 'legacy answer' })
+  })
 
   it('uses the latest real user turn and assistant event while ignoring tool and context messages', () => {
     const parsed = parseCodexTranscript(
@@ -177,7 +177,7 @@ describe('Codex rollout projection', () => {
         '{broken',
       ].join('\n'),
       'garden',
-    );
+    )
     expect(parsed).toEqual({
       record: {
         sessionId: 'garden',
@@ -188,8 +188,8 @@ describe('Codex rollout projection', () => {
         lastActivity: Date.parse('2026-11-15T01:00:00Z'),
       },
       skipped: 1,
-    });
-  });
+    })
+  })
   it('accepts an empty or incomplete rollout without manufacturing transcript fields', () => {
     expect(parseCodexTranscript('', 'garden').record).toEqual({
       sessionId: 'garden',
@@ -198,7 +198,7 @@ describe('Codex rollout projection', () => {
       lastPrompt: null,
       recap: null,
       lastActivity: null,
-    });
-    expect(parseCodexTranscript('[]\nnull\n', 'garden').skipped).toBe(2);
-  });
-});
+    })
+    expect(parseCodexTranscript('[]\nnull\n', 'garden').skipped).toBe(2)
+  })
+})

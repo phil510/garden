@@ -1,47 +1,47 @@
-import { fakeHarness } from '../../app/harness.fixture.js';
-import { createReviewStore } from '../../app/reviews.js';
-import { memoryOverlay } from '../../app/reviews.fixture.js';
-import { describe, expect, it } from 'vitest';
-import type { Projection } from '../../app/projection.js';
-import type { ConfigPort } from '../../app/ports.js';
-import { ConfigWriteRefusedError } from '../../app/ports.js';
-import { DEFAULT_CONFIG_FILE } from '../../config.js';
-import type { ServerDeps } from '../server.js';
-import { createServer } from '../server.js';
+import { fakeHarness } from '../../app/harness.fixture.js'
+import { createReviewStore } from '../../app/reviews.js'
+import { memoryOverlay } from '../../app/reviews.fixture.js'
+import { describe, expect, it } from 'vitest'
+import type { Projection } from '../../app/projection.js'
+import type { ConfigPort } from '../../app/ports.js'
+import { ConfigWriteRefusedError } from '../../app/ports.js'
+import { DEFAULT_CONFIG_FILE } from '../../config.js'
+import type { ServerDeps } from '../server.js'
+import { createServer } from '../server.js'
 
 function fakeProjection(): Projection {
   return {
     sessions: () => [],
     uiState: () => {
-      throw new Error('not used by this test');
+      throw new Error('not used by this test')
     },
     dispatch: () => undefined,
     updateUiState: () => {
-      throw new Error('not used by this test');
+      throw new Error('not used by this test')
     },
     subscribe: () => () => undefined,
     subscribeUiState: () => () => undefined,
     overlay: () => {
-      throw new Error('not used by this test');
+      throw new Error('not used by this test')
     },
     updateOverlay: () => {
-      throw new Error('not used by this test');
+      throw new Error('not used by this test')
     },
     subscribeOverlay: () => () => undefined,
     placementOf: () => {
-      throw new Error('not used by this test');
+      throw new Error('not used by this test')
     },
-  };
+  }
 }
 
 function fakeConfigPort(overrides: Partial<ConfigPort> = {}): ConfigPort {
   return {
     read: () => ({ ...DEFAULT_CONFIG_FILE, claudeCommand: 'claude' }),
     write: () => {
-      throw new Error('not used by this test');
+      throw new Error('not used by this test')
     },
     ...overrides,
-  };
+  }
 }
 
 function fakeDeps(overrides: Partial<ServerDeps> = {}): ServerDeps {
@@ -70,7 +70,7 @@ function fakeDeps(overrides: Partial<ServerDeps> = {}): ServerDeps {
     },
     attach: {
       attach: () => {
-        throw new Error('not used by this test');
+        throw new Error('not used by this test')
       },
     },
     repos: {
@@ -82,7 +82,7 @@ function fakeDeps(overrides: Partial<ServerDeps> = {}): ServerDeps {
     deadSessionCap: 25,
     ...overrides,
     harness: fakeHarness(),
-  };
+  }
 }
 
 describe('GET /settings', () => {
@@ -93,11 +93,11 @@ describe('GET /settings', () => {
           read: () => ({ ...DEFAULT_CONFIG_FILE, claudeCommand: 'ec bedrock launch claude --' }),
         }),
       }),
-    );
+    )
     try {
-      const response = await app.inject({ method: 'GET', url: '/settings' });
+      const response = await app.inject({ method: 'GET', url: '/settings' })
 
-      expect(response.statusCode).toBe(200);
+      expect(response.statusCode).toBe(200)
       expect(response.json()).toEqual({
         harness: 'claude',
         codexCommand: 'codex',
@@ -106,165 +106,165 @@ describe('GET /settings', () => {
         ignoreAuthors: [],
         quietWindowMinutes: 3,
         pollIntervalMinutes: 5,
-      });
+      })
     } finally {
-      await app.close();
+      await app.close()
     }
-  });
-});
+  })
+})
 
 describe('PUT /settings', () => {
   it('answers 400 on a body without a string claudeCommand', async () => {
-    const app = createServer(fakeDeps());
+    const app = createServer(fakeDeps())
     try {
       const response = await app.inject({
         method: 'PUT',
         url: '/settings',
         payload: { claudeCommand: 42 },
-      });
-      expect(response.statusCode).toBe(400);
+      })
+      expect(response.statusCode).toBe(400)
     } finally {
-      await app.close();
+      await app.close()
     }
-  });
+  })
 
   it.each([{}, { unknownKey: 1 }, { quietWindowMinutes: -1 }, { ignoreAuthors: [1] }])(
     'answers 400 on %j without writing',
     async (payload) => {
-      const written: unknown[] = [];
+      const written: unknown[] = []
       const app = createServer(
         fakeDeps({
           configPort: fakeConfigPort({
             write: (patch) => {
-              written.push(patch);
+              written.push(patch)
             },
           }),
         }),
-      );
+      )
       try {
-        const response = await app.inject({ method: 'PUT', url: '/settings', payload });
-        expect(response.statusCode).toBe(400);
-        expect(written).toHaveLength(0);
+        const response = await app.inject({ method: 'PUT', url: '/settings', payload })
+        expect(response.statusCode).toBe(400)
+        expect(written).toHaveLength(0)
       } finally {
-        await app.close();
+        await app.close()
       }
     },
-  );
+  )
 
   it('answers 200 for a subset of keys that omits claudeCommand', async () => {
-    const written: unknown[] = [];
+    const written: unknown[] = []
     const app = createServer(
       fakeDeps({
         configPort: fakeConfigPort({
           write: (patch) => {
-            written.push(patch);
+            written.push(patch)
           },
         }),
       }),
-    );
+    )
     try {
       const response = await app.inject({
         method: 'PUT',
         url: '/settings',
         payload: { pollIntervalMinutes: 10 },
-      });
-      expect(response.statusCode).toBe(200);
-      expect(written).toEqual([{ pollIntervalMinutes: 10 }]);
+      })
+      expect(response.statusCode).toBe(200)
+      expect(written).toEqual([{ pollIntervalMinutes: 10 }])
     } finally {
-      await app.close();
+      await app.close()
     }
-  });
+  })
 
   it('answers 400, not 500, on a blank claudeCommand', async () => {
-    const app = createServer(fakeDeps());
+    const app = createServer(fakeDeps())
     try {
       const response = await app.inject({
         method: 'PUT',
         url: '/settings',
         payload: { claudeCommand: '   ' },
-      });
-      expect(response.statusCode).toBe(400);
+      })
+      expect(response.statusCode).toBe(400)
     } finally {
-      await app.close();
+      await app.close()
     }
-  });
+  })
 
   it('answers 200 and writes the patch through the config port on success', async () => {
-    const written: unknown[] = [];
+    const written: unknown[] = []
     const app = createServer(
       fakeDeps({
         configPort: fakeConfigPort({
           write: (patch) => {
-            written.push(patch);
+            written.push(patch)
           },
         }),
       }),
-    );
+    )
     try {
       const response = await app.inject({
         method: 'PUT',
         url: '/settings',
         payload: { claudeCommand: 'tsx scripts/fake-claude.ts' },
-      });
+      })
 
-      expect(response.statusCode).toBe(200);
-      expect(response.json()).toEqual({ ok: true });
-      expect(written).toEqual([{ claudeCommand: 'tsx scripts/fake-claude.ts' }]);
+      expect(response.statusCode).toBe(200)
+      expect(response.json()).toEqual({ ok: true })
+      expect(written).toEqual([{ claudeCommand: 'tsx scripts/fake-claude.ts' }])
     } finally {
-      await app.close();
+      await app.close()
     }
-  });
+  })
 
   it('answers 409 when the config port refuses the write', async () => {
     const app = createServer(
       fakeDeps({
         configPort: fakeConfigPort({
           write: () => {
-            throw new ConfigWriteRefusedError('existing file is invalid');
+            throw new ConfigWriteRefusedError('existing file is invalid')
           },
         }),
       }),
-    );
+    )
     try {
       const response = await app.inject({
         method: 'PUT',
         url: '/settings',
         payload: { claudeCommand: 'claude' },
-      });
+      })
 
-      expect(response.statusCode).toBe(409);
-      expect(response.json()).toEqual({ error: 'existing file is invalid' });
+      expect(response.statusCode).toBe(409)
+      expect(response.json()).toEqual({ error: 'existing file is invalid' })
     } finally {
-      await app.close();
+      await app.close()
     }
-  });
-});
+  })
+})
 
 it('serves the active Codex harness and accepts its saved launch command', async () => {
-  let file = { ...DEFAULT_CONFIG_FILE, codexCommand: 'saved-codex' };
+  let file = { ...DEFAULT_CONFIG_FILE, codexCommand: 'saved-codex' }
   const app = createServer(
     fakeDeps({
       harnessName: 'codex',
       configPort: fakeConfigPort({
         read: () => file,
         write: (patch) => {
-          file = { ...file, ...patch };
+          file = { ...file, ...patch }
         },
       }),
     }),
-  );
+  )
   try {
-    const before = await app.inject({ method: 'GET', url: '/settings' });
-    expect(before.json()).toMatchObject({ harness: 'codex', codexCommand: 'saved-codex' });
+    const before = await app.inject({ method: 'GET', url: '/settings' })
+    expect(before.json()).toMatchObject({ harness: 'codex', codexCommand: 'saved-codex' })
     const saved = await app.inject({
       method: 'PUT',
       url: '/settings',
       payload: { codexCommand: 'updated-codex' },
-    });
-    expect(saved.statusCode).toBe(200);
-    const after = await app.inject({ method: 'GET', url: '/settings' });
-    expect(after.json()).toMatchObject({ codexCommand: 'updated-codex', claudeCommand: 'claude' });
+    })
+    expect(saved.statusCode).toBe(200)
+    const after = await app.inject({ method: 'GET', url: '/settings' })
+    expect(after.json()).toMatchObject({ codexCommand: 'updated-codex', claudeCommand: 'claude' })
   } finally {
-    await app.close();
+    await app.close()
   }
-});
+})

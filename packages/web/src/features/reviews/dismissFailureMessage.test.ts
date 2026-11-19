@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
-import { ApiError, DismissReviewError } from '../../api/client';
-import { dismissFailureMessage } from './dismissFailureMessage';
+import { describe, expect, it } from 'vitest'
+import { ApiError, DismissReviewError } from '../../api/client'
+import { dismissFailureMessage } from './dismissFailureMessage'
 
 describe('dismissFailureMessage', () => {
   it.each([
@@ -15,6 +15,6 @@ describe('dismissFailureMessage', () => {
     [new ApiError('invalid repo', 400), 'invalid repo'],
     [new TypeError('Failed to fetch'), 'Something went wrong'],
   ])('maps %o to a message containing %s', (error, expected) => {
-    expect(dismissFailureMessage(error)).toContain(expected);
-  });
-});
+    expect(dismissFailureMessage(error)).toContain(expected)
+  })
+})

@@ -1,13 +1,13 @@
-import { fstatSync } from 'node:fs';
-import { Socket } from 'node:net';
-import { MessageChannel } from 'node:worker_threads';
-import type { WritableLike } from './io.js';
+import { fstatSync } from 'node:fs'
+import { Socket } from 'node:net'
+import { MessageChannel } from 'node:worker_threads'
+import type { WritableLike } from './io.js'
 
 export interface Lifeline {
   /** Where digest lines go. */
-  readonly out: WritableLike;
+  readonly out: WritableLike
   /** Resolves when the process on the other end of `out` is gone. Never rejects. */
-  readonly gone: Promise<void>;
+  readonly gone: Promise<void>
 }
 
 /**
@@ -22,17 +22,17 @@ export interface Lifeline {
  */
 export function openLifeline(): Lifeline {
   if (fstatSync(1).isSocket()) {
-    const socket = new Socket({ fd: 1, readable: true, writable: true });
-    socket.on('data', () => undefined);
+    const socket = new Socket({ fd: 1, readable: true, writable: true })
+    socket.on('data', () => undefined)
     const gone = new Promise<void>((resolve) => {
-      for (const event of ['end', 'close', 'error']) socket.on(event, () => resolve());
-    });
-    return { out: socket, gone };
+      for (const event of ['end', 'close', 'error']) socket.on(event, () => resolve())
+    })
+    return { out: socket, gone }
   }
-  const { port1 } = new MessageChannel();
-  port1.on('message', () => undefined);
-  port1.ref();
+  const { port1 } = new MessageChannel()
+  port1.on('message', () => undefined)
+  port1.ref()
   // A reader that closes early (`| head`) surfaces as EPIPE here; with no listener that is a crash.
-  process.stdout.on('error', () => undefined);
-  return { out: process.stdout, gone: new Promise<void>(() => undefined) };
+  process.stdout.on('error', () => undefined)
+  return { out: process.stdout, gone: new Promise<void>(() => undefined) }
 }

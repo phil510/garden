@@ -1,5 +1,5 @@
-import { randomUUID } from 'node:crypto';
-import type { AddWatchRequest, WatchSummary } from '@garden/shared';
+import { randomUUID } from 'node:crypto'
+import type { AddWatchRequest, WatchSummary } from '@garden/shared'
 import {
   archiveDigests,
   normalizeRepo,
@@ -8,24 +8,24 @@ import {
   removeWatch as removeWatchRule,
   summarizeWatches,
   upsertWatch,
-} from '../domain/watches.js';
-import type { Watch } from '../domain/watches.js';
-import { AmbiguousWatchError, RepoUnresolvedError, WatchNotFoundError } from './errors.js';
-import type { GitPort } from './ports.js';
-import type { Projection } from './projection.js';
-import { findSession } from './sessions.js';
+} from '../domain/watches.js'
+import type { Watch } from '../domain/watches.js'
+import { AmbiguousWatchError, RepoUnresolvedError, WatchNotFoundError } from './errors.js'
+import type { GitPort } from './ports.js'
+import type { Projection } from './projection.js'
+import { findSession } from './sessions.js'
 
-export { AmbiguousWatchError, RepoUnresolvedError, WatchNotFoundError } from './errors.js';
+export { AmbiguousWatchError, RepoUnresolvedError, WatchNotFoundError } from './errors.js'
 
 export interface WatchesDeps {
-  readonly projection: Projection;
-  readonly git: Pick<GitPort, 'remoteUrl'>;
+  readonly projection: Projection
+  readonly git: Pick<GitPort, 'remoteUrl'>
 }
 
 const sameSummaries = (
   a: readonly WatchSummary[] | undefined,
   b: readonly WatchSummary[] | undefined,
-) => JSON.stringify(a ?? []) === JSON.stringify(b ?? []);
+) => JSON.stringify(a ?? []) === JSON.stringify(b ?? [])
 
 /**
  * The one writer of `watches`: applies `mutate` and the pruning rule inside a single overlay
@@ -39,27 +39,27 @@ export function updateWatches(
   mutate: (watches: readonly Watch[]) => readonly Watch[],
   now: number,
 ): readonly Watch[] {
-  let changed: [string, WatchSummary[]][] = [];
+  let changed: [string, WatchSummary[]][] = []
   const next = deps.projection.updateOverlay((base) => {
-    const watches = pruneWatches(mutate(base.watches), now);
-    const digests = archiveDigests(base.digests, watches, now);
-    if (watches === base.watches && digests === base.digests) return base;
-    const before = summarizeWatches(base.watches);
-    const after = summarizeWatches(watches);
+    const watches = pruneWatches(mutate(base.watches), now)
+    const digests = archiveDigests(base.digests, watches, now)
+    if (watches === base.watches && digests === base.digests) return base
+    const before = summarizeWatches(base.watches)
+    const after = summarizeWatches(watches)
     changed = [...new Set([...Object.keys(before), ...Object.keys(after)])]
       .filter((sessionId) => !sameSummaries(before[sessionId], after[sessionId]))
-      .map((sessionId) => [sessionId, after[sessionId] ?? []]);
-    return { ...base, watches, digests };
-  });
+      .map((sessionId) => [sessionId, after[sessionId] ?? []])
+    return { ...base, watches, digests }
+  })
   for (const [sessionId, watches] of changed)
-    deps.projection.dispatch({ type: 'watches-changed', sessionId, watches });
-  return next.watches;
+    deps.projection.dispatch({ type: 'watches-changed', sessionId, watches })
+  return next.watches
 }
 
 function normalizeExplicitRepo(explicit: string): string {
-  const repo = normalizeRepo(explicit);
-  if (repo === null) throw new RepoUnresolvedError(`not an owner/name repo: ${explicit}`);
-  return repo;
+  const repo = normalizeRepo(explicit)
+  if (repo === null) throw new RepoUnresolvedError(`not an owner/name repo: ${explicit}`)
+  return repo
 }
 
 async function resolveRepo(
@@ -67,18 +67,18 @@ async function resolveRepo(
   cwd: string,
   explicit: string | undefined,
 ): Promise<string> {
-  if (explicit !== undefined) return normalizeExplicitRepo(explicit);
-  let url: string | null;
+  if (explicit !== undefined) return normalizeExplicitRepo(explicit)
+  let url: string | null
   try {
-    url = await deps.git.remoteUrl(cwd);
+    url = await deps.git.remoteUrl(cwd)
   } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
-    throw new RepoUnresolvedError(`could not read the git remote in ${cwd}: ${reason}`);
+    const reason = error instanceof Error ? error.message : String(error)
+    throw new RepoUnresolvedError(`could not read the git remote in ${cwd}: ${reason}`)
   }
-  const repo = url === null ? null : parseGitHubRepo(url);
+  const repo = url === null ? null : parseGitHubRepo(url)
   if (repo === null)
-    throw new RepoUnresolvedError(`no GitHub origin remote in ${cwd}; pass repo as owner/name`);
-  return repo;
+    throw new RepoUnresolvedError(`no GitHub origin remote in ${cwd}; pass repo as owner/name`)
+  return repo
 }
 
 /** Adds a watch on `request.pr`, or updates the session's existing watch on the same repo and
@@ -87,9 +87,9 @@ export async function addWatch(
   deps: WatchesDeps,
   request: AddWatchRequest & { sessionId: string },
 ): Promise<WatchSummary> {
-  const session = findSession(deps.projection, request.sessionId);
-  const repo = await resolveRepo(deps, session.cwd, request.repo);
-  let added: Watch | undefined;
+  const session = findSession(deps.projection, request.sessionId)
+  const repo = await resolveRepo(deps, session.cwd, request.repo)
+  let added: Watch | undefined
   updateWatches(
     deps,
     (watches) => {
@@ -105,15 +105,15 @@ export async function addWatch(
         },
         Date.now(),
         randomUUID,
-      );
-      added = result.watch;
-      return result.watches;
+      )
+      added = result.watch
+      return result.watches
     },
     Date.now(),
-  );
-  const [summary] = summarizeWatches(added === undefined ? [] : [added])[request.sessionId] ?? [];
-  if (summary === undefined) throw new Error('watch was not recorded');
-  return summary;
+  )
+  const [summary] = summarizeWatches(added === undefined ? [] : [added])[request.sessionId] ?? []
+  if (summary === undefined) throw new Error('watch was not recorded')
+  return summary
 }
 
 /** Without `repo` the PR is matched among the session's own watches, so removal never needs git. */
@@ -121,32 +121,32 @@ export function removeWatch(
   deps: WatchesDeps,
   request: { sessionId: string; pr: number; repo?: string },
 ): void {
-  const repo = request.repo === undefined ? undefined : normalizeExplicitRepo(request.repo);
-  findSession(deps.projection, request.sessionId);
+  const repo = request.repo === undefined ? undefined : normalizeExplicitRepo(request.repo)
+  findSession(deps.projection, request.sessionId)
   updateWatches(
     deps,
     (watches) => {
-      const result = removeWatchRule(watches, request.sessionId, request.pr, repo);
+      const result = removeWatchRule(watches, request.sessionId, request.pr, repo)
       if (result.outcome === 'not-found')
-        throw new WatchNotFoundError(`session is not watching PR ${String(request.pr)}`);
+        throw new WatchNotFoundError(`session is not watching PR ${String(request.pr)}`)
       if (result.outcome === 'ambiguous')
         throw new AmbiguousWatchError(
           `PR ${String(request.pr)} is watched in more than one repo; pass repo`,
-        );
-      return result.watches;
+        )
+      return result.watches
     },
     Date.now(),
-  );
+  )
 }
 
 export function listWatches(deps: WatchesDeps, sessionId: string): WatchSummary[] {
-  return findSession(deps.projection, sessionId).watches;
+  return findSession(deps.projection, sessionId).watches
 }
 
 /** Boot: applies the pruning rule to what the overlay persisted (and persists the result), then
  *  gives every session that holds watches its summaries. Run once the store has loaded. */
 export function replayWatches(deps: WatchesDeps, now: number): void {
-  const watches = updateWatches(deps, (current) => current, now);
+  const watches = updateWatches(deps, (current) => current, now)
   for (const [sessionId, summaries] of Object.entries(summarizeWatches(watches)))
-    deps.projection.dispatch({ type: 'watches-changed', sessionId, watches: summaries });
+    deps.projection.dispatch({ type: 'watches-changed', sessionId, watches: summaries })
 }

@@ -1,27 +1,27 @@
-import type { GardenEvent } from '../domain/types.js';
-import { createLimiter } from './limiter.js';
-import type { TranscriptPort } from './ports.js';
-import type { Projection } from './projection.js';
+import type { GardenEvent } from '../domain/types.js'
+import { createLimiter } from './limiter.js'
+import type { TranscriptPort } from './ports.js'
+import type { Projection } from './projection.js'
 
 /** Bounds how many transcripts boot has open at once, so a large corpus doesn't exhaust file
  *  descriptors while the reads still overlap. */
-const MAX_CONCURRENT_TRANSCRIPT_READS = 8;
+const MAX_CONCURRENT_TRANSCRIPT_READS = 8
 
 /** The slice of `adapters/logger.ts`'s `Logger` the replay needs. */
 interface ReplayLogger {
-  warn(message: string): void;
-  error(message: string): void;
+  warn(message: string): void
+  error(message: string): void
 }
 
-type LiveEvent = Extract<GardenEvent, { type: 'transcript-changed' }>;
+type LiveEvent = Extract<GardenEvent, { type: 'transcript-changed' }>
 
 export interface TranscriptReplay {
   /** The watcher's callback: dispatches straight through once the replay has landed, and holds
    *  events until then. */
-  live(event: LiveEvent): void;
+  live(event: LiveEvent): void
   /** Reads every transcript and dispatches them as one `transcripts-replayed`, then releases
    *  the events held meanwhile. */
-  run(): Promise<void>;
+  run(): Promise<void>
 }
 
 /**
@@ -34,40 +34,40 @@ export function createTranscriptReplay(
   deps: { projection: Pick<Projection, 'dispatch'>; transcripts: TranscriptPort },
   logger: ReplayLogger,
 ): TranscriptReplay {
-  const { projection, transcripts } = deps;
-  let held: LiveEvent[] | null = [];
+  const { projection, transcripts } = deps
+  let held: LiveEvent[] | null = []
 
   return {
     live(event) {
       if (held === null) {
-        if (transcripts.isCurrent?.(event.path, event.record) ?? true) projection.dispatch(event);
-      } else held.push(event);
+        if (transcripts.isCurrent?.(event.path, event.record) ?? true) projection.dispatch(event)
+      } else held.push(event)
     },
     async run() {
       try {
-        const paths = await transcripts.listFiles();
-        const limit = createLimiter(MAX_CONCURRENT_TRANSCRIPT_READS);
+        const paths = await transcripts.listFiles()
+        const limit = createLimiter(MAX_CONCURRENT_TRANSCRIPT_READS)
         // Indexed by listing position rather than pushed on completion: reads finish out of
         // order, and records for one session resolve last-non-null-wins.
         const reads = await Promise.all(
           paths.map((path) =>
             limit(async () => {
               try {
-                const parsed = await transcripts.readRecord(path);
-                if (parsed === null) return null;
-                const { record, skipped } = parsed;
+                const parsed = await transcripts.readRecord(path)
+                if (parsed === null) return null
+                const { record, skipped } = parsed
                 if (skipped > 0) {
-                  logger.warn(`skipped ${String(skipped)} unparseable line(s) in ${path}`);
+                  logger.warn(`skipped ${String(skipped)} unparseable line(s) in ${path}`)
                 }
-                return { path, record };
+                return { path, record }
               } catch (error) {
                 // One unreadable transcript is a session garden cannot describe, not a failed boot.
-                logger.error(`failed to read transcript ${path}: ${(error as Error).message}`);
-                return null;
+                logger.error(`failed to read transcript ${path}: ${(error as Error).message}`)
+                return null
               }
             }),
           ),
-        );
+        )
         projection.dispatch({
           type: 'transcripts-replayed',
           records: reads
@@ -75,13 +75,13 @@ export function createTranscriptReplay(
               (read) => read !== null && (transcripts.isCurrent?.(read.path, read.record) ?? true),
             )
             .map((read) => read!.record),
-        });
+        })
       } finally {
-        const queued = held ?? [];
-        held = null;
+        const queued = held ?? []
+        held = null
         for (const event of queued)
-          if (transcripts.isCurrent?.(event.path, event.record) ?? true) projection.dispatch(event);
+          if (transcripts.isCurrent?.(event.path, event.record) ?? true) projection.dispatch(event)
       }
     },
-  };
+  }
 }

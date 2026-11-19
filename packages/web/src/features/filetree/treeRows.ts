@@ -1,22 +1,22 @@
-import type { TreeEntry } from '@garden/shared';
+import type { TreeEntry } from '@garden/shared'
 
 export interface FlatTreeRow {
-  readonly entry: TreeEntry;
-  readonly depth: number;
-  readonly expanded: boolean;
+  readonly entry: TreeEntry
+  readonly depth: number
+  readonly expanded: boolean
   /** The entry is gitignored, or sits under a gitignored directory (git tags only the topmost). */
-  readonly ignored: boolean;
+  readonly ignored: boolean
 }
 
 /** What a directory shows in place of its children when its load failed. */
 export interface TreeErrorRow {
-  readonly kind: 'error';
-  readonly path: string;
-  readonly depth: number;
-  readonly message: string;
+  readonly kind: 'error'
+  readonly path: string
+  readonly depth: number
+  readonly message: string
 }
 
-export type TreeListRow = ({ readonly kind: 'entry' } & FlatTreeRow) | TreeErrorRow;
+export type TreeListRow = ({ readonly kind: 'entry' } & FlatTreeRow) | TreeErrorRow
 
 /**
  * Flattens a lazily-fetched tree into the rows a list should render, in the order a nested
@@ -31,13 +31,13 @@ export function visibleTreeRows(
   expandedPaths: ReadonlySet<string>,
   errorByPath: Readonly<Record<string, string>>,
 ): TreeListRow[] {
-  const rows: TreeListRow[] = [];
+  const rows: TreeListRow[] = []
 
   function pushError(path: string, depth: number): boolean {
-    const message = errorByPath[path];
-    if (message === undefined) return false;
-    rows.push({ kind: 'error', path, depth, message });
-    return true;
+    const message = errorByPath[path]
+    if (message === undefined) return false
+    rows.push({ kind: 'error', path, depth, message })
+    return true
   }
 
   function walk(
@@ -45,17 +45,17 @@ export function visibleTreeRows(
     depth: number,
     underIgnored: boolean,
   ): void {
-    if (entries === undefined) return;
+    if (entries === undefined) return
     for (const entry of entries) {
-      const expanded = entry.kind === 'dir' && expandedPaths.has(entry.path);
-      const ignored = underIgnored || entry.gitStatus === '!!';
-      rows.push({ kind: 'entry', entry, depth, expanded, ignored });
+      const expanded = entry.kind === 'dir' && expandedPaths.has(entry.path)
+      const ignored = underIgnored || entry.gitStatus === '!!'
+      rows.push({ kind: 'entry', entry, depth, expanded, ignored })
       if (expanded && !pushError(entry.path, depth + 1)) {
-        walk(childrenByPath[entry.path], depth + 1, ignored);
+        walk(childrenByPath[entry.path], depth + 1, ignored)
       }
     }
   }
 
-  if (!pushError('', 0)) walk(root, 0, false);
-  return rows;
+  if (!pushError('', 0)) walk(root, 0, false)
+  return rows
 }

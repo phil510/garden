@@ -3,5 +3,5 @@
  *  an earlier connection epoch has already lost its socket server-side — it is scrap, never
  *  trusted, regardless of what it looks like locally. */
 export function shouldReusePane(existingEpoch: number, requestedEpoch: number): boolean {
-  return existingEpoch === requestedEpoch;
+  return existingEpoch === requestedEpoch
 }

@@ -1,15 +1,15 @@
-import { open, readdir, readFile, stat } from 'node:fs/promises';
-import { join, relative, sep } from 'node:path';
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { parseClaudeHook } from './hooks.js';
-import { claudeCommand, type ClaudeLaunchOptions } from './commands.js';
-import { parseTranscript } from './transcript.js';
-import { inScopeDirs } from './slug.js';
-import type { TranscriptParse } from '../../domain/transcript.js';
+import { open, readdir, readFile, stat } from 'node:fs/promises'
+import { join, relative, sep } from 'node:path'
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { parseClaudeHook } from './hooks.js'
+import { claudeCommand, type ClaudeLaunchOptions } from './commands.js'
+import { parseTranscript } from './transcript.js'
+import { inScopeDirs } from './slug.js'
+import type { TranscriptParse } from '../../domain/transcript.js'
 
 interface RegistryEntry {
-  sessionId: string;
-  name: string;
+  sessionId: string
+  name: string
 }
 
 function isRegistryEntry(value: unknown): value is RegistryEntry {
@@ -18,15 +18,15 @@ function isRegistryEntry(value: unknown): value is RegistryEntry {
     value !== null &&
     typeof (value as { sessionId?: unknown }).sessionId === 'string' &&
     typeof (value as { name?: unknown }).name === 'string'
-  );
+  )
 }
 
 export interface ClaudeSessionNamesResult {
-  names: Record<string, string>;
+  names: Record<string, string>
   /** Registry files that named no session — unparseable JSON, or valid JSON missing
    *  `sessionId`/`name`. Mirrors `transcripts.ts`'s skipped-count convention: the read
    *  reports the count and the caller decides whether and how to log it. */
-  skipped: number;
+  skipped: number
 }
 
 /**
@@ -48,48 +48,48 @@ export interface ClaudeSessionNamesResult {
 export async function readClaudeSessionNames(
   sessionsDir: string,
 ): Promise<ClaudeSessionNamesResult> {
-  let entries: string[];
+  let entries: string[]
   try {
-    entries = await readdir(sessionsDir);
+    entries = await readdir(sessionsDir)
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { names: {}, skipped: 0 };
-    throw error;
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { names: {}, skipped: 0 }
+    throw error
   }
-  const names: Record<string, string> = {};
-  const seen = new Set<string>();
-  let skipped = 0;
+  const names: Record<string, string> = {}
+  const seen = new Set<string>()
+  let skipped = 0
   for (const entry of entries) {
-    if (!entry.endsWith('.json')) continue;
+    if (!entry.endsWith('.json')) continue
     try {
-      const parsed: unknown = JSON.parse(await readFile(join(sessionsDir, entry), 'utf8'));
+      const parsed: unknown = JSON.parse(await readFile(join(sessionsDir, entry), 'utf8'))
       if (!isRegistryEntry(parsed)) {
-        skipped += 1;
-        continue;
+        skipped += 1
+        continue
       }
       if (seen.has(parsed.sessionId)) {
-        delete names[parsed.sessionId];
-        continue;
+        delete names[parsed.sessionId]
+        continue
       }
-      seen.add(parsed.sessionId);
-      names[parsed.sessionId] = parsed.name;
+      seen.add(parsed.sessionId)
+      names[parsed.sessionId] = parsed.name
     } catch {
-      skipped += 1;
+      skipped += 1
     }
   }
-  return { names, skipped };
+  return { names, skipped }
 }
 
 interface HookCommand {
-  readonly type: 'command';
-  readonly command: string;
-  readonly timeout: number;
+  readonly type: 'command'
+  readonly command: string
+  readonly timeout: number
 }
 interface HookMatcherGroup {
-  readonly matcher?: string;
-  readonly hooks: readonly HookCommand[];
+  readonly matcher?: string
+  readonly hooks: readonly HookCommand[]
 }
 export interface ClaudeSettings {
-  readonly hooks: Readonly<Record<string, readonly HookMatcherGroup[]>>;
+  readonly hooks: Readonly<Record<string, readonly HookMatcherGroup[]>>
 }
 
 // -o /dev/null discards the response because a hook's stdout is interpreted by
@@ -98,12 +98,12 @@ export interface ClaudeSettings {
 // which the payload's `session_id` stops being after `/clear`.
 const HOOK_COMMAND =
   "curl -s -o /dev/null --max-time 1 -H 'Content-Type: application/json' " +
-  '-H "X-Garden-Session: $GARDEN_SESSION_ID" --data-binary @- "http://127.0.0.1:$GARDEN_PORT/hooks" || true';
+  '-H "X-Garden-Session: $GARDEN_SESSION_ID" --data-binary @- "http://127.0.0.1:$GARDEN_PORT/hooks" || true'
 
 /** Synchronous, never `async: true`: an async hook is killed when claude exits, so SessionEnd
  *  would never land. A down server refuses instantly; `timeout: 1` is Claude Code's own cap,
  *  matching curl's `--max-time`, on the stall when the server is up but unresponsive. */
-const POST_HOOK: HookCommand = { type: 'command', command: HOOK_COMMAND, timeout: 1 };
+const POST_HOOK: HookCommand = { type: 'command', command: HOOK_COMMAND, timeout: 1 }
 
 const LIFECYCLE_EVENTS = [
   'SessionStart',
@@ -111,59 +111,59 @@ const LIFECYCLE_EVENTS = [
   'UserPromptSubmit',
   'Stop',
   'Notification',
-] as const;
-const TOOL_EVENTS = ['PreToolUse', 'PostToolUse', 'PermissionRequest'] as const;
+] as const
+const TOOL_EVENTS = ['PreToolUse', 'PostToolUse', 'PermissionRequest'] as const
 
 export function claudeSettings(): ClaudeSettings {
-  const hooks: Record<string, readonly HookMatcherGroup[]> = {};
+  const hooks: Record<string, readonly HookMatcherGroup[]> = {}
   // Session-lifecycle events take no matcher; the tool events match every tool.
-  for (const event of LIFECYCLE_EVENTS) hooks[event] = [{ hooks: [POST_HOOK] }];
-  for (const event of TOOL_EVENTS) hooks[event] = [{ matcher: '*', hooks: [POST_HOOK] }];
-  return { hooks };
+  for (const event of LIFECYCLE_EVENTS) hooks[event] = [{ hooks: [POST_HOOK] }]
+  for (const event of TOOL_EVENTS) hooks[event] = [{ matcher: '*', hooks: [POST_HOOK] }]
+  return { hooks }
 }
 
 /** Writes the hook overlay, replacing any previous copy, and returns its path. */
 export function writeClaudeSettings(appDir: string): string {
-  mkdirSync(appDir, { recursive: true });
-  const path = join(appDir, 'claude-settings.json');
-  writeFileSync(path, `${JSON.stringify(claudeSettings(), null, 2)}\n`, 'utf8');
-  return path;
+  mkdirSync(appDir, { recursive: true })
+  const path = join(appDir, 'claude-settings.json')
+  writeFileSync(path, `${JSON.stringify(claudeSettings(), null, 2)}\n`, 'utf8')
+  return path
 }
 
 /** Large enough to hold many lines of an ordinary conversation, small enough that
  *  a multi-megabyte transcript is never read whole. */
-export const WINDOW_BYTES = 64 * 1024;
+export const WINDOW_BYTES = 64 * 1024
 
 /** Every in-scope `*.jsonl` path under `<transcriptsDir>/<slug>/`, one level deep. */
 export async function listTranscriptFiles(
   transcriptsDir: string,
   roots: readonly string[],
 ): Promise<string[]> {
-  let dirNames: string[];
+  let dirNames: string[]
   try {
-    dirNames = await readdir(transcriptsDir);
+    dirNames = await readdir(transcriptsDir)
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
-    throw error;
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return []
+    throw error
   }
-  const files: string[] = [];
+  const files: string[] = []
   for (const dir of inScopeDirs(dirNames, roots)) {
-    const dirPath = join(transcriptsDir, dir);
+    const dirPath = join(transcriptsDir, dir)
     for (const entry of await readdir(dirPath)) {
-      if (entry.endsWith('.jsonl')) files.push(join(dirPath, entry));
+      if (entry.endsWith('.jsonl')) files.push(join(dirPath, entry))
     }
   }
-  return files;
+  return files
 }
 
 async function readWindow(path: string, position: number, length: number): Promise<string> {
-  const handle = await open(path, 'r');
+  const handle = await open(path, 'r')
   try {
-    const buffer = Buffer.alloc(length);
-    const { bytesRead } = await handle.read({ buffer, position, length });
-    return buffer.toString('utf8', 0, bytesRead);
+    const buffer = Buffer.alloc(length)
+    const { bytesRead } = await handle.read({ buffer, position, length })
+    return buffer.toString('utf8', 0, bytesRead)
   } finally {
-    await handle.close();
+    await handle.close()
   }
 }
 
@@ -181,24 +181,24 @@ export async function readTranscriptRecord(
   path: string,
   windowBytes = WINDOW_BYTES,
 ): Promise<TranscriptParse & { signature: TranscriptSignature }> {
-  const { size, mtimeMs } = await stat(path);
-  const signature: TranscriptSignature = { size, mtimeMs };
-  const tailStart = Math.max(0, size - windowBytes);
+  const { size, mtimeMs } = await stat(path)
+  const signature: TranscriptSignature = { size, mtimeMs }
+  const tailStart = Math.max(0, size - windowBytes)
   // The two windows would overlap once the whole file fits in either one, so read it
   // once instead: every line is then known complete and nothing needs discarding.
   if (tailStart <= windowBytes) {
-    return { ...parseTranscript(await readFile(path, 'utf8')), signature };
+    return { ...parseTranscript(await readFile(path, 'utf8')), signature }
   }
-  const headText = await readWindow(path, 0, windowBytes);
-  const tailText = await readWindow(path, tailStart, size - tailStart);
-  const headLines = headText.split('\n').slice(0, -1);
-  const tailLines = tailText.split('\n').slice(1);
-  return { ...parseTranscript([...headLines, ...tailLines].join('\n')), signature };
+  const headText = await readWindow(path, 0, windowBytes)
+  const tailText = await readWindow(path, tailStart, size - tailStart)
+  const headLines = headText.split('\n').slice(0, -1)
+  const tailLines = tailText.split('\n').slice(1)
+  return { ...parseTranscript([...headLines, ...tailLines].join('\n')), signature }
 }
 
 export interface TranscriptSignature {
-  size: number;
-  mtimeMs: number;
+  size: number
+  mtimeMs: number
 }
 
 export function createClaudeLayout(
@@ -206,40 +206,40 @@ export function createClaudeLayout(
   roots: readonly string[],
   logger: { warn(message: string): void },
 ) {
-  let warnedOutside = false;
+  let warnedOutside = false
   return {
     listFiles: () => listTranscriptFiles(transcriptsDir, roots),
     accepts(path: string): boolean {
-      const segments = relative(transcriptsDir, path).split(sep);
+      const segments = relative(transcriptsDir, path).split(sep)
       if (segments[0] === '..' || segments[0] === '') {
         if (!warnedOutside) {
-          warnedOutside = true;
-          logger.warn(`ignoring transcript path outside ${transcriptsDir}: ${path}`);
+          warnedOutside = true
+          logger.warn(`ignoring transcript path outside ${transcriptsDir}: ${path}`)
         }
-        return false;
+        return false
       }
-      const [dir, name] = segments;
+      const [dir, name] = segments
       return (
         segments.length === 2 &&
         dir !== '' &&
         dir !== '..' &&
         name!.endsWith('.jsonl') &&
         inScopeDirs([dir!], roots).length > 0
-      );
+      )
     },
     readRecord: (path: string) => readTranscriptRecord(path),
-  };
+  }
 }
 
 export function createClaudeHarness(options: {
-  readonly appDir: string;
-  readonly logger: { warn(message: string): void };
-  readonly readCommand: () => readonly string[];
-  readonly transcriptsDir: string;
-  readonly roots: readonly string[];
-  readonly sessionsDir: string;
+  readonly appDir: string
+  readonly logger: { warn(message: string): void }
+  readonly readCommand: () => readonly string[]
+  readonly transcriptsDir: string
+  readonly roots: readonly string[]
+  readonly sessionsDir: string
 }) {
-  const settingsPath = writeClaudeSettings(options.appDir);
+  const settingsPath = writeClaudeSettings(options.appDir)
   return {
     spawnCommand: (request: ClaudeLaunchOptions) =>
       claudeCommand(options.readCommand(), 'spawn', settingsPath, request),
@@ -248,5 +248,5 @@ export function createClaudeHarness(options: {
     parseHook: parseClaudeHook,
     transcripts: createClaudeLayout(options.transcriptsDir, options.roots, options.logger),
     readSessionMetadata: () => readClaudeSessionNames(options.sessionsDir),
-  };
+  }
 }

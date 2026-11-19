@@ -1,13 +1,13 @@
-import { useEffect, useState } from 'react';
-import type { ThemedToken } from 'shiki';
-import { tokenizeText } from './highlighter';
-import { tokenStyle } from './tokenStyle';
+import { useEffect, useState } from 'react'
+import type { ThemedToken } from 'shiki'
+import { tokenizeText } from './highlighter'
+import { tokenStyle } from './tokenStyle'
 
 interface MarkdownCodeBlockProps {
   /** The fence's info string, e.g. `ts` from ```` ```ts ````. Undefined for a fence with no
    *  info string, which renders as plain preformatted text instead of tokenizing. */
-  language: string | undefined;
-  value: string;
+  language: string | undefined
+  value: string
 }
 
 /**
@@ -16,32 +16,32 @@ interface MarkdownCodeBlockProps {
  * inside markdown looks identical to opening the same file in source mode.
  */
 export function MarkdownCodeBlock({ language, value }: MarkdownCodeBlockProps) {
-  const [tokens, setTokens] = useState<ThemedToken[][] | null>(null);
+  const [tokens, setTokens] = useState<ThemedToken[][] | null>(null)
 
   useEffect(() => {
     // Clear any previous block's tokens up front — React reuses this component positionally
     // across different files' fenced blocks, so leaving a stale array in place while a new
     // tokenize call is in flight (or fails) would paint the old block's highlighted content
     // under the new one instead of falling back to plain text.
-    setTokens(null);
-    if (language === undefined) return;
-    let cancelled = false;
+    setTokens(null)
+    if (language === undefined) return
+    let cancelled = false
     tokenizeText(value, language)
       .then((result) => {
-        if (!cancelled) setTokens(result);
+        if (!cancelled) setTokens(result)
       })
-      .catch(() => undefined);
+      .catch(() => undefined)
     return () => {
-      cancelled = true;
-    };
-  }, [language, value]);
+      cancelled = true
+    }
+  }, [language, value])
 
   if (tokens === null) {
     return (
       <pre className="fp-md-code">
         <code>{value}</code>
       </pre>
-    );
+    )
   }
 
   return (
@@ -60,5 +60,5 @@ export function MarkdownCodeBlock({ language, value }: MarkdownCodeBlockProps) {
         ))}
       </code>
     </pre>
-  );
+  )
 }

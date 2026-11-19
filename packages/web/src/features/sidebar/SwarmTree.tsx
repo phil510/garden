@@ -1,19 +1,19 @@
-import type { SessionMap, SessionPlacement } from '@garden/shared';
-import { useDraggable } from '@dnd-kit/core';
-import { CSS } from '@dnd-kit/utilities';
-import type { ActiveSwarmOption, SwarmTreeNode } from './groupSwarms';
-import { resolveTopLevelSwarmId } from './groupSwarms';
-import { SessionRow } from './SessionRow';
+import type { SessionMap, SessionPlacement } from '@garden/shared'
+import { useDraggable } from '@dnd-kit/core'
+import { CSS } from '@dnd-kit/utilities'
+import type { ActiveSwarmOption, SwarmTreeNode } from './groupSwarms'
+import { resolveTopLevelSwarmId } from './groupSwarms'
+import { SessionRow } from './SessionRow'
 
 interface SwarmTreeProps {
-  nodes: SwarmTreeNode[];
-  sessions: SessionMap;
-  placements: Record<string, SessionPlacement>;
-  activeSwarms: readonly ActiveSwarmOption[];
-  now: number;
-  onStageIds: ReadonlySet<string>;
-  focusedSessionId: string | null;
-  onSelectSession: (id: string) => void;
+  nodes: SwarmTreeNode[]
+  sessions: SessionMap
+  placements: Record<string, SessionPlacement>
+  activeSwarms: readonly ActiveSwarmOption[]
+  now: number
+  onStageIds: ReadonlySet<string>
+  focusedSessionId: string | null
+  onSelectSession: (id: string) => void
 }
 
 /** Renders a forest of `SwarmTreeNode`s: each root is a bare `SessionRow` (no `<li>`, no
@@ -48,11 +48,11 @@ export function SwarmTree({
         />
       ))}
     </>
-  );
+  )
 }
 
 interface SwarmTreeRowProps extends Omit<SwarmTreeProps, 'nodes'> {
-  node: SwarmTreeNode;
+  node: SwarmTreeNode
 }
 
 function SwarmTreeRow({
@@ -73,13 +73,13 @@ function SwarmTreeRow({
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: node.sessionId,
     data: { type: 'session', sessionId: node.sessionId },
-  });
+  })
 
-  const session = sessions[node.sessionId];
+  const session = sessions[node.sessionId]
   // Every node is built from a live SessionState (groupSwarms.ts only ever nests known
   // sessions), so this is unreachable in practice — guarded rather than asserted, since a
   // missing row should disappear quietly instead of crashing the sidebar.
-  if (session === undefined) return null;
+  if (session === undefined) return null
 
   return (
     <>
@@ -117,5 +117,5 @@ function SwarmTreeRow({
         </ul>
       )}
     </>
-  );
+  )
 }

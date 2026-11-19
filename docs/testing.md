@@ -125,8 +125,8 @@ the UI shows stale data for that one field. Per-function tests on both sides pas
 
 ```ts
 for (const events of sequences) {
-  const next = events.reduce(reduce, prev);
-  expect(applyDelta(prev, diff(prev, next))).toEqual(next);
+  const next = events.reduce(reduce, prev)
+  expect(applyDelta(prev, diff(prev, next))).toEqual(next)
 }
 ```
 
@@ -250,16 +250,16 @@ would just be a second copy of it with its own drift.
 export async function withTmuxServer(
   fn: (ctx: { socket: string; confPath: string }) => Promise<void>,
 ) {
-  const socket = `garden-test-${randomBytes(4).toString('hex')}`;
-  const dir = mkdtempSync(join(tmpdir(), 'garden-tmux-'));
-  const confPath = join(dir, 'tmux.conf');
-  writeFileSync(confPath, 'set-option -g remain-on-exit on\n');
+  const socket = `garden-test-${randomBytes(4).toString('hex')}`
+  const dir = mkdtempSync(join(tmpdir(), 'garden-tmux-'))
+  const confPath = join(dir, 'tmux.conf')
+  writeFileSync(confPath, 'set-option -g remain-on-exit on\n')
 
   try {
-    await fn({ socket, confPath });
+    await fn({ socket, confPath })
   } finally {
-    await execFileAsync('tmux', ['-L', socket, 'kill-server']).catch(() => {});
-    rmSync(dir, { recursive: true, force: true });
+    await execFileAsync('tmux', ['-L', socket, 'kill-server']).catch(() => {})
+    rmSync(dir, { recursive: true, force: true })
   }
 }
 ```

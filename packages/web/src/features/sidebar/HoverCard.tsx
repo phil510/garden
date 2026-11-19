@@ -1,36 +1,36 @@
-import type { SessionState } from '@garden/shared';
-import { useLayoutEffect, useRef, useState } from 'react';
-import { usePipeGraceStore } from '../../state/pipeGraceStore';
-import { alertAgesLine } from '../alerts/allAlerts';
-import { PipeFaultBlock, WatchList } from '../watches/WatchList';
-import { computeHoverCardPosition } from './hoverCardPosition';
-import { formatRelativeTime } from './relativeTime';
-import { sessionIdentityLabel } from './sessionIdentity';
+import type { SessionState } from '@garden/shared'
+import { useLayoutEffect, useRef, useState } from 'react'
+import { usePipeGraceStore } from '../../state/pipeGraceStore'
+import { alertAgesLine } from '../alerts/allAlerts'
+import { PipeFaultBlock, WatchList } from '../watches/WatchList'
+import { computeHoverCardPosition } from './hoverCardPosition'
+import { formatRelativeTime } from './relativeTime'
+import { sessionIdentityLabel } from './sessionIdentity'
 
 interface HoverCardProps {
-  title: string;
-  session: SessionState;
-  anchor: HTMLElement;
-  now: number;
+  title: string
+  session: SessionState
+  anchor: HTMLElement
+  now: number
 }
 
 export function HoverCard({ title, session, anchor, now }: HoverCardProps) {
-  const pipeFaulted = usePipeGraceStore((state) => state.faulted.has(session.id));
-  const name = sessionIdentityLabel(session.sessionName);
-  const cardRef = useRef<HTMLDivElement>(null);
-  const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
+  const pipeFaulted = usePipeGraceStore((state) => state.faulted.has(session.id))
+  const name = sessionIdentityLabel(session.sessionName)
+  const cardRef = useRef<HTMLDivElement>(null)
+  const [position, setPosition] = useState<{ left: number; top: number } | null>(null)
 
   useLayoutEffect(() => {
-    const card = cardRef.current;
-    if (card === null) return;
-    const rect = anchor.getBoundingClientRect();
+    const card = cardRef.current
+    if (card === null) return
+    const rect = anchor.getBoundingClientRect()
     setPosition(
       computeHoverCardPosition(rect, card.offsetHeight, {
         width: window.innerWidth,
         height: window.innerHeight,
       }),
-    );
-  }, [anchor]);
+    )
+  }, [anchor])
 
   return (
     <div
@@ -79,5 +79,5 @@ export function HoverCard({ title, session, anchor, now }: HoverCardProps) {
         )}
       </div>
     </div>
-  );
+  )
 }

@@ -1,55 +1,55 @@
-import { describe, expect, it } from 'vitest';
-import { presetLayout } from './presetLayout';
-import { stageLayout } from './storedLayout';
+import { describe, expect, it } from 'vitest'
+import { presetLayout } from './presetLayout'
+import { stageLayout } from './storedLayout'
 
-const wanted = presetLayout('two-across', ['sid-a', 'sid-b']);
+const wanted = presetLayout('two-across', ['sid-a', 'sid-b'])
 
 describe('stageLayout', () => {
   it('keeps a stored layout describing the same panes', () => {
-    const stored = { ...presetLayout('two-across', ['sid-a', 'sid-b']), tag: 'dragged' };
+    const stored = { ...presetLayout('two-across', ['sid-a', 'sid-b']), tag: 'dragged' }
 
-    expect(stageLayout(wanted, stored)).toEqual(stored);
-  });
+    expect(stageLayout(wanted, stored)).toEqual(stored)
+  })
 
   it('falls back to the preset default when the stored layout has the same panes in a different order', () => {
-    const stored = presetLayout('two-across', ['sid-b', 'sid-a']);
+    const stored = presetLayout('two-across', ['sid-b', 'sid-a'])
 
-    expect(stageLayout(wanted, stored)).toBe(wanted);
-  });
+    expect(stageLayout(wanted, stored)).toBe(wanted)
+  })
 
   it('falls back to the preset default when the grid order matches but a panel entry is missing', () => {
-    const stored = presetLayout('two-across', ['sid-a', 'sid-b']);
+    const stored = presetLayout('two-across', ['sid-a', 'sid-b'])
     const panels = Object.fromEntries(
       Object.entries(stored.panels).filter(([id]) => id !== 'sid-b'),
-    );
+    )
 
-    expect(stageLayout(wanted, { ...stored, panels })).toBe(wanted);
-  });
+    expect(stageLayout(wanted, { ...stored, panels })).toBe(wanted)
+  })
 
   it('falls back to the preset default when panels holds an entry the grid never references', () => {
-    const stored = presetLayout('two-across', ['sid-a', 'sid-b']);
-    const panels = { ...stored.panels, 'sid-stale': { id: 'sid-stale' } };
+    const stored = presetLayout('two-across', ['sid-a', 'sid-b'])
+    const panels = { ...stored.panels, 'sid-stale': { id: 'sid-stale' } }
 
-    expect(stageLayout(wanted, { ...stored, panels })).toBe(wanted);
-  });
+    expect(stageLayout(wanted, { ...stored, panels })).toBe(wanted)
+  })
 
   it('falls back to the preset default when the stored layout holds other sessions', () => {
-    const stored = presetLayout('two-across', ['sid-a', 'sid-c']);
+    const stored = presetLayout('two-across', ['sid-a', 'sid-c'])
 
-    expect(stageLayout(wanted, stored)).toBe(wanted);
-  });
+    expect(stageLayout(wanted, stored)).toBe(wanted)
+  })
 
   it('falls back to the preset default when the stored layout has a different pane count', () => {
-    const stored = presetLayout('grid-2x2', ['sid-a', 'sid-b', null, null]);
+    const stored = presetLayout('grid-2x2', ['sid-a', 'sid-b', null, null])
 
-    expect(stageLayout(wanted, stored)).toBe(wanted);
-  });
+    expect(stageLayout(wanted, stored)).toBe(wanted)
+  })
 
   it('falls back to the preset default when the stored layout splits along the other axis', () => {
-    const stored = presetLayout('two-stacked', ['sid-a', 'sid-b']);
+    const stored = presetLayout('two-stacked', ['sid-a', 'sid-b'])
 
-    expect(stageLayout(wanted, stored)).toBe(wanted);
-  });
+    expect(stageLayout(wanted, stored)).toBe(wanted)
+  })
 
   it('keeps a pre-fix grid-2x2 blob whose two rows have different column splits', () => {
     // `fits()` only checks root orientation and the panel-id set, so it accepts this the same
@@ -57,7 +57,7 @@ describe('stageLayout', () => {
     // specifically (the shape a pre-fix session could have persisted) is not an exception. The
     // separate concern of whether the *mirror effect* leaves an already-loaded lopsided layout
     // alone is covered in Stage.tsx's own tests (dockview-identity.test.ts).
-    const grid2x2Wanted = presetLayout('grid-2x2', ['sid-a', 'sid-b', 'sid-c', 'sid-d']);
+    const grid2x2Wanted = presetLayout('grid-2x2', ['sid-a', 'sid-b', 'sid-c', 'sid-d'])
     const lopsided = {
       ...grid2x2Wanted,
       grid: {
@@ -100,23 +100,23 @@ describe('stageLayout', () => {
           ],
         },
       },
-    };
+    }
 
-    expect(stageLayout(grid2x2Wanted, lopsided)).toEqual(lopsided);
-  });
+    expect(stageLayout(grid2x2Wanted, lopsided)).toEqual(lopsided)
+  })
 
   it('drops the maximised node so a reload never restores a stage with a pane hidden', () => {
-    const stored = { ...wanted, grid: { ...wanted.grid, maximizedNode: { location: [0] } } };
+    const stored = { ...wanted, grid: { ...wanted.grid, maximizedNode: { location: [0] } } }
 
-    expect(stageLayout(wanted, stored).grid).not.toHaveProperty('maximizedNode');
-  });
+    expect(stageLayout(wanted, stored).grid).not.toHaveProperty('maximizedNode')
+  })
 
   it.each([null, 'a string', {}, { grid: {} }, { grid: {}, panels: [] }])(
     'falls back to the preset default for %o',
     (stored) => {
-      expect(stageLayout(wanted, stored)).toBe(wanted);
+      expect(stageLayout(wanted, stored)).toBe(wanted)
     },
-  );
+  )
 
   it('falls back to the preset default when a nested leaf node is malformed', () => {
     const stored: unknown = {
@@ -136,8 +136,8 @@ describe('stageLayout', () => {
           ],
         },
       },
-    };
+    }
 
-    expect(stageLayout(wanted, stored)).toBe(wanted);
-  });
-});
+    expect(stageLayout(wanted, stored)).toBe(wanted)
+  })
+})

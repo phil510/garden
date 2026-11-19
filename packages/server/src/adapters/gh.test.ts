@@ -1,177 +1,169 @@
-import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { ghGet, ghRemoveReviewRequest, parseGhInclude, rateLimitResumeAt } from './gh.js';
-import type { GhResponse } from './gh.js';
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { ghGet, ghRemoveReviewRequest, parseGhInclude, rateLimitResumeAt } from './gh.js'
+import type { GhResponse } from './gh.js'
 
 /** A stand-in `gh` that records its argv and prints a canned `--include` response, because the
  *  real one needs network and credentials. It still runs as a real subprocess, so the argument
  *  array and the reading of stdout on a non-zero exit are the real thing. */
-let dir: string;
+let dir: string
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), 'garden-gh-'));
-});
+  dir = mkdtempSync(join(tmpdir(), 'garden-gh-'))
+})
 afterEach(() => {
-  rmSync(dir, { recursive: true, force: true });
-});
+  rmSync(dir, { recursive: true, force: true })
+})
 
 function stubGh(output: string, exitCode: number): string {
-  const script = join(dir, 'gh');
-  writeFileSync(join(dir, 'out'), output);
+  const script = join(dir, 'gh')
+  writeFileSync(join(dir, 'out'), output)
   writeFileSync(
     script,
     `#!/bin/sh\nprintf '%s\\n' "$@" > '${join(dir, 'argv')}'\ncat '${join(dir, 'out')}'\nexit ${String(exitCode)}\n`,
-  );
-  chmodSync(script, 0o755);
-  return script;
+  )
+  chmodSync(script, 0o755)
+  return script
 }
 
-const argv = () => readFileSync(join(dir, 'argv'), 'utf8').trim().split('\n');
+const argv = () => readFileSync(join(dir, 'argv'), 'utf8').trim().split('\n')
 
 describe('parseGhInclude', () => {
   it('splits a 200 into status, lower-cased headers and body', () => {
-    const out = 'HTTP/2.0 200 OK\r\nEtag: W/"abc"\r\nX-Ratelimit-Remaining: 59\r\n\r\n{"a":1}';
+    const out = 'HTTP/2.0 200 OK\r\nEtag: W/"abc"\r\nX-Ratelimit-Remaining: 59\r\n\r\n{"a":1}'
 
     expect(parseGhInclude(out)).toEqual({
       status: 200,
       headers: { etag: 'W/"abc"', 'x-ratelimit-remaining': '59' },
       body: '{"a":1}',
-    });
-  });
+    })
+  })
 
   it('reads a 304, which has no body, with LF line endings', () => {
-    const out = 'HTTP/2.0 304 Not Modified\nEtag: "x"\n\n';
+    const out = 'HTTP/2.0 304 Not Modified\nEtag: "x"\n\n'
 
-    expect(parseGhInclude(out)).toMatchObject({ status: 304, headers: { etag: '"x"' }, body: '' });
-  });
+    expect(parseGhInclude(out)).toMatchObject({ status: 304, headers: { etag: '"x"' }, body: '' })
+  })
 
   it('reads a 304 with no trailing blank line', () => {
-    expect(parseGhInclude('HTTP/2.0 304 Not Modified\r\nEtag: "x"')).toMatchObject({ status: 304 });
-  });
+    expect(parseGhInclude('HTTP/2.0 304 Not Modified\r\nEtag: "x"')).toMatchObject({ status: 304 })
+  })
 
   it('returns null for output that is not a response', () => {
-    expect(parseGhInclude('gh: command not found')).toBeNull();
-  });
-});
+    expect(parseGhInclude('gh: command not found')).toBeNull()
+  })
+})
 
 describe('rateLimitResumeAt', () => {
   const response = (status: number, headers: Record<string, string>, body = ''): GhResponse => ({
     status,
     headers,
     body,
-  });
+  })
 
   it('waits until the reset time for an exhausted primary limit', () => {
-    const r = response(403, { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': '2000' });
+    const r = response(403, { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': '2000' })
 
-    expect(rateLimitResumeAt(r, 0)).toBe(2_000_000);
-  });
+    expect(rateLimitResumeAt(r, 0)).toBe(2_000_000)
+  })
 
   it('honours Retry-After for a secondary limit', () => {
-    expect(rateLimitResumeAt(response(429, { 'retry-after': '30' }), 1000)).toBe(31_000);
-  });
+    expect(rateLimitResumeAt(response(429, { 'retry-after': '30' }), 1000)).toBe(31_000)
+  })
 
   it('waits a minute when the body names a secondary limit without Retry-After', () => {
-    const r = response(403, {}, '{"message":"You have exceeded a secondary rate limit."}');
+    const r = response(403, {}, '{"message":"You have exceeded a secondary rate limit."}')
 
-    expect(rateLimitResumeAt(r, 1000)).toBe(61_000);
-  });
+    expect(rateLimitResumeAt(r, 1000)).toBe(61_000)
+  })
 
   it('is null for a plain 403, a 404 and a success', () => {
-    expect(rateLimitResumeAt(response(403, { 'x-ratelimit-remaining': '12' }), 0)).toBeNull();
-    expect(rateLimitResumeAt(response(404, {}), 0)).toBeNull();
-    expect(rateLimitResumeAt(response(200, { 'x-ratelimit-remaining': '0' }), 0)).toBeNull();
-  });
-});
+    expect(rateLimitResumeAt(response(403, { 'x-ratelimit-remaining': '12' }), 0)).toBeNull()
+    expect(rateLimitResumeAt(response(404, {}), 0)).toBeNull()
+    expect(rateLimitResumeAt(response(200, { 'x-ratelimit-remaining': '0' }), 0)).toBeNull()
+  })
+})
 
 describe('ghGet', () => {
   it('returns the parsed body and ETag of a 200', async () => {
-    const gh = stubGh('HTTP/2.0 200 OK\r\nEtag: W/"v1"\r\n\r\n{"state":"open"}', 0);
+    const gh = stubGh('HTTP/2.0 200 OK\r\nEtag: W/"v1"\r\n\r\n{"state":"open"}', 0)
 
-    const result = await ghGet(gh, 'repos/a/b/pulls/1', null, 0);
+    const result = await ghGet(gh, 'repos/a/b/pulls/1', null, 0)
 
-    expect(result).toEqual({ kind: 'ok', etag: 'W/"v1"', body: { state: 'open' } });
-    expect(argv()).toEqual(['api', '--include', 'repos/a/b/pulls/1']);
-  });
+    expect(result).toEqual({ kind: 'ok', etag: 'W/"v1"', body: { state: 'open' } })
+    expect(argv()).toEqual(['api', '--include', 'repos/a/b/pulls/1'])
+  })
 
   it('sends the stored ETag as If-None-Match and reads a 304 although gh exits 1', async () => {
-    const gh = stubGh('HTTP/2.0 304 Not Modified\r\nEtag: W/"v1"\r\n\r\n', 1);
+    const gh = stubGh('HTTP/2.0 304 Not Modified\r\nEtag: W/"v1"\r\n\r\n', 1)
 
-    const result = await ghGet(gh, 'repos/a/b/pulls/1', 'W/"v1"', 0);
+    const result = await ghGet(gh, 'repos/a/b/pulls/1', 'W/"v1"', 0)
 
-    expect(result).toEqual({ kind: 'not-modified' });
-    expect(argv()).toEqual([
-      'api',
-      '--include',
-      '-H',
-      'If-None-Match: W/"v1"',
-      'repos/a/b/pulls/1',
-    ]);
-  });
+    expect(result).toEqual({ kind: 'not-modified' })
+    expect(argv()).toEqual(['api', '--include', '-H', 'If-None-Match: W/"v1"', 'repos/a/b/pulls/1'])
+  })
 
   it.each([403, 404] as const)('reports an inaccessible repo for a %i', async (status) => {
-    const gh = stubGh(`HTTP/2.0 ${String(status)} X\r\n\r\n{"message":"nope"}`, 1);
+    const gh = stubGh(`HTTP/2.0 ${String(status)} X\r\n\r\n{"message":"nope"}`, 1)
 
-    expect(await ghGet(gh, 'repos/a/b', null, 0)).toEqual({ kind: 'inaccessible', status });
-  });
+    expect(await ghGet(gh, 'repos/a/b', null, 0)).toEqual({ kind: 'inaccessible', status })
+  })
 
   it('reports a rate limit rather than an inaccessible repo for a 403 with no calls left', async () => {
     const gh = stubGh(
       'HTTP/2.0 403 Forbidden\r\nX-Ratelimit-Remaining: 0\r\nX-Ratelimit-Reset: 2000\r\n\r\n{}',
       1,
-    );
+    )
 
     expect(await ghGet(gh, 'repos/a/b', null, 0)).toEqual({
       kind: 'rate-limited',
       resumeAt: 2_000_000,
-    });
-  });
+    })
+  })
 
   it('honours Retry-After for a secondary limit', async () => {
-    const gh = stubGh('HTTP/2.0 429 Too Many Requests\r\nRetry-After: 30\r\n\r\n{}', 1);
+    const gh = stubGh('HTTP/2.0 429 Too Many Requests\r\nRetry-After: 30\r\n\r\n{}', 1)
 
     expect(await ghGet(gh, 'repos/a/b', null, 1000)).toEqual({
       kind: 'rate-limited',
       resumeAt: 31_000,
-    });
-  });
+    })
+  })
 
   it('reports logged out for exit 4 and for a 401', async () => {
-    const noToken = stubGh('', 4);
+    const noToken = stubGh('', 4)
     expect(await ghGet(noToken, 'repos/a/b', null, 0)).toEqual({
       kind: 'unavailable',
       reason: 'logged-out',
-    });
+    })
 
-    const badToken = stubGh('HTTP/2.0 401 Unauthorized\r\n\r\n{}', 1);
+    const badToken = stubGh('HTTP/2.0 401 Unauthorized\r\n\r\n{}', 1)
     expect(await ghGet(badToken, 'repos/a/b', null, 0)).toEqual({
       kind: 'unavailable',
       reason: 'logged-out',
-    });
-  });
+    })
+  })
 
   it('reports a missing binary', async () => {
     expect(await ghGet(join(dir, 'no-such-gh'), 'repos/a/b', null, 0)).toEqual({
       kind: 'unavailable',
       reason: 'missing',
-    });
-  });
+    })
+  })
 
   it('throws on output that is not a response', async () => {
-    await expect(ghGet(stubGh('boom', 1), 'repos/a/b', null, 0)).rejects.toThrow(
-      /no HTTP response/,
-    );
-  });
-});
+    await expect(ghGet(stubGh('boom', 1), 'repos/a/b', null, 0)).rejects.toThrow(/no HTTP response/)
+  })
+})
 
 describe('ghRemoveReviewRequest', () => {
   it('sends one DELETE naming the reviewer and returns the parsed body of a 200', async () => {
-    const gh = stubGh('HTTP/2.0 200 OK\r\n\r\n{"requested_reviewers":[]}', 0);
+    const gh = stubGh('HTTP/2.0 200 OK\r\n\r\n{"requested_reviewers":[]}', 0)
 
-    const result = await ghRemoveReviewRequest(gh, 'a/b', 7, 'octo', 0);
+    const result = await ghRemoveReviewRequest(gh, 'a/b', 7, 'octo', 0)
 
-    expect(result).toEqual({ kind: 'ok', body: { requested_reviewers: [] } });
+    expect(result).toEqual({ kind: 'ok', body: { requested_reviewers: [] } })
     expect(argv()).toEqual([
       'api',
       '--include',
@@ -180,61 +172,61 @@ describe('ghRemoveReviewRequest', () => {
       'repos/a/b/pulls/7/requested_reviewers',
       '-f',
       'reviewers[]=octo',
-    ]);
-  });
+    ])
+  })
 
   it('returns a null body for an empty 2xx', async () => {
-    const gh = stubGh('HTTP/2.0 204 No Content\r\n\r\n', 0);
+    const gh = stubGh('HTTP/2.0 204 No Content\r\n\r\n', 0)
 
     expect(await ghRemoveReviewRequest(gh, 'a/b', 7, 'octo', 0)).toEqual({
       kind: 'ok',
       body: null,
-    });
-  });
+    })
+  })
 
   it.each([403, 404, 422] as const)('reports GitHub refusing with a %i', async (status) => {
-    const gh = stubGh(`HTTP/2.0 ${String(status)} X\r\n\r\n{"message":"nope"}`, 1);
+    const gh = stubGh(`HTTP/2.0 ${String(status)} X\r\n\r\n{"message":"nope"}`, 1)
 
     expect(await ghRemoveReviewRequest(gh, 'a/b', 7, 'octo', 0)).toEqual({
       kind: 'inaccessible',
       status,
-    });
-  });
+    })
+  })
 
   it('reports a rate limit rather than a refusal for a 403 with no calls left', async () => {
     const gh = stubGh(
       'HTTP/2.0 403 Forbidden\r\nX-Ratelimit-Remaining: 0\r\nX-Ratelimit-Reset: 2000\r\n\r\n{}',
       1,
-    );
+    )
 
     expect(await ghRemoveReviewRequest(gh, 'a/b', 7, 'octo', 0)).toEqual({
       kind: 'rate-limited',
       resumeAt: 2_000_000,
-    });
-  });
+    })
+  })
 
   it('reports logged out for exit 4 and for a 401', async () => {
     expect(await ghRemoveReviewRequest(stubGh('', 4), 'a/b', 7, 'octo', 0)).toEqual({
       kind: 'unavailable',
       reason: 'logged-out',
-    });
-    const badToken = stubGh('HTTP/2.0 401 Unauthorized\r\n\r\n{}', 1);
+    })
+    const badToken = stubGh('HTTP/2.0 401 Unauthorized\r\n\r\n{}', 1)
     expect(await ghRemoveReviewRequest(badToken, 'a/b', 7, 'octo', 0)).toEqual({
       kind: 'unavailable',
       reason: 'logged-out',
-    });
-  });
+    })
+  })
 
   it('throws on any other failure status', async () => {
-    const gh = stubGh('HTTP/2.0 500 Server Error\r\n\r\n{}', 1);
+    const gh = stubGh('HTTP/2.0 500 Server Error\r\n\r\n{}', 1)
 
-    await expect(ghRemoveReviewRequest(gh, 'a/b', 7, 'octo', 0)).rejects.toThrow(/HTTP 500/);
-  });
+    await expect(ghRemoveReviewRequest(gh, 'a/b', 7, 'octo', 0)).rejects.toThrow(/HTTP 500/)
+  })
 
   it('reports a missing binary', async () => {
     expect(await ghRemoveReviewRequest(join(dir, 'no-such-gh'), 'a/b', 7, 'octo', 0)).toEqual({
       kind: 'unavailable',
       reason: 'missing',
-    });
-  });
-});
+    })
+  })
+})

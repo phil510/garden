@@ -1,21 +1,21 @@
-import type { SessionMap, SessionPlacement } from '@garden/shared';
-import { useSortable } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import type { ActiveSwarmOption, SwarmGroup as SwarmGroupData } from './groupSwarms';
-import { SwarmBucketRows } from './SwarmBucketRows';
-import { SwarmHeader } from './SwarmHeader';
+import type { SessionMap, SessionPlacement } from '@garden/shared'
+import { useSortable } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import type { ActiveSwarmOption, SwarmGroup as SwarmGroupData } from './groupSwarms'
+import { SwarmBucketRows } from './SwarmBucketRows'
+import { SwarmHeader } from './SwarmHeader'
 
 interface SwarmGroupProps {
-  swarm: SwarmGroupData;
-  sessions: SessionMap;
-  placements: Record<string, SessionPlacement>;
-  activeSwarms: readonly ActiveSwarmOption[];
-  now: number;
-  onStageIds: ReadonlySet<string>;
-  focusedSessionId: string | null;
-  onToggleCollapse: (swarmId: string) => void;
-  onToggleHideDead: (swarmId: string) => void;
-  onSelectSession: (id: string) => void;
+  swarm: SwarmGroupData
+  sessions: SessionMap
+  placements: Record<string, SessionPlacement>
+  activeSwarms: readonly ActiveSwarmOption[]
+  now: number
+  onStageIds: ReadonlySet<string>
+  focusedSessionId: string | null
+  onToggleCollapse: (swarmId: string) => void
+  onToggleHideDead: (swarmId: string) => void
+  onSelectSession: (id: string) => void
 }
 
 export function SwarmGroup({
@@ -36,12 +36,12 @@ export function SwarmGroup({
     // droppable a header-vs-header drag resolves against) from SwarmHeader's own separate
     // 'swarm-header' droppable, which is what a session drag targets specifically.
     data: { type: 'swarm-reorder', swarmId: swarm.swarmId },
-  });
+  })
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-  };
+  }
 
   return (
     <div className="swarm-group" ref={setNodeRef} style={style}>
@@ -67,5 +67,5 @@ export function SwarmGroup({
         />
       </div>
     </div>
-  );
+  )
 }

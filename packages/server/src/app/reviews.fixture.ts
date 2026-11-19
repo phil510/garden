@@ -1,7 +1,7 @@
-import { DEFAULT_UI_STATE } from '@garden/shared';
-import type { SessionState } from '@garden/shared';
-import type { OverlayState } from '../domain/overlay.js';
-import type { Projection } from './projection.js';
+import { DEFAULT_UI_STATE } from '@garden/shared'
+import type { SessionState } from '@garden/shared'
+import type { OverlayState } from '../domain/overlay.js'
+import type { Projection } from './projection.js'
 
 /** The slice of the projection the review store uses, over an overlay held in memory. */
 export function memoryOverlay(
@@ -17,16 +17,16 @@ export function memoryOverlay(
     digests: [],
     pipes: {},
     reviews: { links },
-  };
-  const writes: OverlayState[] = [];
+  }
+  const writes: OverlayState[] = []
   return {
     writes,
     overlay: () => state,
     sessions: () => sessions,
     updateOverlay(mutate) {
-      state = mutate(state);
-      writes.push(state);
-      return state;
+      state = mutate(state)
+      writes.push(state)
+      return state
     },
-  };
+  }
 }

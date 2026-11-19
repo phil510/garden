@@ -1,5 +1,5 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 /**
  * Passed as `-f` on every tmux command. remain-on-exit must be in force when the
@@ -16,12 +16,12 @@ export const TMUX_CONF = [
   'set-option -g aggressive-resize on',
   'set-option -g window-size latest',
   '',
-].join('\n');
+].join('\n')
 
 /** Writes the conf, replacing any previous copy, and returns its path. */
 export function writeTmuxConf(appDir: string): string {
-  mkdirSync(appDir, { recursive: true });
-  const path = join(appDir, 'tmux.conf');
-  writeFileSync(path, TMUX_CONF, 'utf8');
-  return path;
+  mkdirSync(appDir, { recursive: true })
+  const path = join(appDir, 'tmux.conf')
+  writeFileSync(path, TMUX_CONF, 'utf8')
+  return path
 }

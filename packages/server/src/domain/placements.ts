@@ -1,16 +1,16 @@
-import type { SessionPlacement, SessionState } from '@garden/shared';
-import { resolveSwarmId } from './swarms.js';
+import type { SessionPlacement, SessionState } from '@garden/shared'
+import { resolveSwarmId } from './swarms.js'
 
-type Placements = Readonly<Record<string, SessionPlacement>>;
+type Placements = Readonly<Record<string, SessionPlacement>>
 
 /** Merges each session's placement entry onto it, producing the `parent`/`swarmId`
  *  fields `ls --json` exposes. A session with no entry in `placements` is returned
  *  untouched — those fields stay absent, not present-and-undefined. */
 export function mergePlacements(sessions: SessionState[], placements: Placements): SessionState[] {
   return sessions.map((session) => {
-    const entry = placements[session.id];
-    return entry === undefined ? session : { ...session, ...entry };
-  });
+    const entry = placements[session.id]
+    return entry === undefined ? session : { ...session, ...entry }
+  })
 }
 
 /** Keeps only the sessions that resolve to `swarmId`. Takes `placements` separately from
@@ -24,5 +24,5 @@ export function filterBySwarm(
   placements: Placements,
   swarmId: string,
 ): SessionState[] {
-  return sessions.filter((session) => resolveSwarmId(placements, session.id) === swarmId);
+  return sessions.filter((session) => resolveSwarmId(placements, session.id) === swarmId)
 }

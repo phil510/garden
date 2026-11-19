@@ -1,25 +1,25 @@
-import { execFile, spawn } from 'node:child_process';
-import type { ChildProcess } from 'node:child_process';
-import { once } from 'node:events';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import type { AddressInfo } from 'node:net';
-import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { promisify } from 'node:util';
-import { WebSocketServer } from 'ws';
-import type { WebSocket } from 'ws';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { until } from './support/poll.js';
+import { execFile, spawn } from 'node:child_process'
+import type { ChildProcess } from 'node:child_process'
+import { once } from 'node:events'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import type { AddressInfo } from 'node:net'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { promisify } from 'node:util'
+import { WebSocketServer } from 'ws'
+import type { WebSocket } from 'ws'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { until } from './support/poll.js'
 
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const GARDEN_BIN = join(repoRoot, 'packages', 'server', 'bin', 'garden.ts');
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
+const GARDEN_BIN = join(repoRoot, 'packages', 'server', 'bin', 'garden.ts')
 // A bare `tsx` specifier resolves against the process's own cwd, and the `tsx` CLI is a wrapper
 // process that would hide the pipe's own pid, so the loader goes in by absolute path.
-const TSX_LOADER = join(repoRoot, 'node_modules', 'tsx', 'dist', 'loader.mjs');
-const GARDEN_ARGV = ['--import', TSX_LOADER, GARDEN_BIN];
-const PIPE_ARGV = [...GARDEN_ARGV, 'events', '--follow'];
-const execFileAsync = promisify(execFile);
+const TSX_LOADER = join(repoRoot, 'node_modules', 'tsx', 'dist', 'loader.mjs')
+const GARDEN_ARGV = ['--import', TSX_LOADER, GARDEN_BIN]
+const PIPE_ARGV = [...GARDEN_ARGV, 'events', '--follow']
+const execFileAsync = promisify(execFile)
 
 // Stands in for Claude: spawns the pipe as a monitor would (stdout a socketpair it holds),
 // reports the pipe's pid, relays what the pipe writes, and then idles.
@@ -33,71 +33,71 @@ child.stdout.on('data', (chunk) => {
   for (const line of String(chunk).split('\\n')) if (line) console.log('line:' + line);
 });
 setInterval(() => undefined, 1000);
-`;
+`
 
 function isAlive(pid: number): boolean {
   try {
-    process.kill(pid, 0);
-    return true;
+    process.kill(pid, 0)
+    return true
   } catch {
-    return false;
+    return false
   }
 }
 
 function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 /** Resolves with the first line a child's stdout produces that satisfies `match`. */
 function lineFrom(child: ChildProcess, match: (line: string) => boolean): Promise<string> {
   return new Promise((resolve, reject) => {
-    let buffered = '';
+    let buffered = ''
     child.stdout?.on('data', (chunk: Buffer) => {
-      buffered += chunk.toString('utf8');
+      buffered += chunk.toString('utf8')
       for (const line of buffered.split('\n')) {
-        if (match(line)) resolve(line);
+        if (match(line)) resolve(line)
       }
-    });
-    child.once('exit', () => reject(new Error(`exited before a matching line: ${buffered}`)));
-  });
+    })
+    child.once('exit', () => reject(new Error(`exited before a matching line: ${buffered}`)))
+  })
 }
 
 describe('garden events --follow as a real process', () => {
-  let home: string;
-  let wss: WebSocketServer;
-  let connections: WebSocket[];
-  let received: string[];
-  const spawned: ChildProcess[] = [];
-  const pipePids: number[] = [];
+  let home: string
+  let wss: WebSocketServer
+  let connections: WebSocket[]
+  let received: string[]
+  const spawned: ChildProcess[] = []
+  const pipePids: number[] = []
 
   beforeEach(async () => {
-    home = mkdtempSync(join(tmpdir(), 'garden-lifeline-home-'));
-    connections = [];
-    received = [];
-    wss = new WebSocketServer({ port: 0, host: '127.0.0.1' });
-    await new Promise<void>((resolve) => wss.once('listening', resolve));
+    home = mkdtempSync(join(tmpdir(), 'garden-lifeline-home-'))
+    connections = []
+    received = []
+    wss = new WebSocketServer({ port: 0, host: '127.0.0.1' })
+    await new Promise<void>((resolve) => wss.once('listening', resolve))
     wss.on('connection', (socket) => {
-      connections.push(socket);
-      socket.on('message', (data: Buffer) => received.push(data.toString('utf8')));
-    });
-  });
+      connections.push(socket)
+      socket.on('message', (data: Buffer) => received.push(data.toString('utf8')))
+    })
+  })
 
   afterEach(async () => {
-    for (const child of spawned.splice(0)) child.kill('SIGKILL');
+    for (const child of spawned.splice(0)) child.kill('SIGKILL')
     for (const pid of pipePids.splice(0)) {
       try {
-        process.kill(pid, 'SIGKILL');
+        process.kill(pid, 'SIGKILL')
       } catch {
         // Already gone.
       }
     }
-    for (const socket of connections) socket.terminate();
-    await new Promise<void>((resolve) => wss.close(() => resolve()));
-    rmSync(home, { recursive: true, force: true });
-  });
+    for (const socket of connections) socket.terminate()
+    await new Promise<void>((resolve) => wss.close(() => resolve()))
+    rmSync(home, { recursive: true, force: true })
+  })
 
   function env(overrides: Record<string, string | undefined>): NodeJS.ProcessEnv {
-    const port = (wss.address() as AddressInfo).port;
+    const port = (wss.address() as AddressInfo).port
     return {
       ...process.env,
       HOME: home,
@@ -107,7 +107,7 @@ describe('garden events --follow as a real process', () => {
       GARDEN_SESSION_ID: undefined,
       CLAUDE_CODE_SESSION_ID: undefined,
       ...overrides,
-    };
+    }
   }
 
   function spawnPipe(
@@ -117,23 +117,23 @@ describe('garden events --follow as a real process', () => {
     const child = spawn(process.execPath, args, {
       env: env(overrides),
       stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    spawned.push(child);
-    return child;
+    })
+    spawned.push(child)
+    return child
   }
 
   async function spawnStandIn(overrides: Record<string, string | undefined>) {
-    const script = join(home, 'stand-in.cjs');
-    writeFileSync(script, STAND_IN);
+    const script = join(home, 'stand-in.cjs')
+    writeFileSync(script, STAND_IN)
     const parent = spawn(process.execPath, [script], {
       env: { ...env(overrides), PIPE_ARGV: JSON.stringify(PIPE_ARGV) },
       stdio: ['ignore', 'pipe', 'inherit'],
-    });
-    spawned.push(parent);
-    const pidLine = await lineFrom(parent, (line) => line.startsWith('pid:'));
-    const pid = Number(pidLine.slice('pid:'.length));
-    pipePids.push(pid);
-    return { parent, pid };
+    })
+    spawned.push(parent)
+    const pidLine = await lineFrom(parent, (line) => line.startsWith('pid:'))
+    const pid = Number(pidLine.slice('pid:'.length))
+    pipePids.push(pid)
+    return { parent, pid }
   }
 
   const diesWith = (pid: number) =>
@@ -142,38 +142,38 @@ describe('garden events --follow as a real process', () => {
       () => Promise.resolve(isAlive(pid)),
       (alive) => !alive,
       5000,
-    );
+    )
 
   it.each([
     ['mismatched session ids', { GARDEN_SESSION_ID: 's1', CLAUDE_CODE_SESSION_ID: 's2' }],
     ['no GARDEN_SESSION_ID', { CLAUDE_CODE_SESSION_ID: 's1' }],
   ])('blocks silently with %s', async (_name, overrides) => {
-    const child = spawnPipe(overrides);
-    let stdout = '';
-    let stderr = '';
-    child.stdout?.on('data', (chunk: Buffer) => (stdout += chunk.toString('utf8')));
-    child.stderr?.on('data', (chunk: Buffer) => (stderr += chunk.toString('utf8')));
+    const child = spawnPipe(overrides)
+    let stdout = ''
+    let stderr = ''
+    child.stdout?.on('data', (chunk: Buffer) => (stdout += chunk.toString('utf8')))
+    child.stderr?.on('data', (chunk: Buffer) => (stderr += chunk.toString('utf8')))
 
-    await sleep(1500);
+    await sleep(1500)
 
-    expect(child.exitCode).toBeNull();
-    expect(stdout).toBe('');
-    expect(stderr).toBe('');
-    expect(connections).toHaveLength(0);
-  });
+    expect(child.exitCode).toBeNull()
+    expect(stdout).toBe('')
+    expect(stderr).toBe('')
+    expect(connections).toHaveLength(0)
+  })
 
   it('dies with its Claude process when blocked', async () => {
     const { parent, pid } = await spawnStandIn({
       GARDEN_SESSION_ID: 's1',
       CLAUDE_CODE_SESSION_ID: 's2',
-    });
-    await sleep(500);
-    expect(isAlive(pid)).toBe(true);
+    })
+    await sleep(500)
+    expect(isAlive(pid)).toBe(true)
 
-    parent.kill('SIGKILL');
+    parent.kill('SIGKILL')
 
-    await diesWith(pid);
-  });
+    await diesWith(pid)
+  })
 
   it('rejects digest forwarding from nested Claude even with the Codex selector', async () => {
     await expect(
@@ -193,9 +193,9 @@ describe('garden events --follow as a real process', () => {
       code: 1,
       stderr:
         'garden: usage: garden events --follow --forward-to-session requires a Codex garden session\n',
-    });
-    expect(connections).toHaveLength(0);
-  });
+    })
+    expect(connections).toHaveLength(0)
+  })
 
   it('connects a Codex forwarder to its inherited port even with the Claude selector', async () => {
     const child = spawnPipe({ GARDEN_HARNESS: 'codex', GARDEN_SESSION_ID: 's1' }, [
@@ -204,58 +204,58 @@ describe('garden events --follow as a real process', () => {
       'events',
       '--follow',
       '--forward-to-session',
-    ]);
-    const exited = once(child, 'exit');
+    ])
+    const exited = once(child, 'exit')
     try {
       await Promise.race([
         once(wss, 'connection', { signal: AbortSignal.timeout(5000) }),
         exited.then(([code]) => {
-          throw new Error(`forwarder exited before connecting (code ${String(code)})`);
+          throw new Error(`forwarder exited before connecting (code ${String(code)})`)
         }),
-      ]);
+      ])
     } finally {
-      child.kill('SIGTERM');
-      await exited;
+      child.kill('SIGTERM')
+      await exited
     }
-  });
+  })
 
   it('delivers a digest through fd 1 and dies with its Claude process when following', async () => {
     const { parent, pid } = await spawnStandIn({
       GARDEN_SESSION_ID: 's1',
       CLAUDE_CODE_SESSION_ID: 's1',
-    });
+    })
     await until(
       'the pipe to connect',
       () => Promise.resolve(connections.length),
       (count) => count === 1,
       15_000,
-    );
-    const relayed = lineFrom(parent, (line) => line.startsWith('line:'));
-    connections[0]?.send(JSON.stringify({ type: 'digest', id: 'd1', line: 'PR 7 merged' }));
+    )
+    const relayed = lineFrom(parent, (line) => line.startsWith('line:'))
+    connections[0]?.send(JSON.stringify({ type: 'digest', id: 'd1', line: 'PR 7 merged' }))
 
-    expect(await relayed).toBe('line:PR 7 merged');
+    expect(await relayed).toBe('line:PR 7 merged')
     await until(
       'the ack to arrive',
       () => Promise.resolve(received),
       (frames) => frames.length === 1,
-    );
-    expect(JSON.parse(received[0] ?? '')).toEqual({ type: 'ack', id: 'd1' });
+    )
+    expect(JSON.parse(received[0] ?? '')).toEqual({ type: 'ack', id: 'd1' })
 
-    parent.kill('SIGKILL');
+    parent.kill('SIGKILL')
 
-    await diesWith(pid);
-  });
+    await diesWith(pid)
+  })
 
   it('exits promptly on SIGTERM with empty stdout', async () => {
-    const child = spawnPipe({ GARDEN_SESSION_ID: 's1', CLAUDE_CODE_SESSION_ID: 's2' });
-    let stdout = '';
-    child.stdout?.on('data', (chunk: Buffer) => (stdout += chunk.toString('utf8')));
-    await sleep(1000);
+    const child = spawnPipe({ GARDEN_SESSION_ID: 's1', CLAUDE_CODE_SESSION_ID: 's2' })
+    let stdout = ''
+    child.stdout?.on('data', (chunk: Buffer) => (stdout += chunk.toString('utf8')))
+    await sleep(1000)
 
-    const exited = new Promise<void>((resolve) => child.once('exit', () => resolve()));
-    child.kill('SIGTERM');
-    await exited;
+    const exited = new Promise<void>((resolve) => child.once('exit', () => resolve()))
+    child.kill('SIGTERM')
+    await exited
 
-    expect(stdout).toBe('');
-  });
-});
+    expect(stdout).toBe('')
+  })
+})

@@ -1,6 +1,6 @@
-import normalizeUrl from 'normalize-url';
+import normalizeUrl from 'normalize-url'
 
-const ALLOWED_PROTOCOLS = new Set(['http:', 'https:']);
+const ALLOWED_PROTOCOLS = new Set(['http:', 'https:'])
 
 /** `normalize-url` is used only as a classifier here, never as a value producer: it answers one
  *  question — does `text` have no scheme of its own (a bare host like `www.here.com`, or a
@@ -23,7 +23,7 @@ const NORMALIZE_OPTIONS = {
   removeTrailingSlash: false,
   removeSingleSlash: false,
   sortQueryParameters: false,
-} as const;
+} as const
 
 /** `normalize-url` treats `https:`, `http:`, and `file:` as schemes it normalizes in place
  *  rather than as opaque custom protocols — which means its classifier never recognizes a
@@ -31,20 +31,20 @@ const NORMALIZE_OPTIONS = {
  *  already scheme-qualified: it falls through to the same path a bare, schemeless host takes.
  *  Checking for these three ourselves closes that gap without asking the classifier a question
  *  its own logic doesn't answer correctly. */
-const KNOWN_SCHEME_PREFIX = /^(?:https?|file):/i;
+const KNOWN_SCHEME_PREFIX = /^(?:https?|file):/i
 
 /** Only the canonical `scheme://` authority form of the three schemes above is trusted; a
  *  single-slash or no-slash form is rejected outright rather than parsed, because the `URL`
  *  constructor's own slash-leniency for these "special" schemes would otherwise silently resolve
  *  it to a host nothing in `text` unambiguously named (`https:/example.com` parses to
  *  `https://example.com/`, not an error). */
-const KNOWN_SCHEME_AUTHORITY = /^(?:https?|file):\/\//i;
+const KNOWN_SCHEME_AUTHORITY = /^(?:https?|file):\/\//i
 
 /** No URI scheme this module cares about could legitimately start with this exact string. Once
  *  `isSchemelessHost` has ruled out `text` itself starting with it, the sentinel's presence at
  *  the front of `normalize-url`'s output unambiguously means `text` was schemeless and got this
  *  prefix assumed for it. */
-const SCHEMELESS_SENTINEL = 'garden-schemeless-marker:';
+const SCHEMELESS_SENTINEL = 'garden-schemeless-marker:'
 
 /** Asks `normalize-url` the one question it is uniquely good at: would `text` be assumed
  *  schemeless and get a default protocol prepended? The sentinel default protocol makes that
@@ -55,7 +55,7 @@ function isSchemelessHost(text: string): boolean {
   // nonsensical) scheme of its own — normalize-url's classifier recognizes that and returns
   // `text` unchanged, which would otherwise be indistinguishable from "got prefixed" once this
   // function checks whether the output starts with the sentinel.
-  if (text.toLowerCase().startsWith(SCHEMELESS_SENTINEL)) return false;
+  if (text.toLowerCase().startsWith(SCHEMELESS_SENTINEL)) return false
 
   try {
     return normalizeUrl(text, {
@@ -65,9 +65,9 @@ function isSchemelessHost(text: string): boolean {
       defaultProtocol: SCHEMELESS_SENTINEL as 'https',
     })
       .toLowerCase()
-      .startsWith(SCHEMELESS_SENTINEL);
+      .startsWith(SCHEMELESS_SENTINEL)
   } catch {
-    return false;
+    return false
   }
 }
 
@@ -82,29 +82,29 @@ function isSchemelessHost(text: string): boolean {
  *  is normalization only: it does not judge the result, so a caller cannot mistake "parsed" for
  *  "safe to open". */
 function toUrl(text: string): URL | undefined {
-  const trimmed = text.trim();
+  const trimmed = text.trim()
 
   if (KNOWN_SCHEME_PREFIX.test(trimmed)) {
-    if (!KNOWN_SCHEME_AUTHORITY.test(trimmed)) return undefined;
+    if (!KNOWN_SCHEME_AUTHORITY.test(trimmed)) return undefined
     try {
-      return new URL(trimmed);
+      return new URL(trimmed)
     } catch {
-      return undefined;
+      return undefined
     }
   }
 
   if (isSchemelessHost(trimmed)) {
     try {
-      return new URL(`https://${trimmed}`);
+      return new URL(`https://${trimmed}`)
     } catch {
-      return undefined;
+      return undefined
     }
   }
 
   try {
-    return new URL(trimmed);
+    return new URL(trimmed)
   } catch {
-    return undefined;
+    return undefined
   }
 }
 
@@ -120,10 +120,10 @@ function toUrl(text: string): URL | undefined {
  * (`https://trusted.example@evil.example` opens `evil.example`).
  */
 export function normalizeLinkUrl(text: string): URL | undefined {
-  const url = toUrl(text);
-  if (url === undefined || !ALLOWED_PROTOCOLS.has(url.protocol)) return undefined;
-  if (url.username !== '' || url.password !== '') return undefined;
-  return url;
+  const url = toUrl(text)
+  if (url === undefined || !ALLOWED_PROTOCOLS.has(url.protocol)) return undefined
+  if (url.username !== '' || url.password !== '') return undefined
+  return url
 }
 
 /** Normalizes and validates `text`, then opens it the way a link click should: a new tab,
@@ -141,7 +141,7 @@ export function openExternalLink(
   text: string,
   openWindow: typeof window.open = (...args) => window.open(...args),
 ): void {
-  const url = normalizeLinkUrl(text);
-  if (url === undefined) return;
-  openWindow(url.toString(), '_blank', 'noopener,noreferrer');
+  const url = normalizeLinkUrl(text)
+  if (url === undefined) return
+  openWindow(url.toString(), '_blank', 'noopener,noreferrer')
 }

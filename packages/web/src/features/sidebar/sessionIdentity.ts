@@ -1,15 +1,15 @@
-import type { SessionState } from '@garden/shared';
-import { formatRelativeTime } from './relativeTime';
+import type { SessionState } from '@garden/shared'
+import { formatRelativeTime } from './relativeTime'
 
 /** `''` reaches here the same as `null` would — a registry entry can name a session with an
  *  empty string, and the sidebar has nothing useful to show either way. */
 export function sessionIdentityLabel(sessionName: string | null): string | null {
-  return sessionName === null || sessionName === '' ? null : sessionName;
+  return sessionName === null || sessionName === '' ? null : sessionName
 }
 
 export interface MetaLineSegment {
-  key: 'name' | 'time';
-  text: string;
+  key: 'name' | 'time'
+  text: string
 }
 
 /** The meta line's segments, in display order, with absent fields dropped rather than
@@ -18,11 +18,11 @@ export function metaLineSegments(
   session: Pick<SessionState, 'sessionName' | 'lastActivity'>,
   now: number,
 ): MetaLineSegment[] {
-  const segments: MetaLineSegment[] = [];
-  const name = sessionIdentityLabel(session.sessionName);
-  if (name !== null) segments.push({ key: 'name', text: name });
-  segments.push({ key: 'time', text: formatRelativeTime(session.lastActivity, now) });
-  return segments;
+  const segments: MetaLineSegment[] = []
+  const name = sessionIdentityLabel(session.sessionName)
+  if (name !== null) segments.push({ key: 'name', text: name })
+  segments.push({ key: 'time', text: formatRelativeTime(session.lastActivity, now) })
+  return segments
 }
 
 /** Every key gets its own layout class, so a key with no arm here is a compile error rather
@@ -30,8 +30,8 @@ export function metaLineSegments(
 const META_LINE_SEGMENT_CLASS_NAME: Record<MetaLineSegment['key'], string> = {
   name: 'row-name',
   time: 'row-time mono',
-};
+}
 
 export function metaLineSegmentClassName(segment: MetaLineSegment): string {
-  return META_LINE_SEGMENT_CLASS_NAME[segment.key];
+  return META_LINE_SEGMENT_CLASS_NAME[segment.key]
 }

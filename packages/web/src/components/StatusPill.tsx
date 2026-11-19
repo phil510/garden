@@ -1,4 +1,4 @@
-import type { DisplayStatus } from './displayStatus';
+import type { DisplayStatus } from './displayStatus'
 
 const STATUS_LABEL: Record<DisplayStatus, string> = {
   working: 'working',
@@ -6,7 +6,7 @@ const STATUS_LABEL: Record<DisplayStatus, string> = {
   waiting: 'waiting',
   unknown: 'unknown',
   alert: 'alert!',
-};
+}
 
 const STATUS_COLOR_VAR: Record<DisplayStatus, string> = {
   working: 'var(--st-working)',
@@ -14,7 +14,7 @@ const STATUS_COLOR_VAR: Record<DisplayStatus, string> = {
   waiting: 'var(--st-waiting)',
   unknown: 'var(--st-unknown)',
   alert: 'var(--st-alert)',
-};
+}
 
 /** The pill's border carries its status colour at a third of the text's opacity. */
 const STATUS_BORDER_VAR: Record<DisplayStatus, string> = {
@@ -23,10 +23,10 @@ const STATUS_BORDER_VAR: Record<DisplayStatus, string> = {
   waiting: 'var(--st-waiting-border)',
   unknown: 'var(--st-unknown-border)',
   alert: 'var(--st-alert-border)',
-};
+}
 
 interface StatusPillProps {
-  status: DisplayStatus;
+  status: DisplayStatus
 }
 
 /** The sidebar row and the pane header both show a live session's status; this is the one
@@ -40,5 +40,5 @@ export function StatusPill({ status }: StatusPillProps) {
       <span className="dot" style={{ background: STATUS_COLOR_VAR[status] }} />
       {STATUS_LABEL[status]}
     </span>
-  );
+  )
 }

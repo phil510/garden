@@ -1,114 +1,114 @@
-import { aReviewItem, aReviewQueue } from '@garden/shared/fixtures';
-import type { ReviewQueue } from '@garden/shared';
-import { createElement } from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
-import { reviewFaultNotice, reviewHasFault } from './reviewFaultNotice';
-import { DismissConfirm } from './DismissConfirm';
-import { ReviewRow, ReviewsCountBadge, ReviewsPanelView } from './ReviewsPanel';
+import { aReviewItem, aReviewQueue } from '@garden/shared/fixtures'
+import type { ReviewQueue } from '@garden/shared'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { describe, expect, it } from 'vitest'
+import { reviewFaultNotice, reviewHasFault } from './reviewFaultNotice'
+import { DismissConfirm } from './DismissConfirm'
+import { ReviewRow, ReviewsCountBadge, ReviewsPanelView } from './ReviewsPanel'
 
-const now = Date.parse('2026-11-04T13:00:00Z');
-const item = aReviewItem({ title: 'Tidy the parser' });
+const now = Date.parse('2026-11-04T13:00:00Z')
+const item = aReviewItem({ title: 'Tidy the parser' })
 
-const onStart = () => undefined;
-const onOpen = () => undefined;
+const onStart = () => undefined
+const onOpen = () => undefined
 
 const renderPanel = (queue: ReviewQueue | null) =>
-  renderToStaticMarkup(createElement(ReviewsPanelView, { queue, now, onStart, onOpen }));
+  renderToStaticMarkup(createElement(ReviewsPanelView, { queue, now, onStart, onOpen }))
 
-const faults = ['gh-missing', 'logged-out', 'rate-limited', 'incomplete', 'error'] as const;
+const faults = ['gh-missing', 'logged-out', 'rate-limited', 'incomplete', 'error'] as const
 
 describe('ReviewsPanelView', () => {
   it.each(faults)('shows the %s fault notice', (fault) => {
-    const html = renderPanel(aReviewQueue({ fault }));
-    const notice = reviewFaultNotice(fault);
-    expect(notice).not.toBeNull();
+    const html = renderPanel(aReviewQueue({ fault }))
+    const notice = reviewFaultNotice(fault)
+    expect(notice).not.toBeNull()
     expect(html).toContain(
       notice!.replace(/&/g, '&amp;').replace(/'/g, '&#x27;').replace(/"/g, '&quot;'),
-    );
-  });
+    )
+  })
 
   it('does not read a logged-out empty queue as empty', () => {
-    const html = renderPanel(aReviewQueue({ fault: 'logged-out' }));
-    expect(html).toContain('gh auth login');
-    expect(html).not.toContain('No review requests');
-  });
+    const html = renderPanel(aReviewQueue({ fault: 'logged-out' }))
+    expect(html).toContain('gh auth login')
+    expect(html).not.toContain('No review requests')
+  })
 
   it('keeps the last good items under the fault banner', () => {
-    const html = renderPanel(aReviewQueue({ fault: 'incomplete', items: [item] }));
-    expect(html).toContain('incomplete results');
-    expect(html).toContain('Tidy the parser');
-  });
+    const html = renderPanel(aReviewQueue({ fault: 'incomplete', items: [item] }))
+    expect(html).toContain('incomplete results')
+    expect(html).toContain('Tidy the parser')
+  })
 
   it('says it is checking, not empty, before the first poll', () => {
     for (const queue of [null, aReviewQueue({ polledAt: null })]) {
-      const html = renderPanel(queue);
-      expect(html).toContain('Checking GitHub');
-      expect(html).not.toContain('No review requests');
+      const html = renderPanel(queue)
+      expect(html).toContain('Checking GitHub')
+      expect(html).not.toContain('No review requests')
     }
-  });
+  })
 
   it('shows the empty state after a clean poll with nothing in it', () => {
-    expect(renderPanel(aReviewQueue())).toContain('No review requests');
-  });
-});
+    expect(renderPanel(aReviewQueue())).toContain('No review requests')
+  })
+})
 
 describe('ReviewRow', () => {
   const render = (overrides: Parameters<typeof aReviewItem>[0]) =>
     renderToStaticMarkup(
       createElement(ReviewRow, { item: aReviewItem(overrides), now, onStart, onOpen }),
-    );
+    )
 
   it('shows the draft marker only for drafts', () => {
-    expect(render({ draft: true })).toContain('Draft');
-    expect(render({ draft: false })).not.toContain('Draft');
-  });
+    expect(render({ draft: true })).toContain('Draft')
+    expect(render({ draft: false })).not.toContain('Draft')
+  })
 
   it('shows reference, author and age', () => {
-    const html = render({ updatedAt: '2026-11-04T12:00:00Z' });
-    expect(html).toContain('acme/widgets#1');
-    expect(html).toContain('octocat · 1h ago');
-  });
+    const html = render({ updatedAt: '2026-11-04T12:00:00Z' })
+    expect(html).toContain('acme/widgets#1')
+    expect(html).toContain('octocat · 1h ago')
+  })
 
   it('makes the reference the only link to the pull request', () => {
-    const html = render({});
-    expect(html).toMatch(/<button[^>]*class="rv-ref"[^>]*>acme\/widgets#1<\/button>/);
-    expect(html).not.toContain('Open on GitHub');
-  });
-});
+    const html = render({})
+    expect(html).toMatch(/<button[^>]*class="rv-ref"[^>]*>acme\/widgets#1<\/button>/)
+    expect(html).not.toContain('Open on GitHub')
+  })
+})
 
 describe('ReviewRow session actions', () => {
   const render = (overrides: Parameters<typeof aReviewItem>[0]) =>
     renderToStaticMarkup(
       createElement(ReviewRow, { item: aReviewItem(overrides), now, onStart, onOpen }),
-    );
+    )
 
   it('offers Open session, and no Start, once a session is linked', () => {
-    const html = render({ clonePath: '/r/widgets', sessionId: 'session-1' });
-    expect(html).toContain('Open session');
-    expect(html).not.toContain('Start session');
-  });
+    const html = render({ clonePath: '/r/widgets', sessionId: 'session-1' })
+    expect(html).toContain('Open session')
+    expect(html).not.toContain('Start session')
+  })
 
   it('keeps Open session when the clone is gone', () => {
-    expect(render({ clonePath: null, sessionId: 'session-1' })).toContain('Open session');
-  });
+    expect(render({ clonePath: null, sessionId: 'session-1' })).toContain('Open session')
+  })
 
   it('offers an enabled Start session for an unlinked request with a clone', () => {
-    const html = render({ clonePath: '/r/widgets' });
-    expect(html).toContain('Start session');
-    expect(html).not.toContain('disabled');
-    expect(html).not.toContain('no local clone');
-  });
+    const html = render({ clonePath: '/r/widgets' })
+    expect(html).toContain('Start session')
+    expect(html).not.toContain('disabled')
+    expect(html).not.toContain('no local clone')
+  })
 
   it('disables Start session and says why when there is no clone', () => {
-    const html = render({ clonePath: null });
-    expect(html).toMatch(/<button[^>]*disabled[^>]*>Start session/);
-    expect(html).toContain('no local clone');
-  });
-});
+    const html = render({ clonePath: null })
+    expect(html).toMatch(/<button[^>]*disabled[^>]*>Start session/)
+    expect(html).toContain('no local clone')
+  })
+})
 
 describe('dismiss', () => {
-  const row = renderToStaticMarkup(createElement(ReviewRow, { item, now, onStart, onOpen }));
+  const row = renderToStaticMarkup(createElement(ReviewRow, { item, now, onStart, onOpen }))
   const confirm = (sending: boolean) =>
     renderToStaticMarkup(
       createElement(DismissConfirm, {
@@ -116,45 +116,45 @@ describe('dismiss', () => {
         onCancel: () => undefined,
         sending,
       }),
-    );
+    )
 
   it('offers Dismiss on an idle row without showing the confirmation', () => {
-    expect(row).toContain('Dismiss');
-    expect(row).not.toContain('Confirm');
-    expect(row).not.toContain('author will see');
-  });
+    expect(row).toContain('Dismiss')
+    expect(row).not.toContain('Confirm')
+    expect(row).not.toContain('author will see')
+  })
 
   it('warns that the request is removed on GitHub and the author will see it', () => {
-    const html = confirm(false);
-    expect(html).toContain('Remove your review request on GitHub');
-    expect(html).toContain('The author will see that you removed it');
-    expect(html).toContain('Confirm');
-    expect(html).toContain('Cancel');
-  });
+    const html = confirm(false)
+    expect(html).toContain('Remove your review request on GitHub')
+    expect(html).toContain('The author will see that you removed it')
+    expect(html).toContain('Confirm')
+    expect(html).toContain('Cancel')
+  })
 
   it('disables both buttons while sending', () => {
-    expect(confirm(false)).not.toContain('disabled');
-    expect(confirm(true).match(/disabled/g)).toHaveLength(2);
-  });
-});
+    expect(confirm(false)).not.toContain('disabled')
+    expect(confirm(true).match(/disabled/g)).toHaveLength(2)
+  })
+})
 
 describe('ReviewsCountBadge', () => {
   it('renders nothing at zero', () => {
-    expect(renderToStaticMarkup(createElement(ReviewsCountBadge, { count: 0 }))).toBe('');
-  });
+    expect(renderToStaticMarkup(createElement(ReviewsCountBadge, { count: 0 }))).toBe('')
+  })
 
   it('renders the count', () => {
-    expect(renderToStaticMarkup(createElement(ReviewsCountBadge, { count: 4 }))).toContain('>4<');
-  });
-});
+    expect(renderToStaticMarkup(createElement(ReviewsCountBadge, { count: 4 }))).toContain('>4<')
+  })
+})
 
 describe('reviewHasFault', () => {
   it.each(faults)('marks the toggle for a %s fault', (fault) => {
-    expect(reviewHasFault(aReviewQueue({ fault }))).toBe(true);
-  });
+    expect(reviewHasFault(aReviewQueue({ fault }))).toBe(true)
+  })
 
   it('leaves the toggle unmarked without a fault or a queue', () => {
-    expect(reviewHasFault(aReviewQueue({ fault: null }))).toBe(false);
-    expect(reviewHasFault(null)).toBe(false);
-  });
-});
+    expect(reviewHasFault(aReviewQueue({ fault: null }))).toBe(false)
+    expect(reviewHasFault(null)).toBe(false)
+  })
+})

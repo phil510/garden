@@ -1,8 +1,8 @@
-import type { ITheme } from '@xterm/xterm';
+import type { ITheme } from '@xterm/xterm'
 
 /** Reads a resolved CSS custom property value. Injected so the mapping below stays a pure
  *  function over whatever variables the caller supplies. */
-export type CssVarReader = (name: string) => string;
+export type CssVarReader = (name: string) => string
 
 /**
  * xterm renders to canvas rather than through the DOM cascade, so it needs resolved colors
@@ -17,5 +17,5 @@ export function terminalTheme(readVar: CssVarReader): ITheme {
     cursor: readVar('--accent'),
     cursorAccent: readVar('--ground'),
     selectionBackground: readVar('--accent-dim'),
-  };
+  }
 }

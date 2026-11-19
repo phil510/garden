@@ -1,9 +1,9 @@
-import type { DigestDetail } from '@garden/shared';
-import { describe, expect, it } from 'vitest';
-import type { DigestsDeps } from '../../app/digests.js';
-import type { Projection } from '../../app/projection.js';
-import { createApp } from '../server.js';
-import { digestRoutes } from './digests.js';
+import type { DigestDetail } from '@garden/shared'
+import { describe, expect, it } from 'vitest'
+import type { DigestsDeps } from '../../app/digests.js'
+import type { Projection } from '../../app/projection.js'
+import { createApp } from '../server.js'
+import { digestRoutes } from './digests.js'
 
 const detail: DigestDetail = {
   id: 'abc123',
@@ -22,30 +22,30 @@ const detail: DigestDetail = {
     statuses: [],
     conflicts: [],
   },
-};
+}
 
 function buildApp() {
   const deps: DigestsDeps = {
     projection: {
       overlay: () => ({ digests: [{ sessionId: 's1', detail }] }),
     } as unknown as Pick<Projection, 'overlay'>,
-  };
-  const app = createApp();
-  app.register((instance) => digestRoutes(instance, deps));
-  return app;
+  }
+  const app = createApp()
+  app.register((instance) => digestRoutes(instance, deps))
+  return app
 }
 
 describe('GET /digests/:id', () => {
   it('returns the archived detail', async () => {
-    const response = await buildApp().inject({ method: 'GET', url: '/digests/abc123' });
+    const response = await buildApp().inject({ method: 'GET', url: '/digests/abc123' })
 
-    expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ digest: detail });
-  });
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toEqual({ digest: detail })
+  })
 
   it('answers 404 for an id that is not archived', async () => {
-    const response = await buildApp().inject({ method: 'GET', url: '/digests/nope' });
+    const response = await buildApp().inject({ method: 'GET', url: '/digests/nope' })
 
-    expect(response.statusCode).toBe(404);
-  });
-});
+    expect(response.statusCode).toBe(404)
+  })
+})

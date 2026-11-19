@@ -1,4 +1,4 @@
-import type { HarnessPort } from './ports.js';
+import type { HarnessPort } from './ports.js'
 
 export function fakeHarness(): HarnessPort {
   return {
@@ -11,5 +11,5 @@ export function fakeHarness(): HarnessPort {
       readRecord: () => Promise.resolve(null),
     },
     readSessionMetadata: () => Promise.resolve({ names: {}, skipped: 0 }),
-  };
+  }
 }

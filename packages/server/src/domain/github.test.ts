@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest'
 import {
   parseCheckRuns,
   parseIssueComments,
@@ -6,7 +6,7 @@ import {
   parseReviewComments,
   parseReviews,
   parseStatuses,
-} from './github.js';
+} from './github.js'
 
 describe('fact parsers', () => {
   it('parses a PR and ignores its content', () => {
@@ -16,10 +16,10 @@ describe('fact parsers', () => {
       merged: false,
       mergeable: null,
       head: { sha: 'abc' },
-    });
+    })
 
-    expect(pr).toEqual({ open: true, merged: false, mergeable: null, headSha: 'abc' });
-  });
+    expect(pr).toEqual({ open: true, merged: false, mergeable: null, headSha: 'abc' })
+  })
 
   it('treats a closed PR with merged_at as merged', () => {
     const pr = parsePr({
@@ -27,14 +27,14 @@ describe('fact parsers', () => {
       merged_at: '2026-01-01T00:00:00Z',
       mergeable: false,
       head: { sha: 'abc' },
-    });
+    })
 
-    expect(pr).toMatchObject({ open: false, merged: true, mergeable: false });
-  });
+    expect(pr).toMatchObject({ open: false, merged: true, mergeable: false })
+  })
 
   it('returns null for a PR without a head sha', () => {
-    expect(parsePr({ state: 'open' })).toBeNull();
-  });
+    expect(parsePr({ state: 'open' })).toBeNull()
+  })
 
   it('skips pending reviews and malformed items, keeping the raw page count', () => {
     const page = parseReviews([
@@ -68,9 +68,9 @@ describe('fact parsers', () => {
         state: 'CHANGES_REQUESTED',
       },
       'junk',
-    ]);
+    ])
 
-    expect(page.count).toBe(6);
+    expect(page.count).toBe(6)
     expect(page.items).toEqual([
       {
         id: 1,
@@ -100,8 +100,8 @@ describe('fact parsers', () => {
         state: 'CHANGES_REQUESTED',
         wrapper: false,
       },
-    ]);
-  });
+    ])
+  })
 
   it('parses issue and review comments, keeping the review id only for inline ones', () => {
     const raw = [
@@ -111,11 +111,11 @@ describe('fact parsers', () => {
         created_at: '2026-01-01T00:00:00Z',
         pull_request_review_id: 9,
       },
-    ];
+    ]
 
-    expect(parseIssueComments(raw).items[0]).toMatchObject({ id: 5, reviewId: null });
-    expect(parseReviewComments(raw).items[0]).toMatchObject({ id: 5, reviewId: 9 });
-  });
+    expect(parseIssueComments(raw).items[0]).toMatchObject({ id: 5, reviewId: null })
+    expect(parseReviewComments(raw).items[0]).toMatchObject({ id: 5, reviewId: 9 })
+  })
 
   it('parses check runs, with no completion time until completed', () => {
     const page = parseCheckRuns({
@@ -129,7 +129,7 @@ describe('fact parsers', () => {
           completed_at: '2026-01-01T00:00:00Z',
         },
       ],
-    });
+    })
 
     expect(page.items).toEqual([
       { id: 1, name: 'build', conclusion: null, completedAt: null },
@@ -139,17 +139,17 @@ describe('fact parsers', () => {
         conclusion: 'failure',
         completedAt: Date.parse('2026-01-01T00:00:00Z'),
       },
-    ]);
-  });
+    ])
+  })
 
   it('parses combined-status contexts', () => {
     const page = parseStatuses({
       state: 'failure',
       statuses: [{ context: 'ci/x', state: 'error', updated_at: '2026-01-01T00:00:00Z' }],
-    });
+    })
 
     expect(page.items).toEqual([
       { context: 'ci/x', state: 'error', updatedAt: Date.parse('2026-01-01T00:00:00Z') },
-    ]);
-  });
-});
+    ])
+  })
+})

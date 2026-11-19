@@ -1,19 +1,19 @@
-import { tmpdir } from 'node:os';
-import { describe, expect, it } from 'vitest';
-import { listPanes, newSession } from '../../packages/server/src/adapters/tmux.js';
-import { until } from './support/poll.js';
-import { type TmuxServerContext, withTmuxServer } from './support/tmux-server.js';
+import { tmpdir } from 'node:os'
+import { describe, expect, it } from 'vitest'
+import { listPanes, newSession } from '../../packages/server/src/adapters/tmux.js'
+import { until } from './support/poll.js'
+import { type TmuxServerContext, withTmuxServer } from './support/tmux-server.js'
 
-const sleeper = ['sh', '-c', 'sleep 30'];
+const sleeper = ['sh', '-c', 'sleep 30']
 
 const sessionNames = async (target: TmuxServerContext, count: number) => {
   const panes = await until(
     `${count} pane(s) on ${target.socket}`,
     () => listPanes(target),
     (list) => list.length === count,
-  );
-  return panes.map((pane) => pane.session).sort();
-};
+  )
+  return panes.map((pane) => pane.session).sort()
+}
 
 describe('two garden instances on separate tmux sockets', () => {
   // Both sockets here are fixture sockets. The scenario this stands in for is a
@@ -29,14 +29,14 @@ describe('two garden instances on separate tmux sockets', () => {
           port: 4310,
           sessionId: 'alpha-id',
           command: sleeper,
-        });
+        })
         await newSession(first, {
           name: 'shared',
           cwd: tmpdir(),
           port: 4310,
           sessionId: 'shared-id',
           command: sleeper,
-        });
+        })
 
         // A single shared server would reject this as a duplicate session name.
         await newSession(second, {
@@ -45,11 +45,11 @@ describe('two garden instances on separate tmux sockets', () => {
           port: 4311,
           sessionId: 'shared-id',
           command: sleeper,
-        });
+        })
 
-        expect(await sessionNames(first, 2)).toEqual(['alpha', 'shared']);
-        expect(await sessionNames(second, 1)).toEqual(['shared']);
-      });
-    });
-  });
-});
+        expect(await sessionNames(first, 2)).toEqual(['alpha', 'shared'])
+        expect(await sessionNames(second, 1)).toEqual(['shared'])
+      })
+    })
+  })
+})

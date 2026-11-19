@@ -4,5 +4,5 @@ export function entryPaths(
   root: string,
   entryPath: string,
 ): { absolute: string; relative: string } {
-  return { absolute: `${root}/${entryPath}`, relative: entryPath };
+  return { absolute: `${root}/${entryPath}`, relative: entryPath }
 }

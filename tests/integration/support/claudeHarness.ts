@@ -1,1 +1,1 @@
-export { fakeClaudeHarness } from '../../support/claudeHarness.js';
+export { fakeClaudeHarness } from '../../support/claudeHarness.js'

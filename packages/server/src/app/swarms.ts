@@ -1,19 +1,19 @@
-import { randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto'
 import type {
   Placement,
   SessionPlacement,
   SessionState,
   SwarmRecord,
   UiState,
-} from '@garden/shared';
-import { pruneOverlay, resolveSwarmId, validatePlacement } from '../domain/swarms.js';
-import { SessionNotFoundError } from './errors.js';
-import type { OverlayState } from './ports.js';
-import type { Projection } from './projection.js';
-import { resolveSessionTarget } from './sessionTargets.js';
+} from '@garden/shared'
+import { pruneOverlay, resolveSwarmId, validatePlacement } from '../domain/swarms.js'
+import { SessionNotFoundError } from './errors.js'
+import type { OverlayState } from './ports.js'
+import type { Projection } from './projection.js'
+import { resolveSessionTarget } from './sessionTargets.js'
 
 export interface SwarmsDeps {
-  readonly projection: Projection;
+  readonly projection: Projection
 }
 
 export class SwarmNotFoundError extends Error {}
@@ -28,37 +28,37 @@ function knownSessionIds(
   sessions: readonly SessionState[],
   base: OverlayState,
 ): ReadonlySet<string> {
-  return new Set([...sessions.map((session) => session.id), ...Object.keys(base.tmuxNames)]);
+  return new Set([...sessions.map((session) => session.id), ...Object.keys(base.tmuxNames)])
 }
 
 /** The overlay with `patch` laid over its `ui`; every swarm and placement write goes through here. */
 function withUi(base: OverlayState, patch: Partial<UiState>): OverlayState {
-  return { ...base, ui: { ...base.ui, ...patch } };
+  return { ...base, ui: { ...base.ui, ...patch } }
 }
 
 function findSwarm(base: OverlayState, id: string): SwarmRecord {
-  const swarm = base.ui.swarms.find((candidate) => candidate.id === id);
-  if (swarm === undefined) throw new SwarmNotFoundError(`no such swarm: ${id}`);
-  return swarm;
+  const swarm = base.ui.swarms.find((candidate) => candidate.id === id)
+  if (swarm === undefined) throw new SwarmNotFoundError(`no such swarm: ${id}`)
+  return swarm
 }
 
 export function createSwarm(deps: SwarmsDeps, request: { name: string }): { id: string } {
-  const id = randomUUID();
+  const id = randomUUID()
   deps.projection.updateOverlay((base) =>
     withUi(base, { swarms: [...base.ui.swarms, { id, name: request.name, archived: false }] }),
-  );
-  return { id };
+  )
+  return { id }
 }
 
 export function renameSwarm(deps: SwarmsDeps, request: { id: string; name: string }): void {
   deps.projection.updateOverlay((base) => {
-    findSwarm(base, request.id);
+    findSwarm(base, request.id)
     return withUi(base, {
       swarms: base.ui.swarms.map((swarm) =>
         swarm.id === request.id ? { ...swarm, name: request.name } : swarm,
       ),
-    });
-  });
+    })
+  })
 }
 
 /** Exported for `resumeSession` (`app/sessions.ts`), which clears a swarm's `archived` flag
@@ -66,38 +66,38 @@ export function renameSwarm(deps: SwarmsDeps, request: { id: string; name: strin
  *  `archiveSwarm`/`unarchiveSwarm` themselves. */
 export function setArchived(deps: SwarmsDeps, id: string, archived: boolean): void {
   deps.projection.updateOverlay((base) => {
-    findSwarm(base, id);
+    findSwarm(base, id)
     return withUi(base, {
       swarms: base.ui.swarms.map((swarm) => (swarm.id === id ? { ...swarm, archived } : swarm)),
-    });
-  });
+    })
+  })
 }
 
 export function archiveSwarm(deps: SwarmsDeps, request: { id: string }): void {
-  setArchived(deps, request.id, true);
+  setArchived(deps, request.id, true)
 }
 
 export function unarchiveSwarm(deps: SwarmsDeps, request: { id: string }): void {
-  setArchived(deps, request.id, false);
+  setArchived(deps, request.id, false)
 }
 
 /** Members become solo — their `parent` edges (if any) survive; only the `swarmId` link to
  *  the deleted swarm is cleared. Nothing is killed. */
 export function deleteSwarm(deps: SwarmsDeps, request: { id: string }): void {
   deps.projection.updateOverlay((base) => {
-    findSwarm(base, request.id);
-    const placements: Record<string, SessionPlacement> = { ...base.ui.placements };
+    findSwarm(base, request.id)
+    const placements: Record<string, SessionPlacement> = { ...base.ui.placements }
     for (const [sessionId, entry] of Object.entries(placements)) {
-      if (entry.swarmId !== request.id) continue;
-      const next = { ...entry };
-      delete next.swarmId;
-      placements[sessionId] = next;
+      if (entry.swarmId !== request.id) continue
+      const next = { ...entry }
+      delete next.swarmId
+      placements[sessionId] = next
     }
     return withUi(base, {
       swarms: base.ui.swarms.filter((swarm) => swarm.id !== request.id),
       placements,
-    });
-  });
+    })
+  })
 }
 
 /**
@@ -110,21 +110,21 @@ export function placeSession(
   request: { sessionId: string; placement: Placement },
 ): void {
   deps.projection.updateOverlay((base) => {
-    const sessions = deps.projection.sessions();
-    const known = knownSessionIds(sessions, base);
+    const sessions = deps.projection.sessions()
+    const known = knownSessionIds(sessions, base)
     const sessionId =
       request.placement.type === 'parent' && !known.has(request.sessionId)
         ? resolveSessionTarget(sessions, request.sessionId).id
-        : request.sessionId;
-    if (!known.has(sessionId)) throw new SessionNotFoundError(`no such session: ${sessionId}`);
+        : request.sessionId
+    if (!known.has(sessionId)) throw new SessionNotFoundError(`no such session: ${sessionId}`)
     if (request.placement.type === 'parent' && !known.has(request.placement.parentId))
-      throw new SessionNotFoundError(`no such session: ${request.placement.parentId}`);
+      throw new SessionNotFoundError(`no such session: ${request.placement.parentId}`)
 
-    const result = validatePlacement(base, sessionId, request.placement);
+    const result = validatePlacement(base, sessionId, request.placement)
     if (!result.ok) {
       throw request.placement.type === 'swarm'
         ? new SwarmNotFoundError(result.reason)
-        : new SwarmCycleError(result.reason);
+        : new SwarmCycleError(result.reason)
     }
 
     const entry: SessionPlacement =
@@ -132,10 +132,10 @@ export function placeSession(
         ? { swarmId: request.placement.swarmId }
         : request.placement.type === 'parent'
           ? { parent: request.placement.parentId }
-          : {};
+          : {}
 
-    return withUi(base, { placements: { ...base.ui.placements, [sessionId]: entry } });
-  });
+    return withUi(base, { placements: { ...base.ui.placements, [sessionId]: entry } })
+  })
 }
 
 // A caller that already resolves to a swarm, or that already carries a `parent` edge of
@@ -149,7 +149,7 @@ function isUnplaced(base: OverlayState, id: string): boolean {
   return (
     resolveSwarmId(base.ui.placements, id) === undefined &&
     base.ui.placements[id]?.parent === undefined
-  );
+  )
 }
 
 /**
@@ -157,11 +157,11 @@ function isUnplaced(base: OverlayState, id: string): boolean {
  * this always mints unconditionally.
  */
 function mintSwarmFor(base: OverlayState, id: string, title: string | null): OverlayState {
-  const swarmId = randomUUID();
+  const swarmId = randomUUID()
   return withUi(base, {
     swarms: [...base.ui.swarms, { id: swarmId, name: title ?? 'Untitled swarm', archived: false }],
     placements: { ...base.ui.placements, [id]: { swarmId } },
-  });
+  })
 }
 
 /**
@@ -175,21 +175,21 @@ export function recordSpawn(
   request: { callerId: string; childId: string; callerTitle: string | null },
 ): void {
   deps.projection.updateOverlay((base) => {
-    const known = knownSessionIds(deps.projection.sessions(), base);
+    const known = knownSessionIds(deps.projection.sessions(), base)
     if (!known.has(request.callerId))
-      throw new SessionNotFoundError(`no such session: ${request.callerId}`);
+      throw new SessionNotFoundError(`no such session: ${request.callerId}`)
 
     const withSwarm = isUnplaced(base, request.callerId)
       ? mintSwarmFor(base, request.callerId, request.callerTitle)
-      : base;
+      : base
 
     return withUi(withSwarm, {
       placements: {
         ...withSwarm.ui.placements,
         [request.childId]: { parent: request.callerId },
       },
-    });
-  });
+    })
+  })
 }
 
 /**
@@ -202,5 +202,5 @@ export function recordSpawn(
 export function pruneKnownSessions(deps: SwarmsDeps): void {
   deps.projection.updateOverlay((base) =>
     pruneOverlay(base, knownSessionIds(deps.projection.sessions(), base)),
-  );
+  )
 }

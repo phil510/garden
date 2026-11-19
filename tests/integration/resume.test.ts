@@ -1,31 +1,31 @@
-import { fakeClaudeHarness } from './support/claudeHarness.js';
-import { randomUUID } from 'node:crypto';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { basename, join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
-import { listPanes, newSession } from '../../packages/server/src/adapters/tmux.js';
-import { raiseSessionAlert } from '../../packages/server/src/app/alerts.js';
-import { createProjection } from '../../packages/server/src/app/projection.js';
-import { resumeSession } from '../../packages/server/src/app/sessions.js';
-import { fakeStore } from './support/fakeStore.js';
-import { tmuxPort } from './support/tmuxPort.js';
-import { until } from './support/poll.js';
-import { sessionEnv, withTmuxServer } from './support/tmux-server.js';
+import { fakeClaudeHarness } from './support/claudeHarness.js'
+import { randomUUID } from 'node:crypto'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { basename, join } from 'node:path'
+import { afterEach, describe, expect, it } from 'vitest'
+import { listPanes, newSession } from '../../packages/server/src/adapters/tmux.js'
+import { raiseSessionAlert } from '../../packages/server/src/app/alerts.js'
+import { createProjection } from '../../packages/server/src/app/projection.js'
+import { resumeSession } from '../../packages/server/src/app/sessions.js'
+import { fakeStore } from './support/fakeStore.js'
+import { tmuxPort } from './support/tmuxPort.js'
+import { until } from './support/poll.js'
+import { sessionEnv, withTmuxServer } from './support/tmux-server.js'
 
 describe('resuming a session against real tmux', () => {
-  const dirs: string[] = [];
+  const dirs: string[] = []
 
   afterEach(() => {
-    for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
-  });
+    for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true })
+  })
 
   it('respawns in place, keeping the tmux name, when tmux still holds the session', async () => {
     await withTmuxServer(async (target) => {
-      const cwd = mkdtempSync(join(tmpdir(), 'garden-resume-'));
-      dirs.push(cwd);
-      const tmuxName = basename(cwd);
-      const id = randomUUID();
+      const cwd = mkdtempSync(join(tmpdir(), 'garden-resume-'))
+      dirs.push(cwd)
+      const tmuxName = basename(cwd)
+      const id = randomUUID()
 
       await newSession(target, {
         name: tmuxName,
@@ -33,15 +33,15 @@ describe('resuming a session against real tmux', () => {
         port: 4310,
         sessionId: id,
         command: ['sh', '-c', 'exit 4'],
-      });
+      })
       await until(
         'the seeded pane to be reported dead',
         () => listPanes(target),
         (list) => list[0]?.dead === true,
-      );
+      )
 
-      const projection = createProjection(fakeStore());
-      projection.dispatch({ type: 'session-registered', id, tmuxName, cwd });
+      const projection = createProjection(fakeStore())
+      projection.dispatch({ type: 'session-registered', id, tmuxName, cwd })
 
       const result = await resumeSession(
         {
@@ -51,32 +51,32 @@ describe('resuming a session against real tmux', () => {
           harness: fakeClaudeHarness('/nonexistent/claude-settings.json', () => ['claude']),
         },
         { id },
-      );
+      )
 
-      expect(result).toEqual({ id, tmuxName });
+      expect(result).toEqual({ id, tmuxName })
       const panes = await until(
         'exactly one pane, still under the original name',
         () => listPanes(target),
         (list) => list.length === 1,
-      );
-      expect(panes[0]?.session).toBe(tmuxName);
-      expect(projection.sessions().find((s) => s.id === id)?.tmuxName).toBe(tmuxName);
+      )
+      expect(panes[0]?.session).toBe(tmuxName)
+      expect(projection.sessions().find((s) => s.id === id)?.tmuxName).toBe(tmuxName)
       // respawn-pane passes no -e of its own; this proves the session's environment set at
       // the original new-session survives it rather than being reset.
-      expect(await sessionEnv(target, tmuxName, 'GARDEN_SESSION_ID')).toBe(id);
-    });
-  });
+      expect(await sessionEnv(target, tmuxName, 'GARDEN_SESSION_ID')).toBe(id)
+    })
+  })
 
   it('starts a fresh tmux session, with the session id unchanged, when tmux no longer holds it', async () => {
     await withTmuxServer(async (target) => {
-      const cwd = mkdtempSync(join(tmpdir(), 'garden-resume-'));
-      dirs.push(cwd);
-      const staleTmuxName = basename(cwd);
-      const id = randomUUID();
+      const cwd = mkdtempSync(join(tmpdir(), 'garden-resume-'))
+      dirs.push(cwd)
+      const staleTmuxName = basename(cwd)
+      const id = randomUUID()
 
-      const projection = createProjection(fakeStore());
-      projection.dispatch({ type: 'session-registered', id, tmuxName: staleTmuxName, cwd });
-      expect(await listPanes(target)).toEqual([]);
+      const projection = createProjection(fakeStore())
+      projection.dispatch({ type: 'session-registered', id, tmuxName: staleTmuxName, cwd })
+      expect(await listPanes(target)).toEqual([])
 
       const result = await resumeSession(
         {
@@ -86,28 +86,28 @@ describe('resuming a session against real tmux', () => {
           harness: fakeClaudeHarness('/nonexistent/claude-settings.json', () => ['claude']),
         },
         { id },
-      );
+      )
 
-      expect(result.id).toBe(id);
+      expect(result.id).toBe(id)
       const panes = await until(
         'a fresh pane to appear',
         () => listPanes(target),
         (list) => list.length === 1,
-      );
-      expect(panes[0]?.session).toBe(result.tmuxName);
-      expect(projection.sessions().find((s) => s.id === id)?.tmuxName).toBe(result.tmuxName);
+      )
+      expect(panes[0]?.session).toBe(result.tmuxName)
+      expect(projection.sessions().find((s) => s.id === id)?.tmuxName).toBe(result.tmuxName)
       // The fallback path is a full tmux.newSession call, not a respawn-pane, so it needs
       // its own proof the -e flag was passed rather than inheriting the in-place case above.
-      expect(await sessionEnv(target, result.tmuxName, 'GARDEN_SESSION_ID')).toBe(id);
-    });
-  });
+      expect(await sessionEnv(target, result.tmuxName, 'GARDEN_SESSION_ID')).toBe(id)
+    })
+  })
 
   it('keeps the session alert across the pane dying on its own and the resume', async () => {
     await withTmuxServer(async (target) => {
-      const cwd = mkdtempSync(join(tmpdir(), 'garden-resume-'));
-      dirs.push(cwd);
-      const tmuxName = basename(cwd);
-      const id = randomUUID();
+      const cwd = mkdtempSync(join(tmpdir(), 'garden-resume-'))
+      dirs.push(cwd)
+      const tmuxName = basename(cwd)
+      const id = randomUUID()
 
       await newSession(target, {
         name: tmuxName,
@@ -115,23 +115,23 @@ describe('resuming a session against real tmux', () => {
         port: 4310,
         sessionId: id,
         command: ['sh', '-c', 'exit 4'],
-      });
+      })
       const [pane] = await until(
         'the seeded pane to be reported dead',
         () => listPanes(target),
         (list) => list[0]?.dead === true,
-      );
+      )
 
-      const projection = createProjection(fakeStore());
-      projection.dispatch({ type: 'session-registered', id, tmuxName, cwd });
-      const alert = raiseSessionAlert({ projection }, id, 'needs a look', Date.now());
+      const projection = createProjection(fakeStore())
+      projection.dispatch({ type: 'session-registered', id, tmuxName, cwd })
+      const alert = raiseSessionAlert({ projection }, id, 'needs a look', Date.now())
       projection.dispatch({
         type: 'tmux-snapshot',
         sessions: [{ name: tmuxName, paneDead: true, exitCode: pane?.exitCode ?? null }],
-      });
-      const alertOf = () => projection.sessions().find((s) => s.id === id)?.alert;
-      expect(projection.sessions().find((s) => s.id === id)?.liveness).toBe('dead');
-      expect(alertOf()).toEqual(alert);
+      })
+      const alertOf = () => projection.sessions().find((s) => s.id === id)?.alert
+      expect(projection.sessions().find((s) => s.id === id)?.liveness).toBe('dead')
+      expect(alertOf()).toEqual(alert)
 
       await resumeSession(
         {
@@ -141,9 +141,9 @@ describe('resuming a session against real tmux', () => {
           harness: fakeClaudeHarness('/nonexistent/claude-settings.json', () => ['claude']),
         },
         { id },
-      );
+      )
 
-      expect(alertOf()).toEqual(alert);
-    });
-  });
-});
+      expect(alertOf()).toEqual(alert)
+    })
+  })
+})

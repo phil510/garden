@@ -4,17 +4,17 @@
 
 /** What the fake claims about itself, in the terms garden surfaces per session. */
 export interface FakeTranscriptFacts {
-  readonly sessionId: string;
-  readonly cwd: string;
+  readonly sessionId: string
+  readonly cwd: string
   /** Null when the fake's cwd has no branch to report — an empty or detached repo. */
-  readonly gitBranch: string | null;
-  readonly title: string;
-  readonly prompt: string;
-  readonly recap: string;
+  readonly gitBranch: string | null
+  readonly title: string
+  readonly prompt: string
+  readonly recap: string
 }
 
 function jsonl(...lines: readonly Record<string, unknown>[]): string {
-  return lines.map((line) => `${JSON.stringify(line)}\n`).join('');
+  return lines.map((line) => `${JSON.stringify(line)}\n`).join('')
 }
 
 /**
@@ -25,13 +25,13 @@ function jsonl(...lines: readonly Record<string, unknown>[]): string {
  * line's content and the recap from the last assistant text block.
  */
 export function openingTranscript(facts: FakeTranscriptFacts, at: Date): string {
-  const timestamp = at.toISOString();
+  const timestamp = at.toISOString()
   const attributed = {
     sessionId: facts.sessionId,
     cwd: facts.cwd,
     gitBranch: facts.gitBranch,
     timestamp,
-  };
+  }
   return jsonl(
     { ...attributed, type: 'user', message: { role: 'user', content: facts.prompt } },
     { type: 'ai-title', aiTitle: facts.title, timestamp },
@@ -40,7 +40,7 @@ export function openingTranscript(facts: FakeTranscriptFacts, at: Date): string 
       type: 'assistant',
       message: { role: 'assistant', content: [{ type: 'text', text: facts.recap }] },
     },
-  );
+  )
 }
 
 /** A single assistant line appended after the opening transcript already landed — e.g. when a
@@ -55,5 +55,5 @@ export function keywordTranscriptLine(
     timestamp: at.toISOString(),
     type: 'assistant',
     message: { role: 'assistant', content: [{ type: 'text', text: recap }] },
-  });
+  })
 }

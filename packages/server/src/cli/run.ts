@@ -1,15 +1,15 @@
-import { parseArgs } from 'node:util';
-import type { ParseArgsConfig } from 'node:util';
-import type { SessionsFilter, SpawnOptions } from '@garden/shared';
+import { parseArgs } from 'node:util'
+import type { ParseArgsConfig } from 'node:util'
+import type { SessionsFilter, SpawnOptions } from '@garden/shared'
 import {
   EFFORT_LEVELS,
   isEffortLevel,
   isModelName,
   isStatus,
   parseNonNegativeInt,
-} from '@garden/shared';
-import type { Harness } from '../config.js';
-import type { CliClient, Io, ReviewRef } from './commands.js';
+} from '@garden/shared'
+import type { Harness } from '../config.js'
+import type { CliClient, Io, ReviewRef } from './commands.js'
 import {
   defaultClient,
   runAdopt,
@@ -28,13 +28,13 @@ import {
   runUnwatch,
   runWatch,
   runWatches,
-} from './commands.js';
-import { runEventsFollow } from './events.js';
-import { writeAll } from './io.js';
-import { openLifeline } from './lifeline.js';
-import { SERVER_DETACHED_FLAG } from './start.js';
-import { runStop, runStopAll, type StopAllDeps } from './stop.js';
-import { runUninstall } from './uninstall.js';
+} from './commands.js'
+import { runEventsFollow } from './events.js'
+import { writeAll } from './io.js'
+import { openLifeline } from './lifeline.js'
+import { SERVER_DETACHED_FLAG } from './start.js'
+import { runStop, runStopAll, type StopAllDeps } from './stop.js'
+import { runUninstall } from './uninstall.js'
 
 const CLI_COMMANDS = [
   'new',
@@ -52,11 +52,11 @@ const CLI_COMMANDS = [
   'events',
   'stop',
   'uninstall',
-] as const;
-export type CliCommand = (typeof CLI_COMMANDS)[number];
+] as const
+export type CliCommand = (typeof CLI_COMMANDS)[number]
 
 export function isCliCommand(command: string | undefined): command is CliCommand {
-  return command !== undefined && (CLI_COMMANDS as readonly string[]).includes(command);
+  return command !== undefined && (CLI_COMMANDS as readonly string[]).includes(command)
 }
 
 export function usageLines(): string {
@@ -68,45 +68,45 @@ export function usageLines(): string {
     'Use the full Garden UUID or an exact session name. Send is available on Codex.\n' +
     'Use at most one harness flag before the command. It overrides GARDEN_HARNESS, which defaults to claude.\n' +
     'GARDEN_PORT, GARDEN_APP_DIR, and GARDEN_TMUX_SOCKET still override the selected instance settings.\n'
-  );
+  )
 }
 
 type EntrypointArgs =
   | {
-      readonly ok: true;
-      readonly command: string | undefined;
-      readonly rest: readonly string[];
-      readonly isDetached: boolean;
-      readonly harness: Harness | undefined;
+      readonly ok: true
+      readonly command: string | undefined
+      readonly rest: readonly string[]
+      readonly isDetached: boolean
+      readonly harness: Harness | undefined
     }
-  | { readonly ok: false; readonly message: string };
+  | { readonly ok: false; readonly message: string }
 
 /** Consume the internal detached marker and harness selectors before the command. */
 export function parseEntrypointArgv(argv: readonly string[]): EntrypointArgs {
-  const isDetached = argv[0] === SERVER_DETACHED_FLAG;
-  let index = isDetached ? 1 : 0;
-  let harness: Harness | undefined;
+  const isDetached = argv[0] === SERVER_DETACHED_FLAG
+  let index = isDetached ? 1 : 0
+  let harness: Harness | undefined
 
   for (;;) {
-    const flag = argv[index];
-    if (flag !== '--claude' && flag !== '--codex') break;
-    const selected = flag === '--claude' ? 'claude' : 'codex';
+    const flag = argv[index]
+    if (flag !== '--claude' && flag !== '--codex') break
+    const selected = flag === '--claude' ? 'claude' : 'codex'
     if (harness !== undefined && harness !== selected) {
-      return { ok: false, message: 'cannot combine --claude and --codex' };
+      return { ok: false, message: 'cannot combine --claude and --codex' }
     }
-    harness = selected;
-    index++;
+    harness = selected
+    index++
   }
 
-  const [command, ...rest] = argv.slice(index);
-  return { ok: true, command, rest, isDetached, harness };
+  const [command, ...rest] = argv.slice(index)
+  return { ok: true, command, rest, isDetached, harness }
 }
 
 export type EntrypointAction =
   | { readonly kind: 'server' }
   | { readonly kind: 'cli'; readonly command: CliCommand }
   | { readonly kind: 'start' }
-  | { readonly kind: 'unknown'; readonly command: string };
+  | { readonly kind: 'unknown'; readonly command: string }
 
 /**
  * Checking `isCliCommand` before `isServerProcess` is the fix: a known subcommand always
@@ -124,21 +124,21 @@ export function decideEntrypointAction(
   isServerProcess: boolean,
 ): EntrypointAction {
   if (isCliCommand(command)) {
-    return { kind: 'cli', command };
+    return { kind: 'cli', command }
   }
   if (command === undefined) {
-    return isServerProcess ? { kind: 'server' } : { kind: 'start' };
+    return isServerProcess ? { kind: 'server' } : { kind: 'start' }
   }
-  return { kind: 'unknown', command };
+  return { kind: 'unknown', command }
 }
 
 async function usage(io: Io, line: string): Promise<1> {
-  await writeAll(io.stderr, `garden: usage: ${line}\n`);
-  return 1;
+  await writeAll(io.stderr, `garden: usage: ${line}\n`)
+  return 1
 }
 
 type LsFilterResult =
-  { ok: true; filter: SessionsFilter | undefined } | { ok: false; message: string };
+  { ok: true; filter: SessionsFilter | undefined } | { ok: false; message: string }
 
 /** `parseArgs` has no numeric option type, so `--since-days`/`--max-recap-chars` arrive as
  *  strings here and are parsed and range-checked before `runLs` sees them — a non-numeric
@@ -147,72 +147,72 @@ type LsFilterResult =
  *  `projection.sessions`, so a bare `garden ls` is still bounded by the 7-day/500-char
  *  defaults rather than unfiltered. */
 function parseLsFilter(values: {
-  'since-days': string | undefined;
-  'max-recap-chars': string | undefined;
-  live: boolean;
-  status: string | undefined;
-  swarm: string | undefined;
+  'since-days': string | undefined
+  'max-recap-chars': string | undefined
+  live: boolean
+  status: string | undefined
+  swarm: string | undefined
 }): LsFilterResult {
-  const filter: SessionsFilter = {};
-  let hasAny = false;
+  const filter: SessionsFilter = {}
+  let hasAny = false
 
   if (values['since-days'] !== undefined) {
-    const sinceDays = parseNonNegativeInt(values['since-days']);
+    const sinceDays = parseNonNegativeInt(values['since-days'])
     if (sinceDays === undefined)
-      return { ok: false, message: 'garden ls --since-days <non-negative integer days>' };
-    filter.sinceDays = sinceDays;
-    hasAny = true;
+      return { ok: false, message: 'garden ls --since-days <non-negative integer days>' }
+    filter.sinceDays = sinceDays
+    hasAny = true
   }
 
   if (values['max-recap-chars'] !== undefined) {
-    const maxRecapChars = parseNonNegativeInt(values['max-recap-chars']);
+    const maxRecapChars = parseNonNegativeInt(values['max-recap-chars'])
     if (maxRecapChars === undefined)
-      return { ok: false, message: 'garden ls --max-recap-chars <non-negative integer chars>' };
-    filter.maxRecapChars = maxRecapChars;
-    hasAny = true;
+      return { ok: false, message: 'garden ls --max-recap-chars <non-negative integer chars>' }
+    filter.maxRecapChars = maxRecapChars
+    hasAny = true
   }
 
   if (values.live) {
-    filter.live = true;
-    hasAny = true;
+    filter.live = true
+    hasAny = true
   }
 
   if (values.status !== undefined) {
     if (!isStatus(values.status))
-      return { ok: false, message: 'garden ls --status <working|waiting|needs-approval|unknown>' };
-    filter.status = values.status;
-    hasAny = true;
+      return { ok: false, message: 'garden ls --status <working|waiting|needs-approval|unknown>' }
+    filter.status = values.status
+    hasAny = true
   }
 
   if (values.swarm !== undefined) {
-    filter.swarmId = values.swarm;
-    hasAny = true;
+    filter.swarmId = values.swarm
+    hasAny = true
   }
 
-  return { ok: true, filter: hasAny ? filter : undefined };
+  return { ok: true, filter: hasAny ? filter : undefined }
 }
 
-type SpawnOptionsResult = { ok: true; options: SpawnOptions } | { ok: false };
+type SpawnOptionsResult = { ok: true; options: SpawnOptions } | { ok: false }
 
 /** `--model` / `--effort` for `new` and `resume`, checked before any request is made so a bad
  *  value never reaches the server. */
 function parseSpawnOptions(values: {
-  model?: string | undefined;
-  effort?: string | undefined;
+  model?: string | undefined
+  effort?: string | undefined
 }): SpawnOptionsResult {
-  const { model, effort } = values;
-  if (model !== undefined && !isModelName(model)) return { ok: false };
-  if (effort !== undefined && !isEffortLevel(effort)) return { ok: false };
+  const { model, effort } = values
+  if (model !== undefined && !isModelName(model)) return { ok: false }
+  if (effort !== undefined && !isEffortLevel(effort)) return { ok: false }
   return {
     ok: true,
     options: {
       ...(model === undefined ? {} : { model }),
       ...(effort === undefined ? {} : { effort }),
     },
-  };
+  }
 }
 
-const SPAWN_FLAGS_USAGE = `[--model <model>] [--effort <${EFFORT_LEVELS.join('|')}>]`;
+const SPAWN_FLAGS_USAGE = `[--model <model>] [--effort <${EFFORT_LEVELS.join('|')}>]`
 
 /** `parseArgs` throws synchronously — not a rejected promise a caller can inspect — when a
  *  string-typed option is the last token with no following value (e.g. a trailing
@@ -223,29 +223,29 @@ function tryParseArgs<T extends ParseArgsConfig>(
   config: T,
 ): { ok: true; result: ReturnType<typeof parseArgs<T>> } | { ok: false; message: string } {
   try {
-    return { ok: true, result: parseArgs(config) };
+    return { ok: true, result: parseArgs(config) }
   } catch (error) {
-    return { ok: false, message: error instanceof Error ? error.message : String(error) };
+    return { ok: false, message: error instanceof Error ? error.message : String(error) }
   }
 }
 
 /** A PR number is a positive integer; `parseArgs` and `Number` would accept `1e3` or `0x10`. */
 function parsePr(value: string | undefined): number | undefined {
-  if (value === undefined || !/^\d+$/.test(value)) return undefined;
-  const pr = Number(value);
-  return Number.isSafeInteger(pr) && pr > 0 ? pr : undefined;
+  if (value === undefined || !/^\d+$/.test(value)) return undefined
+  const pr = Number(value)
+  return Number.isSafeInteger(pr) && pr > 0 ? pr : undefined
 }
 
 /** `owner/name#N`, as `reviews list` prints it. */
 function parseReviewRef(value: string | undefined): ReviewRef | undefined {
-  const match = /^([^/#\s]+)\/([^/#\s]+)#(\d+)$/.exec(value ?? '');
-  const number = parsePr(match?.[3]);
+  const match = /^([^/#\s]+)\/([^/#\s]+)#(\d+)$/.exec(value ?? '')
+  const number = parsePr(match?.[3])
   return match === null || number === undefined
     ? undefined
-    : { owner: match[1] ?? '', name: match[2] ?? '', number };
+    : { owner: match[1] ?? '', name: match[2] ?? '', number }
 }
 
-const SESSION_FLAG_USAGE = '[--session <id>]';
+const SESSION_FLAG_USAGE = '[--session <id>]'
 
 /** `rest` is `garden <command>`'s remaining argv: positionals plus `--json`. `stopAllDeps` is
  *  not threaded through by any real caller — it exists so tests can dispatch `stop --all`
@@ -280,18 +280,18 @@ export async function runCli(
       'forward-to-session': { type: 'boolean', default: false },
     },
     allowPositionals: true,
-  });
-  if (!parsedArgs.ok) return usage(io, parsedArgs.message);
-  const { values, positionals } = parsedArgs.result;
-  const json = values.json === true;
+  })
+  if (!parsedArgs.ok) return usage(io, parsedArgs.message)
+  const { values, positionals } = parsedArgs.result
+  const json = values.json === true
 
   switch (command) {
     case 'new': {
-      if (positionals[0] === undefined) return usage(io, 'garden new <dir>');
-      const spawn = parseSpawnOptions(values);
+      if (positionals[0] === undefined) return usage(io, 'garden new <dir>')
+      const spawn = parseSpawnOptions(values)
       return spawn.ok
         ? runNew(io, positionals[0], json, client, spawn.options)
-        : usage(io, `garden new <dir> ${SPAWN_FLAGS_USAGE}`);
+        : usage(io, `garden new <dir> ${SPAWN_FLAGS_USAGE}`)
     }
     case 'ls': {
       const parsed = parseLsFilter({
@@ -300,33 +300,33 @@ export async function runCli(
         live: values.live,
         status: values.status,
         swarm: values.swarm,
-      });
-      return parsed.ok ? runLs(io, json, client, parsed.filter) : usage(io, parsed.message);
+      })
+      return parsed.ok ? runLs(io, json, client, parsed.filter) : usage(io, parsed.message)
     }
     case 'send':
       return positionals.length !== 2 || !positionals[0] || !positionals[1]?.trim()
         ? usage(io, 'garden send <id-or-name> <message>')
-        : runSend(io, positionals[0], positionals[1], json, client);
+        : runSend(io, positionals[0], positionals[1], json, client)
     case 'kill':
       return positionals[0] === undefined
         ? usage(io, 'garden kill <id-or-name>')
-        : runKill(io, positionals[0], json, client);
+        : runKill(io, positionals[0], json, client)
     case 'resume': {
-      if (positionals[0] === undefined) return usage(io, 'garden resume <id-or-name>');
-      const spawn = parseSpawnOptions(values);
+      if (positionals[0] === undefined) return usage(io, 'garden resume <id-or-name>')
+      const spawn = parseSpawnOptions(values)
       return spawn.ok
         ? runResume(io, positionals[0], json, client, spawn.options)
-        : usage(io, `garden resume <id-or-name> ${SPAWN_FLAGS_USAGE}`);
+        : usage(io, `garden resume <id-or-name> ${SPAWN_FLAGS_USAGE}`)
     }
     case 'adopt':
       return positionals[0] === undefined
         ? usage(io, 'garden adopt <id-or-name>')
-        : runAdopt(io, positionals[0], json, client);
+        : runAdopt(io, positionals[0], json, client)
     case 'watch': {
-      const pr = parsePr(positionals[0]);
-      const form = `garden watch <pr> [--repo <owner/name>] [--on <kinds>] [--ignore-check <name>]... [--unignore-check <name>]... ${SESSION_FLAG_USAGE}`;
-      if (pr === undefined) return usage(io, form);
-      const kinds = values.on === undefined ? undefined : values.on.split(',');
+      const pr = parsePr(positionals[0])
+      const form = `garden watch <pr> [--repo <owner/name>] [--on <kinds>] [--ignore-check <name>]... [--unignore-check <name>]... ${SESSION_FLAG_USAGE}`
+      if (pr === undefined) return usage(io, form)
+      const kinds = values.on === undefined ? undefined : values.on.split(',')
       return runWatch(
         io,
         {
@@ -340,18 +340,18 @@ export async function runCli(
         },
         json,
         client,
-      );
+      )
     }
     case 'unwatch': {
-      const pr = values.all ? 'all' : parsePr(positionals[0]);
+      const pr = values.all ? 'all' : parsePr(positionals[0])
       if (pr === undefined)
-        return usage(io, `garden unwatch <pr> [--repo <owner/name>] ${SESSION_FLAG_USAGE} | --all`);
-      return runUnwatch(io, { env, session: values.session, pr, repo: values.repo }, json, client);
+        return usage(io, `garden unwatch <pr> [--repo <owner/name>] ${SESSION_FLAG_USAGE} | --all`)
+      return runUnwatch(io, { env, session: values.session, pr, repo: values.repo }, json, client)
     }
     case 'watches':
-      return runWatches(io, { env, session: values.session }, json, client);
+      return runWatches(io, { env, session: values.session }, json, client)
     case 'alert': {
-      const [text, ...extra] = positionals;
+      const [text, ...extra] = positionals
       // `--session` is parsed for every command; honouring or ignoring it here would let a
       // caller think it alerted another session.
       if (
@@ -360,37 +360,36 @@ export async function runCli(
         text.trim() === '' ||
         extra.length > 0
       )
-        return usage(io, 'garden alert <text> | garden alert clear');
+        return usage(io, 'garden alert <text> | garden alert clear')
       return text === 'clear'
         ? runAlertClear(io, { env }, json, client)
-        : runAlert(io, { env, text }, json, client);
+        : runAlert(io, { env, text }, json, client)
     }
     case 'digest':
       return positionals[0] === undefined
         ? usage(io, 'garden digest <id> [--json]')
-        : runDigest(io, positionals[0], json, client);
+        : runDigest(io, positionals[0], json, client)
     case 'reviews': {
-      const [verb, target, ...extra] = positionals;
-      const form = (v: string, tail = '') => `garden reviews ${v} <owner/name#N>${tail}`;
+      const [verb, target, ...extra] = positionals
+      const form = (v: string, tail = '') => `garden reviews ${v} <owner/name#N>${tail}`
       if (verb === 'list') {
         return target !== undefined || values.session !== undefined
           ? usage(io, 'garden reviews list')
-          : runReviewsList(io, json, client);
+          : runReviewsList(io, json, client)
       }
       if (verb !== 'start' && verb !== 'claim' && verb !== 'dismiss')
-        return usage(io, 'garden reviews <list | start | claim | dismiss>');
-      const ref = parseReviewRef(target);
-      const claiming = verb === 'claim';
+        return usage(io, 'garden reviews <list | start | claim | dismiss>')
+      const ref = parseReviewRef(target)
+      const claiming = verb === 'claim'
       if (ref === undefined || extra.length > 0 || (!claiming && values.session !== undefined))
-        return usage(io, form(verb, claiming ? ` ${SESSION_FLAG_USAGE}` : ''));
-      if (claiming) return runReviewsClaim(io, { env, session: values.session, ref }, json, client);
+        return usage(io, form(verb, claiming ? ` ${SESSION_FLAG_USAGE}` : ''))
+      if (claiming) return runReviewsClaim(io, { env, session: values.session, ref }, json, client)
       return verb === 'start'
         ? runReviewsStart(io, ref, json, client)
-        : runReviewsDismiss(io, ref, json, client);
+        : runReviewsDismiss(io, ref, json, client)
     }
     case 'events': {
-      if (!values.follow || values.session !== undefined)
-        return usage(io, 'garden events --follow');
+      if (!values.follow || values.session !== undefined) return usage(io, 'garden events --follow')
       if (
         values['forward-to-session'] &&
         (env.GARDEN_HARNESS !== 'codex' || !env.GARDEN_SESSION_ID)
@@ -398,8 +397,8 @@ export async function runCli(
         return usage(
           io,
           'garden events --follow --forward-to-session requires a Codex garden session',
-        );
-      const { out, gone } = openLifeline();
+        )
+      const { out, gone } = openLifeline()
       return runEventsFollow({
         env,
         out,
@@ -408,11 +407,11 @@ export async function runCli(
         ...(values['forward-to-session']
           ? { forward: (id, line, signal) => client.sendSessionMessage(id, line, signal) }
           : {}),
-      });
+      })
     }
     case 'stop':
-      return values.all === true ? runStopAll(io, values.yes === true, stopAllDeps) : runStop(io);
+      return values.all === true ? runStopAll(io, values.yes === true, stopAllDeps) : runStop(io)
     case 'uninstall':
-      return runUninstall(io, values.yes === true);
+      return runUninstall(io, values.yes === true)
   }
 }

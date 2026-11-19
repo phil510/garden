@@ -1,20 +1,20 @@
-import { useDraggable, useDroppable } from '@dnd-kit/core';
-import type { IDockviewPanelProps } from 'dockview-react';
-import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react';
-import { killSession, resumeSession, updateUiState } from '../../api/client';
-import { reportCommandFailure } from '../../api/reportCommandFailure';
-import { displayStatus } from '../../components/displayStatus';
-import { StatusPill } from '../../components/StatusPill';
-import { useLocalStore } from '../../state/localStore';
-import { useRefusedAttachStore } from '../../state/refusedAttachStore';
-import { useSessionStore } from '../../state/sessionStore';
-import { useUiStore } from '../../state/uiStore';
-import { attachPane, detachPane } from '../../terminals/registry';
-import { togglePaneMaximised } from './applyLayout';
-import { deadPaneStatusLine } from './deadPaneStatus';
-import { paneTitle, swarmChipFor } from './paneTitle';
-import { removeFromStage } from './removeFromStage';
-import { slotFromEmptySlotId } from './presetLayout';
+import { useDraggable, useDroppable } from '@dnd-kit/core'
+import type { IDockviewPanelProps } from 'dockview-react'
+import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react'
+import { killSession, resumeSession, updateUiState } from '../../api/client'
+import { reportCommandFailure } from '../../api/reportCommandFailure'
+import { displayStatus } from '../../components/displayStatus'
+import { StatusPill } from '../../components/StatusPill'
+import { useLocalStore } from '../../state/localStore'
+import { useRefusedAttachStore } from '../../state/refusedAttachStore'
+import { useSessionStore } from '../../state/sessionStore'
+import { useUiStore } from '../../state/uiStore'
+import { attachPane, detachPane } from '../../terminals/registry'
+import { togglePaneMaximised } from './applyLayout'
+import { deadPaneStatusLine } from './deadPaneStatus'
+import { paneTitle, swarmChipFor } from './paneTitle'
+import { removeFromStage } from './removeFromStage'
+import { slotFromEmptySlotId } from './presetLayout'
 
 const DEAD_ICON = (
   <svg
@@ -28,7 +28,7 @@ const DEAD_ICON = (
     <circle cx="12" cy="12" r="9" />
     <path d="M8 12h8" />
   </svg>
-);
+)
 
 const REFUSED_ICON = (
   <svg
@@ -42,39 +42,39 @@ const REFUSED_ICON = (
     <rect x="3" y="4" width="18" height="14" rx="2" />
     <path d="M8 21h8M12 18v3" />
   </svg>
-);
+)
 
 interface MetaRowProps {
-  label: string;
-  value: string | null;
+  label: string
+  value: string | null
 }
 
 function MetaRow({ label, value }: MetaRowProps) {
   // A session momentarily has an empty cwd between creation and its first transcript read
   // (reduce.ts's `blank()`); an empty value reads as absent, the same as null.
-  if (value === null || value === '') return null;
+  if (value === null || value === '') return null
   return (
     <div className="pane-meta-row">
       <span className="pane-meta-k">{label}:</span>
       <span className="pane-meta-v">{value}</span>
     </div>
-  );
+  )
 }
 
 /** The panel id is the session id, so the pane needs nothing from its dockview params. */
 export function StagePane(props: IDockviewPanelProps) {
-  const session = useSessionStore((state) => state.sessions[props.api.id]);
-  const uiState = useUiStore((state) => state.uiState);
-  const slot = uiState.slots.indexOf(props.api.id);
-  const focused = slot !== -1 && slot === uiState.focusedSlot;
-  const live = session?.liveness === 'live';
-  const refused = useRefusedAttachStore((state) => state.refused.has(props.api.id));
-  const clearRefused = useRefusedAttachStore((state) => state.clearRefused);
-  const connectionEpoch = useLocalStore((state) => state.connectionEpoch);
-  const setSidebarMode = useLocalStore((state) => state.setSidebarMode);
-  const setSelectedSwarmId = useLocalStore((state) => state.setSelectedSwarmId);
-  const terminalRef = useRef<HTMLDivElement>(null);
-  const [confirmingKill, setConfirmingKill] = useState(false);
+  const session = useSessionStore((state) => state.sessions[props.api.id])
+  const uiState = useUiStore((state) => state.uiState)
+  const slot = uiState.slots.indexOf(props.api.id)
+  const focused = slot !== -1 && slot === uiState.focusedSlot
+  const live = session?.liveness === 'live'
+  const refused = useRefusedAttachStore((state) => state.refused.has(props.api.id))
+  const clearRefused = useRefusedAttachStore((state) => state.clearRefused)
+  const connectionEpoch = useLocalStore((state) => state.connectionEpoch)
+  const setSidebarMode = useLocalStore((state) => state.setSidebarMode)
+  const setSelectedSwarmId = useLocalStore((state) => state.setSelectedSwarmId)
+  const terminalRef = useRef<HTMLDivElement>(null)
+  const [confirmingKill, setConfirmingKill] = useState(false)
 
   const {
     setNodeRef: setDraggableRef,
@@ -83,19 +83,19 @@ export function StagePane(props: IDockviewPanelProps) {
     isDragging,
   } = useDraggable({
     id: props.api.id,
-  });
-  const { setNodeRef: setDroppableRef, isOver } = useDroppable({ id: String(slot) });
+  })
+  const { setNodeRef: setDroppableRef, isOver } = useDroppable({ id: String(slot) })
 
   // Stable across renders: an inline closure here would make dnd-kit's own setNodeRef see a
   // "new" ref every render, tearing down and re-registering its resize observer even when
   // nothing about this pane's DOM node changed.
   const setNodeRef = useCallback(
     (node: HTMLDivElement | null) => {
-      setDraggableRef(node);
-      setDroppableRef(node);
+      setDraggableRef(node)
+      setDroppableRef(node)
     },
     [setDraggableRef, setDroppableRef],
-  );
+  )
 
   // Mounts the session's terminal into this pane's container while it is live. Disposal is
   // deliberately not this cleanup: dockview reuses a panel across a layout change, remounting
@@ -103,92 +103,92 @@ export function StagePane(props: IDockviewPanelProps) {
   // lifetime — Stage's `onDidRemovePanel` and the effect below. A refused pane has no container
   // to mount into; clearing the refusal re-runs this effect and attaches again.
   useEffect(() => {
-    if (!live || refused) return;
-    const container = terminalRef.current;
-    if (container === null) return;
-    attachPane(props.api.id, container, connectionEpoch);
-  }, [props.api.id, live, refused, connectionEpoch]);
+    if (!live || refused) return
+    const container = terminalRef.current
+    if (container === null) return
+    attachPane(props.api.id, container, connectionEpoch)
+  }, [props.api.id, live, refused, connectionEpoch])
 
   // Nothing renders a dead session's bytes, so its pane goes rather than staying warm behind
   // the placeholder. Fires on the render that stopped being live, not on unmount.
   useEffect(() => {
-    if (live) return;
-    detachPane(props.api.id);
-  }, [props.api.id, live]);
+    if (live) return
+    detachPane(props.api.id)
+  }, [props.api.id, live])
 
   // The panel is keyed by session id, so the same component instance survives a kill/resume
   // round trip. Without this, an armed-but-unconfirmed kill would still be armed after the
   // session came back live, defeating the confirmation step for the next click.
   useEffect(() => {
-    if (live) return;
-    setConfirmingKill(false);
-  }, [live]);
+    if (live) return
+    setConfirmingKill(false)
+  }, [live])
 
   // Every hook above must run unconditionally, so the "no session" bail-out sits here rather
   // than at the top — everything below can then treat `session` as defined.
-  if (session === undefined) return null;
+  if (session === undefined) return null
 
-  const swarmChip = swarmChipFor(session, uiState.placements, uiState.swarms);
+  const swarmChip = swarmChipFor(session, uiState.placements, uiState.swarms)
 
   function goToSwarm(event: MouseEvent) {
-    event.stopPropagation();
-    if (swarmChip === null) return;
-    setSidebarMode('swarms');
-    setSelectedSwarmId(swarmChip.id);
+    event.stopPropagation()
+    if (swarmChip === null) return
+    setSidebarMode('swarms')
+    setSelectedSwarmId(swarmChip.id)
   }
 
   function focus() {
-    if (slot === -1 || focused) return;
-    updateUiState({ focusedSlot: slot }).catch(reportCommandFailure);
+    if (slot === -1 || focused) return
+    updateUiState({ focusedSlot: slot }).catch(reportCommandFailure)
   }
 
   // Maximising hides the siblings rather than unmounting them, so their xterm instances and
   // sockets carry on running behind the maximised pane.
   function toggleMaximise(event: MouseEvent) {
-    event.stopPropagation();
-    togglePaneMaximised(props.api, focus);
+    event.stopPropagation()
+    togglePaneMaximised(props.api, focus)
   }
 
   function close(event: MouseEvent) {
-    event.stopPropagation();
+    event.stopPropagation()
     updateUiState(removeFromStage(uiState.slots, uiState.focusedSlot, props.api.id)).catch(
       reportCommandFailure,
-    );
+    )
   }
 
   function resume(event: MouseEvent) {
-    event.stopPropagation();
-    resumeSession(props.api.id).catch(reportCommandFailure);
+    event.stopPropagation()
+    resumeSession(props.api.id).catch(reportCommandFailure)
   }
 
   function tryAgain(event: MouseEvent) {
-    event.stopPropagation();
-    clearRefused(props.api.id);
+    event.stopPropagation()
+    clearRefused(props.api.id)
   }
 
   function handleKill(event: MouseEvent) {
-    event.stopPropagation();
-    setConfirmingKill(true);
+    event.stopPropagation()
+    setConfirmingKill(true)
   }
 
   function handleKillCancel(event: MouseEvent) {
-    event.stopPropagation();
-    setConfirmingKill(false);
+    event.stopPropagation()
+    setConfirmingKill(false)
   }
 
   function handleKillConfirm(event: MouseEvent) {
-    event.stopPropagation();
+    event.stopPropagation()
     // Cleared on success, not optimistically: a failed kill then leaves the confirm/cancel
     // pair on screen instead of disappearing as though it worked while the session stays live.
     killSession(props.api.id)
       .then(() => setConfirmingKill(false))
-      .catch(reportCommandFailure);
+      .catch(reportCommandFailure)
   }
 
-  const classes = ['pane'];
-  if (focused) classes.push('focused');
-  if (isDragging) classes.push('dragging');
-  if (isOver) classes.push('drop-target');
+  const classes = ['pane']
+  if (focused) classes.push('focused')
+  if (isDragging) classes.push('dragging')
+  if (isOver) classes.push('drop-target')
 
   return (
     <div
@@ -300,17 +300,17 @@ export function StagePane(props: IDockviewPanelProps) {
         </div>
       )}
     </div>
-  );
+  )
 }
 
 export function EmptySlotPane(props: IDockviewPanelProps) {
-  const slot = slotFromEmptySlotId(props.api.id);
-  const { setNodeRef, isOver } = useDroppable({ id: String(slot) });
-  const className = isOver ? 'pane empty drop-target' : 'pane empty';
+  const slot = slotFromEmptySlotId(props.api.id)
+  const { setNodeRef, isOver } = useDroppable({ id: String(slot) })
+  const className = isOver ? 'pane empty drop-target' : 'pane empty'
 
   return (
     <div ref={setNodeRef} className={className}>
       Empty slot — click a session to fill it
     </div>
-  );
+  )
 }

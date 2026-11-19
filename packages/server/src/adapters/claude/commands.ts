@@ -1,11 +1,11 @@
-import type { EffortLevel } from '@garden/shared';
+import type { EffortLevel } from '@garden/shared'
 
 export interface ClaudeLaunchOptions {
-  readonly id: string;
-  readonly cwd: string;
-  readonly model?: string;
-  readonly effort?: EffortLevel;
-  readonly permissionMode?: 'default' | 'bypassPermissions';
+  readonly id: string
+  readonly cwd: string
+  readonly model?: string
+  readonly effort?: EffortLevel
+  readonly permissionMode?: 'default' | 'bypassPermissions'
 }
 
 export function claudeCommand(
@@ -25,5 +25,5 @@ export function claudeCommand(
     ...(request.effort === undefined ? [] : ['--effort', request.effort]),
     '--settings',
     settingsPath,
-  ];
+  ]
 }

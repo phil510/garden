@@ -268,8 +268,8 @@ alias binds a different conversation. The Garden handle stays with the alias.
 `app/projection.ts` owns the session state map and is the **only** writer of it.
 
 ```ts
-dispatch(event); // reduce(state, event) -> diff(prev, next) -> notify subscribers
-subscribe(fn); // the events WebSocket subscribes; so does anything else that cares
+dispatch(event) // reduce(state, event) -> diff(prev, next) -> notify subscribers
+subscribe(fn) // the events WebSocket subscribes; so does anything else that cares
 ```
 
 Adapters never mutate projection state. They own their I/O bookkeeping, including Codex

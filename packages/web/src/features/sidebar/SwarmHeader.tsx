@@ -1,31 +1,31 @@
-import { useDroppable, type DraggableAttributes } from '@dnd-kit/core';
-import { useSortable } from '@dnd-kit/sortable';
+import { useDroppable, type DraggableAttributes } from '@dnd-kit/core'
+import { useSortable } from '@dnd-kit/sortable'
 import {
   useEffect,
   useRef,
   useState,
   type KeyboardEvent,
   type MouseEvent as ReactMouseEvent,
-} from 'react';
-import { archiveSwarm, deleteSwarm, renameSwarm, unarchiveSwarm } from '../../api/client';
-import { reportCommandFailure } from '../../api/reportCommandFailure';
-import { ContextMenu, type ContextMenuItem } from '../../components/ContextMenu';
-import type { SwarmGroup } from './groupSwarms';
-import { resolveSwarmRename } from './resolveSwarmRename';
+} from 'react'
+import { archiveSwarm, deleteSwarm, renameSwarm, unarchiveSwarm } from '../../api/client'
+import { reportCommandFailure } from '../../api/reportCommandFailure'
+import { ContextMenu, type ContextMenuItem } from '../../components/ContextMenu'
+import type { SwarmGroup } from './groupSwarms'
+import { resolveSwarmRename } from './resolveSwarmRename'
 import {
   swarmHeaderMenuAction,
   swarmHeaderMenuItems,
   type SwarmMenuConfirming,
-} from './swarmHeaderMenuItems';
+} from './swarmHeaderMenuItems'
 
 interface SwarmHeaderProps {
-  swarm: Pick<SwarmGroup, 'swarmId' | 'name' | 'liveCount' | 'collapsed' | 'archived'>;
-  onToggle: () => void;
-  className?: string;
+  swarm: Pick<SwarmGroup, 'swarmId' | 'name' | 'liveCount' | 'collapsed' | 'archived'>
+  onToggle: () => void
+  className?: string
   /** `useSortable`'s drag attributes/listeners for an active swarm, spread onto the header
    *  div; omitted for a Finished-section entry, which isn't reorderable. */
-  dragAttributes?: DraggableAttributes;
-  dragListeners?: ReturnType<typeof useSortable>['listeners'];
+  dragAttributes?: DraggableAttributes
+  dragListeners?: ReturnType<typeof useSortable>['listeners']
 }
 
 /** The swarm-header row shared by an active swarm and a Finished-section entry: chevron,
@@ -38,15 +38,15 @@ export function SwarmHeader({
   dragAttributes,
   dragListeners,
 }: SwarmHeaderProps) {
-  const [renaming, setRenaming] = useState(false);
-  const [draft, setDraft] = useState(swarm.name);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [renaming, setRenaming] = useState(false)
+  const [draft, setDraft] = useState(swarm.name)
+  const inputRef = useRef<HTMLInputElement>(null)
   // Whether Enter/Escape has already resolved the open rename session (commit or cancel).
   // Removing a focused input from the DOM can still fire a trailing native blur afterward —
   // this guards that stray onBlur from re-committing (or, after Escape, committing at all).
-  const renameSessionActiveRef = useRef(false);
-  const [contextMenuPoint, setContextMenuPoint] = useState<{ x: number; y: number } | null>(null);
-  const [confirming, setConfirming] = useState<SwarmMenuConfirming>(null);
+  const renameSessionActiveRef = useRef(false)
+  const [contextMenuPoint, setContextMenuPoint] = useState<{ x: number; y: number } | null>(null)
+  const [confirming, setConfirming] = useState<SwarmMenuConfirming>(null)
   // A separate droppable from the group's own header-reorder sortable (which shares the group
   // div and the plain swarmId as its id) — this is specifically "drop a session onto this
   // header", targeted at the header alone, not the whole swarm-group. Disabled (never a valid
@@ -55,88 +55,88 @@ export function SwarmHeader({
     id: `swarm-header:${swarm.swarmId}`,
     disabled: dragAttributes === undefined,
     data: { type: 'swarm-header', swarmId: swarm.swarmId },
-  });
+  })
 
   useEffect(() => {
-    if (!renaming) return;
-    inputRef.current?.focus();
-    inputRef.current?.select();
-  }, [renaming]);
+    if (!renaming) return
+    inputRef.current?.focus()
+    inputRef.current?.select()
+  }, [renaming])
 
   function startRenaming() {
-    setDraft(swarm.name);
-    setRenaming(true);
-    renameSessionActiveRef.current = true;
+    setDraft(swarm.name)
+    setRenaming(true)
+    renameSessionActiveRef.current = true
   }
 
   function commitRename() {
-    if (!renameSessionActiveRef.current) return;
-    renameSessionActiveRef.current = false;
-    setRenaming(false);
-    const name = resolveSwarmRename(swarm.name, draft);
-    if (name === null) return;
-    renameSwarm(swarm.swarmId, name).catch(reportCommandFailure);
+    if (!renameSessionActiveRef.current) return
+    renameSessionActiveRef.current = false
+    setRenaming(false)
+    const name = resolveSwarmRename(swarm.name, draft)
+    if (name === null) return
+    renameSwarm(swarm.swarmId, name).catch(reportCommandFailure)
   }
 
   function cancelRename() {
-    renameSessionActiveRef.current = false;
-    setRenaming(false);
+    renameSessionActiveRef.current = false
+    setRenaming(false)
   }
 
   function onHeaderClick(event: ReactMouseEvent<HTMLDivElement>) {
     // A click landing on the name (or its rename input) never toggles collapse, whether it's
     // the first or second click of a double-click.
-    if (event.target instanceof Element && event.target.closest('[data-rename]') !== null) return;
-    onToggle();
+    if (event.target instanceof Element && event.target.closest('[data-rename]') !== null) return
+    onToggle()
   }
 
   function onHeaderKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    if (event.key !== 'Enter' && event.key !== ' ') return;
-    event.preventDefault();
-    onToggle();
+    if (event.key !== 'Enter' && event.key !== ' ') return
+    event.preventDefault()
+    onToggle()
   }
 
   function onHeaderContextMenu(event: ReactMouseEvent<HTMLDivElement>) {
-    event.preventDefault();
-    event.stopPropagation();
-    setConfirming(null);
-    setContextMenuPoint({ x: event.clientX, y: event.clientY });
+    event.preventDefault()
+    event.stopPropagation()
+    setConfirming(null)
+    setContextMenuPoint({ x: event.clientX, y: event.clientY })
   }
 
   function closeContextMenu() {
-    setContextMenuPoint(null);
-    setConfirming(null);
+    setContextMenuPoint(null)
+    setConfirming(null)
   }
 
   // Stopped from bubbling to the header div: otherwise a Space in the name is swallowed by
   // the header's Space-toggles-collapse handler, and dragging to select text starts a header
   // reorder once the pointer sensor's 8px threshold is crossed.
   function stopBubbling(event: ReactMouseEvent) {
-    event.stopPropagation();
+    event.stopPropagation()
   }
 
   function onInputKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    event.stopPropagation();
-    if (event.key === 'Enter') commitRename();
-    else if (event.key === 'Escape') cancelRename();
+    event.stopPropagation()
+    if (event.key === 'Enter') commitRename()
+    else if (event.key === 'Escape') cancelRename()
   }
 
   function handleMenuSelect(key: string) {
-    const result = swarmHeaderMenuAction(key);
-    setConfirming(result.confirming);
-    if (result.act === 'rename') startRenaming();
+    const result = swarmHeaderMenuAction(key)
+    setConfirming(result.confirming)
+    if (result.act === 'rename') startRenaming()
     if (result.act === 'toggle-archive') {
-      (swarm.archived ? unarchiveSwarm(swarm.swarmId) : archiveSwarm(swarm.swarmId)).catch(
+      ;(swarm.archived ? unarchiveSwarm(swarm.swarmId) : archiveSwarm(swarm.swarmId)).catch(
         reportCommandFailure,
-      );
+      )
     }
-    if (result.act === 'delete') deleteSwarm(swarm.swarmId).catch(reportCommandFailure);
-    if (result.act !== null) closeContextMenu();
+    if (result.act === 'delete') deleteSwarm(swarm.swarmId).catch(reportCommandFailure)
+    if (result.act !== null) closeContextMenu()
   }
 
   const menuItems: ContextMenuItem[] = swarmHeaderMenuItems(swarm.archived, confirming).map(
     (item) => ({ ...item, onSelect: () => handleMenuSelect(item.key) }),
-  );
+  )
 
   return (
     <div
@@ -181,5 +181,5 @@ export function SwarmHeader({
         />
       )}
     </div>
-  );
+  )
 }

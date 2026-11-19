@@ -1,113 +1,113 @@
-import type { Delta, SessionsFilter, SessionState, UiState, UiStateRequest } from '@garden/shared';
-import { diff } from '../domain/diff.js';
-import { filterBySwarm, mergePlacements } from '../domain/placements.js';
-import { initialState, reduce } from '../domain/reduce.js';
-import { filterSessions } from '../domain/sessionsFilter.js';
-import { resolveSwarmId } from '../domain/swarms.js';
-import { switchPreset } from '../domain/stage.js';
-import type { GardenEvent } from '../domain/types.js';
-import type { OverlayState, StorePort } from './ports.js';
+import type { Delta, SessionsFilter, SessionState, UiState, UiStateRequest } from '@garden/shared'
+import { diff } from '../domain/diff.js'
+import { filterBySwarm, mergePlacements } from '../domain/placements.js'
+import { initialState, reduce } from '../domain/reduce.js'
+import { filterSessions } from '../domain/sessionsFilter.js'
+import { resolveSwarmId } from '../domain/swarms.js'
+import { switchPreset } from '../domain/stage.js'
+import type { GardenEvent } from '../domain/types.js'
+import type { OverlayState, StorePort } from './ports.js'
 
 /** A resolved single-session placement lookup for server-internal, non-UI callers (e.g. the
  *  CLI) that want the swarm walk already done rather than re-implementing `resolveSwarmId`
  *  themselves, the way the web sidebar does over the raw `UiState.placements` map. */
 export interface ResolvedPlacement {
-  parent?: string;
-  swarmId?: string;
-  topLevelSwarmId?: string;
+  parent?: string
+  swarmId?: string
+  topLevelSwarmId?: string
 }
 
 export interface Projection {
   /** No argument: today's exact unfiltered behavior, for internal call sites that must keep
    *  seeing true state (the repo-root and branch sweeps, name-dedup, the WS snapshot, lookup
    *  by id). A filter bounds the result for the HTTP route and the CLI. */
-  sessions(filter?: SessionsFilter): SessionState[];
-  uiState(): UiState;
-  dispatch(event: GardenEvent): void;
-  updateUiState(patch: UiStateRequest): void;
-  subscribe(listener: (deltas: Delta[]) => void): () => void;
-  subscribeUiState(listener: (uiState: UiState) => void): () => void;
+  sessions(filter?: SessionsFilter): SessionState[]
+  uiState(): UiState
+  dispatch(event: GardenEvent): void
+  updateUiState(patch: UiStateRequest): void
+  subscribe(listener: (deltas: Delta[]) => void): () => void
+  subscribeUiState(listener: (uiState: UiState) => void): () => void
   /** Reads the store fresh, applies `mutate`, writes the result, refreshes the cached
    *  `uiState()` slice and notifies its subscribers — the one primitive swarm/placement
    *  writes go through, so a write here always reaches `uiState()` the same way a
    *  `updateUiState` write does. Swarm and placement mutations never go through
    *  `updateUiState`, which stays UI-patch-only. */
-  updateOverlay(mutate: (base: OverlayState) => OverlayState): OverlayState;
+  updateOverlay(mutate: (base: OverlayState) => OverlayState): OverlayState
   /** A fresh read of the overlay. */
-  overlay(): OverlayState;
+  overlay(): OverlayState
   /** Calls `listener` with the new overlay after every `updateOverlay` that wrote. It runs
    *  inside the write, before the writer's own follow-up dispatches, so a listener that acts
    *  on the change defers it. */
-  subscribeOverlay(listener: (next: OverlayState) => void): () => void;
-  placementOf(sessionId: string): ResolvedPlacement | undefined;
+  subscribeOverlay(listener: (next: OverlayState) => void): () => void
+  placementOf(sessionId: string): ResolvedPlacement | undefined
 }
 
 /** The stage is fitted to its preset on the way out, so every read of it is consistent even
  *  when the stored copy is not — the store isn't rewritten to match. */
 function fitStage(ui: UiState): UiState {
-  return { ...ui, ...switchPreset(ui.slots, ui.focusedSlot, ui.preset) };
+  return { ...ui, ...switchPreset(ui.slots, ui.focusedSlot, ui.preset) }
 }
 
 export function createProjection(store: StorePort): Projection {
-  let state = initialState;
-  let ui = fitStage(store.read().ui);
-  const listeners = new Set<(deltas: Delta[]) => void>();
-  const uiListeners = new Set<(uiState: UiState) => void>();
-  const overlayListeners = new Set<(next: OverlayState) => void>();
+  let state = initialState
+  let ui = fitStage(store.read().ui)
+  const listeners = new Set<(deltas: Delta[]) => void>()
+  const uiListeners = new Set<(uiState: UiState) => void>()
+  const overlayListeners = new Set<(next: OverlayState) => void>()
 
   return {
     sessions: (filter) => {
       // `ui.placements` (kept in sync by updateOverlay/updateUiState), not `store.read()` —
       // this runs on every call, including the tmux-poll branch sweep every tick, and a
       // fresh disk read there would turn a pure in-memory accessor into per-tick I/O.
-      const { placements } = ui;
-      const merged = mergePlacements(Object.values(state.sessions), placements);
-      if (filter === undefined) return merged;
+      const { placements } = ui
+      const merged = mergePlacements(Object.values(state.sessions), placements)
+      if (filter === undefined) return merged
       const swarmScoped =
-        filter.swarmId === undefined ? merged : filterBySwarm(merged, placements, filter.swarmId);
-      return filterSessions(swarmScoped, filter, Date.now());
+        filter.swarmId === undefined ? merged : filterBySwarm(merged, placements, filter.swarmId)
+      return filterSessions(swarmScoped, filter, Date.now())
     },
     uiState: () => ui,
 
     dispatch(event) {
-      const prev = state;
-      const next = reduce(prev, event);
+      const prev = state
+      const next = reduce(prev, event)
       // The reducer hands back the same object for an event that changes nothing, which is
       // the common case for the per-tick branch sweep.
-      if (next === prev) return;
+      if (next === prev) return
       // The one writer of the tmux name map, landing before `state` moves like the other store
       // writes here. `store-loaded` is skipped: its map came from the store, and writing it back
       // would replace an unreadable state.json that the store deliberately left on disk.
       if (event.type !== 'store-loaded' && next.tmuxNames !== prev.tmuxNames) {
-        store.write({ ...store.read(), tmuxNames: next.tmuxNames });
+        store.write({ ...store.read(), tmuxNames: next.tmuxNames })
       }
-      state = next;
-      const deltas = diff(prev, state);
-      if (deltas.length === 0) return;
-      for (const listener of [...listeners]) listener(deltas);
+      state = next
+      const deltas = diff(prev, state)
+      if (deltas.length === 0) return
+      for (const listener of [...listeners]) listener(deltas)
     },
 
     updateUiState(patch) {
       // The store write is what makes the change real, so it lands before the
       // in-memory slice moves: a failed write leaves nothing claiming to have applied.
-      const base = store.read();
+      const base = store.read()
       // The preset decides how many slots exist, so the slot array is fitted to it here rather
       // than trusted from the client: a patch naming a smaller preset returns the panes that no
       // longer fit to the sidebar, and every other patch leaves an already-fitting stage alone.
-      const next = fitStage({ ...fitStage(base.ui), ...patch });
-      store.write({ ...base, ui: next });
-      ui = next;
-      for (const listener of [...uiListeners]) listener(ui);
+      const next = fitStage({ ...fitStage(base.ui), ...patch })
+      store.write({ ...base, ui: next })
+      ui = next
+      for (const listener of [...uiListeners]) listener(ui)
     },
 
     subscribe(listener) {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
+      listeners.add(listener)
+      return () => listeners.delete(listener)
     },
 
     subscribeUiState(listener) {
-      uiListeners.add(listener);
-      return () => uiListeners.delete(listener);
+      uiListeners.add(listener)
+      return () => uiListeners.delete(listener)
     },
 
     updateOverlay(mutate) {
@@ -116,32 +116,32 @@ export function createProjection(store: StorePort): Projection {
       // nothing to do (e.g. pruning with nothing stale) returns its own `base` back
       // unchanged; that exact reference is the signal to skip the write and the
       // notification rather than persist and broadcast a no-op.
-      const base = store.read();
-      const next = mutate(base);
-      if (next === base) return next;
-      store.write(next);
-      ui = fitStage(next.ui);
-      for (const listener of [...uiListeners]) listener(ui);
-      for (const listener of [...overlayListeners]) listener(next);
-      return next;
+      const base = store.read()
+      const next = mutate(base)
+      if (next === base) return next
+      store.write(next)
+      ui = fitStage(next.ui)
+      for (const listener of [...uiListeners]) listener(ui)
+      for (const listener of [...overlayListeners]) listener(next)
+      return next
     },
 
     overlay: () => store.read(),
 
     subscribeOverlay(listener) {
-      overlayListeners.add(listener);
-      return () => overlayListeners.delete(listener);
+      overlayListeners.add(listener)
+      return () => overlayListeners.delete(listener)
     },
 
     placementOf(sessionId) {
-      const { placements } = store.read().ui;
-      const entry = placements[sessionId];
-      if (entry === undefined) return undefined;
-      const topLevelSwarmId = resolveSwarmId(placements, sessionId);
+      const { placements } = store.read().ui
+      const entry = placements[sessionId]
+      if (entry === undefined) return undefined
+      const topLevelSwarmId = resolveSwarmId(placements, sessionId)
       return {
         ...entry,
         ...(topLevelSwarmId === undefined ? {} : { topLevelSwarmId }),
-      };
+      }
     },
-  };
+  }
 }

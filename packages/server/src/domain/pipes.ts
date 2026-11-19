@@ -1,6 +1,6 @@
-import type { Watch } from './watches.js';
+import type { Watch } from './watches.js'
 
-const NO_PIPE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const NO_PIPE_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
 /** Clears the digest with `digestId` on the session's watches. An id that no longer matches (a
  *  late ack for a digest since replaced, or another session's) changes nothing and returns the
@@ -10,9 +10,9 @@ export function ackDigest(
   sessionId: string,
   digestId: string,
 ): readonly Watch[] {
-  const matches = (w: Watch) => w.sessionId === sessionId && w.pendingDigest?.id === digestId;
-  if (!watches.some(matches)) return watches;
-  return watches.map((w) => (matches(w) ? { ...w, pendingDigest: null } : w));
+  const matches = (w: Watch) => w.sessionId === sessionId && w.pendingDigest?.id === digestId
+  if (!watches.some(matches)) return watches
+  return watches.map((w) => (matches(w) ? { ...w, pendingDigest: null } : w))
 }
 
 /** Drops the watches of sessions with no pipe connected for more than seven days, counted from
@@ -28,8 +28,8 @@ export function endUnpipedWatches(
     (w) =>
       connected.has(w.sessionId) ||
       now - Math.max(w.createdAt, lastPipeAt[w.sessionId] ?? -Infinity) <= NO_PIPE_TTL_MS,
-  );
-  return kept.length === watches.length ? watches : kept;
+  )
+  return kept.length === watches.length ? watches : kept
 }
 
 /** Drops connection times more than seven days old for unconnected sessions: past that point a
@@ -40,7 +40,7 @@ export function prunePipeTimes(
   connected: ReadonlySet<string>,
   now: number,
 ): Readonly<Record<string, number>> {
-  const entries = Object.entries(lastPipeAt);
-  const kept = entries.filter(([sid, at]) => connected.has(sid) || now - at <= NO_PIPE_TTL_MS);
-  return kept.length === entries.length ? lastPipeAt : Object.fromEntries(kept);
+  const entries = Object.entries(lastPipeAt)
+  const kept = entries.filter(([sid, at]) => connected.has(sid) || now - at <= NO_PIPE_TTL_MS)
+  return kept.length === entries.length ? lastPipeAt : Object.fromEntries(kept)
 }

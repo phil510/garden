@@ -1,29 +1,29 @@
-import { removeWatch, updateUiState } from '../../api/client';
-import { reportCommandFailure } from '../../api/reportCommandFailure';
-import { displayStatus } from '../../components/displayStatus';
-import { StatusPill } from '../../components/StatusPill';
-import { usePipeGraceStore } from '../../state/pipeGraceStore';
-import { useSessionStore } from '../../state/sessionStore';
-import { useUiStore } from '../../state/uiStore';
-import { openExternalLink } from '../../terminals/hyperlinks';
-import { lastPathSegment } from '../sidebar/lastPathSegment';
-import { placeOnStage } from '../sidebar/placeOnStage';
-import { collectWatchGroups, summarizeWatchGroups } from './allWatches';
-import { PipeFaultBlock, WatchList } from './WatchList';
-import { watchPrUrl } from './watchStatus';
-import './watches.css';
+import { removeWatch, updateUiState } from '../../api/client'
+import { reportCommandFailure } from '../../api/reportCommandFailure'
+import { displayStatus } from '../../components/displayStatus'
+import { StatusPill } from '../../components/StatusPill'
+import { usePipeGraceStore } from '../../state/pipeGraceStore'
+import { useSessionStore } from '../../state/sessionStore'
+import { useUiStore } from '../../state/uiStore'
+import { openExternalLink } from '../../terminals/hyperlinks'
+import { lastPathSegment } from '../sidebar/lastPathSegment'
+import { placeOnStage } from '../sidebar/placeOnStage'
+import { collectWatchGroups, summarizeWatchGroups } from './allWatches'
+import { PipeFaultBlock, WatchList } from './WatchList'
+import { watchPrUrl } from './watchStatus'
+import './watches.css'
 
 /** Every session's watches in one list, faults first, in the file panel's slot. */
 export function WatchesPanel() {
-  const sessions = useSessionStore((state) => state.sessions);
-  const uiState = useUiStore((state) => state.uiState);
-  const pipeFaulted = usePipeGraceStore((state) => state.faulted);
+  const sessions = useSessionStore((state) => state.sessions)
+  const uiState = useUiStore((state) => state.uiState)
+  const pipeFaulted = usePipeGraceStore((state) => state.faulted)
 
-  const groups = collectWatchGroups(Object.values(sessions), pipeFaulted);
-  const summary = summarizeWatchGroups(groups);
+  const groups = collectWatchGroups(Object.values(sessions), pipeFaulted)
+  const summary = summarizeWatchGroups(groups)
 
   function focusSession(id: string) {
-    updateUiState(placeOnStage(uiState.slots, uiState.focusedSlot, id)).catch(reportCommandFailure);
+    updateUiState(placeOnStage(uiState.slots, uiState.focusedSlot, id)).catch(reportCommandFailure)
   }
 
   return (
@@ -53,7 +53,7 @@ export function WatchesPanel() {
       ) : (
         <div className="aw-list">
           {groups.map(({ session, pipeFaulted: sessionPipeFaulted }) => {
-            const dead = session.liveness === 'dead';
+            const dead = session.liveness === 'dead'
             return (
               <div className="aw-group" key={session.id}>
                 <button
@@ -75,14 +75,14 @@ export function WatchesPanel() {
                   watches={session.watches}
                   onOpenPr={(watch) => openExternalLink(watchPrUrl(watch))}
                   onStop={(watch) => {
-                    removeWatch(session.id, watch.pr, watch.repo).catch(reportCommandFailure);
+                    removeWatch(session.id, watch.pr, watch.repo).catch(reportCommandFailure)
                   }}
                 />
               </div>
-            );
+            )
           })}
         </div>
       )}
     </div>
-  );
+  )
 }

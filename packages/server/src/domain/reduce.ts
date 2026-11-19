@@ -1,6 +1,6 @@
-import type { SessionMap, SessionState, WatchSummary } from '@garden/shared';
-import { deriveLiveness } from './sessions.js';
-import type { GardenEvent, GardenState, TmuxSessionFact, TranscriptRecord } from './types.js';
+import type { SessionMap, SessionState, WatchSummary } from '@garden/shared'
+import { deriveLiveness } from './sessions.js'
+import type { GardenEvent, GardenState, TmuxSessionFact, TranscriptRecord } from './types.js'
 
 export const initialState: GardenState = {
   sessions: {},
@@ -16,11 +16,11 @@ export const initialState: GardenState = {
   watches: {},
   alerts: {},
   pipes: {},
-};
+}
 
 /** Shared by every session without watches, so `diff`'s `Object.is` sees no change when an
  *  unrelated event rebuilds the session. */
-const NO_WATCHES = Object.freeze([]) as unknown as WatchSummary[];
+const NO_WATCHES = Object.freeze([]) as unknown as WatchSummary[]
 
 function blank(id: string): SessionState {
   return {
@@ -41,19 +41,19 @@ function blank(id: string): SessionState {
     alert: null,
     pipeConnected: false,
     pipeLastConnectedAt: null,
-  };
+  }
 }
 
 /** Projects the raw tmux, hook, repo-root and branch facts onto every session, so the order
  *  events arrive in cannot change the outcome. */
 function rederive(state: GardenState): GardenState {
-  const sessions: SessionMap = {};
+  const sessions: SessionMap = {}
   for (const [id, session] of Object.entries(state.sessions)) {
-    const tmuxName = state.tmuxNames[id] ?? null;
-    const fact = tmuxName === null ? undefined : state.tmux[tmuxName];
-    const { liveness, exitCode } = deriveLiveness({ fact, ended: state.ended[id] === true });
-    const dead = liveness === 'dead';
-    const reported = state.reported[id];
+    const tmuxName = state.tmuxNames[id] ?? null
+    const fact = tmuxName === null ? undefined : state.tmux[tmuxName]
+    const { liveness, exitCode } = deriveLiveness({ fact, ended: state.ended[id] === true })
+    const dead = liveness === 'dead'
+    const reported = state.reported[id]
     sessions[id] = {
       ...session,
       tmuxName,
@@ -73,25 +73,25 @@ function rederive(state: GardenState): GardenState {
       // Status belongs to live sessions: none yet heard from reads `unknown`, dead reads nothing.
       status: dead ? null : (reported?.status ?? 'unknown'),
       statusReason: dead ? null : (reported?.reason ?? null),
-    };
+    }
   }
-  return { ...state, sessions };
+  return { ...state, sessions }
 }
 
 /** Folds one transcript record into `sessions` without re-deriving, so a batch can derive once.
  *  Returns the same state object when the record names no session. */
 function foldTranscript(state: GardenState, record: TranscriptRecord): GardenState {
-  const id = record.sessionId;
-  if (id === null) return state;
-  const prev = state.sessions[id] ?? blank(id);
-  const title = record.title ?? record.lastPrompt;
+  const id = record.sessionId
+  if (id === null) return state
+  const prev = state.sessions[id] ?? blank(id)
+  const title = record.title ?? record.lastPrompt
   const session: SessionState = {
     ...prev,
     cwd: record.cwd ?? prev.cwd,
     recap: record.recap ?? prev.recap,
     // A transcript with no timestamped line reports no activity, so the previous stands.
     lastActivity: Math.max(prev.lastActivity, record.lastActivity ?? 0),
-  };
+  }
   return {
     ...state,
     sessions: { ...state.sessions, [id]: session },
@@ -99,15 +99,15 @@ function foldTranscript(state: GardenState, record: TranscriptRecord): GardenSta
       title === null || title === state.transcriptTitles[id]
         ? state.transcriptTitles
         : { ...state.transcriptTitles, [id]: title },
-  };
+  }
 }
 
 export function reduce(state: GardenState, event: GardenEvent): GardenState {
   switch (event.type) {
     case 'store-loaded':
-      return rederive({ ...state, tmuxNames: { ...state.tmuxNames, ...event.tmuxNames } });
+      return rederive({ ...state, tmuxNames: { ...state.tmuxNames, ...event.tmuxNames } })
     case 'session-registered': {
-      const prev = state.sessions[event.id] ?? blank(event.id);
+      const prev = state.sessions[event.id] ?? blank(event.id)
       return rederive({
         ...state,
         tmuxNames: { ...state.tmuxNames, [event.id]: event.tmuxName },
@@ -123,57 +123,57 @@ export function reduce(state: GardenState, event: GardenEvent): GardenState {
           event.reported === undefined
             ? state.reported
             : { ...state.reported, [event.id]: event.reported },
-      });
+      })
     }
     case 'session-unregistered': {
-      if (!(event.id in state.tmuxNames)) return state;
+      if (!(event.id in state.tmuxNames)) return state
       // The session itself stays: transcripts decide that a session exists, so it reads
       // dead with no tmux name rather than vanishing.
-      const tmuxNames = { ...state.tmuxNames };
-      delete tmuxNames[event.id];
-      return rederive({ ...state, tmuxNames });
+      const tmuxNames = { ...state.tmuxNames }
+      delete tmuxNames[event.id]
+      return rederive({ ...state, tmuxNames })
     }
     case 'transcript-changed': {
-      const next = foldTranscript(state, event.record);
-      return next === state ? state : rederive(next);
+      const next = foldTranscript(state, event.record)
+      return next === state ? state : rederive(next)
     }
     case 'transcripts-replayed': {
       // Same fold as one `transcript-changed` per record, in order, but derived once: rederive
       // walks every session, so doing it per record is what made boot quadratic.
-      const next = event.records.reduce(foldTranscript, state);
-      return next === state ? state : rederive(next);
+      const next = event.records.reduce(foldTranscript, state)
+      return next === state ? state : rederive(next)
     }
     case 'repo-root-resolved':
       return rederive({
         ...state,
         repoRoots: { ...state.repoRoots, [event.cwd]: event.repoRoot },
-      });
+      })
     case 'branch-resolved': {
       // `in`, not `??`: a cwd's first-ever resolution to `null` must still land, since that is
       // what tells `rederive` the cwd has been swept rather than never asked about.
-      if (event.cwd in state.branches && state.branches[event.cwd] === event.branch) return state;
+      if (event.cwd in state.branches && state.branches[event.cwd] === event.branch) return state
       return rederive({
         ...state,
         branches: { ...state.branches, [event.cwd]: event.branch },
-      });
+      })
     }
     case 'harness-signal': {
-      const { signal } = event;
-      const id = signal.sessionId;
-      if (id === '') return state;
-      const prev = state.sessions[id] ?? blank(id);
+      const { signal } = event
+      const id = signal.sessionId
+      if (id === '') return state
+      const prev = state.sessions[id] ?? blank(id)
       const session: SessionState = {
         ...prev,
         cwd: prev.cwd === '' ? signal.cwd : prev.cwd,
         ...(signal.resetConversation === true ? { recap: null, lastActivity: 0 } : {}),
-      };
-      let transcriptTitles = state.transcriptTitles;
-      let nativeTitles = state.nativeTitles;
+      }
+      let transcriptTitles = state.transcriptTitles
+      let nativeTitles = state.nativeTitles
       if (signal.resetConversation === true) {
-        transcriptTitles = { ...transcriptTitles };
-        nativeTitles = { ...nativeTitles };
-        delete transcriptTitles[id];
-        delete nativeTitles[id];
+        transcriptTitles = { ...transcriptTitles }
+        nativeTitles = { ...nativeTitles }
+        delete transcriptTitles[id]
+        delete nativeTitles[id]
       }
       return rederive({
         ...state,
@@ -185,26 +185,26 @@ export function reduce(state: GardenState, event: GardenEvent): GardenState {
           signal.reported === undefined
             ? state.reported
             : { ...state.reported, [id]: signal.reported },
-      });
+      })
     }
     case 'tmux-snapshot': {
-      const tmux: Record<string, TmuxSessionFact> = {};
-      for (const fact of event.sessions) tmux[fact.name] = fact;
-      return rederive({ ...state, tmux });
+      const tmux: Record<string, TmuxSessionFact> = {}
+      for (const fact of event.sessions) tmux[fact.name] = fact
+      return rederive({ ...state, tmux })
     }
     case 'session-metadata-loaded':
-      return rederive({ ...state, sessionNames: event.names, nativeTitles: event.nativeTitles });
+      return rederive({ ...state, sessionNames: event.names, nativeTitles: event.nativeTitles })
     case 'watches-changed': {
-      const watches = { ...state.watches };
-      if (event.watches.length === 0) delete watches[event.sessionId];
-      else watches[event.sessionId] = event.watches;
-      return rederive({ ...state, watches });
+      const watches = { ...state.watches }
+      if (event.watches.length === 0) delete watches[event.sessionId]
+      else watches[event.sessionId] = event.watches
+      return rederive({ ...state, watches })
     }
     case 'alert-changed': {
-      const alerts = { ...state.alerts };
-      if (event.alert === null) delete alerts[event.sessionId];
-      else alerts[event.sessionId] = event.alert;
-      return rederive({ ...state, alerts });
+      const alerts = { ...state.alerts }
+      if (event.alert === null) delete alerts[event.sessionId]
+      else alerts[event.sessionId] = event.alert
+      return rederive({ ...state, alerts })
     }
     case 'pipe-changed':
       return rederive({
@@ -213,10 +213,10 @@ export function reduce(state: GardenState, event: GardenEvent): GardenState {
           ...state.pipes,
           [event.sessionId]: { connected: event.connected, lastConnectedAt: event.lastConnectedAt },
         },
-      });
+      })
   }
   // No default arm: a switch without one narrows to never here, so a new event
   // variant fails to compile rather than being silently swallowed.
-  event satisfies never;
-  return state;
+  event satisfies never
+  return state
 }

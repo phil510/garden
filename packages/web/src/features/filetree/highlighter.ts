@@ -1,9 +1,9 @@
-import { createHighlighterCore, type HighlighterCore, type ThemedToken } from 'shiki/core';
-import { createOnigurumaEngine } from 'shiki/engine/oniguruma';
-import { languageGuess } from './language';
+import { createHighlighterCore, type HighlighterCore, type ThemedToken } from 'shiki/core'
+import { createOnigurumaEngine } from 'shiki/engine/oniguruma'
+import { languageGuess } from './language'
 
 /** VS Code's Dark+ theme — the palette the `--syn-*` tokens in `styles/tokens.css` imitate. */
-const THEME = 'dark-plus';
+const THEME = 'dark-plus'
 
 /**
  * The grammars garden bundles, imported individually rather than through shiki's full bundle
@@ -51,17 +51,17 @@ const LANGS = [
   () => import('shiki/langs/svelte.mjs'),
   () => import('shiki/langs/powershell.mjs'),
   () => import('shiki/langs/diff.mjs'),
-];
+]
 
-let highlighter: Promise<HighlighterCore> | undefined;
+let highlighter: Promise<HighlighterCore> | undefined
 
 function getHighlighter(): Promise<HighlighterCore> {
   highlighter ??= createHighlighterCore({
     themes: [() => import('shiki/themes/dark-plus.mjs')],
     langs: LANGS,
     engine: createOnigurumaEngine(() => import('shiki/wasm')),
-  });
-  return highlighter;
+  })
+  return highlighter
 }
 
 /**
@@ -70,15 +70,15 @@ function getHighlighter(): Promise<HighlighterCore> {
  * bundle) falls back to plain, uncoloured text rather than throwing.
  */
 export async function tokenizeText(text: string, lang: string): Promise<ThemedToken[][]> {
-  const shiki = await getHighlighter();
+  const shiki = await getHighlighter()
   try {
-    return shiki.codeToTokens(text, { lang, theme: THEME }).tokens;
+    return shiki.codeToTokens(text, { lang, theme: THEME }).tokens
   } catch {
-    return shiki.codeToTokens(text, { lang: 'text', theme: THEME }).tokens;
+    return shiki.codeToTokens(text, { lang: 'text', theme: THEME }).tokens
   }
 }
 
 /** Tokenises a whole file's `text`, guessing its language from `path`'s extension. */
 export function tokenizeFile(path: string, text: string): Promise<ThemedToken[][]> {
-  return tokenizeText(text, languageGuess(path));
+  return tokenizeText(text, languageGuess(path))
 }

@@ -1,14 +1,14 @@
-import { parseClaudeHook } from '../../../packages/server/src/adapters/claude/hooks.js';
-import { DEFAULT_UI_STATE } from '@garden/shared';
-import { aHookEvent } from '../../../packages/server/src/adapters/claude/hooks.fixture.js';
-import type { PipeServerMessage } from '@garden/shared';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Watch } from '../../../packages/server/src/domain/watches.js';
-import { handleHook } from '../../../packages/server/src/app/hooks.js';
-import { createPipes } from '../../../packages/server/src/app/pipes.js';
-import type { OverlayState, StorePort } from '../../../packages/server/src/app/ports.js';
-import { createProjection } from '../../../packages/server/src/app/projection.js';
-import { updateWatches } from '../../../packages/server/src/app/watches.js';
+import { parseClaudeHook } from '../../../packages/server/src/adapters/claude/hooks.js'
+import { DEFAULT_UI_STATE } from '@garden/shared'
+import { aHookEvent } from '../../../packages/server/src/adapters/claude/hooks.fixture.js'
+import type { PipeServerMessage } from '@garden/shared'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Watch } from '../../../packages/server/src/domain/watches.js'
+import { handleHook } from '../../../packages/server/src/app/hooks.js'
+import { createPipes } from '../../../packages/server/src/app/pipes.js'
+import type { OverlayState, StorePort } from '../../../packages/server/src/app/ports.js'
+import { createProjection } from '../../../packages/server/src/app/projection.js'
+import { updateWatches } from '../../../packages/server/src/app/watches.js'
 
 const emptyOverlay: OverlayState = {
   version: 2,
@@ -19,11 +19,11 @@ const emptyOverlay: OverlayState = {
   digests: [],
   pipes: {},
   reviews: { links: {} },
-};
+}
 
-const NOW = 1_000 * 24 * 60 * 60 * 1000;
-const GARDEN_ID = 'garden-1';
-const NEW_CLAUDE_ID = 'claude-after-clear';
+const NOW = 1_000 * 24 * 60 * 60 * 1000
+const GARDEN_ID = 'garden-1'
+const NEW_CLAUDE_ID = 'claude-after-clear'
 
 function aWatch(overrides: Partial<Watch> = {}): Watch {
   return {
@@ -37,35 +37,35 @@ function aWatch(overrides: Partial<Watch> = {}): Watch {
     pendingDigest: null,
     status: 'active',
     ...overrides,
-  };
+  }
 }
 
-const digest = (id: string) => ({ id, line: `line ${id}`, createdAt: NOW });
+const digest = (id: string) => ({ id, line: `line ${id}`, createdAt: NOW })
 
 function setup(watches: Watch[]) {
-  let overlay: OverlayState = { ...emptyOverlay, watches };
+  let overlay: OverlayState = { ...emptyOverlay, watches }
   const store: StorePort = {
     read: () => overlay,
     write: (state) => {
-      overlay = state;
+      overlay = state
     },
-  };
-  const projection = createProjection(store);
+  }
+  const projection = createProjection(store)
   for (const id of [GARDEN_ID, 'other'])
-    projection.dispatch({ type: 'session-registered', id, tmuxName: id, cwd: `/work/${id}` });
-  const tracked: string[] = [];
+    projection.dispatch({ type: 'session-registered', id, tmuxName: id, cwd: `/work/${id}` })
+  const tracked: string[] = []
   const liveTranscripts = {
     track: (path: string) => {
-      tracked.push(path);
+      tracked.push(path)
     },
-  };
+  }
   const deps = {
     projection,
     liveTranscripts,
     harness: { parseHook: parseClaudeHook },
     git: { remoteUrl: () => Promise.resolve(null) },
-  };
-  const summaries = (id: string) => projection.sessions().find((s) => s.id === id)?.watches;
+  }
+  const summaries = (id: string) => projection.sessions().find((s) => s.id === id)?.watches
   return {
     projection,
     deps,
@@ -73,7 +73,7 @@ function setup(watches: Watch[]) {
     pipes: createPipes(deps),
     watches: () => overlay.watches,
     summaries,
-  };
+  }
 }
 
 const sessionStart = (source?: 'startup' | 'resume' | 'clear' | 'compact' | 'fork') =>
@@ -81,12 +81,12 @@ const sessionStart = (source?: 'startup' | 'resume' | 'clear' | 'compact' | 'for
     session_id: NEW_CLAUDE_ID,
     hook_event_name: 'SessionStart',
     ...(source === undefined ? {} : { source }),
-  });
+  })
 
-const settle = () => Promise.resolve();
+const settle = () => Promise.resolve()
 
-beforeEach(() => vi.spyOn(Date, 'now').mockReturnValue(NOW));
-afterEach(() => vi.restoreAllMocks());
+beforeEach(() => vi.spyOn(Date, 'now').mockReturnValue(NOW))
+afterEach(() => vi.restoreAllMocks())
 
 describe('handleHook on /clear', () => {
   it("removes the garden session's watches and digests, keyed on the garden id, not the payload", () => {
@@ -94,36 +94,36 @@ describe('handleHook on /clear', () => {
       aWatch({ id: 'a', pendingDigest: digest('d1') }),
       aWatch({ id: 'b', pr: 8 }),
       aWatch({ id: 'c', sessionId: 'other' }),
-    ]);
+    ])
 
-    handleHook(t.deps, sessionStart('clear'), GARDEN_ID);
+    handleHook(t.deps, sessionStart('clear'), GARDEN_ID)
 
-    expect(t.watches().map((w) => w.id)).toEqual(['c']);
-    expect(t.summaries(GARDEN_ID)).toEqual([]);
-  });
+    expect(t.watches().map((w) => w.id)).toEqual(['c'])
+    expect(t.summaries(GARDEN_ID)).toEqual([])
+  })
 
   it.each(['startup', 'resume', 'compact', 'fork', undefined] as const)(
     'leaves watches alone for source %s',
     (source) => {
-      const t = setup([aWatch({ pendingDigest: digest('d1') })]);
+      const t = setup([aWatch({ pendingDigest: digest('d1') })])
 
-      handleHook(t.deps, sessionStart(source), GARDEN_ID);
+      handleHook(t.deps, sessionStart(source), GARDEN_ID)
 
-      expect(t.watches()).toHaveLength(1);
+      expect(t.watches()).toHaveLength(1)
     },
-  );
+  )
 
   it('leaves watches alone for a clear without a garden id, and still dispatches the hook', () => {
-    const t = setup([aWatch()]);
+    const t = setup([aWatch()])
 
-    handleHook(t.deps, sessionStart('clear'), undefined);
+    handleHook(t.deps, sessionStart('clear'), undefined)
 
-    expect(t.watches()).toHaveLength(1);
-    expect(t.projection.sessions().map((s) => s.id)).toContain(NEW_CLAUDE_ID);
-  });
+    expect(t.watches()).toHaveLength(1)
+    expect(t.projection.sessions().map((s) => s.id)).toContain(NEW_CLAUDE_ID)
+  })
 
   it('leaves watches alone for an event that is not SessionStart', () => {
-    const t = setup([aWatch()]);
+    const t = setup([aWatch()])
 
     handleHook(
       t.deps,
@@ -133,54 +133,54 @@ describe('handleHook on /clear', () => {
         source: 'clear',
       }),
       GARDEN_ID,
-    );
+    )
 
-    expect(t.watches()).toHaveLength(1);
-  });
+    expect(t.watches()).toHaveLength(1)
+  })
 
   it('stops a connected pipe delivering a removed digest, and delivers the next watch', async () => {
-    const t = setup([]);
-    const received: PipeServerMessage[] = [];
-    t.pipes.connect(GARDEN_ID, (m) => received.push(m));
-    updateWatches(t.deps, () => [aWatch({ pendingDigest: digest('d1') })], NOW);
-    handleHook(t.deps, sessionStart('clear'), GARDEN_ID);
-    await settle();
-    expect(received).toEqual([]);
+    const t = setup([])
+    const received: PipeServerMessage[] = []
+    t.pipes.connect(GARDEN_ID, (m) => received.push(m))
+    updateWatches(t.deps, () => [aWatch({ pendingDigest: digest('d1') })], NOW)
+    handleHook(t.deps, sessionStart('clear'), GARDEN_ID)
+    await settle()
+    expect(received).toEqual([])
 
-    updateWatches(t.deps, () => [aWatch({ id: 'w2', pr: 9, pendingDigest: digest('d2') })], NOW);
-    await settle();
+    updateWatches(t.deps, () => [aWatch({ id: 'w2', pr: 9, pendingDigest: digest('d2') })], NOW)
+    await settle()
 
-    expect(received.map((m) => m.id)).toEqual(['d2']);
-  });
-});
+    expect(received.map((m) => m.id)).toEqual(['d2'])
+  })
+})
 
 describe('handleHook keying', () => {
   it('lands a post-clear hook on the garden session instead of creating a second row', () => {
-    const t = setup([]);
+    const t = setup([])
 
     handleHook(
       t.deps,
       aHookEvent({ session_id: GARDEN_ID, hook_event_name: 'SessionEnd' }),
       GARDEN_ID,
-    );
-    handleHook(t.deps, sessionStart('clear'), GARDEN_ID);
+    )
+    handleHook(t.deps, sessionStart('clear'), GARDEN_ID)
 
-    const ids = t.projection.sessions().map((s) => s.id);
-    expect(ids).not.toContain(NEW_CLAUDE_ID);
-    expect(ids).toContain(GARDEN_ID);
-  });
-});
+    const ids = t.projection.sessions().map((s) => s.id)
+    expect(ids).not.toContain(NEW_CLAUDE_ID)
+    expect(ids).toContain(GARDEN_ID)
+  })
+})
 
 describe('handleHook live transcripts', () => {
   it("tracks the payload's transcript_path as live", () => {
-    const t = setup([]);
+    const t = setup([])
 
     handleHook(
       t.deps,
       aHookEvent({ hook_event_name: 'UserPromptSubmit', transcript_path: '/t/slug/abc.jsonl' }),
       GARDEN_ID,
-    );
+    )
 
-    expect(t.tracked).toEqual(['/t/slug/abc.jsonl']);
-  });
-});
+    expect(t.tracked).toEqual(['/t/slug/abc.jsonl'])
+  })
+})

@@ -1,59 +1,59 @@
-import type { KeyboardEvent, MouseEvent } from 'react';
-import { useLayoutEffect, useRef, useState } from 'react';
-import type { SessionState } from '@garden/shared';
-import { dismissAlert, updateUiState } from '../../api/client';
-import { reportCommandFailure } from '../../api/reportCommandFailure';
-import { displayStatus } from '../../components/displayStatus';
-import { StatusPill } from '../../components/StatusPill';
-import { useSessionStore } from '../../state/sessionStore';
-import { useUiStore } from '../../state/uiStore';
-import { lastPathSegment } from '../sidebar/lastPathSegment';
-import { placeOnStage } from '../sidebar/placeOnStage';
-import { focusedSessionId } from '../sidebar/stageFocus';
-import { swarmChipFor } from '../stage/paneTitle';
-import { alertAgesLine, collectAlerts } from './allAlerts';
-import './alerts.css';
+import type { KeyboardEvent, MouseEvent } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
+import type { SessionState } from '@garden/shared'
+import { dismissAlert, updateUiState } from '../../api/client'
+import { reportCommandFailure } from '../../api/reportCommandFailure'
+import { displayStatus } from '../../components/displayStatus'
+import { StatusPill } from '../../components/StatusPill'
+import { useSessionStore } from '../../state/sessionStore'
+import { useUiStore } from '../../state/uiStore'
+import { lastPathSegment } from '../sidebar/lastPathSegment'
+import { placeOnStage } from '../sidebar/placeOnStage'
+import { focusedSessionId } from '../sidebar/stageFocus'
+import { swarmChipFor } from '../stage/paneTitle'
+import { alertAgesLine, collectAlerts } from './allAlerts'
+import './alerts.css'
 
 interface AlertEntryProps {
-  session: SessionState;
-  context: string;
-  selected: boolean;
-  now: number;
-  onSelect: () => void;
+  session: SessionState
+  context: string
+  selected: boolean
+  now: number
+  onSelect: () => void
 }
 
 function AlertEntry({ session, context, selected, now, onSelect }: AlertEntryProps) {
-  const alert = session.alert;
-  const textRef = useRef<HTMLDivElement>(null);
-  const [expanded, setExpanded] = useState(false);
-  const [overflows, setOverflows] = useState(false);
+  const alert = session.alert
+  const textRef = useRef<HTMLDivElement>(null)
+  const [expanded, setExpanded] = useState(false)
+  const [overflows, setOverflows] = useState(false)
 
   // Measured while clamped, so the link appears only when the text is cut off. The panel stays
   // mounted under `display: none`, where both sizes read 0, so re-measure whenever the box resizes.
   useLayoutEffect(() => {
-    const el = textRef.current;
-    if (el === null || expanded) return;
-    const measure = () => setOverflows(el.scrollHeight > el.clientHeight + 1);
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [alert?.text, expanded]);
+    const el = textRef.current
+    if (el === null || expanded) return
+    const measure = () => setOverflows(el.scrollHeight > el.clientHeight + 1)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [alert?.text, expanded])
 
-  if (alert === null) return null;
+  if (alert === null) return null
 
   function onKeyDown(event: KeyboardEvent) {
-    if (event.key === 'Enter' && event.target === event.currentTarget) onSelect();
+    if (event.key === 'Enter' && event.target === event.currentTarget) onSelect()
   }
 
   function onDismiss(event: MouseEvent) {
-    event.stopPropagation();
-    dismissAlert(session.id).catch(reportCommandFailure);
+    event.stopPropagation()
+    dismissAlert(session.id).catch(reportCommandFailure)
   }
 
   function onToggle(event: MouseEvent) {
-    event.stopPropagation();
-    setExpanded(!expanded);
+    event.stopPropagation()
+    setExpanded(!expanded)
   }
 
   return (
@@ -89,26 +89,26 @@ function AlertEntry({ session, context, selected, now, onSelect }: AlertEntryPro
         </button>
       </div>
     </div>
-  );
+  )
 }
 
 /** Every open alert in one list, oldest first, in the file panel's slot. */
 export function AlertsPanel() {
-  const sessions = useSessionStore((state) => state.sessions);
-  const uiState = useUiStore((state) => state.uiState);
+  const sessions = useSessionStore((state) => state.sessions)
+  const uiState = useUiStore((state) => state.uiState)
 
-  const alerts = collectAlerts(Object.values(sessions));
-  const focusedId = focusedSessionId(uiState.slots, uiState.focusedSlot);
-  const now = Date.now();
+  const alerts = collectAlerts(Object.values(sessions))
+  const focusedId = focusedSessionId(uiState.slots, uiState.focusedSlot)
+  const now = Date.now()
 
   function focusSession(id: string) {
-    updateUiState(placeOnStage(uiState.slots, uiState.focusedSlot, id)).catch(reportCommandFailure);
+    updateUiState(placeOnStage(uiState.slots, uiState.focusedSlot, id)).catch(reportCommandFailure)
   }
 
   function contextLine(session: SessionState): string {
-    const swarm = swarmChipFor(session, uiState.placements, uiState.swarms);
-    const repo = lastPathSegment(session.repoRoot ?? session.cwd);
-    return swarm === null ? repo : `${swarm.name} / ${repo}`;
+    const swarm = swarmChipFor(session, uiState.placements, uiState.swarms)
+    const repo = lastPathSegment(session.repoRoot ?? session.cwd)
+    return swarm === null ? repo : `${swarm.name} / ${repo}`
   }
 
   return (
@@ -146,5 +146,5 @@ export function AlertsPanel() {
         </div>
       )}
     </div>
-  );
+  )
 }

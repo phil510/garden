@@ -1,6 +1,6 @@
 export interface StagePlacement {
-  slots: (string | null)[];
-  focusedSlot: number;
+  slots: (string | null)[]
+  focusedSlot: number
 }
 
 /** A session already on stage is only refocused, never duplicated into a second slot. Otherwise
@@ -10,13 +10,13 @@ export function placeOnStage(
   focusedSlot: number,
   id: string,
 ): StagePlacement {
-  const existingIndex = slots.indexOf(id);
+  const existingIndex = slots.indexOf(id)
   if (existingIndex !== -1) {
-    return { slots: [...slots], focusedSlot: existingIndex };
+    return { slots: [...slots], focusedSlot: existingIndex }
   }
-  const emptyIndex = slots.indexOf(null);
-  const targetIndex = emptyIndex !== -1 ? emptyIndex : focusedSlot;
-  const next = [...slots];
-  next[targetIndex] = id;
-  return { slots: next, focusedSlot: targetIndex };
+  const emptyIndex = slots.indexOf(null)
+  const targetIndex = emptyIndex !== -1 ? emptyIndex : focusedSlot
+  const next = [...slots]
+  next[targetIndex] = id
+  return { slots: next, focusedSlot: targetIndex }
 }

@@ -1,24 +1,24 @@
-import { appendFileSync } from 'node:fs';
+import { appendFileSync } from 'node:fs'
 
 export interface Logger {
-  info(message: string): void;
-  warn(message: string): void;
-  error(message: string): void;
+  info(message: string): void
+  warn(message: string): void
+  error(message: string): void
 }
 
 function line(level: string, message: string): string {
-  return `${new Date().toISOString()} ${level} ${message}`;
+  return `${new Date().toISOString()} ${level} ${message}`
 }
 
-type Sink = (level: string, formatted: string) => void;
+type Sink = (level: string, formatted: string) => void
 
 function consoleSink(level: string, formatted: string): void {
   if (level === 'info') {
-    console.log(formatted);
+    console.log(formatted)
   } else if (level === 'warn') {
-    console.warn(formatted);
+    console.warn(formatted)
   } else {
-    console.error(formatted);
+    console.error(formatted)
   }
 }
 
@@ -28,30 +28,30 @@ function consoleSink(level: string, formatted: string): void {
 function fileSink(path: string): Sink {
   return (_level, formatted) => {
     try {
-      appendFileSync(path, formatted + '\n');
+      appendFileSync(path, formatted + '\n')
     } catch {
       // dropped
     }
-  };
+  }
 }
 
 /** Info goes to stdout; warn and error go to stderr, until `redirectToFile` is called. */
 export function createLogger(): Logger & { redirectToFile(path: string): void } {
-  let sink: Sink = consoleSink;
+  let sink: Sink = consoleSink
   return {
     info: (message) => {
-      sink('info', line('info', message));
+      sink('info', line('info', message))
     },
     warn: (message) => {
-      sink('warn', line('warn', message));
+      sink('warn', line('warn', message))
     },
     error: (message) => {
-      sink('error', line('error', message));
+      sink('error', line('error', message))
     },
     redirectToFile: (path) => {
-      sink = fileSink(path);
+      sink = fileSink(path)
     },
-  };
+  }
 }
 
 /** Attaches a no-op 'error' listener to process.stderr once, so a write that fails
@@ -62,5 +62,5 @@ export function createLogger(): Logger & { redirectToFile(path: string): void } 
  *  default construction path, which runs as the user's own foreground process and
  *  would pick up a stray listener per call across a test run. */
 export function guardStderr(): void {
-  process.stderr.on('error', () => {});
+  process.stderr.on('error', () => {})
 }

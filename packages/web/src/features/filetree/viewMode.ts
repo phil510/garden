@@ -1,4 +1,4 @@
-export type ViewMode = 'rendered' | 'source';
+export type ViewMode = 'rendered' | 'source'
 
 /**
  * Decides which mode a newly-opened file should reset to. A markdown file opened with a real
@@ -11,7 +11,7 @@ export function resetModeForOpenedFile(
   showMarkdown: boolean,
   pendingLine: number | null,
 ): ViewMode {
-  return showMarkdown && pendingLine !== null ? 'source' : 'rendered';
+  return showMarkdown && pendingLine !== null ? 'source' : 'rendered'
 }
 
 /**
@@ -24,5 +24,5 @@ export function shouldResetMode(
   nextKey: string | null,
   pendingLine: number | null,
 ): boolean {
-  return previousKey !== nextKey || pendingLine !== null;
+  return previousKey !== nextKey || pendingLine !== null
 }

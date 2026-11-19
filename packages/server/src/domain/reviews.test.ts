@@ -1,27 +1,27 @@
-import { describe, expect, it } from 'vitest';
-import type { GhResult } from './github.js';
-import { searchResponse } from './reviews.fixture.js';
+import { describe, expect, it } from 'vitest'
+import type { GhResult } from './github.js'
+import { searchResponse } from './reviews.fixture.js'
 import {
   joinLinks,
   parseReviewSearch,
   pickClone,
   repoFromRepositoryUrl,
   reviewPollOutcome,
-} from './reviews.js';
+} from './reviews.js'
 
 const withFields = (fields: Record<string, unknown>): unknown => ({
   ...(searchResponse as Record<string, unknown>),
   ...fields,
-});
+})
 /** The fixture is a window onto 167 matches; the queue tests want a page that is all of them. */
-const complete = (): unknown => withFields({ total_count: 3 });
-const fixtureItems = () => (searchResponse as { items: Record<string, unknown>[] }).items;
+const complete = (): unknown => withFields({ total_count: 3 })
+const fixtureItems = () => (searchResponse as { items: Record<string, unknown>[] }).items
 
 describe('parseReviewSearch', () => {
   it('reads every field of the recorded response, newest first', () => {
-    const page = parseReviewSearch(complete());
-    expect(page?.complete).toBe(true);
-    expect(page?.items).toHaveLength(3);
+    const page = parseReviewSearch(complete())
+    expect(page?.complete).toBe(true)
+    expect(page?.items).toHaveLength(3)
     expect(page?.items[0]).toEqual({
       key: 'phil510/garden#378',
       repo: 'phil510/garden',
@@ -33,22 +33,22 @@ describe('parseReviewSearch', () => {
       updatedAt: '2026-11-04T15:10:03Z',
       clonePath: null,
       sessionId: null,
-    });
-  });
+    })
+  })
 
   it('orders by updatedAt regardless of the order GitHub returned', () => {
-    const reversed = withFields({ items: [...fixtureItems()].reverse() });
-    expect(parseReviewSearch(reversed)?.items.map((i) => i.number)).toEqual([378, 376, 374]);
-  });
+    const reversed = withFields({ items: [...fixtureItems()].reverse() })
+    expect(parseReviewSearch(reversed)?.items.map((i) => i.number)).toEqual([378, 376, 374])
+  })
 
   it('is complete at exactly 100 matches and incomplete at 101', () => {
-    expect(parseReviewSearch(withFields({ total_count: 100 }))?.complete).toBe(true);
-    expect(parseReviewSearch(withFields({ total_count: 101 }))?.complete).toBe(false);
-  });
+    expect(parseReviewSearch(withFields({ total_count: 100 }))?.complete).toBe(true)
+    expect(parseReviewSearch(withFields({ total_count: 101 }))?.complete).toBe(false)
+  })
 
   it('is incomplete when GitHub reports incomplete results', () => {
-    expect(parseReviewSearch(withFields({ incomplete_results: true }))?.complete).toBe(false);
-  });
+    expect(parseReviewSearch(withFields({ incomplete_results: true }))?.complete).toBe(false)
+  })
 
   it.each([
     ['a non-object body', 'nope'],
@@ -60,24 +60,24 @@ describe('parseReviewSearch', () => {
       withFields({ items: [{ ...fixtureItems()[0], repository_url: 'x' }] }),
     ],
   ])('rejects %s', (_name, body) => {
-    expect(parseReviewSearch(body)).toBeNull();
-  });
-});
+    expect(parseReviewSearch(body)).toBeNull()
+  })
+})
 
 describe('repoFromRepositoryUrl', () => {
   it('normalises the repo like a watch repo', () => {
     expect(repoFromRepositoryUrl('https://api.github.com/repos/Phil510/Garden')).toBe(
       'phil510/garden',
-    );
-  });
+    )
+  })
 
   it('is null for a URL that is not a repos URL', () => {
-    expect(repoFromRepositoryUrl('https://github.com/phil510/garden')).toBeNull();
-  });
-});
+    expect(repoFromRepositoryUrl('https://github.com/phil510/garden')).toBeNull()
+  })
+})
 
 describe('reviewPollOutcome', () => {
-  const ok = (body: unknown): GhResult => ({ kind: 'ok', etag: null, body });
+  const ok = (body: unknown): GhResult => ({ kind: 'ok', etag: null, body })
   it.each<[string, GhResult, string | null]>([
     ['a complete response', ok(complete()), null],
     ['an incomplete response', ok(withFields({ incomplete_results: true })), 'incomplete'],
@@ -89,11 +89,11 @@ describe('reviewPollOutcome', () => {
     ['an inaccessible search', { kind: 'inaccessible', status: 403 }, 'error'],
     ['not-modified', { kind: 'not-modified' }, 'error'],
   ])('maps %s', (_name, result, fault) => {
-    const outcome = reviewPollOutcome(result);
-    if (fault === null) expect(outcome.kind).toBe('complete');
-    else expect(outcome).toEqual({ kind: 'fault', fault });
-  });
-});
+    const outcome = reviewPollOutcome(result)
+    if (fault === null) expect(outcome.kind).toBe('complete')
+    else expect(outcome).toEqual({ kind: 'fault', fault })
+  })
+})
 
 describe('pickClone', () => {
   it('picks the matching path that sorts first', () => {
@@ -101,32 +101,27 @@ describe('pickClone', () => {
       { path: '/r/b', repo: 'acme/widgets' },
       { path: '/r/a', repo: 'acme/widgets' },
       { path: '/r/0', repo: 'acme/other' },
-    ];
-    expect(pickClone(candidates, 'acme/widgets')).toBe('/r/a');
-  });
+    ]
+    expect(pickClone(candidates, 'acme/widgets')).toBe('/r/a')
+  })
 
   it('is null when nothing matches', () => {
-    expect(pickClone([{ path: '/r/a', repo: null }], 'acme/widgets')).toBeNull();
-    expect(pickClone([], 'acme/widgets')).toBeNull();
-  });
-});
+    expect(pickClone([{ path: '/r/a', repo: null }], 'acme/widgets')).toBeNull()
+    expect(pickClone([], 'acme/widgets')).toBeNull()
+  })
+})
 
 describe('joinLinks', () => {
-  const items = parseReviewSearch(searchResponse)?.items ?? [];
+  const items = parseReviewSearch(searchResponse)?.items ?? []
 
   it('sets the session id of a linked item and leaves the rest null', () => {
-    const first = items[0];
-    expect(first).toBeDefined();
-    const joined = joinLinks(items, { [first?.key ?? '']: 'session-1' });
-    expect(joined.map((i) => i.sessionId)).toEqual([
-      'session-1',
-      ...items.slice(1).map(() => null),
-    ]);
-  });
+    const first = items[0]
+    expect(first).toBeDefined()
+    const joined = joinLinks(items, { [first?.key ?? '']: 'session-1' })
+    expect(joined.map((i) => i.sessionId)).toEqual(['session-1', ...items.slice(1).map(() => null)])
+  })
 
   it('ignores a link for a key that is not among the items', () => {
-    expect(joinLinks(items, { 'a/b#1': 'session-1' }).every((i) => i.sessionId === null)).toBe(
-      true,
-    );
-  });
-});
+    expect(joinLinks(items, { 'a/b#1': 'session-1' }).every((i) => i.sessionId === null)).toBe(true)
+  })
+})

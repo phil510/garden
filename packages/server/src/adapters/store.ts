@@ -1,9 +1,9 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { DEFAULT_UI_STATE, STAGE_PRESETS, isWatchKind } from '@garden/shared';
-import type { SessionPlacement, StagePreset, SwarmRecord, UiState } from '@garden/shared';
-import type { OverlayState, PersistedAlert, ReviewsOverlay } from '../domain/overlay.js';
-import type { DigestRecord, Watch } from '../domain/watches.js';
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { DEFAULT_UI_STATE, STAGE_PRESETS, isWatchKind } from '@garden/shared'
+import type { SessionPlacement, StagePreset, SwarmRecord, UiState } from '@garden/shared'
+import type { OverlayState, PersistedAlert, ReviewsOverlay } from '../domain/overlay.js'
+import type { DigestRecord, Watch } from '../domain/watches.js'
 
 export const DEFAULT_OVERLAY_STATE: OverlayState = {
   version: 2,
@@ -14,30 +14,30 @@ export const DEFAULT_OVERLAY_STATE: OverlayState = {
   digests: [],
   pipes: {},
   reviews: { links: {} },
-};
+}
 
 function statePath(appDir: string): string {
-  return join(appDir, 'state.json');
+  return join(appDir, 'state.json')
 }
 
 /** The slice of `Logger` this adapter needs, declared locally rather than imported —
  *  one adapter per external system, composed together only in main.ts. */
 export interface StoreLogger {
-  warn(message: string): void;
+  warn(message: string): void
 }
 
-const presets: ReadonlySet<string> = new Set(STAGE_PRESETS);
+const presets: ReadonlySet<string> = new Set(STAGE_PRESETS)
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function isStagePreset(value: unknown): value is StagePreset {
-  return typeof value === 'string' && presets.has(value);
+  return typeof value === 'string' && presets.has(value)
 }
 
 function isSlots(value: unknown): value is (string | null)[] {
-  return Array.isArray(value) && value.every((slot) => slot === null || typeof slot === 'string');
+  return Array.isArray(value) && value.every((slot) => slot === null || typeof slot === 'string')
 }
 
 function isSwarmRecord(value: unknown): value is SwarmRecord {
@@ -46,26 +46,26 @@ function isSwarmRecord(value: unknown): value is SwarmRecord {
     typeof value['id'] === 'string' &&
     typeof value['name'] === 'string' &&
     typeof value['archived'] === 'boolean'
-  );
+  )
 }
 
 function isSwarms(value: unknown): value is SwarmRecord[] {
-  return Array.isArray(value) && value.every(isSwarmRecord);
+  return Array.isArray(value) && value.every(isSwarmRecord)
 }
 
 function isOptionalString(value: unknown): value is string | undefined {
-  return value === undefined || typeof value === 'string';
+  return value === undefined || typeof value === 'string'
 }
 
 function isSessionPlacement(value: unknown): value is SessionPlacement {
-  return isRecord(value) && isOptionalString(value['parent']) && isOptionalString(value['swarmId']);
+  return isRecord(value) && isOptionalString(value['parent']) && isOptionalString(value['swarmId'])
 }
 
 function isPlacements(value: unknown): value is Record<string, SessionPlacement> {
-  return isRecord(value) && Object.values(value).every(isSessionPlacement);
+  return isRecord(value) && Object.values(value).every(isSessionPlacement)
 }
 
-const watchStatuses: ReadonlySet<unknown> = new Set(['active', 'error', 'closed']);
+const watchStatuses: ReadonlySet<unknown> = new Set(['active', 'error', 'closed'])
 
 const ITEM_LISTS = [
   'reviews',
@@ -74,7 +74,7 @@ const ITEM_LISTS = [
   'checkRuns',
   'statuses',
   'conflicts',
-];
+]
 
 /** The envelope only: entries of `items` are written by this code and not checked one by one. */
 function isDigestDetail(value: unknown): boolean {
@@ -91,7 +91,7 @@ function isDigestDetail(value: unknown): boolean {
     (value['closed'] === null || isRecord(value['closed'])) &&
     isRecord(value['items']) &&
     ITEM_LISTS.every((list) => Array.isArray((value['items'] as Record<string, unknown>)[list]))
-  );
+  )
 }
 
 function isPendingDigest(value: unknown): boolean {
@@ -100,13 +100,13 @@ function isPendingDigest(value: unknown): boolean {
     typeof value['id'] === 'string' &&
     typeof value['line'] === 'string' &&
     typeof value['createdAt'] === 'number'
-  );
+  )
 }
 
 function isDigestRecord(value: unknown): value is DigestRecord {
   return (
     isRecord(value) && typeof value['sessionId'] === 'string' && isDigestDetail(value['detail'])
-  );
+  )
 }
 
 /** `cursor` is deliberately unchecked: the poller owns its shape and may change it. */
@@ -126,11 +126,11 @@ function isWatch(value: unknown): value is Watch {
     (value['pendingDigest'] === null || isPendingDigest(value['pendingDigest'])) &&
     watchStatuses.has(value['status']) &&
     (value['errorReason'] === undefined || typeof value['errorReason'] === 'string')
-  );
+  )
 }
 
 function isStringArray(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every((entry) => typeof entry === 'string');
+  return Array.isArray(value) && value.every((entry) => typeof entry === 'string')
 }
 
 /** The list fields hold entries that are filtered one by one in `readOverlayState`, so a
@@ -141,7 +141,7 @@ function hasWellFormedLists(value: Record<string, unknown>): boolean {
     (value['watches'] === undefined || Array.isArray(value['watches'])) &&
     (value['alerts'] === undefined || Array.isArray(value['alerts'])) &&
     (value['digests'] === undefined || Array.isArray(value['digests']))
-  );
+  )
 }
 
 /** A guard per `UiState` key. Typed as a mapped type so a field added to `UiState` fails
@@ -161,37 +161,37 @@ const UI_GUARDS: { readonly [K in keyof UiState]: (value: unknown) => value is U
   swarmOrder: isStringArray,
   collapsedSwarms: isStringArray,
   hideDeadSwarms: isStringArray,
-};
+}
 
 /** An absent key takes its default silently, so a field added later does not make every
  *  existing file lose its other contents. A present key that fails its guard is reported and
  *  takes the default too: failing the whole file would drop `tmuxNames` on the next write. */
 function readUi(value: Record<string, unknown>, path: string, logger: StoreLogger): UiState {
   // A clone, not the shared default, so the result owns its arrays and records.
-  const ui: Record<string, unknown> = { ...structuredClone(DEFAULT_UI_STATE) };
+  const ui: Record<string, unknown> = { ...structuredClone(DEFAULT_UI_STATE) }
   for (const key of Object.keys(UI_GUARDS) as (keyof UiState)[]) {
-    const entry = value[key];
-    if (entry === undefined) continue;
-    if (UI_GUARDS[key](entry)) ui[key] = entry;
-    else logger.warn(`ignoring invalid ui.${key} in ${path}`);
+    const entry = value[key]
+    if (entry === undefined) continue
+    if (UI_GUARDS[key](entry)) ui[key] = entry
+    else logger.warn(`ignoring invalid ui.${key} in ${path}`)
   }
   // Every key has either passed its guard or kept its default.
-  return ui as unknown as UiState;
+  return ui as unknown as UiState
 }
 
 /** Version 1 flattened the UI state into a per-repo `groups` map and a `stage` record. */
 interface V1Group {
-  readonly pinned: boolean;
-  readonly order: number;
-  readonly collapsed: boolean;
-  readonly hideDead: boolean;
+  readonly pinned: boolean
+  readonly order: number
+  readonly collapsed: boolean
+  readonly hideDead: boolean
 }
 
 interface V1Stage {
-  readonly preset: StagePreset;
-  readonly slots: (string | null)[];
-  readonly focusedSlot: number;
-  readonly layout?: unknown;
+  readonly preset: StagePreset
+  readonly slots: (string | null)[]
+  readonly focusedSlot: number
+  readonly layout?: unknown
 }
 
 function isV1Group(value: unknown): value is V1Group {
@@ -201,7 +201,7 @@ function isV1Group(value: unknown): value is V1Group {
     typeof value['order'] === 'number' &&
     typeof value['collapsed'] === 'boolean' &&
     typeof value['hideDead'] === 'boolean'
-  );
+  )
 }
 
 function isV1Stage(value: unknown): value is V1Stage {
@@ -210,15 +210,15 @@ function isV1Stage(value: unknown): value is V1Stage {
     isStagePreset(value['preset']) &&
     isSlots(value['slots']) &&
     typeof value['focusedSlot'] === 'number'
-  );
+  )
 }
 
 /** The v1 fields a v1 file must carry. The swarm fields are the exception: a pre-#170/#187
  *  file predates them, and losing its `tmuxNames`/`groups`/`stage` over fields it never had
  *  would be the actual loss. Present and malformed still fails the whole file. */
 function isV1State(value: Record<string, unknown>): value is Record<string, unknown> & {
-  groups: Record<string, V1Group>;
-  stage: V1Stage;
+  groups: Record<string, V1Group>
+  stage: V1Stage
 } {
   return (
     isRecord(value['groups']) &&
@@ -229,7 +229,7 @@ function isV1State(value: Record<string, unknown>): value is Record<string, unkn
     (value['swarmOrder'] === undefined || isStringArray(value['swarmOrder'])) &&
     (value['collapsedSwarms'] === undefined || isStringArray(value['collapsedSwarms'])) &&
     (value['hideDeadSwarms'] === undefined || isStringArray(value['hideDeadSwarms']))
-  );
+  )
 }
 
 /** The `ui` a v2 file would hold, built from a validated v1 file: the per-repo `groups` map
@@ -237,9 +237,9 @@ function isV1State(value: Record<string, unknown>): value is Record<string, unkn
 function liftV1Ui(
   value: Record<string, unknown> & { groups: Record<string, V1Group>; stage: V1Stage },
 ): Record<string, unknown> {
-  const entries = Object.entries(value.groups).sort((a, b) => a[1].order - b[1].order);
+  const entries = Object.entries(value.groups).sort((a, b) => a[1].order - b[1].order)
   const where = (flag: 'pinned' | 'collapsed' | 'hideDead') =>
-    entries.filter(([, group]) => group[flag]).map(([repo]) => repo);
+    entries.filter(([, group]) => group[flag]).map(([repo]) => repo)
   return {
     groupOrder: entries.map(([repo]) => repo),
     pinnedRepos: where('pinned'),
@@ -254,33 +254,33 @@ function liftV1Ui(
     swarmOrder: value['swarmOrder'],
     collapsedSwarms: value['collapsedSwarms'],
     hideDeadSwarms: value['hideDeadSwarms'],
-  };
+  }
 }
 
 /** The detail is a read-path extra; the pending digest line is what gets delivered. A malformed
  *  detail is stripped on its own so the watch, its cursor and its line survive. */
 function withoutBadDetail(watch: Watch, path: string, logger: StoreLogger): Watch {
-  const pending = watch.pendingDigest;
+  const pending = watch.pendingDigest
   if (pending === null || pending.detail === undefined || isDigestDetail(pending.detail))
-    return watch;
-  logger.warn(`dropping malformed digest detail in ${path}`);
+    return watch
+  logger.warn(`dropping malformed digest detail in ${path}`)
   return {
     ...watch,
     pendingDigest: { id: pending.id, line: pending.line, createdAt: pending.createdAt },
-  };
+  }
 }
 
 /** Watches are written often by an automated poller and their shape evolves, so one bad entry
  *  is dropped on its own: failing the whole file would fall back to defaults, and the next
  *  write would permanently lose every session's tmux name. */
 function readWatches(value: unknown, path: string, logger: StoreLogger): readonly Watch[] {
-  if (!Array.isArray(value)) return [];
-  const watches: Watch[] = [];
+  if (!Array.isArray(value)) return []
+  const watches: Watch[] = []
   for (const entry of value) {
-    if (isWatch(entry)) watches.push(withoutBadDetail(entry, path, logger));
-    else logger.warn(`dropping malformed watch in ${path}`);
+    if (isWatch(entry)) watches.push(withoutBadDetail(entry, path, logger))
+    else logger.warn(`dropping malformed watch in ${path}`)
   }
-  return watches;
+  return watches
 }
 
 function isPersistedAlert(value: unknown): value is PersistedAlert {
@@ -290,29 +290,29 @@ function isPersistedAlert(value: unknown): value is PersistedAlert {
     typeof value['text'] === 'string' &&
     typeof value['raisedAt'] === 'number' &&
     typeof value['updatedAt'] === 'number'
-  );
+  )
 }
 
 /** Like watches, a bad entry is dropped on its own rather than failing the file. */
 function readAlerts(value: unknown, path: string, logger: StoreLogger): readonly PersistedAlert[] {
-  if (!Array.isArray(value)) return [];
-  const alerts: PersistedAlert[] = [];
+  if (!Array.isArray(value)) return []
+  const alerts: PersistedAlert[] = []
   for (const entry of value) {
-    if (isPersistedAlert(entry)) alerts.push(entry);
-    else logger.warn(`dropping malformed alert in ${path}`);
+    if (isPersistedAlert(entry)) alerts.push(entry)
+    else logger.warn(`dropping malformed alert in ${path}`)
   }
-  return alerts;
+  return alerts
 }
 
 /** Like watches, a bad entry is dropped on its own rather than failing the file. */
 function readDigests(value: unknown, path: string, logger: StoreLogger): readonly DigestRecord[] {
-  if (!Array.isArray(value)) return [];
-  const digests: DigestRecord[] = [];
+  if (!Array.isArray(value)) return []
+  const digests: DigestRecord[] = []
   for (const entry of value) {
-    if (isDigestRecord(entry)) digests.push(entry);
-    else logger.warn(`dropping malformed digest record in ${path}`);
+    if (isDigestRecord(entry)) digests.push(entry)
+    else logger.warn(`dropping malformed digest record in ${path}`)
   }
-  return digests;
+  return digests
 }
 
 /** Like watches, a bad entry is dropped on its own rather than failing the file. */
@@ -321,24 +321,24 @@ function readPipes(
   path: string,
   logger: StoreLogger,
 ): Readonly<Record<string, number>> {
-  if (!isRecord(value)) return {};
-  const pipes: Record<string, number> = {};
+  if (!isRecord(value)) return {}
+  const pipes: Record<string, number> = {}
   for (const [sessionId, at] of Object.entries(value)) {
-    if (typeof at === 'number' && Number.isFinite(at)) pipes[sessionId] = at;
-    else logger.warn(`dropping malformed pipe time for ${sessionId} in ${path}`);
+    if (typeof at === 'number' && Number.isFinite(at)) pipes[sessionId] = at
+    else logger.warn(`dropping malformed pipe time for ${sessionId} in ${path}`)
   }
-  return pipes;
+  return pipes
 }
 
 /** Like pipes, a bad link is dropped on its own rather than failing the file. */
 function readReviews(value: unknown, path: string, logger: StoreLogger): ReviewsOverlay {
-  if (!isRecord(value) || !isRecord(value['links'])) return { links: {} };
-  const links: Record<string, string> = {};
+  if (!isRecord(value) || !isRecord(value['links'])) return { links: {} }
+  const links: Record<string, string> = {}
   for (const [key, sessionId] of Object.entries(value['links'])) {
-    if (typeof sessionId === 'string' && sessionId !== '') links[key] = sessionId;
-    else logger.warn(`dropping malformed review link for ${key} in ${path}`);
+    if (typeof sessionId === 'string' && sessionId !== '') links[key] = sessionId
+    else logger.warn(`dropping malformed review link for ${key} in ${path}`)
   }
-  return { links };
+  return { links }
 }
 
 /** `undefined` when the file's UI part is unusable: an unknown version, a v1 file with a bad
@@ -349,38 +349,38 @@ function readStoredUi(
   logger: StoreLogger,
 ): UiState | undefined {
   if (parsed['version'] === 1)
-    return isV1State(parsed) ? readUi(liftV1Ui(parsed), path, logger) : undefined;
+    return isV1State(parsed) ? readUi(liftV1Ui(parsed), path, logger) : undefined
   if (parsed['version'] === 2)
-    return isRecord(parsed['ui']) ? readUi(parsed['ui'], path, logger) : undefined;
-  return undefined;
+    return isRecord(parsed['ui']) ? readUi(parsed['ui'], path, logger) : undefined
+  return undefined
 }
 
 /** A missing file means a fresh install. A file that is present but unreadable as an
  *  overlay is a loss worth reporting: `tmuxNames` maps session ids to the tmux names
  *  garden chose, and nothing can recompute it. */
 export function readOverlayState(appDir: string, logger: StoreLogger): OverlayState {
-  const path = statePath(appDir);
-  let text: string;
+  const path = statePath(appDir)
+  let text: string
   try {
-    text = readFileSync(path, 'utf8');
+    text = readFileSync(path, 'utf8')
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return DEFAULT_OVERLAY_STATE;
-    throw error;
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return DEFAULT_OVERLAY_STATE
+    throw error
   }
-  let parsed: unknown;
+  let parsed: unknown
   try {
-    parsed = JSON.parse(text);
+    parsed = JSON.parse(text)
   } catch (error) {
-    logger.warn(`ignoring unparseable ${path}: ${(error as Error).message}`);
-    return DEFAULT_OVERLAY_STATE;
+    logger.warn(`ignoring unparseable ${path}: ${(error as Error).message}`)
+    return DEFAULT_OVERLAY_STATE
   }
   const ui =
     isRecord(parsed) && isRecord(parsed['tmuxNames']) && hasWellFormedLists(parsed)
       ? readStoredUi(parsed, path, logger)
-      : undefined;
+      : undefined
   if (!isRecord(parsed) || ui === undefined) {
-    logger.warn(`ignoring ${path}: not a version 1 or 2 overlay state`);
-    return DEFAULT_OVERLAY_STATE;
+    logger.warn(`ignoring ${path}: not a version 1 or 2 overlay state`)
+    return DEFAULT_OVERLAY_STATE
   }
   return {
     version: 2,
@@ -391,15 +391,15 @@ export function readOverlayState(appDir: string, logger: StoreLogger): OverlaySt
     digests: readDigests(parsed['digests'], path, logger),
     pipes: readPipes(parsed['pipes'], path, logger),
     reviews: readReviews(parsed['reviews'], path, logger),
-  };
+  }
 }
 
 /** Writes to a temp file beside the target and renames over it, so a concurrent
  *  reader sees either the previous state or the new one, never a half-written file. */
 export function writeOverlayState(appDir: string, state: OverlayState): void {
-  mkdirSync(appDir, { recursive: true });
-  const path = statePath(appDir);
-  const tmpPath = `${path}.tmp`;
-  writeFileSync(tmpPath, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
-  renameSync(tmpPath, path);
+  mkdirSync(appDir, { recursive: true })
+  const path = statePath(appDir)
+  const tmpPath = `${path}.tmp`
+  writeFileSync(tmpPath, `${JSON.stringify(state, null, 2)}\n`, 'utf8')
+  renameSync(tmpPath, path)
 }

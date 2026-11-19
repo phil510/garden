@@ -1,9 +1,9 @@
-import type { GitPort } from './ports.js';
-import type { Projection } from './projection.js';
+import type { GitPort } from './ports.js'
+import type { Projection } from './projection.js'
 
 export interface RepoRootsDeps {
-  readonly git: Pick<GitPort, 'repoRoot'>;
-  readonly projection: Projection;
+  readonly git: Pick<GitPort, 'repoRoot'>
+  readonly projection: Projection
 }
 
 /**
@@ -22,24 +22,24 @@ export interface RepoRootsDeps {
  * null root it started with and works without a sidebar group.
  */
 export function watchRepoRoots(deps: RepoRootsDeps): () => void {
-  const asked = new Set<string>();
+  const asked = new Set<string>()
 
   function resolve(cwd: string): void {
-    if (cwd === '' || asked.has(cwd)) return;
-    asked.add(cwd);
+    if (cwd === '' || asked.has(cwd)) return
+    asked.add(cwd)
     void deps.git
       .repoRoot(cwd)
       .then((repoRoot) => {
-        deps.projection.dispatch({ type: 'repo-root-resolved', cwd, repoRoot });
+        deps.projection.dispatch({ type: 'repo-root-resolved', cwd, repoRoot })
       })
-      .catch(() => undefined);
+      .catch(() => undefined)
   }
 
   function sweep(): void {
-    for (const session of deps.projection.sessions()) resolve(session.cwd);
+    for (const session of deps.projection.sessions()) resolve(session.cwd)
   }
 
-  const unsubscribe = deps.projection.subscribe(sweep);
-  sweep();
-  return unsubscribe;
+  const unsubscribe = deps.projection.subscribe(sweep)
+  sweep()
+  return unsubscribe
 }

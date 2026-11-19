@@ -1,7 +1,7 @@
-import type { SessionsFilter, SessionState } from '@garden/shared';
+import type { SessionsFilter, SessionState } from '@garden/shared'
 
-const DEFAULT_SINCE_DAYS = 7;
-const DEFAULT_MAX_RECAP_CHARS = 500;
+const DEFAULT_SINCE_DAYS = 7
+const DEFAULT_MAX_RECAP_CHARS = 500
 
 /** A pure, read-time view over an already-materialized session list — never mutates
  *  `state.sessions`, so widening `sinceDays`/`maxRecapChars` on a later call can always
@@ -12,8 +12,8 @@ export function filterSessions(
   filter: SessionsFilter,
   now: number,
 ): SessionState[] {
-  const sinceMs = (filter.sinceDays ?? DEFAULT_SINCE_DAYS) * 86_400_000;
-  const maxRecapChars = filter.maxRecapChars ?? DEFAULT_MAX_RECAP_CHARS;
+  const sinceMs = (filter.sinceDays ?? DEFAULT_SINCE_DAYS) * 86_400_000
+  const maxRecapChars = filter.maxRecapChars ?? DEFAULT_MAX_RECAP_CHARS
 
   return sessions
     .filter((session) => session.liveness === 'live' || now - session.lastActivity <= sinceMs)
@@ -23,10 +23,10 @@ export function filterSessions(
     )
     .filter((session) => filter.status === undefined || session.status === filter.status)
     .map((session) => {
-      if (session.recap === null) return session;
+      if (session.recap === null) return session
       // `.slice(-0)` is `.slice(0)` (the whole string) and a negative `maxRecapChars` flips
       // into a head-trim, so 0-or-below is handled explicitly rather than falling through.
-      const recap = maxRecapChars <= 0 ? '' : session.recap.slice(-maxRecapChars);
-      return { ...session, recap };
-    });
+      const recap = maxRecapChars <= 0 ? '' : session.recap.slice(-maxRecapChars)
+      return { ...session, recap }
+    })
 }

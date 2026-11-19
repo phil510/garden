@@ -9,16 +9,16 @@ export async function until<T>(
   predicate: (value: T) => boolean,
   timeoutMs = 10_000,
 ): Promise<T> {
-  const deadline = Date.now() + timeoutMs;
-  let last = await probe();
+  const deadline = Date.now() + timeoutMs
+  let last = await probe()
   while (!predicate(last)) {
     if (Date.now() >= deadline) {
       throw new Error(
         `Timed out after ${timeoutMs}ms waiting for ${description}. Last observation: ${JSON.stringify(last)}`,
-      );
+      )
     }
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    last = await probe();
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    last = await probe()
   }
-  return last;
+  return last
 }

@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it } from 'vitest';
-import { defaultFilePanel } from './filePanelPersistence';
-import { useLocalStore } from './localStore';
+import { beforeEach, describe, expect, it } from 'vitest'
+import { defaultFilePanel } from './filePanelPersistence'
+import { useLocalStore } from './localStore'
 
 beforeEach(() => {
   useLocalStore.setState({
@@ -11,128 +11,128 @@ beforeEach(() => {
     sidebarWidth: 280,
     filePanelWidth: 320,
     selectedSwarmId: null,
-  });
-});
+  })
+})
 
 describe('localStore', () => {
   it('starts with no scroll offsets', () => {
-    expect(useLocalStore.getState().scrollOffsets).toEqual({});
-  });
+    expect(useLocalStore.getState().scrollOffsets).toEqual({})
+  })
 
   it('records a scroll offset under its key', () => {
-    useLocalStore.getState().setScrollOffset('sidebar', 120);
-    expect(useLocalStore.getState().scrollOffsets).toEqual({ sidebar: 120 });
-  });
+    useLocalStore.getState().setScrollOffset('sidebar', 120)
+    expect(useLocalStore.getState().scrollOffsets).toEqual({ sidebar: 120 })
+  })
 
   it('overwrites a scroll offset without disturbing other keys', () => {
-    useLocalStore.getState().setScrollOffset('sidebar', 120);
-    useLocalStore.getState().setScrollOffset('filetree', 40);
-    useLocalStore.getState().setScrollOffset('sidebar', 200);
-    expect(useLocalStore.getState().scrollOffsets).toEqual({ sidebar: 200, filetree: 40 });
-  });
+    useLocalStore.getState().setScrollOffset('sidebar', 120)
+    useLocalStore.getState().setScrollOffset('filetree', 40)
+    useLocalStore.getState().setScrollOffset('sidebar', 200)
+    expect(useLocalStore.getState().scrollOffsets).toEqual({ sidebar: 200, filetree: 40 })
+  })
 
   it('expands a collapsed path under its root', () => {
-    useLocalStore.getState().toggleExpandedPath('/a', 'src');
-    expect(useLocalStore.getState().filePanel.byRoot['/a']?.expanded).toEqual(['src']);
-  });
+    useLocalStore.getState().toggleExpandedPath('/a', 'src')
+    expect(useLocalStore.getState().filePanel.byRoot['/a']?.expanded).toEqual(['src'])
+  })
 
   it('collapses an expanded path', () => {
-    useLocalStore.getState().toggleExpandedPath('/a', 'src');
-    useLocalStore.getState().toggleExpandedPath('/a', 'src');
-    expect(useLocalStore.getState().filePanel.byRoot['/a']?.expanded).toEqual([]);
-  });
+    useLocalStore.getState().toggleExpandedPath('/a', 'src')
+    useLocalStore.getState().toggleExpandedPath('/a', 'src')
+    expect(useLocalStore.getState().filePanel.byRoot['/a']?.expanded).toEqual([])
+  })
 
   it('keeps expanded paths scoped to their own root', () => {
-    useLocalStore.getState().toggleExpandedPath('/a', 'src');
-    useLocalStore.getState().toggleExpandedPath('/b', 'lib');
-    const { byRoot } = useLocalStore.getState().filePanel;
-    expect(byRoot['/a']?.expanded).toEqual(['src']);
-    expect(byRoot['/b']?.expanded).toEqual(['lib']);
-  });
+    useLocalStore.getState().toggleExpandedPath('/a', 'src')
+    useLocalStore.getState().toggleExpandedPath('/b', 'lib')
+    const { byRoot } = useLocalStore.getState().filePanel
+    expect(byRoot['/a']?.expanded).toEqual(['src'])
+    expect(byRoot['/b']?.expanded).toEqual(['lib'])
+  })
 
   it('keeps both roots entries when the shown root switches', () => {
-    useLocalStore.getState().setPanelRoot('/a');
-    useLocalStore.getState().setOpenFile('/a', 'x.ts');
-    useLocalStore.getState().setPanelRoot('/b');
-    useLocalStore.getState().setPanelTab('/b', 'editor');
-    const { root, byRoot } = useLocalStore.getState().filePanel;
-    expect(root).toBe('/b');
-    expect(byRoot['/a']).toEqual({ expanded: [], openFile: 'x.ts', tab: 'files' });
-    expect(byRoot['/b']).toEqual({ expanded: [], openFile: null, tab: 'editor' });
-  });
+    useLocalStore.getState().setPanelRoot('/a')
+    useLocalStore.getState().setOpenFile('/a', 'x.ts')
+    useLocalStore.getState().setPanelRoot('/b')
+    useLocalStore.getState().setPanelTab('/b', 'editor')
+    const { root, byRoot } = useLocalStore.getState().filePanel
+    expect(root).toBe('/b')
+    expect(byRoot['/a']).toEqual({ expanded: [], openFile: 'x.ts', tab: 'files' })
+    expect(byRoot['/b']).toEqual({ expanded: [], openFile: null, tab: 'editor' })
+  })
 
   it('records the open file without touching the root expanded folders', () => {
-    useLocalStore.getState().toggleExpandedPath('/a', 'src');
-    useLocalStore.getState().setOpenFile('/a', 'src/x.ts');
-    useLocalStore.getState().setOpenFile('/a', null);
+    useLocalStore.getState().toggleExpandedPath('/a', 'src')
+    useLocalStore.getState().setOpenFile('/a', 'src/x.ts')
+    useLocalStore.getState().setOpenFile('/a', null)
     expect(useLocalStore.getState().filePanel.byRoot['/a']).toEqual({
       expanded: ['src'],
       openFile: null,
       tab: 'files',
-    });
-  });
+    })
+  })
 
   it('counts refresh requests', () => {
-    useLocalStore.getState().bumpFsRefresh();
-    useLocalStore.getState().bumpFsRefresh();
-    expect(useLocalStore.getState().fsRefreshEpoch).toBe(2);
-  });
+    useLocalStore.getState().bumpFsRefresh()
+    useLocalStore.getState().bumpFsRefresh()
+    expect(useLocalStore.getState().fsRefreshEpoch).toBe(2)
+  })
 
   it('records a requested file open', () => {
     useLocalStore
       .getState()
-      .requestOpenFile({ kind: 'session', sessionId: 'sid-1' }, 'src/foo.ts', 42);
+      .requestOpenFile({ kind: 'session', sessionId: 'sid-1' }, 'src/foo.ts', 42)
     expect(useLocalStore.getState().openFileRequest).toEqual({
       source: { kind: 'session', sessionId: 'sid-1' },
       path: 'src/foo.ts',
       line: 42,
-    });
-  });
+    })
+  })
 
   it('overwrites a pending open request with the latest one', () => {
     useLocalStore
       .getState()
-      .requestOpenFile({ kind: 'session', sessionId: 'sid-1' }, 'src/foo.ts', 42);
-    useLocalStore.getState().requestOpenFile({ kind: 'root', root: '/b' }, 'src/bar.ts', 7);
+      .requestOpenFile({ kind: 'session', sessionId: 'sid-1' }, 'src/foo.ts', 42)
+    useLocalStore.getState().requestOpenFile({ kind: 'root', root: '/b' }, 'src/bar.ts', 7)
     expect(useLocalStore.getState().openFileRequest).toEqual({
       source: { kind: 'root', root: '/b' },
       path: 'src/bar.ts',
       line: 7,
-    });
-  });
+    })
+  })
 
   it('records a requested file open with no line target', () => {
     useLocalStore
       .getState()
-      .requestOpenFile({ kind: 'session', sessionId: 'sid-1' }, 'src/foo.ts', null);
+      .requestOpenFile({ kind: 'session', sessionId: 'sid-1' }, 'src/foo.ts', null)
     expect(useLocalStore.getState().openFileRequest).toEqual({
       source: { kind: 'session', sessionId: 'sid-1' },
       path: 'src/foo.ts',
       line: null,
-    });
-  });
+    })
+  })
 
   it('treats a repeated click on the same path with a new line as a new request', () => {
-    const source = { kind: 'root', root: '/a' } as const;
-    useLocalStore.getState().requestOpenFile(source, 'foo.ts', 10);
-    const first = useLocalStore.getState().openFileRequest;
-    useLocalStore.getState().requestOpenFile(source, 'foo.ts', 80);
-    const second = useLocalStore.getState().openFileRequest;
-    expect(second).not.toBe(first);
-    expect(second?.line).toBe(80);
-  });
+    const source = { kind: 'root', root: '/a' } as const
+    useLocalStore.getState().requestOpenFile(source, 'foo.ts', 10)
+    const first = useLocalStore.getState().openFileRequest
+    useLocalStore.getState().requestOpenFile(source, 'foo.ts', 80)
+    const second = useLocalStore.getState().openFileRequest
+    expect(second).not.toBe(first)
+    expect(second?.line).toBe(80)
+  })
 
   it('gives every connection its own epoch, so a pane can tell a reconnect from a redraw', () => {
-    const start = useLocalStore.getState().connectionEpoch;
-    useLocalStore.getState().noteConnected();
-    useLocalStore.getState().noteConnected();
-    expect(useLocalStore.getState().connectionEpoch).toBe(start + 2);
-  });
+    const start = useLocalStore.getState().connectionEpoch
+    useLocalStore.getState().noteConnected()
+    useLocalStore.getState().noteConnected()
+    expect(useLocalStore.getState().connectionEpoch).toBe(start + 2)
+  })
 
   it('starts with the sidebars at their default widths', () => {
-    expect(useLocalStore.getState().sidebarWidth).toBe(280);
-    expect(useLocalStore.getState().filePanelWidth).toBe(320);
-  });
+    expect(useLocalStore.getState().sidebarWidth).toBe(280)
+    expect(useLocalStore.getState().filePanelWidth).toBe(320)
+  })
 
   // Every resizeSidebarBy/resizeFilePanelBy call below passes a generous viewportWidth (1024)
   // and otherPanelReserved (0) so the per-field min/max is the only bound in play, unless a
@@ -141,79 +141,79 @@ describe('localStore', () => {
     // Each call reads the store's current value rather than one a caller captured earlier —
     // the behavior a drag depends on, since a fast pointermove stream can fire several of
     // these before a caller holding a stale width would have re-rendered.
-    useLocalStore.getState().resizeSidebarBy(20, 1024, 0);
-    useLocalStore.getState().resizeSidebarBy(20, 1024, 0);
-    expect(useLocalStore.getState().sidebarWidth).toBe(320);
-  });
+    useLocalStore.getState().resizeSidebarBy(20, 1024, 0)
+    useLocalStore.getState().resizeSidebarBy(20, 1024, 0)
+    expect(useLocalStore.getState().sidebarWidth).toBe(320)
+  })
 
   it('clamps an accumulated sidebar resize at its minimum', () => {
-    useLocalStore.getState().resizeSidebarBy(-1000, 1024, 0);
-    expect(useLocalStore.getState().sidebarWidth).toBe(180);
-  });
+    useLocalStore.getState().resizeSidebarBy(-1000, 1024, 0)
+    expect(useLocalStore.getState().sidebarWidth).toBe(180)
+  })
 
   it('clamps an accumulated sidebar resize at its maximum', () => {
-    useLocalStore.getState().resizeSidebarBy(1000, 1024, 0);
-    expect(useLocalStore.getState().sidebarWidth).toBe(560);
-  });
+    useLocalStore.getState().resizeSidebarBy(1000, 1024, 0)
+    expect(useLocalStore.getState().sidebarWidth).toBe(560)
+  })
 
   it('accumulates consecutive file panel resize deltas against the latest store value', () => {
-    useLocalStore.getState().resizeFilePanelBy(-20, 1024, 0);
-    useLocalStore.getState().resizeFilePanelBy(-20, 1024, 0);
-    expect(useLocalStore.getState().filePanelWidth).toBe(280);
-  });
+    useLocalStore.getState().resizeFilePanelBy(-20, 1024, 0)
+    useLocalStore.getState().resizeFilePanelBy(-20, 1024, 0)
+    expect(useLocalStore.getState().filePanelWidth).toBe(280)
+  })
 
   it('clamps an accumulated file panel resize at its minimum', () => {
-    useLocalStore.getState().resizeFilePanelBy(-1000, 1024, 0);
-    expect(useLocalStore.getState().filePanelWidth).toBe(220);
-  });
+    useLocalStore.getState().resizeFilePanelBy(-1000, 1024, 0)
+    expect(useLocalStore.getState().filePanelWidth).toBe(220)
+  })
 
   it('clamps an accumulated file panel resize at its maximum, unchanged on a narrow viewport', () => {
-    useLocalStore.getState().resizeFilePanelBy(1000, 1024, 0);
-    expect(useLocalStore.getState().filePanelWidth).toBe(640);
-  });
+    useLocalStore.getState().resizeFilePanelBy(1000, 1024, 0)
+    expect(useLocalStore.getState().filePanelWidth).toBe(640)
+  })
 
   it('lets the file panel resize reach half the viewport width on a wide display', () => {
-    useLocalStore.getState().resizeFilePanelBy(5000, 2000, 0);
-    expect(useLocalStore.getState().filePanelWidth).toBe(1000);
-  });
+    useLocalStore.getState().resizeFilePanelBy(5000, 2000, 0)
+    expect(useLocalStore.getState().filePanelWidth).toBe(1000)
+  })
 
   it('caps the sidebar resize below its own maximum when the file panel and stage floor would not otherwise fit', () => {
     // Viewport 1000px, file panel reserving 500px, stage floor 200px -> room for the
     // sidebar tops out at 300px even though its own max is 560.
-    useLocalStore.getState().resizeSidebarBy(1000, 1000, 500);
-    expect(useLocalStore.getState().sidebarWidth).toBe(300);
-  });
+    useLocalStore.getState().resizeSidebarBy(1000, 1000, 500)
+    expect(useLocalStore.getState().sidebarWidth).toBe(300)
+  })
 
   it('ignores the file panel reservation while it is closed, so the sidebar can still reach its own maximum', () => {
-    useLocalStore.getState().resizeSidebarBy(1000, 1000, 0);
-    expect(useLocalStore.getState().sidebarWidth).toBe(560);
-  });
+    useLocalStore.getState().resizeSidebarBy(1000, 1000, 0)
+    expect(useLocalStore.getState().sidebarWidth).toBe(560)
+  })
 
   it('caps the file panel resize below its own maximum when the sidebar and stage floor would not otherwise fit', () => {
-    useLocalStore.getState().resizeFilePanelBy(1000, 1000, 500);
-    expect(useLocalStore.getState().filePanelWidth).toBe(300);
-  });
+    useLocalStore.getState().resizeFilePanelBy(1000, 1000, 500)
+    expect(useLocalStore.getState().filePanelWidth).toBe(300)
+  })
 
   it('keeps the stage floor winning over the proportional maximum on a wide display', () => {
     // Viewport 3000px gives a proportional max of 1500px, but the sidebar reserves 2500px,
     // leaving only 300px of room once the stage floor is held back -> that room, not the
     // proportional max, is what caps the file panel.
-    useLocalStore.getState().resizeFilePanelBy(5000, 3000, 2500);
-    expect(useLocalStore.getState().filePanelWidth).toBe(300);
-  });
+    useLocalStore.getState().resizeFilePanelBy(5000, 3000, 2500)
+    expect(useLocalStore.getState().filePanelWidth).toBe(300)
+  })
 
   it('starts with no selected swarm', () => {
-    expect(useLocalStore.getState().selectedSwarmId).toBeNull();
-  });
+    expect(useLocalStore.getState().selectedSwarmId).toBeNull()
+  })
 
   it('records a selected swarm', () => {
-    useLocalStore.getState().setSelectedSwarmId('swarm-1');
-    expect(useLocalStore.getState().selectedSwarmId).toBe('swarm-1');
-  });
+    useLocalStore.getState().setSelectedSwarmId('swarm-1')
+    expect(useLocalStore.getState().selectedSwarmId).toBe('swarm-1')
+  })
 
   it('clears the selected swarm', () => {
-    useLocalStore.getState().setSelectedSwarmId('swarm-1');
-    useLocalStore.getState().setSelectedSwarmId(null);
-    expect(useLocalStore.getState().selectedSwarmId).toBeNull();
-  });
-});
+    useLocalStore.getState().setSelectedSwarmId('swarm-1')
+    useLocalStore.getState().setSelectedSwarmId(null)
+    expect(useLocalStore.getState().selectedSwarmId).toBeNull()
+  })
+})

@@ -1,13 +1,13 @@
-import { useEffect } from 'react';
-import { useToastStore, type ToastKind } from '../state/toastStore';
-import './toast.css';
+import { useEffect } from 'react'
+import { useToastStore, type ToastKind } from '../state/toastStore'
+import './toast.css'
 
-const AUTO_DISMISS_MS = 5000;
+const AUTO_DISMISS_MS = 5000
 
 interface ToastViewProps {
-  message: string | null;
-  kind: ToastKind;
-  onDismiss: () => void;
+  message: string | null
+  kind: ToastKind
+  onDismiss: () => void
 }
 
 /** The toast's markup, apart from the store reads, so it can be rendered from props. The
@@ -25,7 +25,7 @@ export function ToastView({ message, kind, onDismiss }: ToastViewProps) {
         </div>
       )}
     </div>
-  );
+  )
 }
 
 /** A single, bottom-of-screen toast for an outcome the console can't otherwise surface: a
@@ -33,18 +33,18 @@ export function ToastView({ message, kind, onDismiss }: ToastViewProps) {
  *  re-render) or a save that leaves nothing else on screen to show it landed. Auto-dismisses
  *  so a stale message doesn't linger over an otherwise-recovered console. */
 export function Toast() {
-  const message = useToastStore((state) => state.message);
-  const kind = useToastStore((state) => state.kind);
-  const token = useToastStore((state) => state.token);
-  const clearToast = useToastStore((state) => state.clearToast);
+  const message = useToastStore((state) => state.message)
+  const kind = useToastStore((state) => state.kind)
+  const token = useToastStore((state) => state.token)
+  const clearToast = useToastStore((state) => state.clearToast)
 
   useEffect(() => {
-    if (message === null) return;
-    const timeout = setTimeout(clearToast, AUTO_DISMISS_MS);
-    return () => clearTimeout(timeout);
+    if (message === null) return
+    const timeout = setTimeout(clearToast, AUTO_DISMISS_MS)
+    return () => clearTimeout(timeout)
     // `token` is in the deps so a repeat of the same message (unchanged `message` string)
     // still restarts the timer, rather than inheriting the first call's deadline.
-  }, [message, token, clearToast]);
+  }, [message, token, clearToast])
 
-  return <ToastView message={message} kind={kind} onDismiss={clearToast} />;
+  return <ToastView message={message} kind={kind} onDismiss={clearToast} />
 }

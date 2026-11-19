@@ -1,8 +1,8 @@
 // @ts-check
-import eslint from '@eslint/js';
-import tseslint from 'typescript-eslint';
-import prettierConfig from 'eslint-config-prettier';
-import reactHooks from 'eslint-plugin-react-hooks';
+import eslint from '@eslint/js'
+import tseslint from 'typescript-eslint'
+import prettierConfig from 'eslint-config-prettier'
+import reactHooks from 'eslint-plugin-react-hooks'
 
 const NODE_BUILTINS = [
   'fs',
@@ -19,7 +19,7 @@ const NODE_BUILTINS = [
   'dns',
   'readline',
   'worker_threads',
-];
+]
 
 // Patterns, not exact specifiers: `fs`, `node:fs`, `fs/promises` and
 // `node:fs/promises` all resolve, so a layer that bans builtins has to cover
@@ -28,16 +28,16 @@ const nodeBuiltinGroup = [
   ...NODE_BUILTINS.flatMap((name) => [name, `${name}/*`]),
   'node:*',
   'node:*/*',
-];
+]
 
 /** @param {string} message */
-const nodeBuiltinPattern = (message) => ({ group: nodeBuiltinGroup, message });
+const nodeBuiltinPattern = (message) => ({ group: nodeBuiltinGroup, message })
 
 const adaptersInward = {
   group: ['**/app/**', '**/http/**', '**/cli/**'],
   message:
     'adapters/ may import shared, pure domain/ functions and types, and its own library only. Adapters emit events; they do not call inward.',
-};
+}
 
 export default tseslint.config(
   eslint.configs.recommended,
@@ -275,4 +275,4 @@ export default tseslint.config(
   {
     ignores: ['**/dist/**', '**/node_modules/**', '**/coverage/**', '**/*.d.ts'],
   },
-);
+)

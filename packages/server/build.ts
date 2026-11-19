@@ -1,7 +1,7 @@
-import { build } from 'esbuild';
-import { chmodSync, cpSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { build } from 'esbuild'
+import { chmodSync, cpSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 
-mkdirSync('dist', { recursive: true });
+mkdirSync('dist', { recursive: true })
 
 await build({
   entryPoints: ['bin/garden.ts'],
@@ -30,15 +30,15 @@ await build({
   // stays a real module reference. node-pty resolves pty.node and spawn-helper relative
   // to its own package directory, so the bundle needs node_modules/node-pty beside it.
   external: ['node-pty'],
-});
+})
 
-chmodSync('dist/garden.js', 0o755);
+chmodSync('dist/garden.js', 0o755)
 
-writeFileSync('dist/package.json', JSON.stringify({ type: 'module' }));
+writeFileSync('dist/package.json', JSON.stringify({ type: 'module' }))
 
 // Bundles the built web client alongside the server so the shipped binary is self-contained;
 // resolveClientDir (http/static.ts) looks for it at dist/web.
-rmSync('dist/web', { recursive: true, force: true });
-cpSync('../web/dist', 'dist/web', { recursive: true });
+rmSync('dist/web', { recursive: true, force: true })
+cpSync('../web/dist', 'dist/web', { recursive: true })
 
-console.log('Build succeeded: dist/garden.js dist/package.json dist/web');
+console.log('Build succeeded: dist/garden.js dist/package.json dist/web')

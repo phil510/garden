@@ -1,13 +1,13 @@
-import { fakeClaudeHarness } from './support/claudeHarness.js';
-import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
-import type { AddressInfo, Socket } from 'node:net';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { EVENTS_CLOSE_CODES, type Delta, type ServerMessage } from '@garden/shared';
-import { WebSocket } from 'ws';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { watchFsRoot } from '../../packages/server/src/adapters/fsWatch.js';
+import { fakeClaudeHarness } from './support/claudeHarness.js'
+import { execFileSync } from 'node:child_process'
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import type { AddressInfo, Socket } from 'node:net'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { EVENTS_CLOSE_CODES, type Delta, type ServerMessage } from '@garden/shared'
+import { WebSocket } from 'ws'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { watchFsRoot } from '../../packages/server/src/adapters/fsWatch.js'
 import {
   createBranchReader,
   isBareRepository,
@@ -15,18 +15,18 @@ import {
   repoRoot,
   status,
   workTreePrefix,
-} from '../../packages/server/src/adapters/git.js';
-import { createProjection } from '../../packages/server/src/app/projection.js';
-import { createRepoCatalog } from '../../packages/server/src/app/repoCatalog.js';
-import { createRootWatches } from '../../packages/server/src/app/rootWatch.js';
-import { createServer } from '../../packages/server/src/http/server.js';
-import { fakeStore } from './support/fakeStore.js';
-import { opened } from './support/socket.js';
-import { settle, sleep, QUIET_WINDOW_MS } from './support/fsSignals.js';
-import { noPipes } from './support/noPipes.js';
-import { noRootWatches } from './support/noRootWatches.js';
-import { noReviewDismisser, noReviews } from './support/noReviews.js';
-import { until } from './support/poll.js';
+} from '../../packages/server/src/adapters/git.js'
+import { createProjection } from '../../packages/server/src/app/projection.js'
+import { createRepoCatalog } from '../../packages/server/src/app/repoCatalog.js'
+import { createRootWatches } from '../../packages/server/src/app/rootWatch.js'
+import { createServer } from '../../packages/server/src/http/server.js'
+import { fakeStore } from './support/fakeStore.js'
+import { opened } from './support/socket.js'
+import { settle, sleep, QUIET_WINDOW_MS } from './support/fsSignals.js'
+import { noPipes } from './support/noPipes.js'
+import { noRootWatches } from './support/noRootWatches.js'
+import { noReviewDismisser, noReviews } from './support/noReviews.js'
+import { until } from './support/poll.js'
 
 function unusedPorts() {
   return {
@@ -49,27 +49,27 @@ function unusedPorts() {
     },
     configPort: {
       read: () => {
-        throw new Error('not used by this test');
+        throw new Error('not used by this test')
       },
       write: () => {
-        throw new Error('not used by this test');
+        throw new Error('not used by this test')
       },
     },
     attach: {
       attach: () => {
-        throw new Error('not used by this test');
+        throw new Error('not used by this test')
       },
     },
-  };
+  }
 }
 
 function receiveOne(socket: WebSocket): Promise<ServerMessage> {
   return new Promise((resolve, reject) => {
     socket.once('message', (data: Buffer) =>
       resolve(JSON.parse(data.toString('utf8')) as ServerMessage),
-    );
-    socket.once('error', reject);
-  });
+    )
+    socket.once('error', reject)
+  })
 }
 
 function serverWithProjection() {
@@ -85,22 +85,22 @@ function serverWithProjection() {
     deadSessionCap: 10,
     ...unusedPorts(),
     harness: fakeClaudeHarness('/home/.garden/claude-settings.json', () => ['claude']),
-  });
+  })
 }
 
 describe('WS /events against the real server', () => {
-  let app: ReturnType<typeof createServer> | undefined;
-  let socket: WebSocket | undefined;
+  let app: ReturnType<typeof createServer> | undefined
+  let socket: WebSocket | undefined
 
   afterEach(async () => {
-    socket?.close();
-    await app?.close();
-    app = undefined;
-    socket = undefined;
-  });
+    socket?.close()
+    await app?.close()
+    app = undefined
+    socket = undefined
+  })
 
   it('sends a snapshot on connect, then a delta for a dispatch that follows', async () => {
-    const projection = createProjection(fakeStore());
+    const projection = createProjection(fakeStore())
     app = createServer({
       liveTranscripts: { track: () => undefined },
       projection,
@@ -113,104 +113,104 @@ describe('WS /events against the real server', () => {
       deadSessionCap: 10,
       ...unusedPorts(),
       harness: fakeClaudeHarness('/home/.garden/claude-settings.json', () => ['claude']),
-    });
-    await app.listen({ port: 0, host: '127.0.0.1' });
-    const { port } = app.server.address() as AddressInfo;
+    })
+    await app.listen({ port: 0, host: '127.0.0.1' })
+    const { port } = app.server.address() as AddressInfo
 
-    socket = new WebSocket(`ws://127.0.0.1:${String(port)}/events`);
+    socket = new WebSocket(`ws://127.0.0.1:${String(port)}/events`)
     // The server may send the snapshot the instant the connection is accepted, so the
     // 'message' listener must be attached before 'open' resolves, not after.
-    const snapshotPromise = receiveOne(socket);
+    const snapshotPromise = receiveOne(socket)
     await new Promise<void>((resolve, reject) => {
-      socket?.once('open', resolve);
-      socket?.once('error', reject);
-    });
+      socket?.once('open', resolve)
+      socket?.once('error', reject)
+    })
 
-    const snapshot = await snapshotPromise;
+    const snapshot = await snapshotPromise
     expect(snapshot).toEqual({
       type: 'snapshot',
       sessions: [],
       uiState: projection.uiState(),
       reviews: noReviews.queue(),
-    });
+    })
 
-    const nextDelta = receiveOne(socket);
+    const nextDelta = receiveOne(socket)
     projection.dispatch({
       type: 'session-registered',
       id: 'sid-1',
       tmuxName: 'a-session',
       cwd: '/tmp/a-session',
-    });
-    const delta = (await nextDelta) as { type: 'deltas'; deltas: Delta[] };
-    expect(delta.type).toBe('deltas');
-    expect(delta.deltas).toEqual([expect.objectContaining({ type: 'session-added' })]);
-  });
+    })
+    const delta = (await nextDelta) as { type: 'deltas'; deltas: Delta[] }
+    expect(delta.type).toBe('deltas')
+    expect(delta.deltas).toEqual([expect.objectContaining({ type: 'session-added' })])
+  })
 
   it('shuts down while a client is still connected', async () => {
-    app = serverWithProjection();
-    await app.listen({ port: 0, host: '127.0.0.1' });
-    const { port } = app.server.address() as AddressInfo;
+    app = serverWithProjection()
+    await app.listen({ port: 0, host: '127.0.0.1' })
+    const { port } = app.server.address() as AddressInfo
 
-    socket = new WebSocket(`ws://127.0.0.1:${String(port)}/events`);
-    await opened(socket);
-    const closed = new Promise<number>((resolve) => socket?.once('close', (code) => resolve(code)));
+    socket = new WebSocket(`ws://127.0.0.1:${String(port)}/events`)
+    await opened(socket)
+    const closed = new Promise<number>((resolve) => socket?.once('close', (code) => resolve(code)))
 
     // A close that waits on the client would hang here rather than fail.
-    await app.close();
-    app = undefined;
+    await app.close()
+    app = undefined
 
-    expect(await closed).toBe(EVENTS_CLOSE_CODES.DELIBERATE_SHUTDOWN);
-  });
+    expect(await closed).toBe(EVENTS_CLOSE_CODES.DELIBERATE_SHUTDOWN)
+  })
 
   it('drops a client that sends a malformed frame and keeps serving', async () => {
-    app = serverWithProjection();
-    await app.listen({ port: 0, host: '127.0.0.1' });
-    const { port } = app.server.address() as AddressInfo;
+    app = serverWithProjection()
+    await app.listen({ port: 0, host: '127.0.0.1' })
+    const { port } = app.server.address() as AddressInfo
 
-    socket = new WebSocket(`ws://127.0.0.1:${String(port)}/events`);
-    await opened(socket);
-    const closed = new Promise<void>((resolve) => socket?.once('close', () => resolve()));
+    socket = new WebSocket(`ws://127.0.0.1:${String(port)}/events`)
+    await opened(socket)
+    const closed = new Promise<void>((resolve) => socket?.once('close', () => resolve()))
     // A masked, empty frame carrying reserved opcode 0x3.
-    const raw = (socket as unknown as { _socket: Socket })._socket;
-    raw.write(Buffer.from([0x83, 0x80, 0, 0, 0, 0]));
-    await closed;
+    const raw = (socket as unknown as { _socket: Socket })._socket
+    raw.write(Buffer.from([0x83, 0x80, 0, 0, 0, 0]))
+    await closed
 
-    const health = await app.inject({ method: 'GET', url: '/health' });
-    expect(health.statusCode).toBe(200);
-  });
-});
+    const health = await app.inject({ method: 'GET', url: '/health' })
+    expect(health.statusCode).toBe(200)
+  })
+})
 
 describe('WS /events root watches against a real watcher', () => {
-  let app: ReturnType<typeof createServer> | undefined;
-  let dir: string;
-  let repo: string;
-  const sockets: WebSocket[] = [];
+  let app: ReturnType<typeof createServer> | undefined
+  let dir: string
+  let repo: string
+  const sockets: WebSocket[] = []
 
   beforeEach(() => {
-    dir = realpathSync(mkdtempSync(join(tmpdir(), 'garden-events-watch-')));
-    repo = join(dir, 'repo');
-    mkdirSync(repo);
-    execFileSync('git', ['init', '--initial-branch=main'], { cwd: repo });
-    mkdirSync(join(repo, 'src'));
-  });
+    dir = realpathSync(mkdtempSync(join(tmpdir(), 'garden-events-watch-')))
+    repo = join(dir, 'repo')
+    mkdirSync(repo)
+    execFileSync('git', ['init', '--initial-branch=main'], { cwd: repo })
+    mkdirSync(join(repo, 'src'))
+  })
 
   afterEach(async () => {
-    for (const socket of sockets.splice(0)) socket.close();
-    await app?.close();
-    app = undefined;
-    rmSync(dir, { recursive: true, force: true });
-  });
+    for (const socket of sockets.splice(0)) socket.close()
+    await app?.close()
+    app = undefined
+    rmSync(dir, { recursive: true, force: true })
+  })
 
   async function connect(port: number) {
-    const socket = new WebSocket(`ws://127.0.0.1:${String(port)}/events`);
-    const messages: ServerMessage[] = [];
+    const socket = new WebSocket(`ws://127.0.0.1:${String(port)}/events`)
+    const messages: ServerMessage[] = []
     socket.on('message', (data: Buffer) =>
       messages.push(JSON.parse(data.toString('utf8')) as ServerMessage),
-    );
-    sockets.push(socket);
-    await opened(socket);
-    const fsChanged = () => messages.filter((m) => m.type === 'fs-changed');
-    return { socket, fsChanged };
+    )
+    sockets.push(socket)
+    await opened(socket)
+    const fsChanged = () => messages.filter((m) => m.type === 'fs-changed')
+    return { socket, fsChanged }
   }
 
   it('sends fs-changed in the watcher spelling to the watching connection only', async () => {
@@ -221,9 +221,9 @@ describe('WS /events root watches against a real watcher', () => {
       remoteUrl,
       status,
       workTreePrefix,
-    };
-    const repos = createRepoCatalog({ git, roots: [dir] });
-    const logger = { warn: () => undefined, error: () => undefined };
+    }
+    const repos = createRepoCatalog({ git, roots: [dir] })
+    const logger = { warn: () => undefined, error: () => undefined }
     app = createServer({
       liveTranscripts: { track: () => undefined },
       projection: createProjection(fakeStore()),
@@ -242,44 +242,44 @@ describe('WS /events root watches against a real watcher', () => {
       reviews: noReviews,
       reviewDismisser: noReviewDismisser,
       harness: fakeClaudeHarness('/home/.garden/claude-settings.json', () => ['claude']),
-    });
-    await app.listen({ port: 0, host: '127.0.0.1' });
-    const { port } = app.server.address() as AddressInfo;
+    })
+    await app.listen({ port: 0, host: '127.0.0.1' })
+    const { port } = app.server.address() as AddressInfo
 
-    const watcher = await connect(port);
-    const bystander = await connect(port);
-    const unlisted = await connect(port);
-    const spelling = `${repo}/`;
-    watcher.socket.send(JSON.stringify({ type: 'watch', root: spelling }));
-    unlisted.socket.send(JSON.stringify({ type: 'watch', root: dir }));
+    const watcher = await connect(port)
+    const bystander = await connect(port)
+    const unlisted = await connect(port)
+    const spelling = `${repo}/`
+    watcher.socket.send(JSON.stringify({ type: 'watch', root: spelling }))
+    unlisted.socket.send(JSON.stringify({ type: 'watch', root: dir }))
 
     // The watch is established asynchronously after the frame arrives, so arm by writing
     // probes until it signals, then drain.
-    let probes = 0;
+    let probes = 0
     await until(
       'the watch to be live',
       async () => {
-        writeFileSync(join(repo, `probe-${String(probes)}`), 'x');
-        probes += 1;
-        await sleep(400);
-        return watcher.fsChanged().length;
+        writeFileSync(join(repo, `probe-${String(probes)}`), 'x')
+        probes += 1
+        await sleep(400)
+        return watcher.fsChanged().length
       },
       (n) => n > 0,
-    );
-    await settle(repo, () => watcher.fsChanged().length);
-    const before = watcher.fsChanged().length;
+    )
+    await settle(repo, () => watcher.fsChanged().length)
+    const before = watcher.fsChanged().length
 
-    writeFileSync(join(repo, 'src', 'a.ts'), 'a');
+    writeFileSync(join(repo, 'src', 'a.ts'), 'a')
     await until(
       'fs-changed',
       () => Promise.resolve(watcher.fsChanged().length),
       (n) => n > before,
-    );
-    await sleep(QUIET_WINDOW_MS);
+    )
+    await sleep(QUIET_WINDOW_MS)
 
-    expect(watcher.fsChanged().at(-1)).toEqual({ type: 'fs-changed', root: spelling });
-    expect(watcher.fsChanged().length).toBe(before + 1);
-    expect(bystander.fsChanged()).toEqual([]);
-    expect(unlisted.fsChanged()).toEqual([]);
-  });
-});
+    expect(watcher.fsChanged().at(-1)).toEqual({ type: 'fs-changed', root: spelling })
+    expect(watcher.fsChanged().length).toBe(before + 1)
+    expect(bystander.fsChanged()).toEqual([])
+    expect(unlisted.fsChanged()).toEqual([])
+  })
+})

@@ -1,4 +1,4 @@
-import { arrayMove } from '@dnd-kit/sortable';
+import { arrayMove } from '@dnd-kit/sortable'
 
 /**
  * Dragging a swarm moves it within `visibleOrder` (the swarms in the sequence they were
@@ -15,5 +15,5 @@ export function reorderSwarms(
     visibleOrder,
     visibleOrder.indexOf(activeSwarmId),
     visibleOrder.indexOf(overSwarmId),
-  );
+  )
 }

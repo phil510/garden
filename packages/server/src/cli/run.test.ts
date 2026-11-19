@@ -4,43 +4,43 @@ import type {
   SessionsResponse,
   SpawnOptions,
   WatchSummary,
-} from '@garden/shared';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { CliClient, Io } from './commands.js';
-import { CliHttpError } from './http.js';
-import type { StopAllDeps } from './stop.js';
+} from '@garden/shared'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import type { CliClient, Io } from './commands.js'
+import { CliHttpError } from './http.js'
+import type { StopAllDeps } from './stop.js'
 import {
   decideEntrypointAction,
   isCliCommand,
   parseEntrypointArgv,
   runCli,
   usageLines,
-} from './run.js';
+} from './run.js'
 
 function collectingIo(): { io: Io; stdout: string[]; stderr: string[] } {
-  const stdout: string[] = [];
-  const stderr: string[] = [];
+  const stdout: string[] = []
+  const stderr: string[] = []
   const io: Io = {
     stdout: {
       write: (text, callback) => {
-        stdout.push(text);
-        callback?.();
+        stdout.push(text)
+        callback?.()
       },
     },
     stderr: {
       write: (text, callback) => {
-        stderr.push(text);
-        callback?.();
+        stderr.push(text)
+        callback?.()
       },
     },
-  };
-  return { io, stdout, stderr };
+  }
+  return { io, stdout, stderr }
 }
 
 /** Empty when no option is set, so calls without flags keep their plain form. */
 function spawnSuffix(options: SpawnOptions | undefined): string {
-  const set = Object.entries(options ?? {});
-  return set.length === 0 ? '' : `:${JSON.stringify(Object.fromEntries(set))}`;
+  const set = Object.entries(options ?? {})
+  return set.length === 0 ? '' : `:${JSON.stringify(Object.fromEntries(set))}`
 }
 
 function aWatch(pr: number): WatchSummary {
@@ -51,109 +51,109 @@ function aWatch(pr: number): WatchSummary {
     pendingDigest: false,
     status: 'active',
     ignoredChecks: [],
-  };
+  }
 }
 
 function recordingClient(
   listedWatches: WatchSummary[] = [],
   unwatchFails: ReadonlySet<number> = new Set(),
 ): { client: CliClient; calls: string[] } {
-  const calls: string[] = [];
-  const sessions: SessionsResponse = { sessions: [] };
-  const created: CreateSessionResponse = { id: 'abc', tmuxName: 'repo' };
-  const ok: OkResponse = { ok: true };
+  const calls: string[] = []
+  const sessions: SessionsResponse = { sessions: [] }
+  const created: CreateSessionResponse = { id: 'abc', tmuxName: 'repo' }
+  const ok: OkResponse = { ok: true }
   const client: CliClient = {
     listSessions: (filter) => {
-      calls.push(filter === undefined ? 'ls' : `ls:${JSON.stringify(filter)}`);
-      return Promise.resolve(sessions);
+      calls.push(filter === undefined ? 'ls' : `ls:${JSON.stringify(filter)}`)
+      return Promise.resolve(sessions)
     },
     createSession: (cwd, callerSessionId, options) => {
-      calls.push(`new:${cwd}:${callerSessionId ?? ''}${spawnSuffix(options)}`);
-      return Promise.resolve(created);
+      calls.push(`new:${cwd}:${callerSessionId ?? ''}${spawnSuffix(options)}`)
+      return Promise.resolve(created)
     },
     resumeSession: (id, options) => {
-      calls.push(`resume:${id}${spawnSuffix(options)}`);
-      return Promise.resolve(created);
+      calls.push(`resume:${id}${spawnSuffix(options)}`)
+      return Promise.resolve(created)
     },
     sendSessionMessage: (id, message) => {
-      calls.push(`send:${id}:${message}`);
-      return Promise.resolve(ok);
+      calls.push(`send:${id}:${message}`)
+      return Promise.resolve(ok)
     },
     killSession: (id) => {
-      calls.push(`kill:${id}`);
-      return Promise.resolve(ok);
+      calls.push(`kill:${id}`)
+      return Promise.resolve(ok)
     },
     placeSession: (id, placement) => {
-      calls.push(`place:${id}:${JSON.stringify(placement)}`);
-      return Promise.resolve(ok);
+      calls.push(`place:${id}:${JSON.stringify(placement)}`)
+      return Promise.resolve(ok)
     },
     watch: (sessionId, request) => {
-      calls.push(`watch:${sessionId}:${JSON.stringify(request)}`);
-      return Promise.resolve({ watch: aWatch(request.pr) });
+      calls.push(`watch:${sessionId}:${JSON.stringify(request)}`)
+      return Promise.resolve({ watch: aWatch(request.pr) })
     },
     unwatch: (sessionId, target) => {
-      calls.push(`unwatch:${sessionId}:${JSON.stringify(target)}`);
+      calls.push(`unwatch:${sessionId}:${JSON.stringify(target)}`)
       if (unwatchFails.has(target.pr)) {
-        return Promise.reject(new CliHttpError('not watching', { status: 404 }));
+        return Promise.reject(new CliHttpError('not watching', { status: 404 }))
       }
-      return Promise.resolve(ok);
+      return Promise.resolve(ok)
     },
     watches: (sessionId) => {
-      calls.push(`watches:${sessionId}`);
-      return Promise.resolve({ watches: listedWatches });
+      calls.push(`watches:${sessionId}`)
+      return Promise.resolve({ watches: listedWatches })
     },
     raiseAlert: (sessionId, text) => {
-      calls.push(`alert:${sessionId}:${JSON.stringify(text)}`);
-      return Promise.resolve({ alert: { text, raisedAt: 1, updatedAt: 1 } });
+      calls.push(`alert:${sessionId}:${JSON.stringify(text)}`)
+      return Promise.resolve({ alert: { text, raisedAt: 1, updatedAt: 1 } })
     },
     clearAlert: (sessionId) => {
-      calls.push(`alert-clear:${sessionId}`);
-      return Promise.resolve(ok);
+      calls.push(`alert-clear:${sessionId}`)
+      return Promise.resolve(ok)
     },
     digest: (id) => {
-      calls.push(`digest:${id}`);
-      return Promise.reject(new Error('not used by this test'));
+      calls.push(`digest:${id}`)
+      return Promise.reject(new Error('not used by this test'))
     },
     reviews: () => {
-      calls.push('reviews');
-      return Promise.resolve({ items: [], polledAt: null, fault: null });
+      calls.push('reviews')
+      return Promise.resolve({ items: [], polledAt: null, fault: null })
     },
     startReview: (owner, name, number) => {
-      calls.push(`review-start:${owner}/${name}#${String(number)}`);
-      return Promise.resolve({ sessionId: 'started' });
+      calls.push(`review-start:${owner}/${name}#${String(number)}`)
+      return Promise.resolve({ sessionId: 'started' })
     },
     claimReview: (owner, name, number, sessionId) => {
-      calls.push(`review-claim:${owner}/${name}#${String(number)}:${sessionId}`);
-      return Promise.resolve({ sessionId, previousSessionId: null });
+      calls.push(`review-claim:${owner}/${name}#${String(number)}:${sessionId}`)
+      return Promise.resolve({ sessionId, previousSessionId: null })
     },
     dismissReview: (owner, name, number) => {
-      calls.push(`review-dismiss:${owner}/${name}#${String(number)}`);
-      return Promise.resolve();
+      calls.push(`review-dismiss:${owner}/${name}#${String(number)}`)
+      return Promise.resolve()
     },
-  };
-  return { client, calls };
+  }
+  return { client, calls }
 }
 
 describe('isCliCommand', () => {
   it('recognises the fourteen subcommands and nothing else', () => {
-    expect(isCliCommand('new')).toBe(true);
-    expect(isCliCommand('ls')).toBe(true);
-    expect(isCliCommand('kill')).toBe(true);
-    expect(isCliCommand('resume')).toBe(true);
-    expect(isCliCommand('adopt')).toBe(true);
-    expect(isCliCommand('watch')).toBe(true);
-    expect(isCliCommand('unwatch')).toBe(true);
-    expect(isCliCommand('watches')).toBe(true);
-    expect(isCliCommand('alert')).toBe(true);
-    expect(isCliCommand('digest')).toBe(true);
-    expect(isCliCommand('reviews')).toBe(true);
-    expect(isCliCommand('events')).toBe(true);
-    expect(isCliCommand('stop')).toBe(true);
-    expect(isCliCommand('uninstall')).toBe(true);
-    expect(isCliCommand('bogus')).toBe(false);
-    expect(isCliCommand(undefined)).toBe(false);
-  });
-});
+    expect(isCliCommand('new')).toBe(true)
+    expect(isCliCommand('ls')).toBe(true)
+    expect(isCliCommand('kill')).toBe(true)
+    expect(isCliCommand('resume')).toBe(true)
+    expect(isCliCommand('adopt')).toBe(true)
+    expect(isCliCommand('watch')).toBe(true)
+    expect(isCliCommand('unwatch')).toBe(true)
+    expect(isCliCommand('watches')).toBe(true)
+    expect(isCliCommand('alert')).toBe(true)
+    expect(isCliCommand('digest')).toBe(true)
+    expect(isCliCommand('reviews')).toBe(true)
+    expect(isCliCommand('events')).toBe(true)
+    expect(isCliCommand('stop')).toBe(true)
+    expect(isCliCommand('uninstall')).toBe(true)
+    expect(isCliCommand('bogus')).toBe(false)
+    expect(isCliCommand(undefined)).toBe(false)
+  })
+})
 
 describe('parseEntrypointArgv', () => {
   it('leaves the harness and command unset for an empty argv', () => {
@@ -163,8 +163,8 @@ describe('parseEntrypointArgv', () => {
       rest: [],
       isDetached: false,
       harness: undefined,
-    });
-  });
+    })
+  })
 
   it('keeps the internal detached startup invocation', () => {
     expect(parseEntrypointArgv(['--detached'])).toEqual({
@@ -173,8 +173,8 @@ describe('parseEntrypointArgv', () => {
       rest: [],
       isDetached: true,
       harness: undefined,
-    });
-  });
+    })
+  })
 
   it.each(['claude', 'codex'])('selects %s without a subcommand', (harness) => {
     expect(parseEntrypointArgv([`--${harness}`])).toEqual({
@@ -183,8 +183,8 @@ describe('parseEntrypointArgv', () => {
       rest: [],
       isDetached: false,
       harness,
-    });
-  });
+    })
+  })
 
   it('splits a known subcommand from its arguments after a selector', () => {
     expect(parseEntrypointArgv(['--codex', 'stop', '--all', '--yes'])).toEqual({
@@ -193,8 +193,8 @@ describe('parseEntrypointArgv', () => {
       rest: ['--all', '--yes'],
       isDetached: false,
       harness: 'codex',
-    });
-  });
+    })
+  })
 
   it('preserves selector and detached literals after the subcommand', () => {
     expect(parseEntrypointArgv(['send', 'id', '--codex', '--detached'])).toEqual({
@@ -203,8 +203,8 @@ describe('parseEntrypointArgv', () => {
       rest: ['id', '--codex', '--detached'],
       isDetached: false,
       harness: undefined,
-    });
-  });
+    })
+  })
 
   it.each([
     ['--claude', '--codex'],
@@ -213,95 +213,95 @@ describe('parseEntrypointArgv', () => {
     expect(parseEntrypointArgv([first, second, 'stop'])).toEqual({
       ok: false,
       message: 'cannot combine --claude and --codex',
-    });
-  });
-});
+    })
+  })
+})
 
 describe('decideEntrypointAction', () => {
   it('dispatches a known subcommand even with the server-process marker set', () => {
     // The inherited-marker regression case: a subcommand typed inside a garden-managed
     // pane must dispatch, not recurse into the server.
-    expect(decideEntrypointAction('ls', true)).toEqual({ kind: 'cli', command: 'ls' });
-  });
+    expect(decideEntrypointAction('ls', true)).toEqual({ kind: 'cli', command: 'ls' })
+  })
 
   it('dispatches a known subcommand with the marker unset', () => {
-    expect(decideEntrypointAction('ls', false)).toEqual({ kind: 'cli', command: 'ls' });
-  });
+    expect(decideEntrypointAction('ls', false)).toEqual({ kind: 'cli', command: 'ls' })
+  })
 
   it('runs the server when no command is given and the marker is set', () => {
     // Both `garden`'s own re-invocation and `pnpm dev`/`pnpm dev:sandbox` land here — whether
     // that run is detached is decided separately, off argv, in bin/garden.ts.
-    expect(decideEntrypointAction(undefined, true)).toEqual({ kind: 'server' });
-  });
+    expect(decideEntrypointAction(undefined, true)).toEqual({ kind: 'server' })
+  })
 
   it('starts the CLI-driven startup flow when no command is given and the process marker is unset', () => {
     // Bare `garden` typed at a shell.
-    expect(decideEntrypointAction(undefined, false)).toEqual({ kind: 'start' });
-  });
+    expect(decideEntrypointAction(undefined, false)).toEqual({ kind: 'start' })
+  })
 
   it('reports an unknown command with the marker set', () => {
     expect(decideEntrypointAction('bogus', true)).toEqual({
       kind: 'unknown',
       command: 'bogus',
-    });
-  });
+    })
+  })
 
   it('reports an unknown command with the marker unset', () => {
     expect(decideEntrypointAction('bogus', false)).toEqual({
       kind: 'unknown',
       command: 'bogus',
-    });
-  });
-});
+    })
+  })
+})
 
 describe('runCli', () => {
-  let originalSessionId: string | undefined;
+  let originalSessionId: string | undefined
 
   beforeEach(() => {
-    originalSessionId = process.env.GARDEN_SESSION_ID;
-    process.env.GARDEN_SESSION_ID = 'caller-1';
-  });
+    originalSessionId = process.env.GARDEN_SESSION_ID
+    process.env.GARDEN_SESSION_ID = 'caller-1'
+  })
 
   afterEach(() => {
-    if (originalSessionId === undefined) delete process.env.GARDEN_SESSION_ID;
-    else process.env.GARDEN_SESSION_ID = originalSessionId;
-  });
+    if (originalSessionId === undefined) delete process.env.GARDEN_SESSION_ID
+    else process.env.GARDEN_SESSION_ID = originalSessionId
+  })
 
   it('dispatches "new <dir>" with the positional as the directory', async () => {
-    const { io } = collectingIo();
-    const { client, calls } = recordingClient();
+    const { io } = collectingIo()
+    const { client, calls } = recordingClient()
 
-    const exitCode = await runCli('new', ['/repo'], io, client);
+    const exitCode = await runCli('new', ['/repo'], io, client)
 
-    expect(exitCode).toBe(0);
-    expect(calls).toEqual(['new:/repo:caller-1']);
-  });
+    expect(exitCode).toBe(0)
+    expect(calls).toEqual(['new:/repo:caller-1'])
+  })
 
   it('forwards --model and --effort on "new", each independently', async () => {
-    const { io } = collectingIo();
-    const { client, calls } = recordingClient();
+    const { io } = collectingIo()
+    const { client, calls } = recordingClient()
 
     expect(await runCli('new', ['/repo', '--model', 'opus', '--effort', 'high'], io, client)).toBe(
       0,
-    );
-    expect(await runCli('new', ['/repo', '--effort', 'max'], io, client)).toBe(0);
+    )
+    expect(await runCli('new', ['/repo', '--effort', 'max'], io, client)).toBe(0)
 
     expect(calls).toEqual([
       'new:/repo:caller-1:{"model":"opus","effort":"high"}',
       'new:/repo:caller-1:{"effort":"max"}',
-    ]);
-  });
+    ])
+  })
 
   it('forwards --model and --effort on "resume"', async () => {
-    const { io } = collectingIo();
-    const { client, calls } = recordingClient();
+    const { io } = collectingIo()
+    const { client, calls } = recordingClient()
 
     expect(
       await runCli('resume', ['abc', '--model', 'sonnet', '--effort', 'low'], io, client),
-    ).toBe(0);
+    ).toBe(0)
 
-    expect(calls).toEqual(['resume:abc:{"model":"sonnet","effort":"low"}']);
-  });
+    expect(calls).toEqual(['resume:abc:{"model":"sonnet","effort":"low"}'])
+  })
 
   it.each([
     ['new', ['/repo', '--effort', 'extreme'], 'garden new <dir>'],
@@ -311,363 +311,363 @@ describe('runCli', () => {
   ] as const)(
     'rejects a bad flag value on "%s" before calling the server',
     async (command, args, form) => {
-      const { io, stderr } = collectingIo();
-      const { client, calls } = recordingClient();
+      const { io, stderr } = collectingIo()
+      const { client, calls } = recordingClient()
 
-      expect(await runCli(command, args, io, client)).toBe(1);
+      expect(await runCli(command, args, io, client)).toBe(1)
 
       expect(stderr).toEqual([
         `garden: usage: ${form} [--model <model>] [--effort <low|medium|high|xhigh|max>]\n`,
-      ]);
-      expect(calls).toEqual([]);
+      ])
+      expect(calls).toEqual([])
     },
-  );
+  )
 
   it('dispatches "ls" with no positionals required', async () => {
-    const { io } = collectingIo();
-    const { client, calls } = recordingClient();
+    const { io } = collectingIo()
+    const { client, calls } = recordingClient()
 
-    const exitCode = await runCli('ls', [], io, client);
+    const exitCode = await runCli('ls', [], io, client)
 
-    expect(exitCode).toBe(0);
-    expect(calls).toEqual(['ls']);
-  });
+    expect(exitCode).toBe(0)
+    expect(calls).toEqual(['ls'])
+  })
 
   it('forwards named kill and resume targets without listing sessions', async () => {
-    const { io } = collectingIo();
-    const { client, calls } = recordingClient();
+    const { io } = collectingIo()
+    const { client, calls } = recordingClient()
 
-    expect(await runCli('kill', ['Scout / Review'], io, client)).toBe(0);
-    expect(await runCli('resume', ['Scout / Review'], io, client)).toBe(0);
-    expect(calls).toEqual(['kill:Scout / Review', 'resume:Scout / Review']);
-  });
+    expect(await runCli('kill', ['Scout / Review'], io, client)).toBe(0)
+    expect(await runCli('resume', ['Scout / Review'], io, client)).toBe(0)
+    expect(calls).toEqual(['kill:Scout / Review', 'resume:Scout / Review'])
+  })
 
   it('dispatches "adopt <id-or-name>" with the positional as the target', async () => {
-    const { io } = collectingIo();
-    const { client, calls } = recordingClient();
+    const { io } = collectingIo()
+    const { client, calls } = recordingClient()
 
-    const exitCode = await runCli('adopt', ['target-1'], io, client);
+    const exitCode = await runCli('adopt', ['target-1'], io, client)
 
-    expect(exitCode).toBe(0);
+    expect(exitCode).toBe(0)
     expect(calls).toEqual([
       `place:target-1:${JSON.stringify({ type: 'parent', parentId: 'caller-1' })}`,
-    ]);
-  });
+    ])
+  })
 
   it('requires an id for "digest" and needs no session for it', async () => {
-    const { io, stderr } = collectingIo();
-    const { client, calls } = recordingClient();
+    const { io, stderr } = collectingIo()
+    const { client, calls } = recordingClient()
 
-    expect(await runCli('digest', [], io, client, undefined, {})).toBe(1);
-    expect(stderr).toEqual(['garden: usage: garden digest <id> [--json]\n']);
-    expect(calls).toEqual([]);
+    expect(await runCli('digest', [], io, client, undefined, {})).toBe(1)
+    expect(stderr).toEqual(['garden: usage: garden digest <id> [--json]\n'])
+    expect(calls).toEqual([])
 
-    await runCli('digest', ['abc'], collectingIo().io, client, undefined, {});
-    expect(calls).toEqual(['digest:abc']);
-  });
+    await runCli('digest', ['abc'], collectingIo().io, client, undefined, {})
+    expect(calls).toEqual(['digest:abc'])
+  })
 
   it('requires a positional for "adopt"', async () => {
-    const { io, stderr } = collectingIo();
-    const { client, calls } = recordingClient();
+    const { io, stderr } = collectingIo()
+    const { client, calls } = recordingClient()
 
-    const exitCode = await runCli('adopt', [], io, client);
+    const exitCode = await runCli('adopt', [], io, client)
 
-    expect(exitCode).toBe(1);
-    expect(calls).toEqual([]);
-    expect(stderr).toEqual(['garden: usage: garden adopt <id-or-name>\n']);
-  });
+    expect(exitCode).toBe(1)
+    expect(calls).toEqual([])
+    expect(stderr).toEqual(['garden: usage: garden adopt <id-or-name>\n'])
+  })
 
   it('recognises --json anywhere after the subcommand', async () => {
-    const { io, stdout } = collectingIo();
-    const { client } = recordingClient();
+    const { io, stdout } = collectingIo()
+    const { client } = recordingClient()
 
-    await runCli('ls', ['--json'], io, client);
+    await runCli('ls', ['--json'], io, client)
 
-    expect(stdout).toEqual(['[]\n']);
-  });
+    expect(stdout).toEqual(['[]\n'])
+  })
 
   it('threads --since-days, --max-recap-chars, --live and --status into the filter', async () => {
-    const { io } = collectingIo();
-    const { client, calls } = recordingClient();
+    const { io } = collectingIo()
+    const { client, calls } = recordingClient()
 
     const exitCode = await runCli(
       'ls',
       ['--since-days', '30', '--max-recap-chars', '100', '--live', '--status', 'working'],
       io,
       client,
-    );
+    )
 
-    expect(exitCode).toBe(0);
+    expect(exitCode).toBe(0)
     expect(calls).toEqual([
       `ls:${JSON.stringify({ sinceDays: 30, maxRecapChars: 100, live: true, status: 'working' })}`,
-    ]);
-  });
+    ])
+  })
 
   it('calls listSessions unfiltered when no ls flags are given', async () => {
-    const { io } = collectingIo();
-    const { client, calls } = recordingClient();
+    const { io } = collectingIo()
+    const { client, calls } = recordingClient()
 
-    await runCli('ls', [], io, client);
+    await runCli('ls', [], io, client)
 
-    expect(calls).toEqual(['ls']);
-  });
+    expect(calls).toEqual(['ls'])
+  })
 
   it('threads --swarm into the filter as swarmId', async () => {
-    const { io } = collectingIo();
-    const { client, calls } = recordingClient();
+    const { io } = collectingIo()
+    const { client, calls } = recordingClient()
 
-    const exitCode = await runCli('ls', ['--swarm', 'swarm-1'], io, client);
+    const exitCode = await runCli('ls', ['--swarm', 'swarm-1'], io, client)
 
-    expect(exitCode).toBe(0);
-    expect(calls).toEqual([`ls:${JSON.stringify({ swarmId: 'swarm-1' })}`]);
-  });
+    expect(exitCode).toBe(0)
+    expect(calls).toEqual([`ls:${JSON.stringify({ swarmId: 'swarm-1' })}`])
+  })
 
   it('rejects a non-numeric --since-days with a usage error', async () => {
-    const { io, stderr } = collectingIo();
-    const { client, calls } = recordingClient();
+    const { io, stderr } = collectingIo()
+    const { client, calls } = recordingClient()
 
-    const exitCode = await runCli('ls', ['--since-days', 'nope'], io, client);
+    const exitCode = await runCli('ls', ['--since-days', 'nope'], io, client)
 
-    expect(exitCode).toBe(1);
-    expect(calls).toEqual([]);
-    expect(stderr).toEqual(['garden: usage: garden ls --since-days <non-negative integer days>\n']);
-  });
+    expect(exitCode).toBe(1)
+    expect(calls).toEqual([])
+    expect(stderr).toEqual(['garden: usage: garden ls --since-days <non-negative integer days>\n'])
+  })
 
   it('rejects a negative --since-days with a usage error', async () => {
-    const { io, stderr } = collectingIo();
-    const { client, calls } = recordingClient();
+    const { io, stderr } = collectingIo()
+    const { client, calls } = recordingClient()
 
-    const exitCode = await runCli('ls', ['--since-days=-1'], io, client);
+    const exitCode = await runCli('ls', ['--since-days=-1'], io, client)
 
-    expect(exitCode).toBe(1);
-    expect(calls).toEqual([]);
-    expect(stderr).toEqual(['garden: usage: garden ls --since-days <non-negative integer days>\n']);
-  });
+    expect(exitCode).toBe(1)
+    expect(calls).toEqual([])
+    expect(stderr).toEqual(['garden: usage: garden ls --since-days <non-negative integer days>\n'])
+  })
 
   it('rejects an empty --since-days with a usage error rather than coercing to 0', async () => {
     // `Number('')` is `0`, which is a non-negative integer — checking the coerced result
     // alone would silently apply sinceDays: 0 instead of surfacing the caller's mistake.
-    const { io, stderr } = collectingIo();
-    const { client, calls } = recordingClient();
+    const { io, stderr } = collectingIo()
+    const { client, calls } = recordingClient()
 
-    const exitCode = await runCli('ls', ['--since-days='], io, client);
+    const exitCode = await runCli('ls', ['--since-days='], io, client)
 
-    expect(exitCode).toBe(1);
-    expect(calls).toEqual([]);
-    expect(stderr).toEqual(['garden: usage: garden ls --since-days <non-negative integer days>\n']);
-  });
+    expect(exitCode).toBe(1)
+    expect(calls).toEqual([])
+    expect(stderr).toEqual(['garden: usage: garden ls --since-days <non-negative integer days>\n'])
+  })
 
   it('rejects a trailing --since-days with no value as a usage error, not a crash', async () => {
     // node:util's parseArgs throws synchronously when a string-typed option is the last
     // token with no following value — this must surface as a usage error, not an uncaught
     // exception reaching bin/garden.ts's unguarded process.exit(await runCli(...)).
-    const { io, stderr } = collectingIo();
-    const { client, calls } = recordingClient();
+    const { io, stderr } = collectingIo()
+    const { client, calls } = recordingClient()
 
-    const exitCode = await runCli('ls', ['--since-days'], io, client);
+    const exitCode = await runCli('ls', ['--since-days'], io, client)
 
-    expect(exitCode).toBe(1);
-    expect(calls).toEqual([]);
-    expect(stderr).toEqual([expect.stringContaining('garden: usage:')]);
-  });
+    expect(exitCode).toBe(1)
+    expect(calls).toEqual([])
+    expect(stderr).toEqual([expect.stringContaining('garden: usage:')])
+  })
 
   it('rejects a fractional --max-recap-chars with a usage error', async () => {
     // A naive `Number.isFinite` boundary check lets 0.5 through: `.slice(-0.5)` truncates
     // toward zero to `.slice(-0)`, which is `.slice(0)` — the whole string, uncapped.
-    const { io, stderr } = collectingIo();
-    const { client, calls } = recordingClient();
+    const { io, stderr } = collectingIo()
+    const { client, calls } = recordingClient()
 
-    const exitCode = await runCli('ls', ['--max-recap-chars=0.5'], io, client);
+    const exitCode = await runCli('ls', ['--max-recap-chars=0.5'], io, client)
 
-    expect(exitCode).toBe(1);
-    expect(calls).toEqual([]);
+    expect(exitCode).toBe(1)
+    expect(calls).toEqual([])
     expect(stderr).toEqual([
       'garden: usage: garden ls --max-recap-chars <non-negative integer chars>\n',
-    ]);
-  });
+    ])
+  })
 
   it('rejects a non-numeric --max-recap-chars with a usage error', async () => {
-    const { io, stderr } = collectingIo();
-    const { client, calls } = recordingClient();
+    const { io, stderr } = collectingIo()
+    const { client, calls } = recordingClient()
 
-    const exitCode = await runCli('ls', ['--max-recap-chars', 'nope'], io, client);
+    const exitCode = await runCli('ls', ['--max-recap-chars', 'nope'], io, client)
 
-    expect(exitCode).toBe(1);
-    expect(calls).toEqual([]);
+    expect(exitCode).toBe(1)
+    expect(calls).toEqual([])
     expect(stderr).toEqual([
       'garden: usage: garden ls --max-recap-chars <non-negative integer chars>\n',
-    ]);
-  });
+    ])
+  })
 
   it('rejects a negative --max-recap-chars with a usage error', async () => {
-    const { io, stderr } = collectingIo();
-    const { client, calls } = recordingClient();
+    const { io, stderr } = collectingIo()
+    const { client, calls } = recordingClient()
 
-    const exitCode = await runCli('ls', ['--max-recap-chars=-1'], io, client);
+    const exitCode = await runCli('ls', ['--max-recap-chars=-1'], io, client)
 
-    expect(exitCode).toBe(1);
-    expect(calls).toEqual([]);
+    expect(exitCode).toBe(1)
+    expect(calls).toEqual([])
     expect(stderr).toEqual([
       'garden: usage: garden ls --max-recap-chars <non-negative integer chars>\n',
-    ]);
-  });
+    ])
+  })
 
   it('rejects an empty --max-recap-chars with a usage error rather than coercing to 0', async () => {
-    const { io, stderr } = collectingIo();
-    const { client, calls } = recordingClient();
+    const { io, stderr } = collectingIo()
+    const { client, calls } = recordingClient()
 
-    const exitCode = await runCli('ls', ['--max-recap-chars='], io, client);
+    const exitCode = await runCli('ls', ['--max-recap-chars='], io, client)
 
-    expect(exitCode).toBe(1);
-    expect(calls).toEqual([]);
+    expect(exitCode).toBe(1)
+    expect(calls).toEqual([])
     expect(stderr).toEqual([
       'garden: usage: garden ls --max-recap-chars <non-negative integer chars>\n',
-    ]);
-  });
+    ])
+  })
 
   it('rejects an invalid --status with a usage error', async () => {
-    const { io, stderr } = collectingIo();
-    const { client, calls } = recordingClient();
+    const { io, stderr } = collectingIo()
+    const { client, calls } = recordingClient()
 
-    const exitCode = await runCli('ls', ['--status', 'bogus'], io, client);
+    const exitCode = await runCli('ls', ['--status', 'bogus'], io, client)
 
-    expect(exitCode).toBe(1);
-    expect(calls).toEqual([]);
+    expect(exitCode).toBe(1)
+    expect(calls).toEqual([])
     expect(stderr).toEqual([
       'garden: usage: garden ls --status <working|waiting|needs-approval|unknown>\n',
-    ]);
-  });
+    ])
+  })
 
   it('prints a usage message and exits 1 when the required positional is missing', async () => {
-    const { io, stdout, stderr } = collectingIo();
-    const { client, calls } = recordingClient();
+    const { io, stdout, stderr } = collectingIo()
+    const { client, calls } = recordingClient()
 
-    const exitCode = await runCli('new', [], io, client);
+    const exitCode = await runCli('new', [], io, client)
 
-    expect(exitCode).toBe(1);
-    expect(calls).toEqual([]);
-    expect(stdout).toEqual([]);
-    expect(stderr).toEqual(['garden: usage: garden new <dir>\n']);
-  });
+    expect(exitCode).toBe(1)
+    expect(calls).toEqual([])
+    expect(stdout).toEqual([])
+    expect(stderr).toEqual(['garden: usage: garden new <dir>\n'])
+  })
 
   it.each([[[]], [['--follow', '--session', 'other']]])(
     'rejects "events" with args %j as a usage error',
     async (args) => {
-      const { io, stderr } = collectingIo();
-      const { client, calls } = recordingClient();
+      const { io, stderr } = collectingIo()
+      const { client, calls } = recordingClient()
 
-      expect(await runCli('events', args, io, client)).toBe(1);
+      expect(await runCli('events', args, io, client)).toBe(1)
 
-      expect(calls).toEqual([]);
-      expect(stderr).toEqual(['garden: usage: garden events --follow\n']);
+      expect(calls).toEqual([])
+      expect(stderr).toEqual(['garden: usage: garden events --follow\n'])
     },
-  );
+  )
 
   it.each([{}, { GARDEN_HARNESS: 'claude', GARDEN_SESSION_ID: 's1' }, { GARDEN_HARNESS: 'codex' }])(
     'rejects digest forwarding outside a Codex garden session: %j',
     async (env) => {
-      const { io, stderr } = collectingIo();
-      const { client } = recordingClient();
+      const { io, stderr } = collectingIo()
+      const { client } = recordingClient()
       expect(
         await runCli('events', ['--follow', '--forward-to-session'], io, client, undefined, env),
-      ).toBe(1);
-      expect(stderr.join('')).toContain('requires a Codex garden session');
+      ).toBe(1)
+      expect(stderr.join('')).toContain('requires a Codex garden session')
     },
-  );
+  )
 
   it('sends one multiline argument to the garden id without changing its text', async () => {
-    const { io, stdout } = collectingIo();
-    const { client, calls } = recordingClient();
-    expect(await runCli('send', ['s1', 'hello\nworld', '--json'], io, client)).toBe(0);
-    expect(calls).toEqual(['send:s1:hello\nworld']);
-    expect(stdout).toEqual(['{"ok":true}\n']);
-  });
+    const { io, stdout } = collectingIo()
+    const { client, calls } = recordingClient()
+    expect(await runCli('send', ['s1', 'hello\nworld', '--json'], io, client)).toBe(0)
+    expect(calls).toEqual(['send:s1:hello\nworld'])
+    expect(stdout).toEqual(['{"ok":true}\n'])
+  })
 
   it.each([[], ['s1'], ['s1', ' '], ['s1', 'hello', 'extra']])(
     'rejects malformed send arguments: %j',
     async (...args) => {
-      const { io } = collectingIo();
-      const { client, calls } = recordingClient();
-      expect(await runCli('send', args, io, client)).toBe(1);
-      expect(calls).toEqual([]);
+      const { io } = collectingIo()
+      const { client, calls } = recordingClient()
+      expect(await runCli('send', args, io, client)).toBe(1)
+      expect(calls).toEqual([])
     },
-  );
+  )
 
   it('shows [--all] on the stop subcommand', () => {
-    expect(usageLines()).toContain('stop [--all]');
-  });
-});
+    expect(usageLines()).toContain('stop [--all]')
+  })
+})
 
 function fakeStopAllDeps(overrides: Partial<StopAllDeps> = {}): {
-  deps: StopAllDeps;
-  calls: string[];
+  deps: StopAllDeps
+  calls: string[]
 } {
-  const calls: string[] = [];
+  const calls: string[] = []
   const deps: StopAllDeps = {
     confirm: () => {
-      calls.push('confirm');
-      return Promise.resolve(true);
+      calls.push('confirm')
+      return Promise.resolve(true)
     },
     stop: () => {
-      calls.push('stop');
-      return Promise.resolve(0);
+      calls.push('stop')
+      return Promise.resolve(0)
     },
     killTmuxServer: () => {
-      calls.push('killTmuxServer');
-      return Promise.resolve();
+      calls.push('killTmuxServer')
+      return Promise.resolve()
     },
     home: '/home/garden-user',
     appDir: '/home/garden-user/.garden',
     tmuxSocket: 'garden',
     ...overrides,
-  };
-  return { deps, calls };
+  }
+  return { deps, calls }
 }
 
 describe('runCli dispatch of "stop --all"', () => {
   it('confirms, stops, and kills tmux without asking the HTTP client for sessions', async () => {
-    const { io } = collectingIo();
-    const { client, calls: clientCalls } = recordingClient();
-    const { deps, calls } = fakeStopAllDeps();
+    const { io } = collectingIo()
+    const { client, calls: clientCalls } = recordingClient()
+    const { deps, calls } = fakeStopAllDeps()
 
-    const exitCode = await runCli('stop', ['--all'], io, client, deps);
+    const exitCode = await runCli('stop', ['--all'], io, client, deps)
 
-    expect(exitCode).toBe(0);
-    expect(clientCalls).toEqual([]);
-    expect(calls).toEqual(['confirm', 'stop', 'killTmuxServer']);
-  });
+    expect(exitCode).toBe(0)
+    expect(clientCalls).toEqual([])
+    expect(calls).toEqual(['confirm', 'stop', 'killTmuxServer'])
+  })
 
   it('skips confirmation when --all --yes are both set', async () => {
-    const { io } = collectingIo();
-    const { client, calls: clientCalls } = recordingClient();
-    const { deps, calls } = fakeStopAllDeps();
+    const { io } = collectingIo()
+    const { client, calls: clientCalls } = recordingClient()
+    const { deps, calls } = fakeStopAllDeps()
 
-    const exitCode = await runCli('stop', ['--all', '--yes'], io, client, deps);
+    const exitCode = await runCli('stop', ['--all', '--yes'], io, client, deps)
 
-    expect(exitCode).toBe(0);
-    expect(clientCalls).toEqual([]);
-    expect(calls).toEqual(['stop', 'killTmuxServer']);
-  });
-});
+    expect(exitCode).toBe(0)
+    expect(clientCalls).toEqual([])
+    expect(calls).toEqual(['stop', 'killTmuxServer'])
+  })
+})
 
 describe('runCli watch verbs', () => {
-  const env = { GARDEN_SESSION_ID: 'env-session' };
+  const env = { GARDEN_SESSION_ID: 'env-session' }
   const run = (
     command: 'watch' | 'unwatch' | 'watches',
     args: string[],
     client: CliClient,
     callerEnv: NodeJS.ProcessEnv = env,
-  ) => runCli(command, args, collectingIo().io, client, undefined, callerEnv);
+  ) => runCli(command, args, collectingIo().io, client, undefined, callerEnv)
 
   it('defaults the session from GARDEN_SESSION_ID and lets --session override it', async () => {
-    const { client, calls } = recordingClient();
+    const { client, calls } = recordingClient()
 
-    expect(await run('watch', ['12'], client)).toBe(0);
-    expect(await run('watch', ['12', '--session', 'other'], client)).toBe(0);
-    expect(await run('watches', [], client)).toBe(0);
-    expect(await run('watches', ['--session', 'other'], client)).toBe(0);
-    expect(await run('unwatch', ['12'], client)).toBe(0);
-    expect(await run('unwatch', ['12', '--session', 'other'], client)).toBe(0);
+    expect(await run('watch', ['12'], client)).toBe(0)
+    expect(await run('watch', ['12', '--session', 'other'], client)).toBe(0)
+    expect(await run('watches', [], client)).toBe(0)
+    expect(await run('watches', ['--session', 'other'], client)).toBe(0)
+    expect(await run('unwatch', ['12'], client)).toBe(0)
+    expect(await run('unwatch', ['12', '--session', 'other'], client)).toBe(0)
 
     expect(calls).toEqual([
       'watch:env-session:{"pr":12}',
@@ -676,49 +676,49 @@ describe('runCli watch verbs', () => {
       'watches:other',
       'unwatch:env-session:{"pr":12}',
       'unwatch:other:{"pr":12}',
-    ]);
-  });
+    ])
+  })
 
   it('passes --repo and a comma-separated --on through unmodified', async () => {
-    const { client, calls } = recordingClient();
+    const { client, calls } = recordingClient()
 
-    await run('watch', ['5', '--repo', 'o/n', '--on', 'review,bogus'], client);
-    await run('unwatch', ['5', '--repo', 'o/n'], client);
+    await run('watch', ['5', '--repo', 'o/n', '--on', 'review,bogus'], client)
+    await run('unwatch', ['5', '--repo', 'o/n'], client)
 
     expect(calls).toEqual([
       'watch:env-session:{"pr":5,"repo":"o/n","kinds":["review","bogus"]}',
       'unwatch:env-session:{"pr":5,"repo":"o/n"}',
-    ]);
-  });
+    ])
+  })
 
   it('passes repeated --ignore-check and --unignore-check as arrays, and omits them otherwise', async () => {
-    const { client, calls } = recordingClient();
+    const { client, calls } = recordingClient()
 
     await run(
       'watch',
       ['5', '--ignore-check', 'a', '--ignore-check', 'b c', '--unignore-check', 'd'],
       client,
-    );
-    await run('watch', ['5'], client);
+    )
+    await run('watch', ['5'], client)
 
     expect(calls).toEqual([
       'watch:env-session:{"pr":5,"ignoreChecks":["a","b c"],"unignoreChecks":["d"]}',
       'watch:env-session:{"pr":5}',
-    ]);
-  });
+    ])
+  })
 
   it('removes every listed watch on unwatch --all and tolerates a 404', async () => {
-    const { client, calls } = recordingClient([aWatch(1), aWatch(2), aWatch(3)], new Set([2]));
+    const { client, calls } = recordingClient([aWatch(1), aWatch(2), aWatch(3)], new Set([2]))
 
-    expect(await run('unwatch', ['--all'], client)).toBe(0);
+    expect(await run('unwatch', ['--all'], client)).toBe(0)
 
     expect(calls).toEqual([
       'watches:env-session',
       'unwatch:env-session:{"pr":1,"repo":"owner/name"}',
       'unwatch:env-session:{"pr":2,"repo":"owner/name"}',
       'unwatch:env-session:{"pr":3,"repo":"owner/name"}',
-    ]);
-  });
+    ])
+  })
 
   it.each([
     ['watch', []],
@@ -730,114 +730,114 @@ describe('runCli watch verbs', () => {
   ] as const)(
     'rejects "%s %j" as a usage error before calling the server',
     async (command, args) => {
-      const { io, stderr } = collectingIo();
-      const { client, calls } = recordingClient();
+      const { io, stderr } = collectingIo()
+      const { client, calls } = recordingClient()
 
-      expect(await runCli(command, [...args], io, client, undefined, env)).toBe(1);
+      expect(await runCli(command, [...args], io, client, undefined, env)).toBe(1)
 
-      expect(calls).toEqual([]);
-      expect(stderr).toEqual([expect.stringContaining('garden: usage: garden ')]);
+      expect(calls).toEqual([])
+      expect(stderr).toEqual([expect.stringContaining('garden: usage: garden ')])
     },
-  );
+  )
 
   it('fails with no caller session when neither the flag nor the environment names one', async () => {
-    const { io, stderr } = collectingIo();
-    const { client, calls } = recordingClient();
+    const { io, stderr } = collectingIo()
+    const { client, calls } = recordingClient()
 
-    expect(await runCli('watches', [], io, client, undefined, {})).toBe(1);
+    expect(await runCli('watches', [], io, client, undefined, {})).toBe(1)
 
-    expect(calls).toEqual([]);
-    expect(stderr).toEqual(['garden: GARDEN_SESSION_ID is not set\n']);
-  });
-});
+    expect(calls).toEqual([])
+    expect(stderr).toEqual(['garden: GARDEN_SESSION_ID is not set\n'])
+  })
+})
 
 describe('alert', () => {
-  const env = { GARDEN_SESSION_ID: 's1' };
+  const env = { GARDEN_SESSION_ID: 's1' }
 
   it('raises the text as given on the caller session', async () => {
-    const { io } = collectingIo();
-    const { client, calls } = recordingClient();
+    const { io } = collectingIo()
+    const { client, calls } = recordingClient()
 
-    expect(await runCli('alert', ['stuck\non CI'], io, client, undefined, env)).toBe(0);
+    expect(await runCli('alert', ['stuck\non CI'], io, client, undefined, env)).toBe(0)
 
-    expect(calls).toEqual(['alert:s1:"stuck\\non CI"']);
-  });
+    expect(calls).toEqual(['alert:s1:"stuck\\non CI"'])
+  })
 
   it('treats the single positional clear as the clear verb', async () => {
-    const { io } = collectingIo();
-    const { client, calls } = recordingClient();
+    const { io } = collectingIo()
+    const { client, calls } = recordingClient()
 
-    expect(await runCli('alert', ['clear'], io, client, undefined, env)).toBe(0);
+    expect(await runCli('alert', ['clear'], io, client, undefined, env)).toBe(0)
 
-    expect(calls).toEqual(['alert-clear:s1']);
-  });
+    expect(calls).toEqual(['alert-clear:s1'])
+  })
 
   it.each([[[]], [['']], [['   ']], [['two', 'words']]])(
     'prints usage for %j and makes no call',
     async (args) => {
-      const { io, stderr } = collectingIo();
-      const { client, calls } = recordingClient();
+      const { io, stderr } = collectingIo()
+      const { client, calls } = recordingClient()
 
-      expect(await runCli('alert', args, io, client, undefined, env)).toBe(1);
+      expect(await runCli('alert', args, io, client, undefined, env)).toBe(1)
 
-      expect(calls).toEqual([]);
-      expect(stderr).toEqual([expect.stringContaining('garden: usage: garden alert')]);
+      expect(calls).toEqual([])
+      expect(stderr).toEqual([expect.stringContaining('garden: usage: garden alert')])
     },
-  );
+  )
 
   it('rejects --session rather than alerting a different session than the caller named', async () => {
-    const { io, stderr } = collectingIo();
-    const { client, calls } = recordingClient();
+    const { io, stderr } = collectingIo()
+    const { client, calls } = recordingClient()
 
-    expect(await runCli('alert', ['x', '--session', 's2'], io, client, undefined, env)).toBe(1);
+    expect(await runCli('alert', ['x', '--session', 's2'], io, client, undefined, env)).toBe(1)
 
-    expect(calls).toEqual([]);
-    expect(stderr).toEqual([expect.stringContaining('garden: usage: garden alert')]);
-  });
+    expect(calls).toEqual([])
+    expect(stderr).toEqual([expect.stringContaining('garden: usage: garden alert')])
+  })
 
   it('fails with no caller session when the environment names none', async () => {
-    const { io, stderr } = collectingIo();
-    const { client, calls } = recordingClient();
+    const { io, stderr } = collectingIo()
+    const { client, calls } = recordingClient()
 
-    expect(await runCli('alert', ['x'], io, client, undefined, {})).toBe(1);
-    expect(await runCli('alert', ['clear'], io, client, undefined, {})).toBe(1);
+    expect(await runCli('alert', ['x'], io, client, undefined, {})).toBe(1)
+    expect(await runCli('alert', ['clear'], io, client, undefined, {})).toBe(1)
 
-    expect(calls).toEqual([]);
+    expect(calls).toEqual([])
     expect(stderr).toEqual([
       'garden: GARDEN_SESSION_ID is not set\n',
       'garden: GARDEN_SESSION_ID is not set\n',
-    ]);
-  });
-});
+    ])
+  })
+})
 
 describe('reviews', () => {
-  const env = { GARDEN_SESSION_ID: 's1' };
+  const env = { GARDEN_SESSION_ID: 's1' }
   const run = (args: string[]) => {
-    const { io, stderr } = collectingIo();
-    const { client, calls } = recordingClient();
+    const { io, stderr } = collectingIo()
+    const { client, calls } = recordingClient()
     return runCli('reviews', args, io, client, undefined, env).then((code) => ({
       code,
       calls,
       stderr,
-    }));
-  };
+    }))
+  }
 
   it('dispatches each verb to its client call', async () => {
-    expect((await run(['list'])).calls).toEqual(['reviews']);
-    expect((await run(['start', 'acme/widgets#7'])).calls).toEqual(['review-start:acme/widgets#7']);
+    expect((await run(['list'])).calls).toEqual(['reviews'])
+    expect((await run(['start', 'acme/widgets#7'])).calls).toEqual(['review-start:acme/widgets#7'])
     expect((await run(['dismiss', 'acme/widgets#7'])).calls).toEqual([
       'review-dismiss:acme/widgets#7',
-    ]);
-  });
+    ])
+  })
 
   it('claims for --session, else the caller session', async () => {
     expect((await run(['claim', 'acme/widgets#7'])).calls).toEqual([
       'review-claim:acme/widgets#7:s1',
-    ]);
+    ])
     expect((await run(['claim', 'acme/widgets#7', '--session', 's2'])).calls).toEqual([
       'review-claim:acme/widgets#7:s2',
-    ]);
-  });
+    ])
+  })
 
   it.each([
     [[]],
@@ -853,9 +853,9 @@ describe('reviews', () => {
     [['start', 'acme/widgets#7', '--session', 's2']],
     [['dismiss', 'acme/widgets#7', '--session', 's2']],
   ])('prints usage for %j and makes no call', async (args) => {
-    const { code, calls, stderr } = await run(args);
-    expect(code).toBe(1);
-    expect(calls).toEqual([]);
-    expect(stderr).toEqual([expect.stringContaining('garden: usage: garden reviews')]);
-  });
-});
+    const { code, calls, stderr } = await run(args)
+    expect(code).toBe(1)
+    expect(calls).toEqual([])
+    expect(stderr).toEqual([expect.stringContaining('garden: usage: garden reviews')])
+  })
+})

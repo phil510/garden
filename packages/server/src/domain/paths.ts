@@ -3,16 +3,16 @@
  * past the root is dropped rather than escaping, which is how the kernel resolves `/..`.
  */
 function normalize(path: string): string {
-  const segments: string[] = [];
+  const segments: string[] = []
   for (const segment of path.split('/')) {
-    if (segment === '' || segment === '.') continue;
+    if (segment === '' || segment === '.') continue
     if (segment === '..') {
-      segments.pop();
-      continue;
+      segments.pop()
+      continue
     }
-    segments.push(segment);
+    segments.push(segment)
   }
-  return `/${segments.join('/')}`;
+  return `/${segments.join('/')}`
 }
 
 /**
@@ -25,9 +25,9 @@ function normalize(path: string): string {
  * one to guess at its meaning is how a scoping check ends up permitting the path it was given.
  */
 export function isWithinRoot(root: string, candidate: string): boolean {
-  if (!root.startsWith('/') || !candidate.startsWith('/')) return false;
-  const normalizedRoot = normalize(root);
-  const normalizedCandidate = normalize(candidate);
-  if (normalizedCandidate === normalizedRoot) return true;
-  return normalizedCandidate.startsWith(normalizedRoot === '/' ? '/' : `${normalizedRoot}/`);
+  if (!root.startsWith('/') || !candidate.startsWith('/')) return false
+  const normalizedRoot = normalize(root)
+  const normalizedCandidate = normalize(candidate)
+  if (normalizedCandidate === normalizedRoot) return true
+  return normalizedCandidate.startsWith(normalizedRoot === '/' ? '/' : `${normalizedRoot}/`)
 }

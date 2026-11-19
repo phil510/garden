@@ -4,5 +4,5 @@ export function focusedSessionId(
   slots: readonly (string | null)[],
   focusedSlot: number,
 ): string | null {
-  return slots[focusedSlot] ?? null;
+  return slots[focusedSlot] ?? null
 }
