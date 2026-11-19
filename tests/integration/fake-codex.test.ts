@@ -224,11 +224,17 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
                 row.recap === 'Response to first prompt',
             ),
         )
-        await post(url, `/sessions/${sessionName}/messages`, { message: 'bound delivery' })
+        const source = { type: 'session', callerSessionId: id }
+        const senderHeader = `[Message from session ${id}/${sessionName}]`
+        const message = '  bound delivery\n\tsecond line  \n'
+        await post(url, `/sessions/${sessionName}/messages`, { message, source })
         await until(
-          'queue command to reach the loaded native conversation',
+          'attributed multiline queue command to reach the loaded native conversation',
           () => rows(url),
-          (list) => list.some((row) => row.id === id && row.title === 'bound delivery'),
+          (list) =>
+            list.some(
+              (row) => row.id === id && row.recap === `Response to ${senderHeader}\n\n${message}`,
+            ),
         )
         writeFileSync(
           join(codexHome, 'sessions', 'unbound-internal.jsonl'),
@@ -253,7 +259,11 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
         const afterFollowUp = await until(
           'follow-up reaches the renamed session',
           () => rows(url),
-          (list) => list.some((row) => row.id === id && row.recap === 'Response to ok'),
+          (list) =>
+            list.some(
+              (row) =>
+                row.id === id && row.recap === 'Response to [Message from external shell]\n\nok',
+            ),
         )
         expect(afterFollowUp.find((row) => row.id === id)).toMatchObject({
           title: firstTitle,
@@ -305,11 +315,15 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
           () => rows(url),
           (list) => list.some((row) => row.id === id && row.status === 'waiting'),
         )
-        await post(url, `/sessions/${id}/messages`, { message: 'new conversation' })
+        await post(url, `/sessions/${id}/messages`, { message: 'new conversation', source })
         await until(
-          'cleared rollout to reach same garden row',
+          'new native conversation to retain the same Garden sender identity',
           () => rows(url),
-          (list) => list.some((row) => row.id === id && row.title === 'new conversation'),
+          (list) =>
+            list.some(
+              (row) =>
+                row.id === id && row.recap === `Response to ${senderHeader}\n\nnew conversation`,
+            ),
         )
         const liveTitle = 'Investigation after clear'
         await send(tmuxName, `/rename ${liveTitle}`)
@@ -504,10 +518,13 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
             } else {
               await send(resumed.tmuxName, prompt)
             }
+            const expected =
+              command === '/end' ? `[Message from external shell]\n\n${prompt}` : prompt
             const afterResume = await until(
               'replacement terminal to process a new prompt in the same Garden session',
               () => rows(url),
-              (list) => list.some((row) => row.id === id && row.recap === `Response to ${prompt}`),
+              (list) =>
+                list.some((row) => row.id === id && row.recap === `Response to ${expected}`),
             )
             expect(afterResume.find((row) => row.id === id)).toMatchObject({
               title: coldTitle,

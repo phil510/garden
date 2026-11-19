@@ -2,6 +2,7 @@ import { execFile, spawn } from 'node:child_process'
 import type { ChildProcess } from 'node:child_process'
 import { once } from 'node:events'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -64,6 +65,7 @@ function lineFrom(child: ChildProcess, match: (line: string) => boolean): Promis
 
 describe('garden events --follow as a real process', () => {
   let home: string
+  let server: Server
   let wss: WebSocketServer
   let connections: WebSocket[]
   let received: string[]
@@ -74,8 +76,10 @@ describe('garden events --follow as a real process', () => {
     home = mkdtempSync(join(tmpdir(), 'garden-lifeline-home-'))
     connections = []
     received = []
-    wss = new WebSocketServer({ port: 0, host: '127.0.0.1' })
-    await new Promise<void>((resolve) => wss.once('listening', resolve))
+    server = createServer()
+    wss = new WebSocketServer({ server })
+    server.listen(0, '127.0.0.1')
+    await once(server, 'listening')
     wss.on('connection', (socket) => {
       connections.push(socket)
       socket.on('message', (data: Buffer) => received.push(data.toString('utf8')))
@@ -93,11 +97,13 @@ describe('garden events --follow as a real process', () => {
     }
     for (const socket of connections) socket.terminate()
     await new Promise<void>((resolve) => wss.close(() => resolve()))
+    server.closeAllConnections()
+    await new Promise<void>((resolve) => server.close(() => resolve()))
     rmSync(home, { recursive: true, force: true })
   })
 
   function env(overrides: Record<string, string | undefined>): NodeJS.ProcessEnv {
-    const port = (wss.address() as AddressInfo).port
+    const port = (server.address() as AddressInfo).port
     return {
       ...process.env,
       HOME: home,
@@ -197,7 +203,7 @@ describe('garden events --follow as a real process', () => {
     expect(connections).toHaveLength(0)
   })
 
-  it('connects a Codex forwarder to its inherited port even with the Claude selector', async () => {
+  it('forwards a PR-watch digest to the inherited Codex instance before acknowledging', async () => {
     const child = spawnPipe({ GARDEN_HARNESS: 'codex', GARDEN_SESSION_ID: 's1' }, [
       ...GARDEN_ARGV,
       '--claude',
@@ -213,6 +219,27 @@ describe('garden events --follow as a real process', () => {
           throw new Error(`forwarder exited before connecting (code ${String(code)})`)
         }),
       ])
+      const incoming = once(server, 'request', { signal: AbortSignal.timeout(5000) })
+      const line = 'PR 7 has a comment'
+      connections[0]!.send(JSON.stringify({ type: 'digest', id: 'd1', line }))
+
+      const [request, response] = (await incoming) as [IncomingMessage, ServerResponse]
+      let body = ''
+      request.setEncoding('utf8')
+      for await (const chunk of request) body += String(chunk)
+      expect(request.method).toBe('POST')
+      expect(request.url).toBe('/sessions/-/messages?target=s1')
+      expect(JSON.parse(body)).toEqual({ message: line, source: { type: 'pr-watch' } })
+      expect(received).toEqual([])
+
+      response.writeHead(200, { 'content-type': 'application/json' })
+      response.end(JSON.stringify({ ok: true }))
+      await until(
+        'the forwarder to ack after HTTP acceptance',
+        () => Promise.resolve(received),
+        (frames) => frames.length === 1,
+      )
+      expect(JSON.parse(received[0]!)).toEqual({ type: 'ack', id: 'd1' })
     } finally {
       child.kill('SIGTERM')
       await exited
