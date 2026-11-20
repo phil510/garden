@@ -474,6 +474,47 @@ describe('Codex bound transcript reads', () => {
     }
   })
 
+  it('discards a delayed Resume spool entry after observing a newer rollout', async () => {
+    const f = fixture()
+    try {
+      const harness = createCodexHarness(f.options)
+      harness.beforeLaunch({ id: 'garden', cwd: f.directory })
+      f.publishEndpoint('live')
+      harness.parseHook(f.hook({ _garden_generation: 'live', _garden_order: '12' }), 'garden')
+
+      const spool = join(f.appDir, 'codex-session-start-spool')
+      mkdirSync(spool)
+      const resume = f.hook({
+        source: 'resume',
+        transcript_path: f.pathB,
+        _garden_generation: 'live',
+        _garden_order: '13',
+      })
+      writeFileSync(
+        join(spool, 'delayed.jsonl'),
+        JSON.stringify({ gardenSessionId: 'garden', payload: resume }),
+      )
+
+      const latest = join(f.options.transcriptRoots[0]!, 'rollout-c.jsonl')
+      harness.observeStatus(() => {})
+      const [observer] = vi.mocked(observeNativeStatus).mock.lastCall!
+      expect(observer.rebind!(observer.bindings()[0]!, latest, false)?.transcriptPath).toBe(latest)
+
+      const restarted = createCodexHarness(f.options)
+      expect(restarted.replaySpool()).toEqual([])
+      expect(readdirSync(spool)).toEqual([])
+      expect(await restarted.transcripts.listFiles()).toEqual([latest])
+
+      const next = join(f.options.transcriptRoots[0]!, 'rollout-d.jsonl')
+      const order = Math.floor((performance.timeOrigin + performance.now() + 1) * 1000).toString()
+      expect(
+        restarted.parseHook({ ...resume, transcript_path: next, _garden_order: order }, 'garden'),
+      ).toMatchObject({ transcriptPath: next, resetConversation: true })
+    } finally {
+      f.close()
+    }
+  })
+
   it('reads records written before binding, lists only bound files, and invalidates reads overtaken by clear', async () => {
     const f = fixture()
     try {

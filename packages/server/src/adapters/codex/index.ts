@@ -32,6 +32,7 @@ interface Alias {
   codexId: string | null
   transcriptPath: string | null
   bindingOrder?: string
+  rolloutObservedOrder?: string
   backendGeneration?: string
 }
 interface Launch {
@@ -131,6 +132,9 @@ export function createCodexHarness(options: Options) {
         (entry['backendGeneration'] !== undefined &&
           (typeof entry['backendGeneration'] !== 'string' ||
             !/^[a-z0-9-]{1,128}$/i.test(entry['backendGeneration']))) ||
+        (entry['rolloutObservedOrder'] !== undefined &&
+          (typeof entry['rolloutObservedOrder'] !== 'string' ||
+            !/^\d{1,30}$/.test(entry['rolloutObservedOrder']))) ||
         (entry['bindingOrder'] !== undefined &&
           (typeof entry['bindingOrder'] !== 'string' || !/^\d{1,30}$/.test(entry['bindingOrder'])))
       )
@@ -221,6 +225,18 @@ export function createCodexHarness(options: Options) {
           )
             return null
         }
+        const rolloutObservedOrder =
+          hook._garden_generation === prior.backendGeneration
+            ? prior.rolloutObservedOrder
+            : undefined
+        if (
+          resetConversation &&
+          hook.source === 'resume' &&
+          rolloutObservedOrder !== undefined &&
+          (hook._garden_order === undefined ||
+            BigInt(hook._garden_order) <= BigInt(rolloutObservedOrder))
+        )
+          return null
         const bindingOrder = hook._garden_order ?? prior.bindingOrder
         if (
           changed ||
@@ -235,6 +251,7 @@ export function createCodexHarness(options: Options) {
               codexId: hook.session_id,
               transcriptPath: hook.transcript_path,
               ...(bindingOrder === undefined ? {} : { bindingOrder }),
+              ...(changed || rolloutObservedOrder === undefined ? {} : { rolloutObservedOrder }),
               ...(hook._garden_generation === undefined
                 ? {}
                 : { backendGeneration: hook._garden_generation }),
@@ -270,7 +287,11 @@ export function createCodexHarness(options: Options) {
     )
       return null
     try {
-      save({ ...aliases, [id]: { ...alias, transcriptPath: path } })
+      // Compare delayed Resume hooks against the snapshot using the hook script's epoch clock.
+      const rolloutObservedOrder = Math.floor(
+        (performance.timeOrigin + performance.now()) * 1000,
+      ).toString()
+      save({ ...aliases, [id]: { ...alias, transcriptPath: path, rolloutObservedOrder } })
     } catch (error) {
       options.logger.warn(
         `Codex rollout replacement could not be saved for ${id}: ${(error as Error).message}`,
