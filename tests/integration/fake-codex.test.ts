@@ -23,6 +23,7 @@ import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import type { CreateSessionResponse, SessionState, SessionsResponse } from '@garden/shared'
 import { describe, expect, it } from 'vitest'
+import type { Watch } from '../../packages/server/src/domain/watches.js'
 import { until } from './support/poll.js'
 import { withTmuxServer } from './support/tmux-server.js'
 
@@ -119,6 +120,7 @@ function logTail(path: string): string {
 interface Alias {
   codexId: string | null
   transcriptPath: string | null
+  backendGeneration?: string
 }
 
 type NamedSession = CreateSessionResponse & { sessionName: string }
@@ -130,58 +132,138 @@ function aliases(appDir: string): Record<string, Alias> {
   ).sessions
 }
 
+async function codexFixture(socket: string) {
+  const port = await freePort()
+  const directory = realpathSync(mkdtempSync(join(tmpdir(), 'garden-fake-codex-')))
+  const appDir = join(directory, 'app')
+  const codexHome = join(directory, 'codex-home')
+  const cwd = join(directory, 'project')
+  mkdirSync(appDir)
+  mkdirSync(codexHome)
+  mkdirSync(cwd)
+  writeFileSync(
+    join(appDir, 'config.json'),
+    JSON.stringify({ roots: [cwd], permissionMode: 'bypassPermissions' }),
+  )
+  const url = `http://127.0.0.1:${port}`
+  const env = {
+    ...process.env,
+    GARDEN_SERVER_PROCESS: '1',
+    GARDEN_HARNESS: 'codex',
+    GARDEN_PORT: String(port),
+    GARDEN_APP_DIR: appDir,
+    GARDEN_TMUX_SOCKET: socket,
+    CODEX_HOME: codexHome,
+    GARDEN_CODEX_COMMAND: `${process.execPath} --import ${loader} ${join(root, 'scripts/fake-codex.ts')}`,
+  }
+  const tmux = async (args: readonly string[]) =>
+    (await exec('tmux', ['-L', socket, ...args], { timeout: 5000 })).stdout
+  const paneState = async (name: string) => {
+    const format = '#{pane_id}\t#{pane_pid}\t#{pane_dead}\t#{pane_dead_status}\t#{pane_dead_signal}'
+    const [paneId, pid, dead, exitStatus, exitSignal] = (
+      await tmux(['display-message', '-p', '-t', name, format])
+    )
+      .trimEnd()
+      .split('\t')
+    return { paneId, pid, dead: dead === '1', exitStatus, exitSignal }
+  }
+  const waitForOutput = (name: string, marker: string) =>
+    until(
+      `fake Codex terminal to print ${marker}`,
+      () => tmux(['capture-pane', '-p', '-t', name]),
+      (text) => text.includes(`[fake-codex] ${marker}`),
+      30_000,
+    )
+  const ready = (name: string) => waitForOutput(name, 'READY')
+  const send = async (name: string, text: string) => {
+    await tmux(['send-keys', '-l', '-t', name, '--', text])
+    await tmux(['send-keys', '-t', name, 'Enter'])
+  }
+  let child: ChildProcess | undefined
+  const shutdown = async () => {
+    if (child) await stop(child)
+    child = undefined
+  }
+  const restart = async () => {
+    await shutdown()
+    child = await start(env, url)
+  }
+  const dispose = async () => {
+    await shutdown()
+    await tmux(['kill-server']).catch(() => {})
+    rmSync(directory, { recursive: true, force: true })
+  }
+  return {
+    appDir,
+    codexHome,
+    cwd,
+    directory,
+    env,
+    url,
+    tmux,
+    paneState,
+    ready,
+    send,
+    waitForOutput,
+    restart,
+    shutdown,
+    dispose,
+  }
+}
+
+async function withCodex(
+  run: (fixture: Awaited<ReturnType<typeof codexFixture>>) => Promise<void>,
+) {
+  await withTmuxServer(async ({ socket }) => {
+    const fixture = await codexFixture(socket)
+    try {
+      await fixture.restart()
+      await run(fixture)
+    } finally {
+      await fixture.dispose()
+    }
+  })
+}
+
+async function waitForRecap(url: string, id: string, prompt: string) {
+  const recap = `Response to ${prompt}`
+  const list = await until(
+    `recap ${recap}`,
+    () => rows(url),
+    (sessions) => sessions.some((row) => row.id === id && row.recap === recap),
+  )
+  return list.find((row) => row.id === id)!
+}
+
+async function prepareRewind({ cwd, url, ready, send }: Awaited<ReturnType<typeof codexFixture>>) {
+  const session = (await (await post(url, '/sessions', { cwd })).json()) as NamedSession
+  await ready(session.tmuxName)
+  await send(session.tmuxName, 'retained prompt')
+  const retained = await waitForRecap(url, session.id, 'retained prompt')
+  await send(session.tmuxName, 'discarded prompt')
+  const discarded = await waitForRecap(url, session.id, 'discarded prompt')
+  expect(discarded.title).toBe('discarded prompt')
+  expect(discarded.lastActivity).toBeGreaterThan(retained.lastActivity)
+  return { session, retained }
+}
+
 describe('Codex through actual main.ts, tmux and generated hooks', () => {
   it('binds, tails, clears and restores both bound and pending sessions, including a binding while down', async () => {
-    await withTmuxServer(async ({ socket }) => {
-      const directory = realpathSync(mkdtempSync(join(tmpdir(), 'garden-fake-codex-')))
-      const appDir = join(directory, 'app')
-      const codexHome = join(directory, 'codex-home')
-      const cwd = join(directory, 'project')
-      mkdirSync(appDir)
-      mkdirSync(codexHome)
-      mkdirSync(cwd)
-      writeFileSync(
-        join(appDir, 'config.json'),
-        JSON.stringify({ roots: [cwd], permissionMode: 'bypassPermissions' }),
-      )
-      const port = await freePort()
-      const url = `http://127.0.0.1:${port}`
-      const env = {
-        ...process.env,
-        GARDEN_SERVER_PROCESS: '1',
-        GARDEN_HARNESS: 'codex',
-        GARDEN_PORT: String(port),
-        GARDEN_APP_DIR: appDir,
-        GARDEN_TMUX_SOCKET: socket,
-        CODEX_HOME: codexHome,
-        GARDEN_CODEX_COMMAND: `${process.execPath} --import ${loader} ${join(root, 'scripts/fake-codex.ts')}`,
-      }
-      const tmux = async (args: readonly string[]) =>
-        (await exec('tmux', ['-L', socket, ...args], { timeout: 5000 })).stdout
-      const paneState = async (name: string) => {
-        const format =
-          '#{pane_id}\t#{pane_pid}\t#{pane_dead}\t#{pane_dead_status}\t#{pane_dead_signal}'
-        const [paneId, pid, dead, exitStatus, exitSignal] = (
-          await tmux(['display-message', '-p', '-t', name, format])
-        )
-          .trimEnd()
-          .split('\t')
-        return { paneId, pid, dead: dead === '1', exitStatus, exitSignal }
-      }
-      const ready = (name: string) =>
-        until(
-          'fake Codex stdin readiness',
-          () => tmux(['capture-pane', '-p', '-t', name]),
-          (text) => text.includes('[fake-codex] READY'),
-          30_000,
-        )
-      const send = async (name: string, text: string) => {
-        await tmux(['send-keys', '-l', '-t', name, '--', text])
-        await tmux(['send-keys', '-t', name, 'Enter'])
-      }
-      let child: ChildProcess | undefined
-      try {
-        child = await start(env, url)
+    await withCodex(
+      async ({
+        appDir,
+        codexHome,
+        cwd,
+        directory,
+        env,
+        url,
+        tmux,
+        paneState,
+        ready,
+        send,
+        restart,
+        shutdown,
+      }) => {
         const created = await post(url, '/sessions', {
           cwd,
           model: 'gpt-5.3-codex',
@@ -338,8 +420,7 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
         const savedIndex = join(codexHome, 'held-session-index.jsonl')
         // Restart Garden without the index so the surviving backend must hydrate the title.
         renameSync(indexPath, savedIndex)
-        await stop(child)
-        child = await start(env, url)
+        await restart()
         await until(
           'native status and title restored after Garden restart',
           () => rows(url),
@@ -360,8 +441,7 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
           status: 'waiting',
           sessionName: pending.sessionName,
         })
-        await stop(child)
-        child = undefined
+        await shutdown()
         await send(pending.tmuxName, 'offline first prompt')
         const spoolDir = join(appDir, 'codex-session-start-spool')
         await until(
@@ -369,7 +449,7 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
           () => Promise.resolve(existsSync(spoolDir) ? readdirSync(spoolDir) : []),
           (files) => files.some((file) => file.endsWith('.jsonl')),
         )
-        child = await start(env, url)
+        await restart()
         await until(
           'boot to bind and replay offline rollout',
           () => rows(url),
@@ -379,8 +459,7 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
         expect(readdirSync(spoolDir)).toEqual([])
         expect((await rows(url)).map((row) => row.id).sort()).toEqual([id, pending.id].sort())
         // Ended bindings remain resumable, and resume addresses the most recent clear id.
-        await stop(child)
-        child = undefined
+        await shutdown()
         const beforeOfflineClear = aliases(appDir)[id]!.codexId
         await send(tmuxName, '/clear')
         await until(
@@ -392,7 +471,7 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
         const delayedName = readdirSync(spoolDir).find((name) => name.endsWith('.jsonl'))!
         const delayedPath = join(directory, 'delayed-binding.jsonl')
         renameSync(join(spoolDir, delayedName), delayedPath)
-        child = await start(env, url)
+        await restart()
         expect(aliases(appDir)[id]!.codexId).toBe(beforeOfflineClear)
         // The same failed real hook arrives after boot has already listed the spool.
         renameSync(delayedPath, join(spoolDir, delayedName))
@@ -406,8 +485,7 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
         await ready(never.tmuxName)
         await post(url, `/sessions/${never.sessionName}/kill`, {})
         expect(aliases(appDir)[never.id]?.codexId).toBeNull()
-        await stop(child)
-        child = await start(env, url)
+        await restart()
         expect((await rows(url)).find((row) => row.id === never.id)).toMatchObject({
           liveness: 'dead',
           sessionName: never.sessionName,
@@ -451,110 +529,248 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
         const launchArgs = () =>
           Promise.resolve(JSON.parse(readFileSync(launchPath, 'utf8')) as string[])
         const remoteEndpoint = (args: string[]) => args[args.indexOf('--remote') + 1]
-        const endAndResume = async (
-          command: '/end' | '/end-with-slow-shutdown',
-          prompt: string,
-        ) => {
-          let resumeHttp: string | undefined
-          try {
-            const previousEndpoint = remoteEndpoint(await launchArgs())
-            await send(tmuxName, command)
-            await until(
-              'Garden to report the ended session as dead',
-              () => rows(url),
-              (list) => list.some((row) => row.id === id && row.liveness === 'dead'),
-            )
-            if (command === '/end') {
-              const pane = await until(
-                'tmux to record the prior launcher exit',
-                () => paneState(tmuxName),
-                (state) =>
-                  state.dead && (state.exitStatus !== undefined || state.exitSignal !== undefined),
+        let resumeHttp: string | undefined
+        try {
+          const previousEndpoint = remoteEndpoint(await launchArgs())
+          await send(tmuxName, '/end')
+          await until(
+            'Garden to report the ended session as dead',
+            () => rows(url),
+            (list) => list.some((row) => row.id === id && row.liveness === 'dead'),
+          )
+          const pane = await until(
+            'tmux to record the prior launcher exit',
+            () => paneState(tmuxName),
+            (state) =>
+              state.dead && (state.exitStatus !== undefined || state.exitSignal !== undefined),
+          )
+          expect(pane).toMatchObject({ exitStatus: '0', exitSignal: undefined })
+          expect(existsSync(join(appDir, 'native-endpoints', `${id}.json`))).toBe(false)
+          await restart()
+          expect((await rows(url)).find((row) => row.id === id)).toMatchObject({
+            liveness: 'dead',
+            title: coldTitle,
+            sessionName,
+          })
+          const cli = async (...args: string[]) =>
+            (
+              await exec(
+                process.execPath,
+                ['--import', loader, join(root, 'packages/server/bin/garden.ts'), ...args],
+                { env: { ...env, GARDEN_SERVER_PROCESS: undefined }, timeout: 5000 },
               )
-              expect(pane).toMatchObject({ exitStatus: '0', exitSignal: undefined })
-              expect(existsSync(join(appDir, 'native-endpoints', `${id}.json`))).toBe(false)
-              if (child) await stop(child)
-              child = undefined
-              child = await start(env, url)
-              expect((await rows(url)).find((row) => row.id === id)).toMatchObject({
-                liveness: 'dead',
-                title: coldTitle,
-                sessionName,
-              })
-              const cli = async (...args: string[]) =>
-                (
-                  await exec(
-                    process.execPath,
-                    ['--import', loader, join(root, 'packages/server/bin/garden.ts'), ...args],
-                    { env: { ...env, GARDEN_SERVER_PROCESS: undefined }, timeout: 5000 },
-                  )
-                ).stdout
-              expect((await cli('ls')).split('\n')).toContain(
-                [id, 'dead', '-', coldTitle, sessionName].join('\t'),
-              )
-              expect(
-                (JSON.parse(await cli('ls', '--json')) as SessionState[]).find((s) => s.id === id),
-              ).toMatchObject({ title: coldTitle, sessionName })
-            } else {
-              expect((await paneState(tmuxName)).dead).toBe(false)
-            }
+            ).stdout
+          expect((await cli('ls')).split('\n')).toContain(
+            [id, 'dead', '-', coldTitle, sessionName].join('\t'),
+          )
+          expect(
+            (JSON.parse(await cli('ls', '--json')) as SessionState[]).find((s) => s.id === id),
+          ).toMatchObject({ title: coldTitle, sessionName })
 
-            const target = command === '/end' ? sessionName : id
-            const response = await post(url, `/sessions/${target}/resume`, {})
-            const body = await response.text()
-            resumeHttp = `${response.status} ${body}`
-            const resumed = JSON.parse(body) as CreateSessionResponse
-            expect(resumed).toEqual({ id, tmuxName })
-            const args = await until(
-              'replacement Codex terminal to connect to its new backend',
-              launchArgs,
-              (launch) => remoteEndpoint(launch) !== previousEndpoint,
-            )
-            expect(args[0]).toBe('resume')
-            expect(args[args.indexOf('--remote') - 1]).toBe(boundAfterClear)
-            await ready(resumed.tmuxName)
-            if (command === '/end') {
-              await post(url, `/sessions/${sessionName}/messages`, { message: prompt })
-            } else {
-              await send(resumed.tmuxName, prompt)
-            }
-            const expected =
-              command === '/end' ? `[Message from external shell]\n\n${prompt}` : prompt
-            const afterResume = await until(
-              'replacement terminal to process a new prompt in the same Garden session',
-              () => rows(url),
-              (list) =>
-                list.some((row) => row.id === id && row.recap === `Response to ${expected}`),
-            )
-            expect(afterResume.find((row) => row.id === id)).toMatchObject({
-              title: coldTitle,
-              sessionName,
-            })
-          } catch (error) {
-            const [state, output] = await Promise.all([
-              paneState(tmuxName)
-                .then((pane) => JSON.stringify(pane))
-                .catch(() => '(unavailable)'),
-              tmux(['capture-pane', '-p', '-S', '-20', '-t', tmuxName])
-                .then((pane) => pane.trimEnd().slice(-4096))
-                .catch(() => '(unavailable)'),
-            ])
-            const backend = logTail(join(appDir, 'native-endpoints', `${id}.log`))
-            console.error(
-              `Fake Codex ${command}/resume failed for ${id}\n` +
-                `Resume HTTP: ${resumeHttp ?? '(no successful response)'}\n` +
-                `Pane state: ${state}\nPane output:\n${output}\nBackend log tail:\n${backend}`,
-            )
-            throw error
-          }
+          const response = await post(url, `/sessions/${sessionName}/resume`, {})
+          const body = await response.text()
+          resumeHttp = `${response.status} ${body}`
+          const resumed = JSON.parse(body) as CreateSessionResponse
+          expect(resumed).toEqual({ id, tmuxName })
+          const args = await until(
+            'replacement Codex terminal to connect to its new backend',
+            launchArgs,
+            (launch) => remoteEndpoint(launch) !== previousEndpoint,
+          )
+          expect(args[0]).toBe('resume')
+          expect(args[args.indexOf('--remote') - 1]).toBe(boundAfterClear)
+          await ready(resumed.tmuxName)
+          await post(url, `/sessions/${sessionName}/messages`, { message: 'after clean exit' })
+          const afterResume = await until(
+            'replacement terminal to process a queued prompt in the same Garden session',
+            () => rows(url),
+            (list) =>
+              list.some(
+                (row) =>
+                  row.id === id &&
+                  row.recap === 'Response to [Message from external shell]\n\nafter clean exit',
+              ),
+          )
+          expect(afterResume.find((row) => row.id === id)).toMatchObject({
+            title: coldTitle,
+            sessionName,
+          })
+        } catch (error) {
+          const [state, output] = await Promise.all([
+            paneState(tmuxName)
+              .then((pane) => JSON.stringify(pane))
+              .catch(() => '(unavailable)'),
+            tmux(['capture-pane', '-p', '-S', '-20', '-t', tmuxName])
+              .then((pane) => pane.trimEnd().slice(-4096))
+              .catch(() => '(unavailable)'),
+          ])
+          const backend = logTail(join(appDir, 'native-endpoints', `${id}.log`))
+          console.error(
+            `Fake Codex /end/resume failed for ${id}\n` +
+              `Resume HTTP: ${resumeHttp ?? '(no successful response)'}\n` +
+              `Pane state: ${state}\nPane output:\n${output}\nBackend log tail:\n${backend}`,
+          )
+          throw error
         }
-        await endAndResume('/end', 'after clean exit')
-        await endAndResume('/end-with-slow-shutdown', 'after early resume')
-      } finally {
-        if (child) await stop(child)
-        await tmux(['kill-server']).catch(() => {})
-        rmSync(directory, { recursive: true, force: true })
-      }
-    })
+      },
+    )
   }, 60_000)
+
+  it('keeps the live pane and its PR watch while rewinding to retained history before the edited prompt', async () => {
+    await withCodex(async (fixture) => {
+      const { appDir, url, paneState, restart, shutdown, send, waitForOutput } = fixture
+      const {
+        session: { id, tmuxName, sessionName },
+        retained,
+      } = await prepareRewind(fixture)
+      const original = aliases(appDir)[id]!
+      const pane = await paneState(tmuxName)
+
+      // A closed watch with an undelivered digest is retained without polling GitHub.
+      await shutdown()
+      const statePath = join(appDir, 'state.json')
+      const state = JSON.parse(readFileSync(statePath, 'utf8')) as Record<string, unknown>
+      const now = Date.now()
+      const watch = {
+        id: 'rewind-watch',
+        sessionId: id,
+        repo: 'acme/widgets',
+        pr: 7,
+        kinds: ['review'],
+        createdAt: now,
+        cursor: null,
+        pendingDigest: { id: 'rewind-digest', line: 'Final PR activity', createdAt: now },
+        status: 'closed',
+      } satisfies Watch
+      writeFileSync(statePath, JSON.stringify({ ...state, watches: [watch] }))
+      await restart()
+      const beforeRewind = await until(
+        'native observer and saved watch to be ready',
+        () => rows(url),
+        (list) =>
+          list.some((row) => row.id === id && row.status === 'waiting' && row.watches.length === 1),
+      )
+      const watches = beforeRewind.find((row) => row.id === id)!.watches
+      expect(watches).toMatchObject([{ repo: watch.repo, pr: watch.pr, pendingDigest: true }])
+
+      await send(tmuxName, '/rewind')
+      await waitForOutput(tmuxName, 'REWIND PAUSED')
+      expect((await rows(url)).find((row) => row.id === id)).toMatchObject({
+        liveness: 'live',
+        sessionName,
+        tmuxName,
+      })
+      expect(await paneState(tmuxName)).toEqual(pane)
+      expect(aliases(appDir)[id]).toEqual(original)
+
+      await send(tmuxName, '/finish-rewind')
+      await waitForOutput(tmuxName, 'REWOUND')
+      const rewound = await waitForRecap(url, id, 'retained prompt')
+      expect(rewound).toMatchObject({
+        liveness: 'live',
+        lastActivity: retained.lastActivity,
+        sessionName,
+        title: retained.title,
+        tmuxName,
+        watches,
+      })
+      const replacement = aliases(appDir)[id]!
+      expect(replacement).toMatchObject({
+        codexId: original.codexId,
+        backendGeneration: original.backendGeneration,
+      })
+      expect(replacement.transcriptPath).not.toBe(original.transcriptPath)
+      expect(readFileSync(original.transcriptPath!, 'utf8')).toContain('discarded prompt')
+      expect(readFileSync(replacement.transcriptPath!, 'utf8')).not.toContain('discarded prompt')
+
+      await send(tmuxName, 'edited prompt')
+      const edited = await waitForRecap(url, id, 'edited prompt')
+      expect(edited).toMatchObject({ liveness: 'live', sessionName, tmuxName, watches })
+      expect(await paneState(tmuxName)).toEqual(pane)
+      expect(aliases(appDir)[id]).toMatchObject({
+        codexId: original.codexId,
+        backendGeneration: original.backendGeneration,
+        transcriptPath: replacement.transcriptPath,
+      })
+    })
+  }, 40_000)
+
+  it('resumes a rewound thread on a new backend when Garden missed the replacement', async () => {
+    await withCodex(async (fixture) => {
+      const { appDir, codexHome, url, paneState, restart, shutdown, ready, send, waitForOutput } =
+        fixture
+      const {
+        session: { id, tmuxName, sessionName },
+      } = await prepareRewind(fixture)
+      const original = aliases(appDir)[id]!
+
+      await shutdown()
+      await send(tmuxName, '/rewind')
+      await waitForOutput(tmuxName, 'REWIND PAUSED')
+      await send(tmuxName, '/finish-rewind')
+      await waitForOutput(tmuxName, 'REWOUND')
+      const replacementPath = JSON.parse(
+        readFileSync(join(codexHome, `replacement-${original.codexId}.json`), 'utf8'),
+      ) as string
+      expect(replacementPath).not.toBe(original.transcriptPath)
+
+      await send(tmuxName, '/end')
+      await until(
+        'real launcher exit',
+        () => paneState(tmuxName),
+        (pane) => pane.dead,
+      )
+      await restart()
+      expect(aliases(appDir)[id]).toEqual(original)
+      expect((await rows(url)).find((row) => row.id === id)).toMatchObject({
+        liveness: 'dead',
+        recap: 'Response to discarded prompt',
+      })
+
+      const resumed = (await (
+        await post(url, `/sessions/${sessionName}/resume`, {})
+      ).json()) as CreateSessionResponse
+      expect(resumed).toEqual({ id, tmuxName })
+      await ready(tmuxName)
+      const launch = JSON.parse(
+        readFileSync(join(codexHome, `launch-${id}.json`), 'utf8'),
+      ) as string[]
+      expect(launch[0]).toBe('resume')
+      expect(launch[launch.indexOf('--remote') - 1]).toBe(original.codexId)
+      const { generation } = JSON.parse(
+        readFileSync(join(appDir, 'native-endpoints', `${id}.json`), 'utf8'),
+      ) as { generation: string }
+      expect(generation).not.toBe(original.backendGeneration)
+      expect(aliases(appDir)[id]).toEqual(original)
+
+      await send(tmuxName, 'after rewind and resume')
+      const resumedRows = await until(
+        'resumed session to converge on the new recap and backend status',
+        () => rows(url),
+        (list) =>
+          list.some(
+            (row) =>
+              row.id === id &&
+              row.recap === 'Response to after rewind and resume' &&
+              row.status === 'waiting',
+          ),
+      )
+      expect(resumedRows.find((row) => row.id === id)).toMatchObject({
+        liveness: 'live',
+        sessionName,
+        tmuxName,
+      })
+      expect(aliases(appDir)[id]).toMatchObject({
+        codexId: original.codexId,
+        backendGeneration: generation,
+        transcriptPath: replacementPath,
+      })
+      expect(readFileSync(replacementPath, 'utf8')).toContain('retained prompt')
+      expect(readFileSync(replacementPath, 'utf8')).not.toContain('discarded prompt')
+      expect(readFileSync(replacementPath, 'utf8')).toContain('after rewind and resume')
+      expect(readFileSync(original.transcriptPath!, 'utf8')).not.toContain(
+        'after rewind and resume',
+      )
+    })
+  }, 40_000)
 })
