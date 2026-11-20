@@ -69,7 +69,13 @@ class FakeTerminal {
   setLine(lineNumber0Based: number, text: string, isWrapped = false): void {
     this.bufferLines.set(lineNumber0Based, new FakeBufferLine(text, isWrapped))
   }
-  onData(): void {}
+  private dataHandler: ((data: string) => void) | undefined
+  onData(handler: (data: string) => void): void {
+    this.dataHandler = handler
+  }
+  emitData(data: string): void {
+    this.dataHandler?.(data)
+  }
   write(): void {}
   resize(cols: number, rows: number): void {
     this.resizes.push({ cols, rows })
@@ -555,6 +561,163 @@ describe('the OSC 8 link handler', () => {
 
     expect(openSpy).not.toHaveBeenCalled()
     openSpy.mockRestore()
+  })
+})
+
+describe('external link clicks with mouse reporting', () => {
+  const url = 'https://example.com/target'
+  const press = '\x1b[<0;4;1M'
+  const release = '\x1b[<0;4;1m'
+  const drag = '\x1b[<32;8;1M'
+  const dragBack = '\x1b[<32;4;1M'
+  const wheel = '\x1b[<64;4;1M'
+
+  async function setup(harness: 'codex' | 'claude') {
+    const registry = await loadRegistry()
+    const { useSettingsStore } = await import('../state/settingsStore.js')
+    useSettingsStore.getState().setSettings({ deadSessionCap: 10, harness })
+    registry.attachPane('session-a', aContainer(), 0)
+    const terminal = lastTerminal()
+    const { element, linkHandler } = terminal
+    if (element === undefined || linkHandler === undefined) throw new Error('no OSC 8 handler')
+    const range = { start: { x: 1, y: 1 }, end: { x: 9, y: 1 } }
+    element.addEventListener('mouseup', (event) => linkHandler.activate(event, url, range))
+    const open = vi.spyOn(window, 'open').mockReturnValue(null)
+    const pointer = (type: string, modifiers?: MouseEventInit): MouseEvent =>
+      new MouseEvent(type, { bubbles: true, clientX: 30, clientY: 10, ...modifiers })
+    return {
+      terminal,
+      open,
+      detach: () => registry.detachPane('session-a'),
+      down(data?: string, modifiers?: MouseEventInit) {
+        linkHandler.hover?.(pointer('mousemove', modifiers), url, range)
+        if (data !== undefined) {
+          element.addEventListener('mousedown', () => terminal.emitData(data), { once: true })
+        }
+        element.dispatchEvent(pointer('mousedown', modifiers))
+      },
+      up(data?: string, modifiers?: MouseEventInit) {
+        element.dispatchEvent(pointer('mouseup', modifiers))
+        if (data !== undefined) terminal.emitData(data)
+      },
+    }
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.useRealTimers()
+  })
+
+  it.each([
+    { modifier: 'no modifier', code: 0, keys: {} },
+    { modifier: 'Ctrl', code: 16, keys: { ctrlKey: true } },
+    { modifier: 'Meta', code: 0, keys: { metaKey: true } },
+  ])('opens a stationary Codex link once with $modifier', async ({ code, keys }) => {
+    const pane = await setup('codex')
+    pane.down(`\x1b[<${code};4;1M`, keys)
+    expect(lastSocket().writes).toEqual([])
+    pane.up(`\x1b[<${code};4;1m`, keys)
+
+    expect(pane.open).toHaveBeenCalledExactlyOnceWith(url, '_blank', 'noopener,noreferrer')
+    expect(lastSocket().writes).toEqual([])
+    pane.detach()
+  })
+
+  it.each([
+    { interruption: 'a drag back to the link', inputs: [drag, dragBack] },
+    { interruption: 'a wheel report', inputs: [wheel] },
+    { interruption: 'another button release', inputs: ['\x1b[<1;4;1m'] },
+  ])('leaves an interrupted gesture with the terminal after $interruption', async ({ inputs }) => {
+    const pane = await setup('codex')
+    pane.down(press)
+    for (const input of inputs) pane.terminal.emitData(input)
+    pane.up(release)
+
+    expect(lastSocket().writes).toEqual([press, ...inputs, release])
+    expect(pane.open).not.toHaveBeenCalled()
+    pane.detach()
+  })
+
+  it('forwards an unmatched primary release and its press without opening the link', async () => {
+    const pane = await setup('codex')
+    pane.down(press)
+    const unmatched = '\x1b[<0;5;1m'
+    pane.up(unmatched)
+
+    expect(lastSocket().writes).toEqual([press, unmatched])
+    expect(pane.open).not.toHaveBeenCalled()
+    pane.detach()
+  })
+
+  it('writes a held press before the custom Shift+Enter input', async () => {
+    const pane = await setup('codex')
+    pane.down(press)
+    pane.terminal.customKeyEventHandler?.(
+      new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, cancelable: true }),
+    )
+    pane.up(release)
+
+    expect(lastSocket().writes).toEqual([press, '\n', release])
+    expect(pane.open).not.toHaveBeenCalled()
+    pane.detach()
+  })
+
+  it('opens a browser link if xterm has no mouse report to send', async () => {
+    const pane = await setup('codex')
+    pane.down()
+    pane.up()
+
+    expect(pane.open).toHaveBeenCalledExactlyOnceWith(url, '_blank', 'noopener,noreferrer')
+    expect(lastSocket().writes).toEqual([])
+    pane.detach()
+  })
+
+  it('forwards input that looks like a press outside mousedown', async () => {
+    const pane = await setup('codex')
+    pane.down()
+    pane.terminal.emitData(press)
+    pane.up()
+
+    expect(lastSocket().writes).toEqual([press])
+    expect(pane.open).toHaveBeenCalledExactlyOnceWith(url, '_blank', 'noopener,noreferrer')
+    pane.detach()
+  })
+
+  it('forwards a held press when mouseup produces no xterm report', async () => {
+    vi.useFakeTimers()
+    const pane = await setup('codex')
+    pane.down(press)
+    pane.up()
+
+    vi.runAllTimers()
+
+    expect(lastSocket().writes).toEqual([press])
+    expect(pane.open).not.toHaveBeenCalled()
+    pane.detach()
+  })
+
+  it('discards a held press when the pane detaches before the release fallback', async () => {
+    vi.useFakeTimers()
+    const pane = await setup('codex')
+    pane.down(press)
+    pane.up()
+    pane.detach()
+
+    vi.runAllTimers()
+
+    expect(lastSocket().writes).toEqual([])
+    expect(pane.open).not.toHaveBeenCalled()
+  })
+
+  it('opens one Claude link and forwards its mouse reports', async () => {
+    const pane = await setup('claude')
+    pane.down(press)
+    expect(lastSocket().writes).toEqual([press])
+    pane.up(release)
+
+    expect(pane.open).toHaveBeenCalledExactlyOnceWith(url, '_blank', 'noopener,noreferrer')
+    expect(lastSocket().writes).toEqual([press, release])
+    pane.detach()
   })
 })
 
