@@ -652,6 +652,23 @@ describe('external link clicks with mouse reporting', () => {
     pane.detach()
   })
 
+  it('opens a middle-clicked link after a primary drag', async () => {
+    const pane = await setup('codex')
+    pane.down(press)
+    pane.terminal.emitData(drag)
+    pane.up(release)
+    expect(pane.open).not.toHaveBeenCalled()
+
+    const middlePress = '\x1b[<1;4;1M'
+    const middleRelease = '\x1b[<1;4;1m'
+    pane.down(middlePress, { button: 1 })
+    pane.up(middleRelease, { button: 1 })
+
+    expect(lastSocket().writes).toEqual([press, drag, release, middlePress, middleRelease])
+    expect(pane.open).toHaveBeenCalledExactlyOnceWith(url, '_blank', 'noopener,noreferrer')
+    pane.detach()
+  })
+
   it('forwards an unmatched primary release and its press without opening the link', async () => {
     const pane = await setup('codex')
     pane.down(press)

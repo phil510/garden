@@ -59,7 +59,7 @@ export function createTerminalLinkMouse(write: (data: string) => void, isCodex: 
     activate: (event: MouseEvent, url: string): void => {
       if (heldPress !== undefined) {
         if (event.button === 0 && heldPress.url === url) heldPress.activated = true
-      } else if (!terminalOwnsGesture) {
+      } else if (event.button !== 0 || !terminalOwnsGesture) {
         openExternalLink(url)
       }
     },
