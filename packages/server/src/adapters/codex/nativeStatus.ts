@@ -1,6 +1,6 @@
 import WebSocket from 'ws'
 import type { HarnessSignal, ReportedStatus } from '../../domain/types.js'
-import { readCodexEndpoint } from './launcher.js'
+import { readCodexEndpoint, type CodexEndpoint } from './launcher.js'
 
 export interface NativeBinding {
   id: string
@@ -30,12 +30,17 @@ function nativeTitle(name: unknown): string | null | undefined {
   return undefined
 }
 
+function observerKey(binding: NativeBinding, endpoint: CodexEndpoint | null): string {
+  return JSON.stringify([binding.codexId, binding.generation, endpoint])
+}
+
 /** A passive connection observes only the TUI's already-bound thread. It never owns a turn. */
 export function observeNativeStatus(options: {
   appDir: string
   bindings: () => NativeBinding[]
   onSignal: (signal: HarnessSignal) => void
   onTitle?: (binding: NativeBinding, title: string | null) => void
+  rebind?: (binding: NativeBinding, path: string, preserveTitle: boolean) => NativeBinding | null
   pollMs?: number
 }) {
   const entries = new Map<string, { key: string; socket?: WebSocket; stop: () => void }>()
@@ -49,10 +54,10 @@ export function observeNativeStatus(options: {
         entries.delete(id)
       }
     }
-    for (const binding of bindings) {
+    for (let binding of bindings) {
       const descriptor = readCodexEndpoint(options.appDir, binding.id)
       const endpoint = descriptor?.generation === binding.backendGeneration ? descriptor : null
-      const key = JSON.stringify([binding.codexId, binding.generation, endpoint])
+      const key = observerKey(binding, endpoint)
       const prior = entries.get(binding.id)
       if (
         prior?.key === key &&
@@ -65,27 +70,30 @@ export function observeNativeStatus(options: {
       const current = () =>
         !closed &&
         !stopped &&
-        entries.get(binding.id)?.key === key &&
         options
           .bindings()
           .some(
             (b) =>
               b.id === binding.id &&
               b.codexId === binding.codexId &&
+              b.transcriptPath === binding.transcriptPath &&
               b.generation === binding.generation &&
               b.backendGeneration === binding.backendGeneration,
           ) &&
         JSON.stringify(readCodexEndpoint(options.appDir, binding.id)) === JSON.stringify(descriptor)
-      function report(reported: ReportedStatus) {
-        if (current())
-          options.onSignal({
-            sessionId: binding.id,
-            cwd: binding.cwd,
-            transcriptPath: binding.transcriptPath,
-            reported,
-            ended: null,
-            conversationCleared: false,
-          })
+      function report(reported: ReportedStatus | undefined, resetConversation = false) {
+        const fresh = current()
+        // An endpoint can disappear after we commit its replacement path.
+        if (!fresh && !resetConversation) return
+        options.onSignal({
+          sessionId: binding.id,
+          cwd: binding.cwd,
+          transcriptPath: binding.transcriptPath,
+          ...(fresh && reported !== undefined ? { reported } : {}),
+          ended: null,
+          conversationCleared: false,
+          ...(resetConversation ? { resetConversation: true } : {}),
+        })
       }
       if (endpoint === null) {
         entries.set(binding.id, {
@@ -100,7 +108,7 @@ export function observeNativeStatus(options: {
       const socket = new WebSocket(`ws+unix://${endpoint.endpoint.slice('unix://'.length)}:/`, {
         handshakeTimeout: 5000,
       })
-      entries.set(binding.id, {
+      const entry = {
         key,
         socket,
         stop: () => {
@@ -108,12 +116,14 @@ export function observeNativeStatus(options: {
           clearTimeout(timer)
           socket.terminate()
         },
-      })
+      }
+      entries.set(binding.id, entry)
       report(nativeStatus(null))
       let statusRevision = 0
       let titleRevision = 0
       let snapshotStatusRevision = 0
       let snapshotTitleRevision = 0
+      let awaitingSnapshot = false
       function deadline() {
         clearTimeout(timer)
         timer = setTimeout(() => socket.terminate(), 5000)
@@ -142,7 +152,7 @@ export function observeNativeStatus(options: {
           id?: number
           method?: string
           error?: unknown
-          result?: { thread?: { id?: string; status?: unknown; name?: unknown } }
+          result?: { thread?: { id?: string; status?: unknown; name?: unknown; path?: unknown } }
           params?: { threadId?: string; status?: unknown; threadName?: unknown }
         }
         try {
@@ -159,7 +169,10 @@ export function observeNativeStatus(options: {
         // Native server requests belong to the TUI; never answer them or treat their arrival as approval state.
         if (message.method !== undefined) {
           if (message.id !== undefined || message.params?.threadId !== binding.codexId) return
-          if (message.method === 'thread/status/changed') {
+          if (message.method === 'thread/reverted') {
+            entry.stop()
+            refresh()
+          } else if (message.method === 'thread/status/changed') {
             statusRevision++
             report(nativeStatus(message.params.status))
           } else if (message.method === 'thread/name/updated') {
@@ -179,6 +192,7 @@ export function observeNativeStatus(options: {
           socket.send(JSON.stringify({ method: 'initialized' }))
           snapshotStatusRevision = statusRevision
           snapshotTitleRevision = titleRevision
+          awaitingSnapshot = true
           deadline()
           socket.send(
             JSON.stringify({
@@ -187,15 +201,26 @@ export function observeNativeStatus(options: {
               params: { threadId: binding.codexId, includeTurns: false },
             }),
           )
-        } else if (message.id === 2) {
+        } else if (message.id === 2 && awaitingSnapshot) {
+          awaitingSnapshot = false
           clearTimeout(timer)
           const thread = message.result?.thread
           if (thread?.id !== binding.codexId) return
-          if (titleRevision === snapshotTitleRevision) {
+          const replacement =
+            typeof thread.path === 'string' && thread.path !== binding.transcriptPath
+              ? options.rebind?.(binding, thread.path, titleRevision > 0)
+              : null
+          if (replacement != null) {
+            binding = replacement
+            entry.key = observerKey(binding, endpoint)
+          }
+          if (titleRevision === snapshotTitleRevision && current()) {
             const title = nativeTitle(thread.name)
             if (title !== undefined) options.onTitle?.(binding, title)
           }
-          if (statusRevision === snapshotStatusRevision) report(nativeStatus(thread.status))
+          if (statusRevision === snapshotStatusRevision) {
+            report(nativeStatus(thread.status), replacement != null)
+          } else if (replacement != null) report(undefined, true)
         }
       })
       socket.on('error', () => {

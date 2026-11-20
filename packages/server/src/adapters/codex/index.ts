@@ -19,7 +19,7 @@ import type { EffortLevel } from '@garden/shared'
 import type { PermissionMode } from '../../config.js'
 import { codexHook, codexSignal } from './hooks.js'
 import { codexLauncherCommand, readCodexEndpoint } from './launcher.js'
-import { observeNativeStatus } from './nativeStatus.js'
+import { observeNativeStatus, type NativeBinding } from './nativeStatus.js'
 import { createSessionIndex, indexHasCaughtUp } from './sessionIndex.js'
 import { parseCodexTranscript } from './transcript.js'
 import type { HarnessSignal, TranscriptRecord } from '../../domain/types.js'
@@ -32,6 +32,7 @@ interface Alias {
   codexId: string | null
   transcriptPath: string | null
   bindingOrder?: string
+  rolloutObservedOrder?: string
   backendGeneration?: string
 }
 interface Launch {
@@ -131,6 +132,9 @@ export function createCodexHarness(options: Options) {
         (entry['backendGeneration'] !== undefined &&
           (typeof entry['backendGeneration'] !== 'string' ||
             !/^[a-z0-9-]{1,128}$/i.test(entry['backendGeneration']))) ||
+        (entry['rolloutObservedOrder'] !== undefined &&
+          (typeof entry['rolloutObservedOrder'] !== 'string' ||
+            !/^\d{1,30}$/.test(entry['rolloutObservedOrder']))) ||
         (entry['bindingOrder'] !== undefined &&
           (typeof entry['bindingOrder'] !== 'string' || !/^\d{1,30}$/.test(entry['bindingOrder'])))
       )
@@ -171,6 +175,20 @@ export function createCodexHarness(options: Options) {
     aliases = Object.assign(Object.create(null) as Record<string, Alias>, next)
   }
 
+  function ownedByAnother(gardenId: string, codexId: string, path: string): boolean {
+    return Object.entries(aliases).some(
+      ([id, alias]) =>
+        id !== gardenId && (alias.codexId === codexId || alias.transcriptPath === path),
+    )
+  }
+
+  function invalidateBinding(id: string): number {
+    const generation = (generations.get(id) ?? 0) + 1
+    generations.set(id, generation)
+    liveTitles.delete(id)
+    return generation
+  }
+
   function parseHook(body: unknown, gardenSessionId?: string): HarnessSignal | null {
     const hook = codexHook(body)
     if (hook === null || gardenSessionId === undefined || !isAbsolute(hook.cwd)) return null
@@ -179,34 +197,50 @@ export function createCodexHarness(options: Options) {
     const endpoint = readCodexEndpoint(options.appDir, gardenSessionId)
     if (endpoint !== null && hook._garden_generation !== endpoint.generation) return null
     if (hook.transcript_path !== null && !validPath(hook.transcript_path)) return null
-    let changedConversation = false
+    let resetConversation = false
+    let conversationCleared = false
     if (hook.hook_event_name === 'SessionStart') {
       if (!['startup', 'resume', 'clear', 'fork', 'compact'].includes(hook.source ?? ''))
         return null
-      if (
-        hook._garden_order !== undefined &&
-        prior.bindingOrder !== undefined &&
-        BigInt(hook._garden_order) < BigInt(prior.bindingOrder)
-      )
-        return null
+      const orderDifference =
+        hook._garden_order === undefined || prior.bindingOrder === undefined
+          ? undefined
+          : BigInt(hook._garden_order) - BigInt(prior.bindingOrder)
+      if (orderDifference !== undefined && orderDifference < 0n) return null
       if (hook.transcript_path !== null) {
         const changed =
           prior.codexId !== hook.session_id || prior.transcriptPath !== hook.transcript_path
-        if (changed && prior.codexId !== null && hook.source !== 'clear' && hook.source !== 'fork')
-          return null
-        if (
-          Object.entries(aliases).some(
-            ([id, entry]) =>
-              id !== gardenSessionId &&
-              (entry.codexId === hook.session_id || entry.transcriptPath === hook.transcript_path),
+        if (ownedByAnother(gardenSessionId, hook.session_id, hook.transcript_path)) return null
+        resetConversation = changed && prior.codexId !== null
+        conversationCleared =
+          resetConversation && (hook.source === 'clear' || hook.source === 'fork')
+        if (resetConversation) {
+          // Replaying the hook that established the retired path must not undo a native update.
+          if (orderDifference === 0n) return null
+          if (
+            !conversationCleared &&
+            (hook.source !== 'resume' ||
+              prior.codexId !== hook.session_id ||
+              (prior.bindingOrder !== undefined && hook._garden_order === undefined))
           )
+            return null
+        }
+        const rolloutObservedOrder =
+          hook._garden_generation === prior.backendGeneration
+            ? prior.rolloutObservedOrder
+            : undefined
+        if (
+          resetConversation &&
+          hook.source === 'resume' &&
+          rolloutObservedOrder !== undefined &&
+          (hook._garden_order === undefined ||
+            BigInt(hook._garden_order) <= BigInt(rolloutObservedOrder))
         )
           return null
-        changedConversation = changed && prior.codexId !== null
-        // Keep an identical binding's object identity: an idempotent resume does not invalidate a read.
+        const bindingOrder = hook._garden_order ?? prior.bindingOrder
         if (
           changed ||
-          (hook._garden_order !== undefined && hook._garden_order !== prior.bindingOrder) ||
+          bindingOrder !== prior.bindingOrder ||
           hook._garden_generation !== prior.backendGeneration
         ) {
           save({
@@ -216,7 +250,8 @@ export function createCodexHarness(options: Options) {
               name: prior.name,
               codexId: hook.session_id,
               transcriptPath: hook.transcript_path,
-              ...(hook._garden_order === undefined ? {} : { bindingOrder: hook._garden_order }),
+              ...(bindingOrder === undefined ? {} : { bindingOrder }),
+              ...(changed || rolloutObservedOrder === undefined ? {} : { rolloutObservedOrder }),
               ...(hook._garden_generation === undefined
                 ? {}
                 : { backendGeneration: hook._garden_generation }),
@@ -225,15 +260,48 @@ export function createCodexHarness(options: Options) {
         }
       }
     } else if (prior.codexId !== null && prior.codexId !== hook.session_id) return null
-    const signal = codexSignal(hook, gardenSessionId, changedConversation)
-    if (changedConversation) {
-      generations.set(gardenSessionId, (generations.get(gardenSessionId) ?? 0) + 1)
-      liveTitles.delete(gardenSessionId)
-    }
+    const signal = codexSignal(hook, gardenSessionId, conversationCleared)
+    if (resetConversation) invalidateBinding(gardenSessionId)
     return {
       ...signal,
-      ...(changedConversation ? { resetConversation: true } : {}),
+      ...(resetConversation ? { resetConversation: true } : {}),
     }
+  }
+
+  function rebind(
+    binding: NativeBinding,
+    path: string,
+    preserveTitle: boolean,
+  ): NativeBinding | null {
+    const { id, codexId, transcriptPath, backendGeneration } = binding
+    const alias = aliases[id]
+    if (
+      alias === undefined ||
+      alias.codexId !== codexId ||
+      alias.transcriptPath !== transcriptPath ||
+      alias.backendGeneration !== backendGeneration ||
+      (generations.get(id) ?? 0) !== binding.generation ||
+      path === transcriptPath ||
+      !validPath(path) ||
+      ownedByAnother(id, codexId, path)
+    )
+      return null
+    try {
+      // Compare delayed Resume hooks against the snapshot using the hook script's epoch clock.
+      const rolloutObservedOrder = Math.floor(
+        (performance.timeOrigin + performance.now()) * 1000,
+      ).toString()
+      save({ ...aliases, [id]: { ...alias, transcriptPath: path, rolloutObservedOrder } })
+    } catch (error) {
+      options.logger.warn(
+        `Codex rollout replacement could not be saved for ${id}: ${(error as Error).message}`,
+      )
+      return null
+    }
+    const title = preserveTitle ? liveTitles.get(id) : undefined
+    const generation = invalidateBinding(id)
+    if (title !== undefined) liveTitles.set(id, { ...title, generation })
+    return { ...binding, transcriptPath: path, generation }
   }
 
   function flags(request: Launch): readonly string[] {
@@ -330,6 +398,7 @@ export function createCodexHarness(options: Options) {
     observeStatus(onSignal: (signal: HarnessSignal) => void) {
       return observeNativeStatus({
         appDir: options.appDir,
+        rebind,
         onSignal: (signal) => {
           const launch = launches.get(signal.sessionId)
           if (launch !== undefined) launch.reported = true

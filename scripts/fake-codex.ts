@@ -8,7 +8,7 @@ import {
   renameSync,
   writeFileSync,
 } from 'node:fs'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { createInterface } from 'node:readline'
 import { createServer } from 'node:http'
 import { once } from 'node:events'
@@ -81,6 +81,7 @@ let id: string = randomUUID()
 let path: string | null = null
 let source = 'startup'
 let started = false
+let rewindPending = false
 let title: string | null = null
 let queuePosition = 0
 let status: { type: string; activeFlags?: string[] } = { type: 'idle' }
@@ -88,19 +89,21 @@ const observers = new Set<WebSocket>()
 let terminal: WebSocket | undefined
 function report(next: typeof status) {
   status = next
-  for (const client of observers)
-    client.send(
-      JSON.stringify({
-        method: 'thread/status/changed',
-        params: { threadId: id, status },
-      }),
-    )
+  notify('thread/status/changed', { threadId: id, status })
+}
+function notify(method: string, params: unknown) {
+  for (const client of observers) client.send(JSON.stringify({ method, params }))
 }
 function output(text: string) {
   terminal?.send(JSON.stringify({ method: 'fake/output', params: text }))
 }
 
+function replacementPathRecord() {
+  return join(home!, `replacement-${id}.json`)
+}
+
 function materialize() {
+  if (path !== null) return
   const directory = join(home!, 'sessions', '2026', '11', '15')
   mkdirSync(directory, { recursive: true })
   path = join(directory, `rollout-${id}.jsonl`)
@@ -132,6 +135,48 @@ async function hook(event: string): Promise<void> {
   })
 }
 async function turn(message: string) {
+  if (message === '/rewind') {
+    if (path === null || rewindPending) throw new Error('no conversation to rewind')
+    await hook('SessionEnd')
+    rewindPending = true
+    output('[fake-codex] REWIND PAUSED')
+    return
+  }
+  if (message === '/finish-rewind') {
+    if (path === null || !rewindPending) throw new Error('no pending rewind')
+    const lines = readFileSync(path, 'utf8').trimEnd().split('\n')
+    const lastPrompt = lines.findLastIndex((line) => {
+      const row = JSON.parse(line) as { type: string; payload: { role?: string } }
+      return row.type === 'response_item' && row.payload.role === 'user'
+    })
+    if (lastPrompt < 0) throw new Error('no prompt to rewind')
+    const baseFile = basename(path, '.jsonl').slice('rollout-'.length)
+    const retained = lines.slice(0, lastPrompt).join('\n') + '\n'
+    path = join(home!, 'sessions', '2026', '11', '15', `rollout-${id}_${randomUUID()}.jsonl`)
+    append('session_meta', {
+      id,
+      cwd: process.cwd(),
+      history_mode: 'paginated',
+      history_base: {
+        thread_id: baseFile.split('_').at(-1),
+        end_ordinal_exclusive: lastPrompt,
+        end_byte_offset: Buffer.byteLength(retained),
+      },
+    })
+    append('event_msg', {
+      type: 'thread_settings_applied',
+      thread_id: id,
+      thread_settings: { cwd: process.cwd() },
+    })
+    writeFileSync(replacementPathRecord(), JSON.stringify(path))
+    rewindPending = false
+    started = false
+    source = 'resume'
+    report({ type: 'idle' })
+    notify('thread/reverted', { threadId: id, numTurns: 1 })
+    output('[fake-codex] REWOUND')
+    return
+  }
   if (message === '/end-with-slow-shutdown') {
     // Leave the terminal open after the hook and make the launcher reap this backend.
     process.once('SIGTERM', () => {})
@@ -172,13 +217,7 @@ async function turn(message: string) {
       indexPath,
       `${JSON.stringify({ id, thread_name: title, updated_at: new Date().toISOString() })}\n`,
     )
-    for (const client of observers)
-      client.send(
-        JSON.stringify({
-          method: 'thread/name/updated',
-          params: { threadId: id, threadName: title },
-        }),
-      )
+    notify('thread/name/updated', { threadId: id, threadName: title })
     return
   }
   materialize()
@@ -233,7 +272,7 @@ sockets.on('connection', (client) => {
       client.send(JSON.stringify({ id: message.id, result: {} }))
     } else if (message.method === 'thread/read') {
       client.send(
-        JSON.stringify({ id: message.id, result: { thread: { id, status, name: title } } }),
+        JSON.stringify({ id: message.id, result: { thread: { id, status, name: title, path } } }),
       )
     } else if (message.method === 'fake/start') {
       terminal = client
@@ -242,6 +281,11 @@ sockets.on('connection', (client) => {
       if (resume >= 0) {
         id = launch.slice(resume + 1).find((arg) => /^[0-9a-f-]{36}$/.test(arg))!
         source = 'resume'
+        if (existsSync(replacementPathRecord())) {
+          path = JSON.parse(readFileSync(replacementPathRecord(), 'utf8')) as string
+        } else {
+          materialize()
+        }
         if (existsSync(indexPath)) {
           const rows = readFileSync(indexPath, 'utf8')
             .trim()

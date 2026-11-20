@@ -17,14 +17,14 @@ describe('Codex hook translation', () => {
       codexSignal({ ...hook, hook_event_name: 'UserPromptSubmit' }, 'garden').reported?.status,
     ).toBeUndefined()
   })
-  it('leaves native status authoritative while retaining process lifecycle', () => {
+  it('leaves status to native metadata and pane exit to tmux', () => {
     expect(
       codexSignal({ ...hook, hook_event_name: 'PermissionRequest' }, 'garden').reported?.status,
     ).toBeUndefined()
     expect(
       codexSignal({ ...hook, hook_event_name: 'Interrupt' }, 'garden').reported,
     ).toBeUndefined()
-    expect(codexSignal({ ...hook, hook_event_name: 'SessionEnd' }, 'garden').ended).toBe(true)
+    expect(codexSignal({ ...hook, hook_event_name: 'SessionEnd' }, 'garden').ended).toBeNull()
   })
   it('accepts nullable native paths and rejects malformed native ids and ordering metadata', () => {
     expect(codexHook(hook)).toEqual(hook)

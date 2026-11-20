@@ -36,9 +36,10 @@ A concurrent sandbox needs its own port, tmux socket and app dir — see `docs/t
   Keep outer manifests versionless. Claude marketplace entries omit `description`; the native
   Codex catalog includes it. Both plugin manifests retain their own descriptions.
 - A diff that reads fine can still render wrong, so a UI-visible change (anything that alters what
-  the browser renders) carries before/after screenshots, captured with the `garden-sandbox` skill
-  and listed in the PR's `## Visual evidence` section. A capture that can't be made is reported in
-  the PR, not skipped.
+  the browser renders) needs before/after screenshots captured with the `garden-sandbox` skill.
+  Embed them in the PR's `## Visual evidence` section with `gh pr create` or `gh pr edit` and
+  `--attach`. Check that the PR body contains the uploaded image URLs and report any capture or
+  upload blocker there. See [GitHub CLI attachment docs](https://docs.github.com/en/github-cli/github-cli/attaching-files-with-github-cli).
 - Stay inside the scope of the issue. Work you find outside it gets surfaced, not silently
   absorbed — but surfacing is not the same as deferring. When what you found is in the code you
   are already changing, the default is to fix it now: you have the context loaded and the reviewer

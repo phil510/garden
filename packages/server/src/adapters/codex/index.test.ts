@@ -11,10 +11,15 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createCodexHarness } from './index.js'
 import { codexEndpointPath } from './launcher.js'
+import { observeNativeStatus } from './nativeStatus.js'
 import { createSessionIndex, indexHasCaughtUp } from './sessionIndex.js'
+vi.mock('./nativeStatus.js', () => ({
+  observeNativeStatus: vi.fn(() => ({ refresh: () => {}, close: () => {} })),
+}))
+
 function launch(command: readonly string[]): {
   terminalCommand: string[]
   backendCommand: string[]
@@ -53,6 +58,18 @@ function fixture() {
     source: 'startup',
     ...overrides,
   })
+  const publishEndpoint = (generation: string) => {
+    mkdirSync(join(appDir, 'native-endpoints'), { recursive: true })
+    writeFileSync(
+      codexEndpointPath(appDir, 'garden'),
+      JSON.stringify({
+        version: 1,
+        generation,
+        endpoint: 'unix:///tmp/test.sock',
+        pid: process.pid,
+      }),
+    )
+  }
   return {
     directory,
     appDir,
@@ -60,6 +77,7 @@ function fixture() {
     pathB,
     options,
     hook,
+    publishEndpoint,
     close: () => rmSync(directory, { recursive: true, force: true }),
   }
 }
@@ -291,6 +309,57 @@ describe('Codex lifecycle persistence', () => {
     }
   })
 
+  it('resumes the same thread on a replacement path and records the new backend generation', async () => {
+    const f = fixture()
+    try {
+      const harness = createCodexHarness(f.options)
+      const { sessionName } = harness.beforeLaunch({ id: 'garden', cwd: f.directory })
+      f.publishEndpoint('original')
+      harness.parseHook(f.hook({ _garden_generation: 'original', _garden_order: '12' }), 'garden')
+      f.publishEndpoint('resumed')
+      const resume = f.hook({
+        source: 'resume',
+        transcript_path: f.pathB,
+        _garden_generation: 'resumed',
+        _garden_order: '13',
+      })
+
+      expect(harness.parseHook({ ...resume, _garden_generation: 'original' }, 'garden')).toBeNull()
+      expect(harness.parseHook({ ...resume, _garden_order: '12' }, 'garden')).toBeNull()
+      expect(harness.parseHook({ ...resume, _garden_order: undefined }, 'garden')).toBeNull()
+      expect(harness.parseHook({ ...resume, source: 'startup' }, 'garden')).toBeNull()
+      harness.beforeLaunch({ id: 'other', cwd: f.directory })
+      harness.parseHook(f.hook({ session_id: nativeB, transcript_path: f.pathB }), 'other')
+      expect(harness.parseHook(resume, 'garden')).toBeNull()
+
+      const replacement = join(f.options.transcriptRoots[0]!, 'replacement.jsonl')
+      const hook = { ...resume, transcript_path: replacement }
+      expect(harness.parseHook(hook, 'garden')).toMatchObject({
+        sessionId: 'garden',
+        transcriptPath: replacement,
+        ended: false,
+        resetConversation: true,
+        conversationCleared: false,
+      })
+      expect(harness.parseHook(hook, 'garden')?.resetConversation).toBeUndefined()
+      expect(harness.parseHook({ ...hook, transcript_path: f.pathA }, 'garden')).toBeNull()
+      expect(await harness.transcripts.listFiles()).toEqual([replacement, f.pathB])
+      expect(JSON.parse(readFileSync(join(f.appDir, 'codex-aliases.json'), 'utf8'))).toMatchObject({
+        sessions: {
+          garden: {
+            codexId: nativeA,
+            name: sessionName,
+            transcriptPath: replacement,
+            bindingOrder: '13',
+            backendGeneration: 'resumed',
+          },
+        },
+      })
+    } finally {
+      f.close()
+    }
+  })
+
   it('ignores older binding retries while accepting an epoch order after process or machine restart', () => {
     const f = fixture()
     try {
@@ -330,6 +399,122 @@ describe('Codex lifecycle persistence', () => {
 })
 
 describe('Codex bound transcript reads', () => {
+  it('invalidates an in-flight read on observer rebind and rejects a replay of the old binding', async () => {
+    const f = fixture()
+    try {
+      writeFileSync(f.pathA, '')
+      let entered!: () => void
+      let release!: () => void
+      const reading = new Promise<void>((resolve) => {
+        entered = resolve
+      })
+      const waitForRebind = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      const harness = createCodexHarness({
+        ...f.options,
+        readText: async (path) => {
+          entered()
+          await waitForRebind
+          return readFileSync(path, 'utf8')
+        },
+      })
+      const { sessionName } = harness.beforeLaunch({ id: 'garden', cwd: f.directory })
+      f.publishEndpoint('live')
+      const oldHook = f.hook({
+        source: 'resume',
+        _garden_generation: 'live',
+        _garden_order: '12',
+      })
+      harness.parseHook(oldHook, 'garden')
+      harness.beforeLaunch({ id: 'other', cwd: f.directory })
+      const claimed = join(f.options.transcriptRoots[0]!, 'other.jsonl')
+      harness.parseHook(f.hook({ session_id: nativeB, transcript_path: claimed }), 'other')
+      harness.observeStatus(() => {})
+      const [observer] = vi.mocked(observeNativeStatus).mock.lastCall!
+      const binding = observer.bindings().find(({ id }) => id === 'garden')!
+      const read = harness.transcripts.readRecord(f.pathA)
+      await reading
+
+      expect(observer.rebind!(binding, '/outside/rollout.jsonl', false)).toBeNull()
+      expect(observer.rebind!(binding, claimed, false)).toBeNull()
+      observer.onTitle!(binding, 'Newest title from the replacement connection')
+      const rebound = observer.rebind!(binding, f.pathB, true)
+      release()
+
+      expect(await read).toBeNull()
+      expect(rebound).toMatchObject({
+        id: 'garden',
+        cwd: f.directory,
+        codexId: nativeA,
+        transcriptPath: f.pathB,
+        backendGeneration: 'live',
+      })
+      expect((await harness.readSessionMetadata()).nativeTitles).toEqual({
+        garden: 'Newest title from the replacement connection',
+      })
+      expect(observer.rebind!(binding, f.pathA, false)).toBeNull()
+      expect(harness.parseHook(oldHook, 'garden')).toBeNull()
+      expect(harness.transcripts.accepts(f.pathA)).toBe(false)
+      expect(harness.transcripts.accepts(f.pathB)).toBe(true)
+      expect(JSON.parse(readFileSync(join(f.appDir, 'codex-aliases.json'), 'utf8'))).toMatchObject({
+        sessions: {
+          garden: {
+            cwd: f.directory,
+            name: sessionName,
+            codexId: nativeA,
+            transcriptPath: f.pathB,
+            bindingOrder: '12',
+            backendGeneration: 'live',
+          },
+        },
+      })
+    } finally {
+      f.close()
+    }
+  })
+
+  it('discards a delayed Resume spool entry after observing a newer rollout', async () => {
+    const f = fixture()
+    try {
+      const harness = createCodexHarness(f.options)
+      harness.beforeLaunch({ id: 'garden', cwd: f.directory })
+      f.publishEndpoint('live')
+      harness.parseHook(f.hook({ _garden_generation: 'live', _garden_order: '12' }), 'garden')
+
+      const spool = join(f.appDir, 'codex-session-start-spool')
+      mkdirSync(spool)
+      const resume = f.hook({
+        source: 'resume',
+        transcript_path: f.pathB,
+        _garden_generation: 'live',
+        _garden_order: '13',
+      })
+      writeFileSync(
+        join(spool, 'delayed.jsonl'),
+        JSON.stringify({ gardenSessionId: 'garden', payload: resume }),
+      )
+
+      const latest = join(f.options.transcriptRoots[0]!, 'rollout-c.jsonl')
+      harness.observeStatus(() => {})
+      const [observer] = vi.mocked(observeNativeStatus).mock.lastCall!
+      expect(observer.rebind!(observer.bindings()[0]!, latest, false)?.transcriptPath).toBe(latest)
+
+      const restarted = createCodexHarness(f.options)
+      expect(restarted.replaySpool()).toEqual([])
+      expect(readdirSync(spool)).toEqual([])
+      expect(await restarted.transcripts.listFiles()).toEqual([latest])
+
+      const next = join(f.options.transcriptRoots[0]!, 'rollout-d.jsonl')
+      const order = Math.floor((performance.timeOrigin + performance.now() + 1) * 1000).toString()
+      expect(
+        restarted.parseHook({ ...resume, transcript_path: next, _garden_order: order }, 'garden'),
+      ).toMatchObject({ transcriptPath: next, resetConversation: true })
+    } finally {
+      f.close()
+    }
+  })
+
   it('reads records written before binding, lists only bound files, and invalidates reads overtaken by clear', async () => {
     const f = fixture()
     try {
