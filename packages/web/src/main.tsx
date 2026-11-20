@@ -17,6 +17,4 @@ createRoot(root).render(
   </StrictMode>,
 )
 
-getSettings()
-  .then(({ deadSessionCap }) => useSettingsStore.getState().setSettings({ deadSessionCap }))
-  .catch(reportCommandFailure)
+getSettings().then(useSettingsStore.getState().setSettings).catch(reportCommandFailure)
