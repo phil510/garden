@@ -88,8 +88,13 @@ export function createTerminalLinkMouse(write: (data: string) => void, isCodex: 
         !terminalOwnsGesture &&
         isCodex()
       ) {
-        heldPress = { data, position, url: hoveredUrl, activated: false }
-        return
+        const { shiftKey, altKey, ctrlKey, metaKey } = pressEvent
+        // Codex uses Shift-click to extend an existing selection.
+        if (!shiftKey || altKey || ctrlKey || metaKey) {
+          heldPress = { data, position, url: hoveredUrl, activated: false }
+          return
+        }
+        terminalOwnsGesture = true
       }
       write(data)
     },

@@ -611,6 +611,7 @@ describe('external link clicks with mouse reporting', () => {
   it.each([
     { modifier: 'no modifier', code: 0, keys: {} },
     { modifier: 'Ctrl', code: 16, keys: { ctrlKey: true } },
+    { modifier: 'Ctrl+Shift', code: 20, keys: { ctrlKey: true, shiftKey: true } },
     { modifier: 'Meta', code: 0, keys: { metaKey: true } },
   ])('opens a stationary Codex link once with $modifier', async ({ code, keys }) => {
     const pane = await setup('codex')
@@ -620,6 +621,19 @@ describe('external link clicks with mouse reporting', () => {
 
     expect(pane.open).toHaveBeenCalledExactlyOnceWith(url, '_blank', 'noopener,noreferrer')
     expect(lastSocket().writes).toEqual([])
+    pane.detach()
+  })
+
+  it('forwards a Shift-click on a link to extend the Codex selection', async () => {
+    const pane = await setup('codex')
+    const shiftPress = '\x1b[<4;4;1M'
+    const shiftRelease = '\x1b[<4;4;1m'
+    pane.down(shiftPress, { shiftKey: true })
+    expect(lastSocket().writes).toEqual([shiftPress])
+    pane.up(shiftRelease, { shiftKey: true })
+
+    expect(lastSocket().writes).toEqual([shiftPress, shiftRelease])
+    expect(pane.open).not.toHaveBeenCalled()
     pane.detach()
   })
 
