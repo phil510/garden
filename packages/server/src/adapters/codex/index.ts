@@ -19,7 +19,7 @@ import type { EffortLevel } from '@garden/shared'
 import type { PermissionMode } from '../../config.js'
 import { codexHook, codexSignal } from './hooks.js'
 import { codexLauncherCommand, readCodexEndpoint } from './launcher.js'
-import { observeNativeStatus } from './nativeStatus.js'
+import { observeNativeStatus, type NativeBinding } from './nativeStatus.js'
 import { createSessionIndex, indexHasCaughtUp } from './sessionIndex.js'
 import { parseCodexTranscript } from './transcript.js'
 import type { HarnessSignal, TranscriptRecord } from '../../domain/types.js'
@@ -251,6 +251,38 @@ export function createCodexHarness(options: Options) {
     }
   }
 
+  function rebind(
+    binding: NativeBinding,
+    path: string,
+    preserveTitle: boolean,
+  ): NativeBinding | null {
+    const { id, codexId, transcriptPath, backendGeneration } = binding
+    const alias = aliases[id]
+    if (
+      alias === undefined ||
+      alias.codexId !== codexId ||
+      alias.transcriptPath !== transcriptPath ||
+      alias.backendGeneration !== backendGeneration ||
+      (generations.get(id) ?? 0) !== binding.generation ||
+      path === transcriptPath ||
+      !validPath(path) ||
+      ownedByAnother(id, codexId, path)
+    )
+      return null
+    try {
+      save({ ...aliases, [id]: { ...alias, transcriptPath: path } })
+    } catch (error) {
+      options.logger.warn(
+        `Codex rollout replacement could not be saved for ${id}: ${(error as Error).message}`,
+      )
+      return null
+    }
+    const title = preserveTitle ? liveTitles.get(id) : undefined
+    const generation = invalidateBinding(id)
+    if (title !== undefined) liveTitles.set(id, { ...title, generation })
+    return { ...binding, transcriptPath: path, generation }
+  }
+
   function flags(request: Launch): readonly string[] {
     if (request.model !== undefined && /^(?:opus|sonnet|haiku)(?:-|$)/.test(request.model))
       throw new Error('Choose a Codex model name, such as gpt-5.3-codex')
@@ -345,6 +377,7 @@ export function createCodexHarness(options: Options) {
     observeStatus(onSignal: (signal: HarnessSignal) => void) {
       return observeNativeStatus({
         appDir: options.appDir,
+        rebind,
         onSignal: (signal) => {
           const launch = launches.get(signal.sessionId)
           if (launch !== undefined) launch.reported = true
