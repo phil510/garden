@@ -11,12 +11,13 @@ import { refreshRepoList } from '../features/sidebar/repoListCache.js'
 import { useLocalStore } from '../state/localStore.js'
 import { useRefusedAttachStore } from '../state/refusedAttachStore.js'
 import { useSessionStore } from '../state/sessionStore.js'
+import { useSettingsStore } from '../state/settingsStore.js'
 import { useToastStore } from '../state/toastStore.js'
-import { openExternalLink } from './hyperlinks.js'
 import { findMarkdownLinks } from './markdownLinks.js'
 import { findPathLineLinks } from './pathLineLinks.js'
 import { resolvePaneKeydown } from './paneKeydown.js'
 import { shouldReusePane } from './paneReuse.js'
+import { createTerminalLinkMouse } from './terminalLinkMouse.js'
 import { terminalTheme } from './theme.js'
 import { unicodeV11Provider } from './unicodeWidth.js'
 
@@ -91,6 +92,10 @@ async function openPathLine(sessionId: string, path: string, line: number | null
  *  keypress would use — there is nothing beyond a normally-configured terminal to wire up for
  *  CC's wheel scrolling to work. */
 function createPane(sessionId: string, container: HTMLElement, epoch: number): PaneHandle {
+  const linkMouse = createTerminalLinkMouse(
+    (data) => socket.write(data),
+    () => useSettingsStore.getState().harness === 'codex',
+  )
   // `unicode` is one of xterm.js's proposed (non-stable) APIs, gated behind allowProposedApi —
   // without it, terminal.unicode throws at runtime instead of at the type level.
   const terminal = new Terminal({
@@ -105,9 +110,9 @@ function createPane(sessionId: string, container: HTMLElement, epoch: number): P
     // allowlist itself after normalizing a schemeless URI to `https://`.
     linkHandler: {
       allowNonHttpProtocols: true,
-      activate: (_event, text) => {
-        openExternalLink(text)
-      },
+      activate: linkMouse.activate,
+      hover: linkMouse.hover,
+      leave: linkMouse.leave,
     },
   })
   // xterm.js defaults to its bundled UnicodeV6 table, which tmux's own wide-char width table has
@@ -118,6 +123,10 @@ function createPane(sessionId: string, container: HTMLElement, epoch: number): P
   const fitAddon = new FitAddon()
   terminal.loadAddon(fitAddon)
   terminal.open(container)
+  const mouseListeners = new AbortController()
+  const mouseCapture = { capture: true, signal: mouseListeners.signal }
+  terminal.element?.addEventListener('mousedown', linkMouse.startGesture, mouseCapture)
+  container.ownerDocument.addEventListener('mouseup', linkMouse.finishGesture, mouseCapture)
 
   // xterm's Linkifier resolves overlapping link matches by registration order, first registered
   // wins. Three providers are registered below, in this order: markdown-link, file path, then
@@ -144,9 +153,9 @@ function createPane(sessionId: string, container: HTMLElement, epoch: number): P
           start: { x: link.index + 1, y: bufferLineNumber },
           end: { x: link.index + link.length + 1, y: bufferLineNumber },
         },
-        activate: () => {
-          openExternalLink(link.url)
-        },
+        activate: (event: MouseEvent) => linkMouse.activate(event, link.url),
+        hover: (event: MouseEvent) => linkMouse.hover(event, link.url),
+        leave: linkMouse.leave,
       }))
       callback(links.length > 0 ? links : undefined)
     },
@@ -178,7 +187,9 @@ function createPane(sessionId: string, container: HTMLElement, epoch: number): P
   // isolates the new tab but sends a Referer header naming this page. `openExternalLink` uses an
   // explicit `noopener,noreferrer` instead, so this custom handler brings plain-URL links up to
   // the same isolation — and the same allowlist — OSC 8 links get above.
-  terminal.loadAddon(new WebLinksAddon((_event, uri) => openExternalLink(uri)))
+  terminal.loadAddon(
+    new WebLinksAddon(linkMouse.activate, { hover: linkMouse.hover, leave: linkMouse.leave }),
+  )
 
   // `proposeDimensions` reports "no size to fit to" in two ways for a pane that is hidden or not
   // laid out yet: NaN, or its own clamped minimum. Either would size the pty to garbage, so
@@ -202,6 +213,8 @@ function createPane(sessionId: string, container: HTMLElement, epoch: number): P
     if (disposed) return
     disposed = true
     resizeObserver?.disconnect()
+    mouseListeners.abort()
+    linkMouse.dispose()
     panes.delete(sessionId)
     socket.close()
     terminal.dispose()
@@ -216,7 +229,7 @@ function createPane(sessionId: string, container: HTMLElement, epoch: number): P
       dispose()
     },
   })
-  terminal.onData((data) => socket.write(data))
+  terminal.onData(linkMouse.input)
 
   // Shift+Enter inserts a newline into the pane instead of submitting. xterm has no key binding
   // for this itself, so it is intercepted before xterm's own handling — which every other key,
@@ -229,7 +242,7 @@ function createPane(sessionId: string, container: HTMLElement, epoch: number): P
     if (disposition === 'default') return true
     if (disposition === 'literal-newline') {
       event.preventDefault()
-      socket.write('\n')
+      linkMouse.input('\n')
     }
     return false
   })
