@@ -39,12 +39,7 @@ export function codexSignal(
     sessionId,
     cwd: hook.cwd,
     transcriptPath: hook.transcript_path,
-    ended:
-      hook.hook_event_name === 'SessionEnd'
-        ? true
-        : hook.hook_event_name === 'SessionStart'
-          ? false
-          : null,
+    ended: hook.hook_event_name === 'SessionStart' ? false : null,
     conversationCleared,
   }
 }

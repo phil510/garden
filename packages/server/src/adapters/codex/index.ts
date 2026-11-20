@@ -171,6 +171,20 @@ export function createCodexHarness(options: Options) {
     aliases = Object.assign(Object.create(null) as Record<string, Alias>, next)
   }
 
+  function ownedByAnother(gardenId: string, codexId: string, path: string): boolean {
+    return Object.entries(aliases).some(
+      ([id, alias]) =>
+        id !== gardenId && (alias.codexId === codexId || alias.transcriptPath === path),
+    )
+  }
+
+  function invalidateBinding(id: string): number {
+    const generation = (generations.get(id) ?? 0) + 1
+    generations.set(id, generation)
+    liveTitles.delete(id)
+    return generation
+  }
+
   function parseHook(body: unknown, gardenSessionId?: string): HarnessSignal | null {
     const hook = codexHook(body)
     if (hook === null || gardenSessionId === undefined || !isAbsolute(hook.cwd)) return null
@@ -179,34 +193,38 @@ export function createCodexHarness(options: Options) {
     const endpoint = readCodexEndpoint(options.appDir, gardenSessionId)
     if (endpoint !== null && hook._garden_generation !== endpoint.generation) return null
     if (hook.transcript_path !== null && !validPath(hook.transcript_path)) return null
-    let changedConversation = false
+    let resetConversation = false
+    let conversationCleared = false
     if (hook.hook_event_name === 'SessionStart') {
       if (!['startup', 'resume', 'clear', 'fork', 'compact'].includes(hook.source ?? ''))
         return null
-      if (
-        hook._garden_order !== undefined &&
-        prior.bindingOrder !== undefined &&
-        BigInt(hook._garden_order) < BigInt(prior.bindingOrder)
-      )
-        return null
+      const orderDifference =
+        hook._garden_order === undefined || prior.bindingOrder === undefined
+          ? undefined
+          : BigInt(hook._garden_order) - BigInt(prior.bindingOrder)
+      if (orderDifference !== undefined && orderDifference < 0n) return null
       if (hook.transcript_path !== null) {
         const changed =
           prior.codexId !== hook.session_id || prior.transcriptPath !== hook.transcript_path
-        if (changed && prior.codexId !== null && hook.source !== 'clear' && hook.source !== 'fork')
-          return null
-        if (
-          Object.entries(aliases).some(
-            ([id, entry]) =>
-              id !== gardenSessionId &&
-              (entry.codexId === hook.session_id || entry.transcriptPath === hook.transcript_path),
+        if (ownedByAnother(gardenSessionId, hook.session_id, hook.transcript_path)) return null
+        resetConversation = changed && prior.codexId !== null
+        conversationCleared =
+          resetConversation && (hook.source === 'clear' || hook.source === 'fork')
+        if (resetConversation) {
+          // Replaying the hook that established the retired path must not undo a native update.
+          if (orderDifference === 0n) return null
+          if (
+            !conversationCleared &&
+            (hook.source !== 'resume' ||
+              prior.codexId !== hook.session_id ||
+              (prior.bindingOrder !== undefined && hook._garden_order === undefined))
           )
-        )
-          return null
-        changedConversation = changed && prior.codexId !== null
-        // Keep an identical binding's object identity: an idempotent resume does not invalidate a read.
+            return null
+        }
+        const bindingOrder = hook._garden_order ?? prior.bindingOrder
         if (
           changed ||
-          (hook._garden_order !== undefined && hook._garden_order !== prior.bindingOrder) ||
+          bindingOrder !== prior.bindingOrder ||
           hook._garden_generation !== prior.backendGeneration
         ) {
           save({
@@ -216,7 +234,7 @@ export function createCodexHarness(options: Options) {
               name: prior.name,
               codexId: hook.session_id,
               transcriptPath: hook.transcript_path,
-              ...(hook._garden_order === undefined ? {} : { bindingOrder: hook._garden_order }),
+              ...(bindingOrder === undefined ? {} : { bindingOrder }),
               ...(hook._garden_generation === undefined
                 ? {}
                 : { backendGeneration: hook._garden_generation }),
@@ -225,14 +243,11 @@ export function createCodexHarness(options: Options) {
         }
       }
     } else if (prior.codexId !== null && prior.codexId !== hook.session_id) return null
-    const signal = codexSignal(hook, gardenSessionId, changedConversation)
-    if (changedConversation) {
-      generations.set(gardenSessionId, (generations.get(gardenSessionId) ?? 0) + 1)
-      liveTitles.delete(gardenSessionId)
-    }
+    const signal = codexSignal(hook, gardenSessionId, conversationCleared)
+    if (resetConversation) invalidateBinding(gardenSessionId)
     return {
       ...signal,
-      ...(changedConversation ? { resetConversation: true } : {}),
+      ...(resetConversation ? { resetConversation: true } : {}),
     }
   }
 
