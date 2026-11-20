@@ -244,7 +244,7 @@ async function prepareRewind({ cwd, url, ready, send }: Awaited<ReturnType<typeo
   const discarded = await waitForRecap(url, session.id, 'discarded prompt')
   expect(discarded.title).toBe('discarded prompt')
   expect(discarded.lastActivity).toBeGreaterThan(retained.lastActivity)
-  return { session, retained }
+  return session
 }
 
 describe('Codex through actual main.ts, tmux and generated hooks', () => {
@@ -616,13 +616,10 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
     )
   }, 60_000)
 
-  it('keeps the live pane and its PR watch while rewinding to retained history before the edited prompt', async () => {
+  it('keeps the live pane and its PR watch and clears stale preview data on paginated rewind', async () => {
     await withCodex(async (fixture) => {
       const { appDir, url, paneState, restart, shutdown, send, waitForOutput } = fixture
-      const {
-        session: { id, tmuxName, sessionName },
-        retained,
-      } = await prepareRewind(fixture)
+      const { id, tmuxName, sessionName } = await prepareRewind(fixture)
       const original = aliases(appDir)[id]!
       const pane = await paneState(tmuxName)
 
@@ -650,7 +647,12 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
         (list) =>
           list.some((row) => row.id === id && row.status === 'waiting' && row.watches.length === 1),
       )
-      const watches = beforeRewind.find((row) => row.id === id)!.watches
+      const originalRow = beforeRewind.find((row) => row.id === id)!
+      expect(originalRow).toMatchObject({
+        title: 'discarded prompt',
+        recap: 'Response to discarded prompt',
+      })
+      const { watches } = originalRow
       expect(watches).toMatchObject([{ repo: watch.repo, pr: watch.pr, pendingDigest: true }])
 
       await send(tmuxName, '/rewind')
@@ -665,23 +667,63 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
 
       await send(tmuxName, '/finish-rewind')
       await waitForOutput(tmuxName, 'REWOUND')
-      const rewound = await waitForRecap(url, id, 'retained prompt')
-      expect(rewound).toMatchObject({
+      const replacementRecord = join(fixture.codexHome, `replacement-${original.codexId}.json`)
+      const replacementPath = JSON.parse(readFileSync(replacementRecord, 'utf8')) as string
+      expect(replacementPath).not.toBe(original.transcriptPath)
+      const [meta, settings] = readFileSync(replacementPath, 'utf8')
+        .trimEnd()
+        .split('\n')
+        .map(
+          (line) =>
+            JSON.parse(line) as {
+              type: string
+              timestamp: string
+              payload: { type?: string; history_base?: { end_byte_offset: number } }
+            },
+        )
+      expect(meta).toMatchObject({
+        type: 'session_meta',
+        payload: {
+          history_mode: 'paginated',
+          history_base: { thread_id: original.codexId, end_ordinal_exclusive: 3 },
+        },
+      })
+      expect(settings).toMatchObject({
+        type: 'event_msg',
+        payload: { type: 'thread_settings_applied' },
+      })
+      const originalContents = readFileSync(original.transcriptPath!)
+      const base = originalContents
+        .subarray(0, meta!.payload.history_base!.end_byte_offset)
+        .toString('utf8')
+      expect(base).toContain('retained prompt')
+      expect(base).not.toContain('discarded prompt')
+      expect(originalContents.toString('utf8')).toContain('discarded prompt')
+
+      const lastActivity = Date.parse(settings!.timestamp)
+      const rewoundRows = await until(
+        'replacement metadata to be read with the discarded preview cleared',
+        () => rows(url),
+        (list) =>
+          list.some(
+            (row) =>
+              row.id === id &&
+              row.lastActivity === lastActivity &&
+              row.recap === null &&
+              row.title === null,
+          ),
+      )
+      expect(rewoundRows.find((row) => row.id === id)).toMatchObject({
         liveness: 'live',
-        lastActivity: retained.lastActivity,
         sessionName,
-        title: retained.title,
         tmuxName,
         watches,
       })
-      const replacement = aliases(appDir)[id]!
-      expect(replacement).toMatchObject({
+      expect(aliases(appDir)[id]).toMatchObject({
         codexId: original.codexId,
         backendGeneration: original.backendGeneration,
+        transcriptPath: replacementPath,
       })
-      expect(replacement.transcriptPath).not.toBe(original.transcriptPath)
-      expect(readFileSync(original.transcriptPath!, 'utf8')).toContain('discarded prompt')
-      expect(readFileSync(replacement.transcriptPath!, 'utf8')).not.toContain('discarded prompt')
 
       await send(tmuxName, 'edited prompt')
       const edited = await waitForRecap(url, id, 'edited prompt')
@@ -690,7 +732,7 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
       expect(aliases(appDir)[id]).toMatchObject({
         codexId: original.codexId,
         backendGeneration: original.backendGeneration,
-        transcriptPath: replacement.transcriptPath,
+        transcriptPath: replacementPath,
       })
     })
   }, 40_000)
@@ -699,9 +741,7 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
     await withCodex(async (fixture) => {
       const { appDir, codexHome, url, paneState, restart, shutdown, ready, send, waitForOutput } =
         fixture
-      const {
-        session: { id, tmuxName, sessionName },
-      } = await prepareRewind(fixture)
+      const { id, tmuxName, sessionName } = await prepareRewind(fixture)
       const original = aliases(appDir)[id]!
 
       await shutdown()
@@ -765,9 +805,10 @@ describe('Codex through actual main.ts, tmux and generated hooks', () => {
         backendGeneration: generation,
         transcriptPath: replacementPath,
       })
-      expect(readFileSync(replacementPath, 'utf8')).toContain('retained prompt')
-      expect(readFileSync(replacementPath, 'utf8')).not.toContain('discarded prompt')
-      expect(readFileSync(replacementPath, 'utf8')).toContain('after rewind and resume')
+      const replacement = readFileSync(replacementPath, 'utf8')
+      expect(replacement).not.toContain('retained prompt')
+      expect(replacement).not.toContain('discarded prompt')
+      expect(replacement).toContain('after rewind and resume')
       expect(readFileSync(original.transcriptPath!, 'utf8')).not.toContain(
         'after rewind and resume',
       )

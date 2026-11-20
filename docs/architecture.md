@@ -242,9 +242,10 @@ the current backend reconnects on a matching `thread/reverted` and reads the bou
 again. A normal reconnect also checks its `thread/read` snapshot for a replacement. Garden
 accepts an absolute JSONL path under a configured rollout root when the binding and endpoint
 are current and the path is unclaimed by other aliases. The change invalidates reads from the
-old binding and clears recap, activity and titles so they can be rebuilt from the retained
-conversation and current metadata. PR watches stay with the Garden session through a same-thread
-replacement. Clear and fork can drop watches because they change the conversation.
+old binding and clears recap, activity and titles. When Codex stores retained turns in a base
+rollout, the terminal loads them and Garden's recap stays empty until an answer appears in the
+bound rollout. PR watches stay with the Garden session through a same-thread replacement.
+Clear and fork can drop watches because they change the conversation.
 
 Codex lists only bound rollouts. Claude retains its project-slug discovery and bounded
 head/tail reads. Generic polling receives the layout from the selected harness.

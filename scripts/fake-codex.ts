@@ -8,7 +8,7 @@ import {
   renameSync,
   writeFileSync,
 } from 'node:fs'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { createInterface } from 'node:readline'
 import { createServer } from 'node:http'
 import { once } from 'node:events'
@@ -150,8 +150,24 @@ async function turn(message: string) {
       return row.type === 'response_item' && row.payload.role === 'user'
     })
     if (lastPrompt < 0) throw new Error('no prompt to rewind')
-    path = join(home!, 'sessions', '2026', '11', '15', `rollout-${randomUUID()}-${id}.jsonl`)
-    writeFileSync(path, lines.slice(0, lastPrompt).join('\n') + '\n')
+    const baseFile = basename(path, '.jsonl').slice('rollout-'.length)
+    const retained = lines.slice(0, lastPrompt).join('\n') + '\n'
+    path = join(home!, 'sessions', '2026', '11', '15', `rollout-${id}_${randomUUID()}.jsonl`)
+    append('session_meta', {
+      id,
+      cwd: process.cwd(),
+      history_mode: 'paginated',
+      history_base: {
+        thread_id: baseFile.split('_').at(-1),
+        end_ordinal_exclusive: lastPrompt,
+        end_byte_offset: Buffer.byteLength(retained),
+      },
+    })
+    append('event_msg', {
+      type: 'thread_settings_applied',
+      thread_id: id,
+      thread_settings: { cwd: process.cwd() },
+    })
     writeFileSync(replacementPathRecord(), JSON.stringify(path))
     rewindPending = false
     started = false
