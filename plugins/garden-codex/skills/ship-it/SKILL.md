@@ -48,9 +48,8 @@ Each of these is load-bearing, and each fails silently when broken.
 - **Reports out of the pipeline are short.** The milestone, the decision you need if any, and a
   pointer to the round file or PR. Every restated line is re-read on every later turn.
 - **Assume the session has the autonomy the pipeline needs** (the owner runs it with approvals
-  bypassed, which removes the stalls). Workers inherit the session's permission settings, and a
-  worker that hits a prompt with nobody attached stalls with no message at all. Nothing lets a
-  session read its own settings, so **spawn without asking**: whoever ran `garden-codex:ship-it`
+  bypassed, which removes the stalls). A worker that hits a prompt with nobody attached stalls
+  with no message at all, so **spawn without asking**: whoever ran `garden-codex:ship-it`
   knows the precondition. Rationale: `references/spawn-details.md` § Permission mode.
 - **Assume a garden session, and lean on it.** After internal review, what wakes the pipeline is a
   garden PR-watch digest, which a plain Codex session has no pipe for. If `garden watch` fails,
@@ -90,8 +89,9 @@ All under `${SKILLDIR}`. `worker-protocol.md` is the workers', not yours.
 | **Reviewer** (stage 3 + every digest)     | fresh per round | Internal: review rounds → `review-round-<k>.md`, clean flips stage 3, cap 3 rounds (1 on `Size: small`) then `review_cap`. External: records new PR activity in `events/`, classifies it, reports `clean <head-sha>` when nothing is open. |
 | **Review-loop** (pre-ready gate)          | long-lived      | Runs the skill the brief's `Review loop` names to drive review-bot feedback to zero on the draft PR. Spawned only when that field isn't `none`. Ends `passed` or `blocked`.                                                                |
 
-Every worker defaults to **Sol**, planning, implementation and review alike; use **Astra** only
-when the user or brief explicitly asks for it. Ship-it targets small and medium PRs, so the
+Every worker defaults to **Sol**, planning, implementation and review alike: pass Sol explicitly
+on every spawn when the schema takes a model (otherwise the worker inherits the parent's model);
+use **Astra** only when the user or brief explicitly asks for it. Ship-it targets small and medium PRs, so the
 expensive tier is never the default (`spawn-details.md` § Spawn shape).
 
 ## Dispatch

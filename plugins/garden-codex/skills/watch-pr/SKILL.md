@@ -24,6 +24,11 @@ Inside the intended Codex garden pane, start one owned long-running shell task:
 garden events --follow --forward-to-session
 ```
 
+If the shell tool can't keep an owned process alive, report that the transport is unavailable and
+use explicit GitHub checks until an owner can start it. After compaction or a lost handle, find
+and reuse the existing connected forwarder task (`garden ls --json` shows `pipeConnected`) instead
+of starting a second one.
+
 Keep the execution tool's process handle and keep stderr available for reconnect diagnostics.
 Do not pipe ordinary `garden events --follow` into `garden send`: stdout mode acknowledges before
 the next command can enqueue the digest. The process uses this pane's inherited instance

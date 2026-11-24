@@ -79,8 +79,8 @@ environment. See [Garden's Codex hook trust instructions](../../README.md#codex-
 
 ## Reviewers and parity
 
-`ship-it` uses the specialist reviewer prompts bundled in `agents/`. The reviewer sends the scope,
-project instructions and prompt paths to fresh native subagents, then aggregates their findings.
+`ship-it` uses the specialist reviewer prompts bundled in `agents/`. The reviewer sends the scope
+and prompt paths to fresh native subagents, then aggregates their findings.
 The simplifier reports findings for the developer to act on. See the
 [source, license and update procedure](third-party.md).
 

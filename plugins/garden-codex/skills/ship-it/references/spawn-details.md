@@ -16,11 +16,12 @@ bundled Markdown prompts do not register native roles. Supply absolute paths, ro
 and a read-first pointer to the role prompt.
 
 - **Model.** Every worker runs on **Sol** by default — planning, implementation and review alike —
-  so a normal spawn takes the default and sets nothing. Use **Astra** only when the user or the
-  brief explicitly asks for it. Ship-it targets small and medium PRs, which is why the expensive
-  tier is not the default for any role. Model identifiers and context options come from the
-  current tool schema, not Claude frontmatter; if overrides are unavailable, inherit the current
-  model.
+  so pass Sol explicitly on every spawn when the spawn schema takes a model; a subagent otherwise
+  inherits the parent's model, and an orchestrator running on Astra would put every worker there.
+  Use **Astra** only when the user or the brief explicitly asks for it. If the schema can't take a
+  model, the worker inherits the parent's model. Ship-it targets small and medium PRs, which is
+  why the expensive tier is not the default for any role. Model identifiers and context options
+  come from the current tool schema, not Claude frontmatter.
 
 Store the worker's returned native handle in the ledger. If your own callable native address is
 available, include it in the opener so the worker can report back. A local role label is only a
@@ -207,8 +208,7 @@ That is safe because the real boundaries live where a worker can't cross them: t
 Autonomy bounds, draft-PR isolation, and worktree confinement. For an unattended pipeline, a UI
 gate that fails silently is worse than none.
 
-Nothing lets a session read its own permission settings reliably, so **assume the session was
-launched with the autonomy the pipeline needs** and spawn without asking. Whoever runs
+**Assume the session was launched with the autonomy the pipeline needs** and spawn without asking. Whoever runs
 `garden-codex:ship-it` is deliberately starting an unattended pipeline; they know the precondition
 and will say so when it doesn't hold.
 

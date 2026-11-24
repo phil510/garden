@@ -153,8 +153,8 @@ and the user decides whether a fix round runs at all.
 
    **Dispatch.** One parallel batch through the native spawn operation (`spawn-details.md`) with
    fresh context and the role prompt path. **Pass the model on every dispatch** when the schema
-   takes one — Sol unless explicitly told Astra — so no agent silently takes a pricier default on a
-   diff that didn't ask.
+   takes one — Sol unless explicitly told Astra — so no agent silently inherits a pricier parent
+   model on a diff that didn't ask. If the schema can't take a model, the agent inherits yours.
    Brief every agent with step 2's scope — the brief's claims, the dependency contracts you traced,
    the baseline — because an agent handed only a diff can only find what is in the diff. Whichever
    agent covers test coverage, tell it which test tiers the brief's Verify command actually runs,
