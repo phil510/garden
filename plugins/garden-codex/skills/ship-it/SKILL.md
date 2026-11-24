@@ -606,7 +606,7 @@ orchestrator routes off the first line.
 | developer, sync-base | `base sync done — <ref> at <tip>, verified` + mergeability line                                                          |
 | reviewer, internal   | `round <K> clean` (then one line per accepted limitation) or `round <K> dirty — <M> fix findings in review-round-<K>.md` |
 | reviewer, external   | `nothing-new`, `event <file> classified — <P> fix, <Q> decline, <R> escalate`, `pr merged`, or `pr closed`               |
-| review-loop          | `triggered`, `escalating`, or `done: <passed\|blocked>` — shapes in `references/communication.md` § #2b                  |
+| review-loop          | `triggered`, `held: <phase>`, `escalating`, or `done: <passed\|blocked>` — shapes in `references/communication.md` § #2b |
 | any stage worker     | `ESCALATING — see events/<iso>-escalation.md, decision needed on <X>`                                                    |
 
 - **Mergeability line** (developer): `mergeability: <mergeable> / <mergeStateStatus> at
