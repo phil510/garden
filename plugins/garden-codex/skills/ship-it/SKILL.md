@@ -39,14 +39,19 @@ Each of these is load-bearing, and each fails silently when broken.
   not to inline, or to verify a high-stakes hop — and prefer `pipeline-status.sh` over raw reads.
   When you delegate the verifying, ask for the verdict and where it was seen, not the evidence: a
   subagent's return lands whole in your context. Before a worker reports, don't poll.
-- **Inspect native completion for a report.** If the completed turn supplied none, use the
-  disk fallback in `communication.md` § #2.
+- **A completed worker turn with no report means the worker died mid-stage.** Run
+  `pipeline-status.sh` to classify what completed, then fresh-spawn — except a reviewer with an
+  open `review_cap` escalation, whose decision you carry out yourself (§ Escalations). Inspect the
+  native completion first; the disk fallback is in `communication.md` § #2.
 - **Resolve ambiguity at intake.** An assumption about _what_ to build produces an escalation at
   every stage that inherits it. The triage gate (`references/brief.md`) is where it gets caught.
 - **Reports out of the pipeline are short.** The milestone, the decision you need if any, and a
   pointer to the round file or PR. Every restated line is re-read on every later turn.
-- **Use the session's existing permissions.** Spawn without an extra permission-mode question.
-  Native approval gates still apply; do not change settings or bypass them to run unattended.
+- **Assume the session has the autonomy the pipeline needs** (the owner runs it with approvals
+  bypassed, which removes the stalls). Workers inherit the session's permission settings, and a
+  worker that hits a prompt with nobody attached stalls with no message at all. Nothing lets a
+  session read its own settings, so **spawn without asking**: whoever ran `garden-codex:ship-it`
+  knows the precondition. Rationale: `references/spawn-details.md` § Permission mode.
 - **Assume a garden session, and lean on it.** After internal review, what wakes the pipeline is a
   garden PR-watch digest, which a plain Codex session has no pipe for. If `garden watch` fails,
   or digests visibly stop arriving, tell the user rather than polling GitHub yourself — a polling
@@ -85,26 +90,36 @@ All under `${SKILLDIR}`. `worker-protocol.md` is the workers', not yours.
 | **Reviewer** (stage 3 + every digest)     | fresh per round | Internal: review rounds → `review-round-<k>.md`, clean flips stage 3, cap 3 rounds (1 on `Size: small`) then `review_cap`. External: records new PR activity in `events/`, classifies it, reports `clean <head-sha>` when nothing is open. |
 | **Review-loop** (pre-ready gate)          | long-lived      | Runs the skill the brief's `Review loop` names to drive review-bot feedback to zero on the draft PR. Spawned only when that field isn't `none`. Ends `passed` or `blocked`.                                                                |
 
-Choose an available Luna model for easy, bounded work and an available Sol model for planning,
-implementation and substantive review. Read the current spawn schema before supplying model or
-context parameters; no Claude model aliases or custom agent registration are required.
+Every worker defaults to **Sol**, planning, implementation and review alike; use **Astra** only
+when the user or brief explicitly asks for it. Ship-it targets small and medium PRs, so the
+expensive tier is never the default (`spawn-details.md` § Spawn shape).
 
 ## Dispatch
 
-Spawn each worker with the exposed native spawn operation and fresh context, using the
-operation map in `spawn-details.md`. Keep a unique local role name in the ledger; pass it as a
-task name only when the exposed schema accepts one. Its thin opener carries literal Contract variables
-and tells it to read `${SKILLDIR}/references/roles/ship-it-<role>.md` and the shared worker protocol.
-Use a generic available agent type; the role prompt supplies the role, not an installed agent name.
-Include applicable project instructions and explicit file ownership; workers share the filesystem.
+Spawn each worker with the exposed native spawn operation and fresh context, using the operation
+map in `spawn-details.md`, and a thin opener (~5 lines) carrying the Contract's opener variables
+for that role as literal values — absolute paths in full, no shell expansion. Keep a unique local
+role name in the ledger; pass it as a task name only when the exposed schema accepts one. The role
+lives in the role prompt `${SKILLDIR}/references/roles/ship-it-<role>.md`, not an installed agent
+name; the opener names the mode, round and inputs:
 
-Keep the **live-worker ledger** (Contract § Ownership). Send information or wake idle workers through the native operations in that map; a message-only
-operation is not a wake-up.
-After a done report, retire the handle and confirm owned commands have ended before the next
-writer. Never retire a worker waiting for a decision you still intend to send. See
-`spawn-details.md` for dispatch, process handles and retirement. After each spawn or wake, stay
-active and collect its report (§ Active progress). Route it and take the next authorized step.
-Yield when a human decision or a confirmed external wake is the next dependency.
+```
+You are the <role> for ${BRANCH}<, in ${MODE} mode, round ${ROUND}>. Read
+${SKILLDIR}/references/roles/ship-it-<role>.md and the shared worker protocol first.
+<one ${VAR} = <literal value> line per var the role needs>
+
+<mode sentence, if dual-mode.> <pointer to the input findings file.>
+Substitute the values above wherever your instructions reference ${VAR}.
+```
+
+Keep the **live-worker ledger** (Contract § Ownership) in your head as you go. Before any fresh
+spawn, check it: a live worker of that role — waiting on an escalation, or the review loop between
+rounds — is woken through the native follow-up operation, never duplicated (a message-only
+operation is not a wake-up). After routing a done report, retire the reporter's handle and record
+whether the stop was confirmed, and confirm its owned commands have ended before the next writer;
+never stop a worker waiting on a decision you still intend to send. Mechanics: `spawn-details.md`
+§ Naming and the live-worker ledger, § Stopping a worker. After each spawn or wake, stay active and
+collect its report (§ Active progress); route it and take the next step.
 
 ## Scripts
 
@@ -175,17 +190,15 @@ its process handle and recording ownership in the ledger and existing workflow a
 The watch stays on through merge; it is what tells you about reviews, failures and the merge itself.
 If the user asks to drop it, `garden unwatch <pr-number>` and append
 `> NOTE <iso> — orchestrator: PR watch opted out by user` — resume looks for that note — after which
-the pipeline is user-driven: they tell you when the PR merges or closes. Release this run’s
+the pipeline is user-driven: they tell you when the PR merges or closes. Release this run's
 forwarder only under the transport ownership rules; other watches may still need it.
 
-If the brief asks you to pause before the review loop, report the owned draft to the sender
-and wait for their go-ahead. The pause also applies when the review loop is `none` and when
-resuming a draft. Record the go-ahead in the brief using `brief.md` § Brief editing mid-pipeline.
-When released, branch on the brief's `Review loop`:
+If the brief asks you to pause before the review loop, stop here and wait for the sender's go-ahead,
+then branch on the brief's `Review loop`:
 
 - **`none`** → the outcome is `skipped`. Append `> NOTE <iso> — orchestrator: review loop skipped`
-  and go to step 5 after any deferred external intake described below. No loop worker is spawned.
-  `pipeline-status.sh` derives `skipped` from the brief.
+  and go to step 5. Nothing is spawned; `pipeline-status.sh` derives `skipped` from the brief, so a
+  resume never mistakes it for a loop that hasn't started.
 - **A skill name** → spawn `review-loop` with `REVIEW_LOOP` set to it. The worker owns the bot's
   threads until it reports `done`; digests go to it (`event-routing.md` § During the review loop).
   A loop skill that isn't available in the session, or a repo with no bot that skill can drive,
@@ -198,17 +211,13 @@ Review-loop messages are answered in place, never by a fresh spawn:
   `backstop: exit <code>` and its output to the worker, even if a later trigger superseded it — the
   worker matches `trigger_ts` and drops stale results. With no backstop, digests are the only
   wake-up.
-- `escalating` → page the user; wake the owner with the decision through the native follow-up operation.
+- `escalating` → page the user; wake the worker with the decision through the native follow-up operation.
 - `done: passed | blocked` → retire the worker, append
   `> NOTE <iso> — orchestrator: review loop <passed|blocked>`, and drop any backstop result that
-  arrives later. If the parent requested a loop completion report, send it now. Route any
-  deferred external intake before moving on. Then: `passed` → step 5;
+  arrives later. If `workflow.md` has a `deferred to post-loop triage` note, spawn one external
+  reviewer with `${DIGEST}` `none` and route its report before moving on. Then: `passed` → step 5;
   `blocked` → the PR stays draft. Page the user with the `reason` and ask: flip to ready anyway
   (step 5) or stop (§ Abort).
-
-After the pause and any configured loop end, handle deferred activity once. If `workflow.md`
-has a `deferred to post-loop triage` note, spawn one external reviewer with `${DIGEST}` `none`
-and route its report before advancing.
 
 ### 5. Ready flip
 
@@ -402,9 +411,7 @@ writers are quiescent, the ledger starts empty and counters restart at 1. The ta
 that fresh-runtime recovery; it does not authorize duplicate workers after compaction.
 Before advancing, close each `open_escalations[]` entry as in § Escalations — the escalator is
 gone, so this is the fresh-spawn fallback (for an external reviewer, `${EVENT_FILE}` is the
-escalation's `**Artifact:**`). Then re-enter from the status JSON. For a draft, after restoring
-the watch and before acting on the saved loop outcome, apply the existing pre-ready pause in
-step 4. If the pause still applies, leave the watch active and wait for the sender's go-ahead:
+escalation's `**Artifact:**`). Then re-enter from the status JSON:
 
 | State                                      | Re-entry                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -414,7 +421,7 @@ step 4. If the pause still applies, leave the watch active and wait for the send
 | `current_stage` 4, otherwise — first       | Reconcile the forwarder and re-confirm transport connection per `event-routing.md` § Codex transport ownership, then re-run `garden watch` as in step 4 unless the `opted out` note exists (it's idempotent; inspect the current Garden session's watches), adding `--ignore-check <name>` for each `PR watch ignores check` note in `workflow.md` not followed by a matching `unignores` note. Record any limitation in the last clean round's `## Summary` that `decisions.md` lacks — the old session may have died first. |
 | then `review_loop.outcome` `pending`       | Spawn `review-loop` as in step 4.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `running`                                  | Re-spawn `review-loop`; it rebuilds from its state file and the loop skill's own files. If `phase` is `awaiting-rereview`, also start a backstop for the saved `bot` and `trigger_ts`.                                                                                                                                                                                                                                                                                                                                        |
-| `skipped`, `passed` or `blocked`, PR draft | Append the outcome NOTE if missing, route any deferred intake as in step 4, then go to step 5 or, on `blocked`, page the user.                                                                                                                                                                                                                                                                                                                                                                                                |
+| `skipped`, `passed` or `blocked`, PR draft | Append the outcome NOTE if missing (the external reviewer reads it as the loop's boundary), then step 5 — or, on `blocked`, the user page.                                                                                                                                                                                                                                                                                                                                                                                    |
 | any outcome, PR ready                      | Finish the event work left behind: an `events[]` entry of kind `activity` with `classified: false` → external reviewer with it as `${EVENT_FILE}`; `fix_findings > 0` with no developer round → a developer fix round. Then, in a new session, one external reviewer with `${DIGEST}` `none` — activity while nobody watched reached no digest — and a checks wait.                                                                                                                                                           |
 
 Route each report as usual before starting the next item.

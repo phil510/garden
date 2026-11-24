@@ -110,12 +110,14 @@ and the user decides whether a fix round runs at all.
    problems independently, so the marginal reviewer past the first few mostly adds duplicates.
    Three slots keeps the convergent signal and drops the redundant reads.
 
-   Each slot names a lens. For a toolkit lens, spawn a fresh generic native agent and tell it
-   to read `${SKILLDIR}/../../agents/<role>.md`. Those bundled prompts
-   are instructions, not registered agent types: ignore Claude frontmatter model/tool metadata
-   and use the current native tool schema. Follow the full prompt body with the assigned scope,
-   current project instructions and a read-only brief, including for the simplifier. An available
-   native persona may carry a lens when appropriate; never assume a named role is installed.
+   Each slot names a lens, then the agent that carries it best. For a toolkit lens, spawn a fresh
+   generic native agent and tell it to read `${SKILLDIR}/../../agents/<role>.md`. Those bundled
+   prompts are instructions, not registered agent types: ignore Claude frontmatter model/tool
+   metadata and use the current native tool schema, following the full prompt body with the
+   assigned scope and a read-only brief, including for the simplifier. When a lens has no bundled
+   prompt, or a named persona isn't there, dispatch a generic agent with the same brief plus one
+   sentence naming the lens, since the lens is what the slot is for and the named agent is only its
+   best carrier.
 
    - **Slot 1 — general code review, always.** Project guidelines, bugs, general quality:
      bundled `code-reviewer.md`.
@@ -140,14 +142,19 @@ and the user decides whether a fix round runs at all.
    re-checks its blind spot, and a fourth dispatch isn't the fix either. That's the accepted cost
    of the cap, disclosed rather than mitigated.
 
-   **Scaling.** On a `Size: small` brief, slot 1 alone is the whole review. On a standard
-   brief, fill slots 1 and 2, and slot 3 only for a concrete blind spot — three agents at most.
-   Use an available Luna model for easy bounded reviews and an available Sol model for substantive
-   review, dense logic, concurrency, security or data migrations. Choose from the current tool
-   schema; if overrides are unavailable, inherit the current model. The cap is on slots, not model.
+   **Scaling.** On a `Size: small` brief, slot 1 alone is the whole review. On a standard brief,
+   fill slots 1 and 2, and slot 3 only when it names a concrete blind spot — three agents at most,
+   never more, on any round. **Sol** is the default for every agent you dispatch; use **Astra**
+   only when the user or brief explicitly asks for it. Where the failure mode won't fit in your
+   head at once — dense logic, concurrency, security-relevant paths, data migrations — put the
+   extra scrutiny into the brief and the slot choice, not a pricier model. Fifty lines rewriting a
+   retry loop deserve more than a thousand-line rename. The cap is on slots, not on model: the
+   slots you have, not more slots.
 
-   **Dispatch.** Use the native spawn operation (`spawn-details.md`) with fresh context and the role prompt path, in one
-   parallel batch when capacity allows; otherwise batch the same slots without adding reviewers.
+   **Dispatch.** One parallel batch through the native spawn operation (`spawn-details.md`) with
+   fresh context and the role prompt path. **Pass the model on every dispatch** when the schema
+   takes one — Sol unless explicitly told Astra — so no agent silently takes a pricier default on a
+   diff that didn't ask.
    Brief every agent with step 2's scope — the brief's claims, the dependency contracts you traced,
    the baseline — because an agent handed only a diff can only find what is in the diff. Whichever
    agent covers test coverage, tell it which test tiers the brief's Verify command actually runs,

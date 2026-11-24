@@ -86,8 +86,6 @@ The simplifier reports findings for the developer to act on. See the
 
 The optional review loop defaults to `none`. An unavailable configured loop leaves the PR
 in draft until the user decides whether to proceed to ready. Merge defaults to asking the user.
-In a stacked run with a parent-controlled review pause, each peer keeps ownership of its draft
-and waits for release even when the loop is `none`.
 
 The 175K warning assumes you configured auto-compaction at 200K. The plugin reads the latest
 native `event_msg/token_count` record's `info.last_token_usage.total_tokens`, which includes cached

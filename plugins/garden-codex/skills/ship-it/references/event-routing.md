@@ -50,18 +50,16 @@ outside the worktree before removal; otherwise keep the worktree. Never stop unr
 Route off the line alone. Reading the PR to decide what the digest means is the job of whoever you
 hand it to, and doing it yourself spends your context on text that worker is about to read anyway.
 
-| Digest                                      | Action                                                                                                                                                        |
-| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ends in `merged`                            | SKILL.md's finish step, at once, even with a round in flight. Barrier — no further routing.                                                                   |
-| ends in `closed`                            | SKILL.md's abort path (`--status aborted`), at once; leave branch, worktree, commits and PR intact. Barrier — no further routing.                             |
-| anything else, while paused before the loop | Record the digest for deferred triage below.                                                                                                                  |
-| anything else, while a review loop runs     | Wake with the native follow-up operation, delivering the line verbatim to the `review-loop` worker, and defer what it doesn't own (§ During the review loop). |
-| anything else, otherwise                    | Fresh reviewer in external mode with `${PR_URL}` and the line as `${DIGEST}`.                                                                                 |
+| Digest                                  | Action                                                                                                                                                        |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ends in `merged`                        | SKILL.md's finish step, at once, even with a round in flight. Barrier — no further routing.                                                                   |
+| ends in `closed`                        | SKILL.md's abort path (`--status aborted`), at once; leave branch, worktree, commits and PR intact. Barrier — no further routing.                             |
+| anything else, while a review loop runs | Wake with the native follow-up operation, delivering the line verbatim to the `review-loop` worker, and defer what it doesn't own (§ During the review loop). |
+| anything else, otherwise                | Fresh reviewer in external mode with `${PR_URL}` and the line as `${DIGEST}`.                                                                                 |
 
-Use the pre-ready pause in SKILL.md § 4 before routing nonterminal activity. While waiting
-for the sender's go-ahead, record activity with the existing `deferred to post-loop triage`
-annotation below. Route to a loop worker once it owns the loop. With the loop skipped, route
-to an external reviewer after release.
+"While a review loop runs" means the brief names a loop and `pipeline-status.sh` reports
+`review_loop.outcome` as `pending` or `running`. With the loop `skipped`, every non-terminal digest
+goes to a reviewer from the start.
 
 Non-terminal digests are routed one at a time. One that arrives while a reviewer or developer round
 is in flight waits until that round has reported, then gets a fresh reviewer like any other. The

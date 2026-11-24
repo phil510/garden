@@ -12,15 +12,15 @@ role name in the local ledger; send a task-name argument only when the exposed s
 Validate its value too: for V2, map the local `review-loop` label to `review_loop` (then
 `review_loop2`), because task names accept lowercase letters, digits and underscores. Store that
 tool name beside the local label and returned handle. Use a generic available agent type;
-bundled Markdown prompts do not register native roles. Supply applicable project instructions,
-absolute paths, role/mode/round, and a read-first pointer to the role prompt. Tell workers they
-share the filesystem, must preserve others' edits and own only their assigned files.
+bundled Markdown prompts do not register native roles. Supply absolute paths, role/mode/round,
+and a read-first pointer to the role prompt.
 
-Choose an exposed Luna model for easy bounded tasks and an exposed Sol model for planning,
-implementation or substantive review. Model identifiers and context options come from the current
-tool schema, not Claude frontmatter. If overrides are unavailable, inherit the current model.
-Respect current agent concurrency and nesting limits: run independent readers in batches when
-slots are scarce, and collect every required result before advancing.
+- **Model.** Every worker runs on **Sol** by default — planning, implementation and review alike —
+  so a normal spawn takes the default and sets nothing. Use **Astra** only when the user or the
+  brief explicitly asks for it. Ship-it targets small and medium PRs, which is why the expensive
+  tier is not the default for any role. Model identifiers and context options come from the
+  current tool schema, not Claude frontmatter; if overrides are unavailable, inherit the current
+  model.
 
 Store the worker's returned native handle in the ledger. If your own callable native address is
 available, include it in the opener so the worker can report back. A local role label is only a
@@ -68,7 +68,7 @@ or idle notification alone carries no verdict. Keep waiting if the owner is stil
 the worker has ended its turn without a report, reconcile the durable state per
 `communication.md` § #2 crash fallback before deciding what can proceed.
 
-Take the next authorized step as soon as its dependencies are satisfied. Once the only
+Take the next step as soon as its dependencies are satisfied. Once the only
 dependency is a human decision or an external event with a confirmed wake path, retain the owner
 and its wait state. For checks and backstops that return a process handle, continue through
 § Process waits until each result has been handled.
@@ -169,28 +169,48 @@ loop skill's own files under `${WORKTREE}`, `review-loop-state.json`, and `revie
 
 ## Stopping a worker
 
-Retirement means this pipeline will never dispatch to the handle again. On a done report,
-confirm the worker ended its turn and its owned commands completed. Close it when the native
-interface provides close; otherwise mark the completed handle retired. For an active worker,
-use the map’s stop operation and inspect the result/status before marking it retired. V1 close
-and V2 interruption differ; neither proves shell process cleanup. A stop message alone is not
-confirmation. Do not resume or wake a retired handle after a successor owns the work.
+Retirement means this pipeline will never dispatch to the handle again. Stop a worker when it has
+reported done, when the review loop reports `done`, when replacing a misbehaving worker, and at
+finish for every worker still in the ledger. Never stop a worker that is waiting on an escalation
+decision you still intend to send.
 
-Before another writer starts or the worktree is removed, confirm every owned shell process is
-stopped, including descendants or detached services. Track process/session handles as commands
-start, collect completion through the shell continuation tool, and stop still-running owned work
-through that tool or its recorded process identity. Interrupting an agent does not prove its
-commands stopped. If identity or termination is uncertain, keep the worktree and branch and do not
-dispatch a replacement writer; report the unresolved ownership to the user.
+A worker is **confirmed stopped** when the stop operation succeeded and its status shows it ended,
+or when it reported that the agent is not running. Any other result — an error, a timeout, a
+handle the ledger says is live but the harness does not know — means termination is **uncertain**.
+Record it in the ledger as uncertain; at finish, an uncertain worker keeps the worktree and branch
+in place, since a worker that may still be running would be writing into a directory that no longer
+exists. A stop message alone is not confirmation, and do not resume or wake a retired handle after
+a successor owns the work.
 
-Apply the barrier on done, loop completion, replacement, abort and finish. A worker awaiting an
-escalation is still the owner: wake it with the native follow-up operation, do not retire or duplicate it.
+Mechanics: close the handle when the native interface provides close; otherwise mark the completed
+handle retired. For an active worker use the map's stop operation and inspect the result/status
+before marking it retired. V1 close and V2 interruption differ, and neither proves its commands
+stopped. Codex workers' shell commands can outlive them, so before another writer starts or the
+worktree is removed, confirm every owned shell process is stopped, including descendants or
+detached services. Track process/session handles as commands start, collect completion through the
+shell continuation tool, and stop still-running owned work through that tool or its recorded
+process identity. If identity or termination is uncertain, keep the worktree and branch and do not
+dispatch a replacement writer.
 
 ## Permission mode
 
-Use the session's existing approvals and sandbox. Starting the pipeline does not authorize
-changing permission settings or bypassing prompts. Spawn without an extra permission-mode
-question; report an actual approval block through the harness when encountered.
+**The pipeline session needs the autonomy to run unattended, and every worker inherits it.**
+Spawned subagents run under the parent session's permission settings, and a per-spawn override does
+not reliably tighten or loosen them. The lever is the session, set once at launch — not the spawn.
+
+Why this much autonomy: ship-it runs hands-off for hours with nobody attached. Anything that
+prompts — a shell approval, an edit confirmation, an MCP approval — stalls a worker the moment it
+hits the gate, with no escalation, no message, no signal that anything is wrong. The owner runs
+the session with approvals bypassed for exactly this reason.
+
+That is safe because the real boundaries live where a worker can't cross them: the brief's §5
+Autonomy bounds, draft-PR isolation, and worktree confinement. For an unattended pipeline, a UI
+gate that fails silently is worse than none.
+
+Nothing lets a session read its own permission settings reliably, so **assume the session was
+launched with the autonomy the pipeline needs** and spawn without asking. Whoever runs
+`garden-codex:ship-it` is deliberately starting an unattended pipeline; they know the precondition
+and will say so when it doesn't hold.
 
 ## Process waits
 

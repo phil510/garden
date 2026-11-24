@@ -106,14 +106,14 @@ it takes afterwards.
 
 After sending a done report, **stop and go idle.** You will not be messaged again; a fresh worker
 handles the next round. Do not keep working, poll, or re-message. After `ESCALATING` you are not
-done: going idle means waiting for the decision (§ Escalation). The orchestrator retires finished handles; never resume work on a done stage.
+done: going idle means waiting for the decision (§ Escalation). The orchestrator retires finished handles; that is expected and needs no response.
 
 Choose the return route in `spawn-details.md` § Report return. A native turn-final result carries
 the typed report if the harness delivers it to the parent and you lack its callable address.
-When a native message carried the report, do not repeat it as your final result. The orchestrator
-uses the native follow-up operation to wake an idle worker.
-Before reporting done, collect child results and verify every command you started is stopped.
-Report any unresolved process ownership rather than claiming cleanup succeeded.
+When a native message carried the report, do not repeat it as your final result. Your shell
+commands can outlive your turn, so before reporting done, collect child results and verify every
+command you started is stopped; report any process you could not stop rather than claiming cleanup
+succeeded.
 
 The long-lived review-loop worker reports more than once and resumes in place on each reply. Its
 payload kinds and reply semantics are in `${SKILLDIR}/references/communication.md` § #2b.
@@ -169,7 +169,3 @@ resumes in place, and never writes an escalation event.
 - **Never open a peer-worker channel.** The orchestrator dispatches every hop.
 - **Workers never merge and never flip the PR to ready.** Both belong to the orchestrator, after its
   own checks and per the brief's merge policy.
-
-For nested work, use fresh native agents with self-contained briefs and the current spawn schema.
-Respect concurrency limits, collect all results, and track process handles through completion;
-see `spawn-details.md` § Spawn shape and § Process waits.
