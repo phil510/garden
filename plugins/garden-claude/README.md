@@ -107,7 +107,8 @@ Existing `.ship-it/` state remains in the worktree and can be resumed with
 required. The [source and license record](third-party.md) describes the editable Garden forks in `agents/`
 used by the internal review stage. Review loops remain optional (default `none`); a configured but missing
 loop skill blocks its run explicitly. No personal bot-loop or comment-fetching skill is bundled
-or required by default.
+or required by default. Stack peers keep ownership of draft PRs through parent-controlled review
+release, including when the loop is `none`.
 
 The 175K warning assumes the user already configured compaction at 200K, matching Codex. The
 headroom gives the agent time to write its note before compaction. Claude occupancy uses the

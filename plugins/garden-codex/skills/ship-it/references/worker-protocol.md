@@ -108,8 +108,10 @@ After sending a done report, **stop and go idle.** You will not be messaged agai
 handles the next round. Do not keep working, poll, or re-message. After `ESCALATING` you are not
 done: going idle means waiting for the decision (§ Escalation). The orchestrator retires finished handles; never resume work on a done stage.
 
-Use the reporting operation in `spawn-details.md` § Native operations, without duplicate
-reports. The orchestrator uses that map’s follow-up operation to wake an idle worker.
+Choose the return route in `spawn-details.md` § Report return. A native turn-final result carries
+the typed report if the harness delivers it to the parent and you lack its callable address.
+When a native message carried the report, do not repeat it as your final result. The orchestrator
+uses the native follow-up operation to wake an idle worker.
 Before reporting done, collect child results and verify every command you started is stopped.
 Report any unresolved process ownership rather than claiming cleanup succeeded.
 

@@ -149,10 +149,59 @@ as authorial input that can override the brief, not as another reviewer finding:
    waiting on an escalation is not running: edit the brief, then tell it to re-read it in the
    decision message; a fix-round ask waits until that worker reports.
 
-When told to batch — syncing several stacked PRs, say — dispatch developers without review, and
-hold the ready flip and merge, until told the batch is done; then review the final head once. Each
-intermediate head is superseded before anyone merges it, so reviewing it pays for findings on code
-that never ships.
-
 The user's authorial word trumps the brief. If a concern contradicts an active AC, edit the AC;
 don't route the user's own note through reviewer classification.
+
+## Stack holds and review release
+
+A standalone run follows the usual pre-ready gate. When a Garden parent owns a stack, use
+`message-session` to coordinate; the parent decides when to release review and the peer still owns
+its PR. Put the parent and the instruction to pause before review/ready in the initial brief.
+This includes `Review loop: none`: the pause protects the ready flip even without a bot.
+
+On internal-review clean, tell the parent the draft PR, reviewed head, base ref and tip, current
+main tip, verification result, and remaining gates. Start or recover the watch as usual. Record
+the parent's messages in the existing §5 and workflow annotations, then acknowledge the recorded decision and current state. Use the latest applicable instruction from
+the full workflow, not the last few annotations from status. When a writer owns the workflow, queue the change and
+stop further dispatch until it reports, then record it before routing the report. A running loop
+writes only its own state, so the orchestrator can annotate an incoming hold immediately and
+update the brief at the loop's next safe waiting point. A duplicate message for the same
+decision changes nothing. A new hold supersedes an earlier release even if the head is unchanged.
+
+- **Review hold.** Wait before starting or advancing a configured bot loop, handling external
+  review or CI fixes, flipping ready, or merging. An explicit review release clears this hold for
+  the head and base it names. A legacy free-text pause also needs its sender's go-ahead on resume.
+- **Base hold.** Record which base is unsettled in §5. Do not sync it or start an automatic fix
+  against it, even if checks or conflict detection ask for one. Wait for the parent to identify the
+  settled base and authorize synchronization. A base hold and a review hold clear independently.
+- **Batch.** When authorized, run only the requested fix or synchronization rounds as each base
+  settles, holding intermediate review, ready and merge. Once the dependency merges and this
+  PR is next to update, check the PR target. As part of the authorized synchronization, retarget
+  to main if needed and integrate its current tip without rewriting published history. Respect
+  repository approval rules when changing the target. Record the settled base ref and tip. At batch end verify and review the final
+  synchronized head once, and report the result to the parent. A dirty result follows the usual
+  fix and review path within its round budget. For that review cycle, record its first artifact
+  number and comparison baseline in a workflow note before dispatch. Use the settled PR base tip
+  for the first comparison and the previously reviewed head in that cycle for later comparisons.
+  Review artifacts keep increasing across cycles; each cycle gets the usual round budget. Record
+  the reviewed head and base in the review artifact, and require it to still match before
+  reporting clean.
+
+At normal release the parent confirms that this PR's own upstreams merged and integration passed.
+The peer records the release with the PR, reviewed head, base ref and tip, current main tip and
+verification evidence. Use these invariants before dispatching and again on recovery: read the PR
+head and base ref and fetch the current base and main tips from the remote. Require the released
+values and recorded review/verification to match, and confirm that the PR targets and includes
+current main. Tell the parent when evidence no longer matches and obtain a fresh release. An
+explicit early-review override records its own PR/head/base evidence and may start only the
+configured loop before the normal dependency and integration gates. It leaves base synchronization,
+ready and merge held. No override supplies merge approval or changes repo bot policy.
+
+A live loop can continue across pushes it made through the authorized fix rounds, after the loop
+skill's verification and review. Before advancing, verify that the current head is the released
+head or the head produced by those rounds, and that the base, main and hold decisions still match
+the applicable release. At completion record that resulting head with the loop outcome. A
+separate synchronization, outside commit or base/main move requires fresh validation. Before
+using a prior loop pass on a new release, confirm it covers the released head and base, or
+give the configured loop a new round with the old artifacts retained for history. Use the
+loop's saved evidence on resume; a phase of `running` alone proves neither ownership nor release.

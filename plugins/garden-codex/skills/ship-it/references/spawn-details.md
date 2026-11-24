@@ -22,7 +22,9 @@ tool schema, not Claude frontmatter. If overrides are unavailable, inherit the c
 Respect current agent concurrency and nesting limits: run independent readers in batches when
 slots are scarce, and collect every required result before advancing.
 
-The returned handle, not the display name, is the worker's identity. Store it in the ledger.
+Store the worker's returned native handle in the ledger. If your own callable native address is
+available, include it in the opener so the worker can report back. A local role label is only a
+ledger key.
 
 ## Native operations
 
@@ -31,21 +33,44 @@ model name. Native interfaces can differ within the same release. Use the curren
 argument names and supported model/agent-type overrides; omit unsupported fields. These are
 operation mappings, not wrappers to implement or reasons to change feature flags or settings.
 
-| Operation                      | V1 interface (`send_input`, `close_agent`)                                                                     | V2 interface (`followup_task`, `interrupt_agent`)                                  |
-| ------------------------------ | -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| Fresh worker                   | `spawn_agent` with `message` and `fork_context: false`; keep the role name locally                             | `spawn_agent` with `message`, unique `task_name`, and `fork_turns: "none"`         |
-| Worker report                  | Return the typed report as the turn’s final result; parent collects it through native completion/wait          | `send_message` to the known parent, then end the turn without repeating the report |
-| Decision/digest to idle owner  | `send_input` to its returned handle starts the next turn                                                       | `followup_task` to its returned handle wakes it                                    |
-| Information during active work | No passive-message equivalent: `send_input` submits input; use it only when the work should receive that input | `send_message` delivers information without starting an idle turn                  |
-| Wait/inspect                   | `wait_agent` with the handles required by its schema                                                           | `wait_agent` for updates; `list_agents` for status when exposed                    |
-| Stop/retire                    | `close_agent` on the owned handle; inspect the result                                                          | `interrupt_agent` if active, inspect status, then retire the handle in the ledger  |
+| Operation                      | V1 interface (`send_input`, `close_agent`)                                                                     | V2 interface (`followup_task`, `interrupt_agent`)                                                    |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Fresh worker                   | `spawn_agent` with `message` and `fork_context: false`; keep the role name locally                             | `spawn_agent` with `message`, unique `task_name`, and `fork_turns: "none"`                           |
+| Worker report                  | Return the typed report as the turn’s final result; parent collects it through native completion/wait          | Use a verified parent address with `send_message`, or the native turn-final result (§ Report return) |
+| Decision/digest to idle owner  | `send_input` to its returned handle starts the next turn                                                       | `followup_task` to its returned handle wakes it                                                      |
+| Information during active work | No passive-message equivalent: `send_input` submits input; use it only when the work should receive that input | `send_message` delivers information without starting an idle turn                                    |
+| Wait/inspect                   | `wait_agent` with the handles required by its schema                                                           | `wait_agent` for updates; `list_agents` for status when exposed                                      |
+| Stop/retire                    | `close_agent` on the owned handle; inspect the result                                                          | `interrupt_agent` if active, inspect status, then retire the handle in the ledger                    |
 
 A completed **turn** is not a completed **stage**. `ESCALATING`, `triggered` and loop waiting
 reports leave that same worker owning the stage; keep it idle and wake it with the follow-up
 operation. Only a done report or explicit replacement retires it. V1 `resume_agent` can reopen a
 closed agent, but this pipeline never reopens a retired writer; recovery uses live owners or a
-fresh replacement after the stop barrier. Do not assume a parent alias or send input to an unknown
-recipient. On V1 the natural return channel supplies worker reports without such an assumption.
+fresh replacement after the stop barrier.
+
+### Report return
+
+When the harness exposes a parent address, V2 can send to the native `Sender` on the spawning
+task or the verified native parent address provided in the opener. A bare role label or a guessed
+parent alias can target the wrong agent. If there is no callable parent address, use the native
+turn-final result where the harness delivers it to the parent. Use one route per report. After a
+successful native send, end the turn without restating the report. If a send is rejected without
+delivery, use the native completion route. If delivery is uncertain, end the turn and let the
+parent reconcile the artifacts through the crash fallback.
+
+### Active progress
+
+After spawning or waking a worker, stay in the turn and wait through the native wait operation.
+Match each update or completion to the owned handle and outstanding turn in the ledger. Inspect
+the typed report, including one returned as the turn's final result, and route it once. A wake, timeout,
+or idle notification alone carries no verdict. Keep waiting if the owner is still working. If
+the worker has ended its turn without a report, reconcile the durable state per
+`communication.md` § #2 crash fallback before deciding what can proceed.
+
+Take the next authorized step as soon as its dependencies are satisfied. Once the only
+dependency is a human decision or an external event with a confirmed wake path, retain the owner
+and its wait state. For checks and backstops that return a process handle, continue through
+§ Process waits until each result has been handled.
 
 ## Naming and the live-worker ledger
 
@@ -77,17 +102,17 @@ an escalation, or the review loop between rounds — **wake it with the native f
 second one beside it.** Waking a live worker is the intended way to hand it a decision or a digest.
 The defect to avoid is two workers of one role alive at once, both believing they hold the pen.
 
-A woken worker that doesn't answer — an idle notification with no report — is silent, not gone. It
-may still write, so page the user rather than spawning a replacement beside it. A fresh spawn is
-right only when the ledger shows no live worker of that role: the previous one reported done and
-was retired after confirming its commands stopped. A terminal agent status or a fresh runtime
-still requires that process check.
+For an idle notification with no report, check the completion result and reconcile artifacts
+first (§ Active progress). If that leaves ownership or the result unresolved, page the user. A
+fresh spawn requires the absence of a live owner in the ledger and confirmation that any prior
+writer and its commands stopped, even after a terminal status or a new runtime.
 
 ### Thin opener
 
 About five lines, carrying only what the role prompt can't know:
 
 - the stage, round, or mode tag (`stage 2 initial`, `fix-round 2`, `external classification`);
+- your verified native return address when exposed, for V2 messaging;
 - the values for the variables the Contract's opener table lists for the role — absolute paths
   spelled out in full, since there is no `envsubst`, no shell export, and no expansion at spawn;
 - for dual-mode roles, the mode: _"You are in `fix-round` mode — follow that section."_ Mode
@@ -120,7 +145,8 @@ Stages 1–3 run strictly sequentially. For each:
    role name, and retain the returned handle.
 2. The worker does its stage, finishes its disk writes, then sends its report (`communication.md`
    § #2).
-3. The orchestrator routes off the report, then stops the reporter (§ Stopping a worker).
+3. The orchestrator collects and routes the report (§ Active progress), then retires a done
+   reporter (§ Stopping a worker).
 4. The orchestrator spawns the next worker. An escalation pauses the stage at step 2 instead: the
    decision goes back to the same worker, which then finishes and reports.
 

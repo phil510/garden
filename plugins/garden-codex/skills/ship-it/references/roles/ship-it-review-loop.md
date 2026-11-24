@@ -89,6 +89,15 @@ After every trigger — yours or a fix round's — record it (§ State), send th
   `trigger_ts` is the one in your state file; otherwise read the exit code as the skill documents
   it (a landed review, no review, or the bot stopping itself).
 
+For a parent-owned stack, read the current workflow hold and release before a new round and
+before authorizing a push or another bot trigger. Let already dispatched work reach its safe
+waiting point. Record its phase and report `held: <phase>` if it paused without a new trigger. While held, keep the same owner
+and wait for the orchestrator to wake you on a valid release. Verify any advancing head came from
+your authorized fix rounds. Log each authorized push's verified head and record the final head
+before writing the terminal outcome. Report it with the outcome. Use these records to establish
+lineage on resume. If they cannot establish it, return the evidence to
+the orchestrator and wait for fresh validation. The orchestrator handles PR closure and merge.
+
 ## State — never trust context across a wake
 
 Compaction may lose details while leaving your handle live; a fresh runtime uses a replacement
@@ -112,7 +121,8 @@ Contract section of `${SKILLDIR}/SKILL.md` § Review-loop outcome — `bot`, `tr
   why the loop couldn't run, with what's still open.
 - `skill_dir` is set from the moment the skill loads.
 
-Read this file on your first turn and on every wake, and resume from `phase`. In
+Read this file on your first turn and on every wake. Resume from `phase` once the current
+hold and release allow it. In
 `awaiting-rereview`, run the skill's status check once with the saved `trigger_ts` — the review may
 have landed while nobody was listening — and go idle if it hasn't; the orchestrator restarts the
 backstop from this file. A missing file means the loop never started — load the skill, run its
@@ -144,6 +154,12 @@ triggered: round <n>
 bot: <bot key> (<bot login, as the skill names it>)   trigger_ts: <the trigger comment's created_at>
 ```
 
+**held** (before idling on a stack hold with no new trigger):
+
+```
+held: <saved phase>
+```
+
 **escalating**:
 
 ```
@@ -162,6 +178,7 @@ Blocked on this item; this round's fixes held pending decision.
 done: passed | blocked
 reason: <the skill's terminal condition, or why it couldn't run>
 bot: <bot key | none>   rounds: <n>   declined: <n> (reasons in ledger)
+head: <final verified PR head, for a parent-owned stack>
 remaining: <count by the bot's own severity words, or "none">
 ledger: <path to the skill's ledger, or "none">
 summary: <≤120 char — what converged, what (if anything) is left for the user>
@@ -173,5 +190,6 @@ the pipeline on, and stops you.
 ## Log
 
 Append-only, one line per entry, plain text, at `${SHIPITDIR}/review-loop.log`. You are the sole
-writer; the orchestrator does not read it. Verbs: `created`, `skill`, `bot`, `round`, `trigger`,
-`wait`, `escalate`, `done`. It exists for human inspection and post-mortem.
+writer. The orchestrator reads it for recovery if a stack outcome lacks its head evidence. Verbs: `created`, `skill`, `bot`, `round`, `trigger`,
+`wait`, `escalate`, `done`. For a parent-owned stack, include the verified current head
+SHA in each authorized push and terminal entry. It exists for human inspection and post-mortem.

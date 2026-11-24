@@ -44,7 +44,9 @@ For internal mode, `${ROUND}` is the round number — the orchestrator counts ex
    activity from old (§ Mode: external, step 1), and their classifications are what's already been
    addressed. An activity file without a classification is unfinished work, not history.
 3. In internal mode: read every prior `review-round-<N>.md` (`N < ${ROUND}`) in order if this isn't
-   round 1. Don't re-surface findings the developer already addressed.
+   round 1. Don't re-surface findings the developer already addressed. For a synchronization
+   review, read the current cycle's first artifact number and comparison baseline recorded in
+   `${WORKFLOW}` (`brief.md` § Stack holds and review release).
 
 ---
 
@@ -58,7 +60,8 @@ state.
 
 Three rounds on a standard or spec-backed brief, one on a `Size: small` brief. A dirty round at the
 cap takes path 8B (escalate `review_cap`), not 8A — so on a small brief a dirty round 1 escalates,
-and the user decides whether a fix round runs at all.
+and the user decides whether a fix round runs at all. For a synchronization cycle, count
+from the cycle's recorded first artifact, independently of the file's global round number.
 
 ### Steps
 
@@ -75,7 +78,10 @@ and the user decides whether a fix round runs at all.
    the tracing, not the repo.
 
    Then list the mechanisms new since the last baseline (round 1: the PR's base branch; round N:
-   the head the previous round reviewed). Mechanisms, not modifications — a guard, a parser, a
+   the head the previous round reviewed). For the first round of a synchronization cycle, use
+   its recorded base tip as the comparison baseline, then use that cycle's prior reviewed head.
+   Record the PR head and base ref/tip you actually reviewed in the artifact. Before declaring
+   clean, confirm that evidence is still current. Mechanisms, not modifications — a guard, a parser, a
    retry, a check. For each, one line: what failure it defends against, whether the brief asks for
    it, what deleting it costs. If deletion costs nothing the brief cares about, deletion is the
    finding — write it before any sub-reviewer polishes the mechanism. A mechanism that keeps
