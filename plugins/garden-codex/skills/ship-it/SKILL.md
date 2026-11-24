@@ -183,7 +183,8 @@ Before advancing, apply `brief.md` § Stack holds and review release, including 
 `none`. While held, report the owned draft and record decisions from the parent. Route terminal
 digests immediately. Route only explicitly authorized synchronization work or its final internal
 review while normal dispatch is held (`brief.md` § Stack holds and review release). Use the same gate after a resume, a release or a worker
-report. With dispatch authorized, branch on `Review loop`:
+report. Reconcile a saved loop against the current release before branching on its outcome, as
+`brief.md` describes. With dispatch authorized, branch on `Review loop`:
 
 - **`none`** → the outcome is `skipped`. Append `> NOTE <iso> — orchestrator: review loop skipped`
   if missing, route any due catch-up intake, then go to step 5. No bot-loop worker is spawned.
@@ -416,7 +417,8 @@ Confirm terminal PR state for stage 4 before reopening work or paging about an e
 For open PRs, resolve `open_escalations[]` under § Escalations before resuming affected work.
 Defer stage-4 classification escalations while external intake is held. A fresh-spawn fallback
 uses the escalation's `**Artifact:**` as `${EVENT_FILE}` for an external reviewer. Then re-enter
-from the status JSON:
+from the status JSON. Apply the step 4 release and saved-loop reconciliation before using a
+loop outcome or saved trigger for a parent-owned draft, and refresh status if it archives state:
 
 | State                                      | Re-entry                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -553,7 +555,12 @@ The pre-ready gate ends in exactly one of `skipped | passed | blocked`.
 state file yet) or `running` (state file present, `phase` not `done`). Resume branches on that
 field, never on whether the state file exists.
 
-`review-loop-state.json` is rewritten atomically by the review-loop worker on every transition:
+`review-loop-state.json` is rewritten atomically by the review-loop worker on every transition.
+For a parent-owned stack, also record the release note timestamp and the latest verified `head`.
+The timestamp points to the release's PR and ref evidence in `workflow.md`. The orchestrator may
+archive this file when a release supersedes it, after stopping the writer and its commands.
+
+Core state fields:
 
 ```json
 {

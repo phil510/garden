@@ -197,15 +197,21 @@ verification evidence. Use these invariants before dispatching and again on reco
 head and base ref and fetch the current base and main tips from the remote. Require the released
 values and recorded review/verification to match, and confirm that the PR targets and includes
 current main. Tell the parent when evidence no longer matches and obtain a fresh release. An
-explicit early-review override records its own PR/head/base evidence and may start only the
-configured loop before the normal dependency and integration gates. It leaves base synchronization,
+explicit early-review override records the same evidence for the refs it releases and may start
+only the configured loop before the normal dependency and integration gates. It leaves base synchronization,
 ready and merge held. No override supplies merge approval or changes repo bot policy.
 
-A live loop can continue across pushes it made through the authorized fix rounds, after the loop
-skill's verification and review. Before advancing, verify that the current head is the released
-head or the head produced by those rounds, and that the base, main and hold decisions still match
-the applicable release. At completion record that resulting head with the loop outcome. A
-separate synchronization, outside commit or base/main move requires fresh validation. Before
-using a prior loop pass on a new release, confirm it covers the released head and base, or
-give the configured loop a new round with the old artifacts retained for history. Use the
-loop's saved evidence on resume; a phase of `running` alone proves neither ownership nor release.
+A live loop can continue across pushes it made through authorized fix rounds after the loop
+skill's verification and review. Verify lineage from the release head through those pushes, and
+require the released base and main to still match. Record the final verified head with the loop
+outcome. A separate synchronization, outside commit, or base/main move requires fresh validation.
+
+Before routing a saved loop on a new release or on resume, compare its recorded release and
+verified head to the current release. A result or waiting trigger still applies if its base ref,
+base tip and main tip match, and the current head is covered by its verified lineage. If not,
+stop routing to that owner. Once it and its commands are confirmed stopped, archive the active
+state file under its release note timestamp and retire any matching backstop. The archived state
+is history with its release and trigger intact. Re-read status, which now reports `pending`.
+For an eligible draft, start the configured loop on the newly released head, with a new trigger
+and the prior decline ledger retained. An unchanged release after a hold resumes the same owner
+and trigger. Late reports or backstops for the archived state cannot advance the new loop.

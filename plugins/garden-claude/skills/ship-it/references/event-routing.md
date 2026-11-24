@@ -29,7 +29,8 @@ authorized recovery if its owner is gone. While held, keep nonterminal activity 
 catch-up and leave the watch on. When recording the first deferred item in a hold, note that PR
 intake is due after release. Terminal items still take the table's terminal paths.
 
-On release, resume a paused live loop through its saved trigger/status path if applicable.
+On release, reconcile saved loop evidence as described in `brief.md` before resuming a paused
+owner through its saved trigger/status path or starting a new loop.
 Once external intake is allowed and no loop owns the threads, make one catch-up pass with
 `${DIGEST}` `none` and check the current mergeability/checks as applicable. Resume unfinished
 events first as in SKILL.md. Record that the catch-up is complete after reports are routed;
