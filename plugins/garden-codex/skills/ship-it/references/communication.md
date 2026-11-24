@@ -25,11 +25,10 @@ same file afterwards.
 
 ## #2 — Worker-authored messages (worker → orchestrator, asynchronous)
 
-Every worker reports through the operation map in `spawn-details.md`: a natural turn-final result
-on V1, or a parent message on V2. There is no shell exit code or stdout file — the typed report
-body **is** the signal. This is the context-economy core of
-the pipeline: the orchestrator routes off the message and reads disk only on demand, instead of
-reading `workflow.md` and `events/` on every hop.
+Every worker reports with one native report, per the return rules in `spawn-details.md` § Report
+return. There is no exit code and no stdout file — the report body **is** the signal. This is the
+context-economy core of the pipeline: the orchestrator routes off the message and reads disk only
+on demand, instead of reading `workflow.md` and `events/` on every hop.
 
 1. **Write-then-signal.** The worker finishes its disk writes, _then_ sends its message, so disk is
    consistent before the orchestrator can act.
@@ -49,12 +48,13 @@ downstream anyway. That is distinct from trusting an agent's claims about code b
 workers still verify. The irreversible hops — the ready flip and the merge — re-check GitHub
 directly rather than trusting any report.
 
-### #2 crash fallback — bare termination → disk-read
+### #2 crash fallback — completion with no report → disk-read
 
-If a worker dies after a disk write but before its message, the orchestrator sees only a
-terminal native agent status with no preceding result. It then runs
-`${SKILLDIR}/scripts/pipeline-status.sh` to classify what the worker completed. The message is the
-steady-state fast path; disk is the always-correct fallback.
+If a worker's turn completes after a disk write but before its report, the orchestrator sees only
+the completion with no preceding result. It then runs `${SKILLDIR}/scripts/pipeline-status.sh` to
+classify what the worker completed. The message is the steady-state fast path; disk is the
+always-correct fallback. Replace the worker only once its commands have ended (`spawn-details.md`
+§ Stopping a worker).
 
 ### #2b — Review-loop payload kinds
 

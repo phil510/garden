@@ -3,7 +3,7 @@ name: ship-it
 description: >
   Run a scoped change end-to-end as a background pipeline — plan, develop, draft PR, internal
   review, an optional review-bot loop, ready flip, then watch it through merge. Invoked as
-  `garden-codex:ship-it <ref | free text>`, or `garden-codex:ship-it resume` to re-hydrate an interrupted
+  `garden-codex:ship-it` with a ref or free text, or `garden-codex:ship-it resume` to re-hydrate an interrupted
   pipeline. Requires a garden session.
 ---
 
@@ -39,15 +39,18 @@ Each of these is load-bearing, and each fails silently when broken.
   not to inline, or to verify a high-stakes hop — and prefer `pipeline-status.sh` over raw reads.
   When you delegate the verifying, ask for the verdict and where it was seen, not the evidence: a
   subagent's return lands whole in your context. Before a worker reports, don't poll.
-- **A bare a terminal native agent status with no report means the worker died mid-stage.** Run
+- **A completed worker turn with no report means the worker died mid-stage.** Run
   `pipeline-status.sh` to classify what completed, then fresh-spawn — except a reviewer with an
-  open `review_cap` escalation, whose decision you carry out yourself (§ Escalations).
+  open `review_cap` escalation, whose decision you carry out yourself (§ Escalations). Inspect the
+  native completion first; the disk fallback is in `communication.md` § #2.
 - **Resolve ambiguity at intake.** An assumption about _what_ to build produces an escalation at
   every stage that inherits it. The triage gate (`references/brief.md`) is where it gets caught.
 - **Reports out of the pipeline are short.** The milestone, the decision you need if any, and a
   pointer to the round file or PR. Every restated line is re-read on every later turn.
-- **Use the session's existing permissions.** Spawn without an extra permission-mode question.
-  Native approval gates still apply; do not change settings or bypass them to run unattended.
+- **Assume the session has the autonomy the pipeline needs** (the owner runs it with approvals
+  bypassed, which removes the stalls). A worker that hits a prompt with nobody attached stalls
+  with no message at all, so **spawn without asking**: whoever ran `garden-codex:ship-it`
+  knows the precondition. Rationale: `references/spawn-details.md` § Permission mode.
 - **Assume a garden session, and lean on it.** After internal review, what wakes the pipeline is a
   garden PR-watch digest, which a plain Codex session has no pipe for. If `garden watch` fails,
   or digests visibly stop arriving, tell the user rather than polling GitHub yourself — a polling
@@ -86,24 +89,37 @@ All under `${SKILLDIR}`. `worker-protocol.md` is the workers', not yours.
 | **Reviewer** (stage 3 + every digest)     | fresh per round | Internal: review rounds → `review-round-<k>.md`, clean flips stage 3, cap 3 rounds (1 on `Size: small`) then `review_cap`. External: records new PR activity in `events/`, classifies it, reports `clean <head-sha>` when nothing is open. |
 | **Review-loop** (pre-ready gate)          | long-lived      | Runs the skill the brief's `Review loop` names to drive review-bot feedback to zero on the draft PR. Spawned only when that field isn't `none`. Ends `passed` or `blocked`.                                                                |
 
-Choose an available Luna model for easy, bounded work and an available Sol model for planning,
-implementation and substantive review. Read the current spawn schema before supplying model or
-context parameters; no Claude model aliases or custom agent registration are required.
+Every worker defaults to **Sol**, planning, implementation and review alike: pass Sol explicitly
+on every spawn when the schema takes a model (otherwise the worker inherits the parent's model);
+use **Astra** only when the user or brief explicitly asks for it. Ship-it targets small and medium PRs, so the
+expensive tier is never the default (`spawn-details.md` § Spawn shape).
 
 ## Dispatch
 
-Spawn each worker with the exposed native spawn operation and fresh context, using the
-operation map in `spawn-details.md`. Keep a unique local role name in the ledger; pass it as a
-task name only when the exposed schema accepts one. Its thin opener carries literal Contract variables
-and tells it to read `${SKILLDIR}/references/roles/ship-it-<role>.md` and the shared worker protocol.
-Use a generic available agent type; the role prompt supplies the role, not an installed agent name.
-Include applicable project instructions and explicit file ownership; workers share the filesystem.
+Spawn each worker with the exposed native spawn operation and fresh context, using the operation
+map in `spawn-details.md`, and a thin opener (~5 lines) carrying the Contract's opener variables
+for that role as literal values — absolute paths in full, no shell expansion. Keep a unique local
+role name in the ledger; pass it as a task name only when the exposed schema accepts one. The role
+lives in the role prompt `${SKILLDIR}/references/roles/ship-it-<role>.md`, not an installed agent
+name; the opener names the mode, round and inputs:
 
-Keep the **live-worker ledger** (Contract § Ownership). Send information or wake idle workers through the native operations in that map; a message-only
-operation is not a wake-up.
-After a done report, retire the handle and confirm owned commands have ended before the next
-writer. Never retire a worker waiting for a decision you still intend to send. See
-`spawn-details.md` for dispatch, process handles and retirement.
+```
+You are the <role> for ${BRANCH}<, in ${MODE} mode, round ${ROUND}>. Read
+${SKILLDIR}/references/roles/ship-it-<role>.md and the shared worker protocol first.
+<one ${VAR} = <literal value> line per var the role needs>
+
+<mode sentence, if dual-mode.> <pointer to the input findings file.>
+Substitute the values above wherever your instructions reference ${VAR}.
+```
+
+Keep the **live-worker ledger** (Contract § Ownership) in your head as you go. Before any fresh
+spawn, check it: a live worker of that role — waiting on an escalation, or the review loop between
+rounds — is woken through the native follow-up operation, never duplicated (a message-only
+operation is not a wake-up). After routing a done report, retire the reporter's handle and record
+whether the stop was confirmed, and confirm its owned commands have ended before the next writer;
+never stop a worker waiting on a decision you still intend to send. Mechanics: `spawn-details.md`
+§ Naming and the live-worker ledger, § Stopping a worker. After each spawn or wake, stay active and
+collect its report (§ Active progress); route it and take the next step.
 
 ## Scripts
 
@@ -174,7 +190,7 @@ its process handle and recording ownership in the ledger and existing workflow a
 The watch stays on through merge; it is what tells you about reviews, failures and the merge itself.
 If the user asks to drop it, `garden unwatch <pr-number>` and append
 `> NOTE <iso> — orchestrator: PR watch opted out by user` — resume looks for that note — after which
-the pipeline is user-driven: they tell you when the PR merges or closes. Release this run’s
+the pipeline is user-driven: they tell you when the PR merges or closes. Release this run's
 forwarder only under the transport ownership rules; other watches may still need it.
 
 If the brief asks you to pause before the review loop, stop here and wait for the sender's go-ahead,
@@ -195,7 +211,7 @@ Review-loop messages are answered in place, never by a fresh spawn:
   `backstop: exit <code>` and its output to the worker, even if a later trigger superseded it — the
   worker matches `trigger_ts` and drops stale results. With no backstop, digests are the only
   wake-up.
-- `escalating` → page the user; wake the owner with the decision through the native follow-up operation.
+- `escalating` → page the user; wake the worker with the decision through the native follow-up operation.
 - `done: passed | blocked` → retire the worker, append
   `> NOTE <iso> — orchestrator: review loop <passed|blocked>`, and drop any backstop result that
   arrives later. If `workflow.md` has a `deferred to post-loop triage` note, spawn one external
@@ -564,8 +580,7 @@ The PR flips to ready on `passed` or `skipped`. On `blocked` it stays draft and 
 ### Worker reports
 
 Each worker finishes its disk writes, then delivers exactly one of these through its native
-report operation (`spawn-details.md` § Native operations). The
-orchestrator routes off the first line.
+report operation (`spawn-details.md` § Report return). The orchestrator routes off the first line.
 
 | Worker               | Report                                                                                                                                      |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |

@@ -48,8 +48,7 @@ Log each decide-and-log outcome to `${SHIPITDIR}/decisions.md` as it happens, in
 
 2. **Ground your delegation.** If the session offers a skill on when to delegate to subagents,
    read its declared `SKILL.md` with the indicated file or provider tool before dispatching any.
-   Use fresh native readers for independent questions, with bounded briefs and explicit ownership.
-   Follow `spawn-details.md` and collect each result before using it.
+   Spawn mechanics are in `spawn-details.md`.
 
 3. **Annotate start:**
 
@@ -76,7 +75,7 @@ Log each decide-and-log outcome to `${SHIPITDIR}/decisions.md` as it happens, in
    `## Acceptance criteria (derived from spec)` heading above `## Tasks`. The coverage table maps
    against those.
 
-5. **Explore the codebase** by dispatching 2–3 native exploration subagents in parallel, within current capacity, through the native spawn
+5. **Explore the codebase** by dispatching 2–3 native exploration subagents in parallel through the native spawn
    operation in `spawn-details.md`. Subjects:
    - Primary area of change (files/modules the brief's Scope or the spec's Architecture section
      names)

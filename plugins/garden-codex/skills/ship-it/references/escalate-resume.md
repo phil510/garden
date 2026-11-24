@@ -49,11 +49,16 @@ just as well when that worker is gone.
 
 ### Fallback: fresh-spawn
 
-The escalator is **gone** when native status confirms it terminated, or in a fresh runtime after
-prior writers and their commands have been reconciled (`spawn-details.md`). Compaction alone
-is not that condition: inspect the live ledger and wake the existing handle with the native follow-up operation.
-When replacement is safe, spawn the role under the next-numbered name with the decision block
-and event path. It rebuilds from `workflow.md` and stage artifacts and reads the same Resolution.
+The escalator is **gone** in exactly two cases: the session is a fresh runtime
+(`garden-codex:ship-it resume` — old handles cannot be resumed, so nothing from before is live,
+once prior writers and their commands have been reconciled per `spawn-details.md`), or its native
+status confirms it terminated without a result. Compaction alone is not that condition: the live
+ledger still holds the handle, so wake it with the native follow-up operation. Then spawn the role
+under the next-numbered name (`spawn-details.md` § Naming) with the decision block in the opener
+and a pointer to the event file. It rebuilds from `workflow.md` and the stage artifacts — which is
+why a waiting worker saves its state before escalating — reads the same Resolution block, and
+completes the stage. This is the same code path as post-crash recovery; the decision block is the
+only difference.
 
 An external reviewer needs one more thing to land on the right work: `${EVENT_FILE}` set to the
 activity file it escalated from (the escalation's `**Artifact:**`). Without it the reviewer runs a
@@ -67,7 +72,9 @@ and writes each accepted finding to `decisions.md`, since no reviewer is left to
 
 A worker that is merely **silent** after the decision message — an idle notification with no
 report — is not gone. It may still write, and a replacement beside it would be a second writer, so
-page the user instead of spawning. Reconcile and retire its handle and commands before a fresh replacement.
+page the user instead of spawning. `garden-codex:ship-it resume` in a new session is the clean way
+past it; its handle and any commands it still owns are retired and reconciled before a fresh
+replacement.
 
 ## Escalation event shape
 

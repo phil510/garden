@@ -70,12 +70,12 @@ the review-loop worker never writes `workflow.md` in practice, but it is a valid
 These five kinds are the whole vocabulary. Do not invent new ones (`STARTED`, `EDITED`, `RETRY`) —
 wanting one is a signal the design needs to change, not the grammar.
 
-| Annotate                                          | Don't annotate                                                                 |
-| ------------------------------------------------- | ------------------------------------------------------------------------------ |
-| Stage `- [ ]` → `- [x]` flip (worker, on success) | Worker spawn — teammates are addressed by name; there's nothing to record      |
-| Brief edit by orchestrator (`> RESOLVED`)         | Sub-task progress — task metadata covers it                                    |
-| `> ESCALATED` → `> RESOLVED` lifecycle            | Anything a downstream worker can derive from `workflow.md` or `events/`        |
-| Worker milestone (e.g. "draft PR opened")         | A decision or accepted limitation — that's a `decisions.md` line, not a `NOTE` |
+| Annotate                                          | Don't annotate                                                                         |
+| ------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Stage `- [ ]` → `- [x]` flip (worker, on success) | Worker spawn — workers are addressed by their native handle; there's nothing to record |
+| Brief edit by orchestrator (`> RESOLVED`)         | Sub-task progress — task metadata covers it                                            |
+| `> ESCALATED` → `> RESOLVED` lifecycle            | Anything a downstream worker can derive from `workflow.md` or `events/`                |
+| Worker milestone (e.g. "draft PR opened")         | A decision or accepted limitation — that's a `decisions.md` line, not a `NOTE`         |
 
 **Worker self-annotations are the durable record.** The orchestrator does not echo them: if a
 worker annotates "stage 2 complete", the orchestrator doesn't also write "spawned developer". The
