@@ -117,12 +117,13 @@ export function Stage() {
   }, [api])
 
   useEffect(() => {
-    if (api === null || !hydrated) return
+    const layout = maximizedLayout.current
+    if (api === null || !hydrated || layout === null) return
     let timer: ReturnType<typeof setTimeout> | undefined
     const disposable = api.onDidLayoutChange(() => {
       clearTimeout(timer)
       timer = setTimeout(() => {
-        updateUiState({ layout: api.toJSON() }).catch(reportCommandFailure)
+        updateUiState({ layout: layout.serialize() }).catch(reportCommandFailure)
       }, PERSIST_DEBOUNCE_MS)
     })
     return () => {

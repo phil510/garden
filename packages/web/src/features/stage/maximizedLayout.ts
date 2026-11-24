@@ -23,6 +23,10 @@ export function wireMaximizedLayout(api: DockviewApi) {
       visibleLayout = undefined
       applyLayout(api, layout)
     },
+    serialize(): SerializedDockview {
+      // Dockview's serializer temporarily restores the native maximized grid.
+      return visibleLayout ?? api.toJSON()
+    },
     dispose() {
       willMutate.dispose()
       didMutate.dispose()
