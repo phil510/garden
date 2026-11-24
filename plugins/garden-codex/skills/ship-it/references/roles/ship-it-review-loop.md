@@ -69,7 +69,9 @@ and go idle until it replies.
 
 - **Escalations** — the one thing that pauses the loop, and the only decisions you hand up: you
   clear the mechanical churn so the user spends attention only on real choices. Send an
-  `escalating` message, hold the round's fixes as the skill directs, and resume on the reply.
+  `escalating` message after writing `phase: awaiting-decision` and the complete payload to
+  `decision_request` in the state file. Hold the round's fixes as the skill directs and resume
+  on the reply. Clear the saved request when you record the ruling and leave that phase.
   Record the ruling in the skill's ledger alongside the declines, as the skill says — that is what
   keeps the bot's next re-raise from pausing the loop again.
 - **Per-round summaries** — the skill's per-round report goes to your log, not to the

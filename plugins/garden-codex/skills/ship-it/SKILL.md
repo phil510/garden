@@ -561,6 +561,9 @@ For a parent-owned stack, also record the release note timestamp and the latest 
 The timestamp points to the release's PR and ref evidence in `workflow.md`. The orchestrator may
 archive this file when a release supersedes it, after stopping the writer and its commands.
 
+For `awaiting-decision`, Codex also stores `decision_request`, the typed escalation payload, so a
+lost report can be recovered from disk. Record it atomically with the phase transition.
+
 Core state fields:
 
 ```json

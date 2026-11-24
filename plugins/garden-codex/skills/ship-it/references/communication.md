@@ -25,7 +25,7 @@ same file afterwards.
 
 ## #2 — Worker-authored messages (worker → orchestrator, asynchronous)
 
-Each worker chooses one route per report (`spawn-details.md` § Report return). The orchestrator
+Workers use the native report return rules (`spawn-details.md` § Report return). The orchestrator
 waits actively for the report, including one delivered as a native turn-final result, and routes
 it once for the current owner. The typed report carries the signal.
 
@@ -49,14 +49,20 @@ directly rather than trusting any report.
 
 ### #2 crash fallback — completed turn without a report
 
-Inspect the native completion result first. If a worker ended its turn without a typed report,
-run `${SKILLDIR}/scripts/pipeline-status.sh` and read the relevant stage artifact to classify what
-the worker completed. Advance only when the artifact confirms the outcome and the prior writer
-and its commands have stopped. Preserve an idle owner at a recorded escalation or review-loop
-wait. For `awaiting-rereview`, use the saved trigger to restore the wake path under the current
-holds, reusing any matching live backstop. If the evidence is inconclusive, report the block and
-keep the worktree and writer ownership intact (`spawn-details.md` § Stopping a worker). A late
-report for an already handled result does not dispatch a second writer.
+Inspect the native completion result first. When it has no typed report, run
+`${SKILLDIR}/scripts/pipeline-status.sh` and read the relevant stage artifact. If it proves
+completion, route that result once after confirming the writer and its commands stopped.
+If the stage is known incomplete and the writer and commands are confirmed stopped, re-enter
+from the same input and existing artifacts under the current gates.
+
+Preserve a review-loop owner at a recorded wait. For `awaiting-rereview`, restore the wake path
+from the saved trigger and reuse any matching live backstop. For `awaiting-decision`, use the
+saved request to page the user if the question is still open, using its existing resolution
+if already answered. Keep the owner waiting until the current holds allow the answer to be
+routed. A stage escalation uses its event file and the usual escalation route. If writer or
+command ownership remains uncertain, or the artifacts cannot establish a safe next action,
+report that block and keep the worktree intact (`spawn-details.md` § Stopping a worker).
+Deduplicate late reports by owner and turn.
 
 ### #2b — Review-loop payload kinds
 

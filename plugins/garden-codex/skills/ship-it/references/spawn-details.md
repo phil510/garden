@@ -53,10 +53,11 @@ fresh replacement after the stop barrier.
 When the harness exposes a parent address, V2 can send to the native `Sender` on the spawning
 task or the verified native parent address provided in the opener. A bare role label or a guessed
 parent alias can target the wrong agent. If there is no callable parent address, use the native
-turn-final result where the harness delivers it to the parent. Use one route per report. After a
+turn-final result where the harness delivers it to the parent. Use one route per report when delivery is known. After a
 successful native send, end the turn without restating the report. If a send is rejected without
-delivery, use the native completion route. If delivery is uncertain, end the turn and let the
-parent reconcile the artifacts through the crash fallback.
+delivery, use the native completion route. If delivery is uncertain, return the same typed report as the turn-final result. The parent
+matches it to the same worker and outstanding turn and routes the report once, whichever route
+arrives first. Use the crash fallback when completion has no report.
 
 ### Active progress
 
