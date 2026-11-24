@@ -74,8 +74,8 @@ changed and which base is on hold. Confirm each records the hold in its ship-it 
 Independent work can continue. In a coordinated update, tell peers when the batch begins and
 ends so intermediate heads do not spend review rounds or advance ready or merge. Once the
 upstream heads settle and validate, synchronize affected peers in dependency order. During the
-merge queue, bring up to date only the next PR whose review loop or merge is due. Verify and
-review each final synchronized head once.
+merge queue, bring up to date only the next PR whose review loop or merge is due. Name the authorized target ref and tip. Wait for the
+peer’s verified head and final review report before release.
 
 **Release per PR.** Keep a short queue of drafts and their outstanding gates. Release a PR
 when its integration evidence is green, its own dependencies have merged, and the reviewed PR

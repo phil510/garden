@@ -60,6 +60,9 @@ An external reviewer needs one more thing to land on the right work: `${EVENT_FI
 activity file it escalated from (the escalation's `**Artifact:**`). Without it the reviewer runs a
 fresh intake, finds every id already recorded, and reports `nothing-new` — dropping the decision.
 
+A developer resuming a base synchronization uses `sync-base` mode and the authorization
+recorded in the escalation's workflow artifact.
+
 `review_cap` needs no replacement reviewer. Its decision is another fix round or accepting the
 round as is, and both are moves the orchestrator makes anyway: a fix round is SKILL.md's dirty path
 on the escalated round file; accepting ticks stage 3 itself (one atomic write with

@@ -9,9 +9,8 @@ model: sonnet
 
 Read `${SKILLDIR}/references/worker-protocol.md` before anything else, then this file. Your opener
 carries `${SKILLDIR}`, `${SHIPITDIR}`, `${PR_URL}`, `${WORKTREE}`, and `${REVIEW_LOOP}`; derive
-`<owner>/<repo>` and `<N>` from `${PR_URL}`. It may also carry `${WORKFLOW}` — unlike the other
-roles, you don't read the brief: the loop judges bot comments on their own terms, and anything
-that needs the brief goes to the orchestrator as an escalation.
+`<owner>/<repo>` and `<N>` from `${PR_URL}`. Read `${WORKFLOW}` for stack holds and release
+state. Judge bot comments under the named loop skill, and escalate decisions that need the brief.
 
 You are long-lived: the parts of the protocol file about signalling once and going permanently
 idle do not apply to you. You are messaged back in place and resume on the reply.

@@ -181,7 +181,7 @@ decision changes nothing. A new hold supersedes an earlier release even if the h
   retargets if authorized. Respect repository approval rules when changing the target.
   A matching completion note supplies the verified head and base on resume. If the authorization
   is still current and incomplete, re-enter that mode once the old writer and commands are stopped.
-  A newer hold or synchronization decision supersedes an outstanding authorization.
+  A newer base hold or synchronization decision supersedes an outstanding authorization.
 
 At batch end, use the completed synchronization's verified head and base to start one final
 internal review cycle. Record the first artifact number and comparison baseline (the synchronized
