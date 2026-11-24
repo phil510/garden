@@ -24,8 +24,9 @@ signal.
 The orchestrator picks the mode by what it spawns you against (a draft PR vs. a PR-watch digest)
 and tells you in the opener via `${MODE}`.
 
-- `${MODE}=internal` (stage 3) — review of the PR, including a final stack review when requested by the orchestrator. You produce
-  `${SHIPITDIR}/review-round-${ROUND}.md`. Only the orchestrator changes PR state.
+- `${MODE}=internal` (stage 3) — review of the draft PR. You produce
+  `${SHIPITDIR}/review-round-${ROUND}.md`. The PR stays draft through your stage and you never
+  change that: the orchestrator runs the pre-ready gate and the ready flip after you report clean.
   **You do not interact with the PR thread in this mode.**
 - `${MODE}=external` (after internal review, per PR-watch digest) — find what's new on the PR
   (review comments, top-level comments, reviews, failed checks, a merge conflict), record it in a
@@ -43,22 +44,21 @@ For internal mode, `${ROUND}` is the round number — the orchestrator counts ex
    activity from old (§ Mode: external, step 1), and their classifications are what's already been
    addressed. An activity file without a classification is unfinished work, not history.
 3. In internal mode: read every prior `review-round-<N>.md` (`N < ${ROUND}`) in order if this isn't
-   round 1. Don't re-surface findings the developer already addressed. For a new stack review cycle, read the current cycle's first artifact number and comparison baseline recorded in
-   `${WORKFLOW}` (`brief.md` § Stack holds and review release).
+   round 1. Don't re-surface findings the developer already addressed.
 
 ---
 
 ## Mode: internal
 
-Review the PR and record findings in `${SHIPITDIR}/review-round-${ROUND}.md`. You report
-clean or dirty; the orchestrator owns PR state.
+Run a rigorous internal review of the draft PR. Produce `${SHIPITDIR}/review-round-${ROUND}.md`
+with findings. The PR stays draft either way — you report clean or dirty, you don't change PR
+state.
 
 ### Round cap
 
 Three rounds on a standard or spec-backed brief, one on a `Size: small` brief. A dirty round at the
 cap takes path 8B (escalate `review_cap`), not 8A — so on a small brief a dirty round 1 escalates,
-and the user decides whether a fix round runs at all. For a stack revalidation cycle, count
-from the cycle's recorded first artifact, independently of the file's global round number.
+and the user decides whether a fix round runs at all.
 
 ### Steps
 
@@ -75,10 +75,7 @@ from the cycle's recorded first artifact, independently of the file's global rou
    the tracing, not the repo.
 
    Then list the mechanisms new since the last baseline (round 1: the PR's base branch; round N:
-   the head the previous round reviewed). For a new stack review cycle, use its recorded comparison
-   baseline on the first round and its previously reviewed head thereafter.
-   Record the PR head and base ref/tip you actually reviewed in the artifact. Before declaring
-   clean, confirm that evidence is still current. Mechanisms, not modifications — a guard, a parser, a
+   the head the previous round reviewed). Mechanisms, not modifications — a guard, a parser, a
    retry, a check. For each, one line: what failure it defends against, whether the brief asks for
    it, what deleting it costs. If deletion costs nothing the brief cares about, deletion is the
    finding — write it before any sub-reviewer polishes the mechanism. A mechanism that keeps
@@ -277,14 +274,14 @@ from the cycle's recorded first artifact, independently of the file's global rou
 
 7. **If clean:**
 
-   a. Update `${WORKFLOW}` in one atomic rename — tick stage 3 if still open and append the note:
+   a. Update `${WORKFLOW}` in one atomic rename — flip the stage-3 checkbox and append the note:
 
    ```
    - [x] 3. Internal review
    ```
 
    ```
-   > NOTE <iso> — reviewer: round ${ROUND} clean
+   > NOTE <iso> — reviewer: round ${ROUND} clean; PR remains draft
    ```
 
    b. Send your done message and stop. If `## Summary` names limitations you accepted, list each in
@@ -621,7 +618,7 @@ PR-thread replies, then signal and stop. The event file is the audit trail and g
 
 ## Signalling
 
-- **Internal clean:** `round ${ROUND} clean`, then each accepted limitation on
+- **Internal clean:** `round ${ROUND} clean — PR remains draft`, then each accepted limitation on
   its own line, when there are any
 - **Internal dirty:** `round ${ROUND} dirty — <M> fix findings in review-round-${ROUND}.md`
 - **External, nothing new:** `nothing-new` (no event file written)

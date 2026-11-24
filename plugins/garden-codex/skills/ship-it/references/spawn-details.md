@@ -116,7 +116,7 @@ About five lines, carrying only what the role prompt can't know:
 - your verified native return address when exposed, for V2 messaging;
 - the values for the variables the Contract's opener table lists for the role — absolute paths
   spelled out in full, since there is no `envsubst`, no shell export, and no expansion at spawn;
-- for multi-mode roles, the mode: _"You are in `fix-round` mode — follow that section."_ Mode
+- for dual-mode roles, the mode: _"You are in `fix-round` mode — follow that section."_ Mode
   sections are the only branching primitive in the role prompts.
 
 Example (developer fix-round on an internal review file):
@@ -144,7 +144,7 @@ Stages 1–3 run strictly sequentially. For each:
 
 1. Spawn through the exposed native operation, label the ledger entry with the next-numbered
    role name, and retain the returned handle.
-2. The worker does its stage, finishes its disk writes, then sends its report (`communication.md`
+2. The worker does its stage, finishes its disk writes, then delivers its report (`communication.md`
    § #2).
 3. The orchestrator collects and routes the report (§ Active progress), then retires a done
    reporter (§ Stopping a worker).

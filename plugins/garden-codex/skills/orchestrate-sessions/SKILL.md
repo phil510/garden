@@ -3,14 +3,14 @@ name: orchestrate-sessions
 description: >-
   Create and oversee Codex garden sessions with garden new, ls, adopt, resume and kill.
   Dispatch peers, recover a swarm, and coordinate stacked PRs and review release. Use for
-  "spin up sessions for these issues", "check on the sessions I started", or "wind these
-  down". Use message-session for notes to a named peer and watch-pr for PR activity.
+  "spin up sessions for these issues", "start a session in this repo", "check on the sessions
+  I started", or "wind these down". Use message-session for notes to a named peer and watch-pr for PR activity.
   Server shutdown belongs to garden stop.
 ---
 
 # Orchestrating Codex garden sessions
 
-Garden owns the tmux sessions. Each peer has its own conversation and permissions and can keep
+Garden runs each peer in tmux. Each peer has its own conversation and permissions and can keep
 working when you stop. Use native Codex subagents for bounded work you need to collect within this
 conversation. Garden peers use the CLI and report back by message.
 
@@ -49,59 +49,41 @@ Surface it immediately, including in a later wave. Keep the action with its auth
 
 For a swarm or stack, use an untracked run folder such as `.orchestration/<run>/`. You alone write
 `run.md`. Record the objective, authority and integration plan, ownership by Garden UUID,
-dependencies, release decisions and blockers. Name the event that unblocks each peer and the
-next action when it occurs. Log who made each decision and why. Append superseding decisions
-so a resumed run can recover their sequence.
+dependencies and blockers. Name the event that unblocks each peer and the next action when it
+occurs. Log who made each decision and why.
 
 Each peer writes only its own `<session-id>.md` in that folder. Ask it to open with the assignment
 and update the file at milestones with the PR or result, decisions, blockers and next action.
 Reference GitHub for live PR, review and CI evidence, git for refs and worktrees, and Garden for
 session state. The run file holds intent and decisions. After compaction or resume, read the run
-and member files, then reconcile outstanding blockers and releases against their owning sources.
+and member files, then check whether any recorded blocker has cleared.
 
 ## Coordinate a stack
 
-**Keep drafting parallel.** Put the dependencies and integration check in each brief. Ask each
-peer in the stack to run `ship-it` through internal review and pause at its draft PR before
-external review or ready. Have it report the PR, reviewed head, base ref and tip, main SHA used,
-verification pointers and remaining gates. Keep its configured review loop and merge policy in
-the brief. The peer retains its assignment and is responsible for following through after
-release. See [Stack holds and review release](../ship-it/references/brief.md#stack-holds-and-review-release)
-for the durable handoff.
+**Keep drafting parallel.** Brief stack peers to run `ship-it` through internal review, keep
+their configured review loop, and pause at the draft before the pre-ready gate advances. Ask
+them to report the draft and its verification or blockers. The peer still owns its PR and picks
+up when you give the go-ahead. See [ship-it’s pre-ready gate](../ship-it/SKILL.md#4-pre-ready-gate).
 
-**Relay decisions as they land.** If an upstream PR needs another edit, tell affected peers what
-changed and which base is on hold. Confirm each records the hold in its ship-it artifacts.
-Independent work can continue. In a coordinated update, tell peers when the batch begins and
-ends so intermediate heads do not spend review rounds or advance ready or merge. Once the
-upstream heads settle and validate, synchronize affected peers in dependency order. During the
-merge queue, bring up to date only the next PR whose review loop or merge is due. Name the authorized target ref and tip. Wait for the
-peer’s verified head and final review report before release.
+**Verify the work together.** Run the stack end to end in a sandbox, or build and test a branch
+that carries the combined changes for library-only work. Settle who owns a shared test
+environment so overlapping writes do not invalidate the run.
 
-**Release per PR.** Keep a short queue of drafts and their outstanding gates. Release a PR
-when its integration evidence is green, its own dependencies have merged, and the reviewed PR
-targets and is current with main. Upstream work still under review can change the integration
-result even if the descendant's SHA stays the same. Confirm the current PR head, base ref and tip, and
-main SHA against the evidence before sending a release. Name those values and the verification
-pointer in the message, and confirm the peer has recorded it. A later hold supersedes that release.
-Confirm these values again at first dispatch. After admission, an unrelated advance of main
-alone leaves the running loop valid. Hold affected peers when a change invalidates their
-integration evidence.
+**Relay upstream decisions as they land.** Tell affected peers which base is unsettled and have
+them record the base hold in their ship-it brief so conflict handling does not pull it in. Once
+the upstream change is settled and validated, have affected peers sync in dependency order.
+For several updates, tell peers to batch and say when the batch is done so they hold ready and
+merge and review the final head once. In the merge queue, bring up to date only the next PR
+due for review or merge. Each merge moves the base again. See
+[ship-it’s brief guidance on holds and batching](../ship-it/references/brief.md#mid-pipeline-user-concerns).
 
-- Use sandbox integration evidence for behavior that needs it or builds and tests on the
-  integrated code for library-only changes. Keep a shared environment stable for the test and
-  serialize runs that write to it. Invalidate evidence if a change affects what it verified.
-- Release one or two eligible configured bot loops at a time. An independent PR can advance on
-  its own verified integration and dependencies. A free slot alone cannot release a descendant
-  of an unmerged PR. Have peers report when a configured loop ends, stops, or could not start.
-  Use their current state to dispatch the next eligible PR, even if the old PR still has gates.
-  Match reports to the PR and release so a late report cannot clear a newer loop.
-- A PR configured with `none` uses the same release gate and goes directly to the normal ready
-  gate without using a bot slot. Respect the repository's loop policy. An explicit early-review
-  override can release a configured bot loop before dependencies merge and the PR is current with
-  main. Base holds, the ready gate and merge authority still apply.
-- When a dependency lands, wake owners who can now draft against it. For drafts in the merge
-  queue, take the next eligible update or release as soon as its gates permit. A release grants
-  only the action it names. Any merge follows the existing authority in the brief.
+**Release review per PR.** Send the go-ahead once integration is verified, that PR’s own
+dependencies have merged, and it is current with main. An independent PR can proceed while a
+descendant waits. With configured bot loops, release one or two eligible PRs at a time. Ask
+peers to report when a loop finishes or blocks so the next eligible PR can use the slot. With
+`none`, the go-ahead lets the peer proceed through its normal ready gate without a bot slot.
+Follow repo policy and explicit user overrides, such as reviewing before dependencies merge.
+Merge authority still follows the brief.
 
 ## Pace a large swarm
 

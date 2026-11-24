@@ -29,13 +29,6 @@ PRs and commits because the recipient may be in a different worktree. Put substa
 in a run file the recipient can open. Keep updates and completion reports to a few lines with the
 result, its source and the next action, if any. Quote a relayed decision and identify who made it.
 
-For a stacked ship-it handoff, name the action (review hold, base hold, upstream fix or sync,
-review release), the target PR and its workflow path if known. Name the affected upstream PR or
-base and point to the fix or integration evidence. A release identifies the exact PR head, base
-ref and tip, and the main tip verified. The receiving ship-it owner records the decision in its
-existing workflow before acting and replies with the durable pointer and resulting state so the
-parent can tell when the gate actually took effect.
-
 ## Send
 
 Sending requires the user's authorization or a workflow they invoked that authorizes it.

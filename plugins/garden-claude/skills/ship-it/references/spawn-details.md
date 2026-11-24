@@ -83,7 +83,7 @@ About five lines, carrying only what the agent definition can't know:
 - the stage, round, or mode tag (`stage 2 initial`, `fix-round 2`, `external classification`);
 - the values for the variables the Contract's opener table lists for the role — absolute paths
   spelled out in full, since there is no `envsubst`, no shell export, and no expansion at spawn;
-- for multi-mode roles, the mode: _"You are in `fix-round` mode — follow that section."_ Mode
+- for dual-mode roles, the mode: _"You are in `fix-round` mode — follow that section."_ Mode
   sections are the only branching primitive in the agent definitions.
 
 Example (developer fix-round on an internal review file):

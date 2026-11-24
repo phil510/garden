@@ -25,11 +25,10 @@ same file afterwards.
 
 ## #2 — Worker-authored messages (worker → orchestrator, asynchronous)
 
-Workers use the native report return rules (`spawn-details.md` § Report return). The orchestrator
-waits actively for the report, including one delivered as a native turn-final result, and routes
-it once for the current owner. The typed report carries the signal.
+Workers use the native report return rules in `spawn-details.md` § Report return. The orchestrator
+waits for and routes the typed report once for the current owner.
 
-1. **Write-then-signal.** The worker finishes its disk writes, _then_ delivers its report, so disk is
+1. **Write-then-signal.** The worker finishes its disk writes, _then_ sends its message, so disk is
    consistent before the orchestrator can act.
 2. **The message carries the routing summary**, in the shapes fixed by SKILL.md's Contract § Worker
    reports — enough for the orchestrator to pick the next dispatch without reading disk.
@@ -47,27 +46,20 @@ downstream anyway. That is distinct from trusting an agent's claims about code b
 workers still verify. The irreversible hops — the ready flip and the merge — re-check GitHub
 directly rather than trusting any report.
 
-### #2 crash fallback — completed turn without a report
+### #2 crash fallback
 
-Inspect the native completion result first. When it has no typed report, run
-`${SKILLDIR}/scripts/pipeline-status.sh` and read the relevant stage artifact. If it proves
-completion, route that result once after confirming the writer and its commands stopped.
-If the stage is known incomplete and the writer and commands are confirmed stopped, re-enter
-from the same input and existing artifacts under the current gates.
-
-Preserve a review-loop owner at a recorded wait. For `awaiting-rereview`, restore the wake path
-from the saved trigger and reuse any matching live backstop. For `awaiting-decision`, use the
-saved request to page the user if the question is still open, using its existing resolution
-if already answered. Keep the owner waiting until the current holds allow the answer to be
-routed. A stage escalation uses its event file and the usual escalation route. If writer or
-command ownership remains uncertain, or the artifacts cannot establish a safe next action,
-report that block and keep the worktree intact (`spawn-details.md` § Stopping a worker).
-Deduplicate late reports by owner and turn.
+Inspect native completion for a typed report. If it has none, run
+`${SKILLDIR}/scripts/pipeline-status.sh` and read the relevant stage artifact. Route a proven
+result once. Replace the worker only once its commands have ended and the ledger shows no
+live owner. If the loop reached `awaiting-rereview`, recover the saved trigger and its backstop
+with the same live owner. For a stage escalation, recover the event file and use the normal
+escalation route. If the artifacts cannot establish the next action, surface the blocker and
+retain the worktree.
 
 ### #2b — Review-loop payload kinds
 
 The review-loop worker is long-lived and **messaged back in place**, never fresh-spawned while it is
-live. It sends these reports; SKILL.md says how the orchestrator handles each.
+live. It sends three kinds; SKILL.md says how the orchestrator handles each.
 
 **triggered** — it posted a re-review trigger:
 
@@ -76,17 +68,9 @@ triggered: round <n>
 bot: <bot key> (<bot login>)   trigger_ts: <the trigger comment's created_at>
 ```
 
-When the loop skill provides a backstop, the orchestrator retains its process handle through
-completion (Contract § Review-loop outcome). The worker idles between triggers. Route backstop
-results and digests under the current holds in `event-routing.md`.
-
-**held** — the loop has reached a safe wait without a new trigger:
-
-```
-held: <saved phase>
-```
-
-Keep its handle and wait to wake it until advancement is authorized.
+The orchestrator starts the loop skill's backstop in the background when one exists (Contract
+§ Review-loop outcome) and forwards its exit code and output when it exits. Between triggers the
+worker idles; the orchestrator also forwards it every non-terminal digest (#6).
 
 **escalating** — a mid-loop item the loop skill won't auto-fix:
 
@@ -96,7 +80,7 @@ why: architectural | security | heavy-lift | preference
 context: <comment id, file/line, what the bot flagged, options>
 ```
 
-The orchestrator pages the user and replies with the decision in free prose once the worker may resume.
+The orchestrator pages the user and replies with the decision in free prose; the worker resumes.
 `why:` classifies the kind of loop item — it is unrelated to an escalation event's `Reason:`, which
 this worker never writes.
 
@@ -106,11 +90,10 @@ this worker never writes.
 done: passed | blocked
 reason: <the loop skill's terminal condition, or why it couldn't run>
 bot: <bot key | none>   rounds: <n>   declined: <n>
-head: <final verified PR head, for a parent-owned stack>
 ```
 
 The worker writes `outcome` and `phase: done` to `review-loop-state.json` before sending it. The
-orchestrator records the outcome NOTE and applies the ready gate or, on `blocked`, pages the user.
+orchestrator records the outcome NOTE and moves on to the ready flip or, on `blocked`, to the user.
 
 The review-loop worker never writes `workflow.md`.
 
@@ -119,10 +102,9 @@ The review-loop worker never writes `workflow.md`.
 Stage workers only; the review-loop worker surfaces through #2b instead.
 
 The orchestrator writes the decision to disk first — the event's `## Resolution` block and the
-`> RESOLVED` annotation, plus a `decisions.md` line when it auto-resolved — then uses the native
-follow-up operation to wake the escalating worker by its existing handle. The worker reads the
-Resolution block and continues in place. The recorded decision governs the work and the message
-wakes the worker.
+`> RESOLVED` annotation, plus a `decisions.md` line when it auto-resolved — then wakes the worker with the native follow-up operation
+to the escalating worker under its existing name. The worker reads the Resolution block (disk is
+authoritative, the message is the wake-up) and continues its stage in place.
 
 Only if the original worker is no longer available, after confirming that worker and its commands
 are quiescent (`spawn-details.md`), fresh-spawn the role under the

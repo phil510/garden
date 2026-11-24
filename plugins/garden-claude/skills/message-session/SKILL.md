@@ -1,10 +1,22 @@
 ---
 name: message-session
-description: >-
-  Send a brief, question, report, or handoff to a separate Claude Code session.
-  Use when given a session name or id, asked to contact the session working on a task,
-  dispatching a peer you started, or reporting to the session that briefed you. Also use to
-  look up a peer's SendMessage address, working directory or transcript path.
+description: >
+  Use when sending a message, note, brief, question, report, or handoff to
+  another Claude Code session — any session outside your own process, whether or
+  not you started it. Triggers include "send a note to the agent in session
+  <uuid>", "message <session-name>", "tell the session working on X", "ask the
+  other session about this", "forward this upstream to that session", "let the
+  CDK session know", a bare session name or id accompanied by any intent to
+  contact it, and every case where the recipient was given as a session name or
+  session id rather than confirmed against ListAgents. Also covers dispatching a
+  brief to a session you launched yourself, reporting back to the session that
+  briefed you, and looking up a session's working directory or transcript path.
+  It carries what a note must say to be actionable cold, and what belongs in a
+  file the recipient can open instead. Resolve the address with the bundled
+  script before calling
+  SendMessage rather than reasoning about which session is meant — a name's
+  suffix cannot be derived from the session id, so the alternative is guessing,
+  and a wrong guess delivers to a real but unintended session with no error.
 ---
 
 # Messaging another session
@@ -90,9 +102,10 @@ rest is pointers.
 
 Everything after the brief — updates, acks, answers, relayed decisions,
 completion reports — is a few lines: what happened, where to look, and what you
-need back (a fix, a decision, or nothing). Quote a relayed decision and identify who made it.
-Name a finding with identifiers the recipient can act on, such as paths, symbols, error text,
-ticket ids and the affected repo. A completion report in full:
+need back (a fix, a decision, or nothing). Quote a decision rather than
+glossing it, and name a finding with identifiers the recipient can act on —
+paths, symbols, error text, ticket ids, which repo hit it. A completion report,
+in full:
 
 > #142 done — PR helloextend/garden#170, CI green, ready to merge. Nothing
 > needed from you.
@@ -101,21 +114,12 @@ Both shapes are shorter than they feel while writing, because you hold the
 whole picture and the recipient needs only the part that changes what it does
 next.
 
-For a stacked ship-it handoff, name the action (review hold, base hold, upstream fix or sync,
-review release), the target PR and its workflow path if known. Name the affected upstream PR or
-base and point to the fix or integration evidence. A release identifies the exact PR head, base
-ref and tip, and the main tip verified. The receiving ship-it owner records the decision in its
-existing workflow before acting and replies with the durable pointer and resulting state so the
-parent can tell when the gate actually took effect.
-
 ## 3. Send
 
-Sending requires the user's authorization or a workflow they invoked that authorizes it.
 Send only on exit `0`, passing the resolved `name` to
 `SendMessage({to: "<name>"})`. `status` is the registry's word for what the
 peer is doing (`idle`, `busy`, `shell`, or `?` when unset) and predicts timing,
 not permission: `idle` lands on the peer's next turn, the rest wait for one.
-Use a reply or independently verified state to confirm the peer acted.
 
 Report to the user what you sent and to which name — routing is the part they
 cannot see, and they may know the recipient is wrong. When sends are the

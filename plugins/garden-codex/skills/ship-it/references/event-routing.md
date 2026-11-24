@@ -50,30 +50,18 @@ outside the worktree before removal; otherwise keep the worktree. Never stop unr
 Route off the line alone. Reading the PR to decide what the digest means is the job of whoever you
 hand it to, and doing it yourself spends your context on text that worker is about to read anyway.
 
-| Digest                                  | Action                                                                                                                                                        |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ends in `merged`                        | SKILL.md's finish step, at once, even with a round in flight. Barrier — no further routing.                                                                   |
-| ends in `closed`                        | SKILL.md's abort path (`--status aborted`), at once; leave branch, worktree, commits and PR intact. Barrier — no further routing.                             |
-| anything else, held                     | Defer as below.                                                                                                                                               |
-| anything else, while a review loop runs | Wake with the native follow-up operation, delivering the line verbatim to the `review-loop` worker, and defer what it doesn't own (§ During the review loop). |
-| anything else, otherwise                | Fresh reviewer in external mode with `${PR_URL}` and the line as `${DIGEST}`.                                                                                 |
+| Digest                                      | Action                                                                                                                                                        |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ends in `merged`                            | SKILL.md's finish step, at once, even with a round in flight. Barrier — no further routing.                                                                   |
+| ends in `closed`                            | SKILL.md's abort path (`--status aborted`), at once; leave branch, worktree, commits and PR intact. Barrier — no further routing.                             |
+| anything else, while paused before the loop | Record the digest for deferred triage below.                                                                                                                  |
+| anything else, while a review loop runs     | Wake with the native follow-up operation, delivering the line verbatim to the `review-loop` worker, and defer what it doesn't own (§ During the review loop). |
+| anything else, otherwise                    | Fresh reviewer in external mode with `${PR_URL}` and the line as `${DIGEST}`.                                                                                 |
 
-Check terminal items first, then apply the hold and release rules in `brief.md` § Stack holds and
-review release before any nonterminal dispatch. A loop owner is a live reconciled handle; a
-configured loop with outcome `pending` has no recipient, and a saved `running` outcome needs
-authorized recovery if its owner is gone. While held, keep nonterminal activity and checks for
-catch-up and leave the watch on. When recording the first deferred item in a hold, note that PR
-intake is due after release. Terminal items still take the table's terminal paths.
-
-On release, reconcile saved loop evidence as described in `brief.md` before resuming a paused
-owner through its saved trigger/status path or starting a new loop.
-Once external intake is allowed and no loop owns the threads, make one catch-up pass with
-`${DIGEST}` `none` and check the current mergeability/checks as applicable. Resume unfinished
-events first as in SKILL.md. Record that the catch-up is complete after reports are routed;
-the event IDs and current checks keep duplicated or superseded input from reopening work.
-A catch-up completion note covers earlier deferred intake and post-loop triage notes.
-If a hold interrupts intake, keep it due. Checks and mergeability results that landed under the
-hold are prompts to re-read live state, not instructions to dispatch against an older head.
+Use the pre-ready pause in SKILL.md § 4 before routing nonterminal activity. While waiting
+for the sender's go-ahead, record activity with the existing `deferred to post-loop triage`
+annotation below. Route to a loop worker once it owns the loop. With the loop skipped, route
+to an external reviewer after release.
 
 Non-terminal digests are routed one at a time. One that arrives while a reviewer or developer round
 is in flight waits until that round has reported, then gets a fresh reviewer like any other. The
@@ -99,13 +87,13 @@ not a verdict.
 ## During the review loop
 
 While the loop runs, the review-loop worker owns the bot's threads, and a reviewer classifying the
-same comments would be a second writer on them. While the loop can advance, it gets nonterminal
-digests and acts only on the bot's review; the rest of the line waits. For each `checks failed` or
+same comments would be a second writer on them. So the worker gets every non-terminal digest and
+acts only on the bot's review; the rest of the line waits. For each `checks failed` or
 merge-conflict segment, and each review by an author other than the bot's login (the worker's
 `triggered` names it), append
 `> NOTE <iso> — orchestrator: deferred to post-loop triage: <segment> (digest <id>)`.
 
-When the loop ends — `passed` or `blocked` — and deferred work is still due, spawn one external
+When the loop ends — `passed` or `blocked` — and `workflow.md` has any such note, spawn one external
 reviewer with `${DIGEST}` `none`, which reads the PR's current state rather than replaying each
 digest, because the loop's own commits may already have cleared a failure. Comment authors aren't
 on the line, so a human comment during the loop is seen only if something else prompts that read —
@@ -113,9 +101,7 @@ accepted, since nobody is asked to review a draft.
 
 ## Checks wait
 
-Run one after the ready flip and after every push a fix round makes, subject to the current
-hold. Check before starting the wait, again when routing its result, and before dispatching a
-conflict fix or re-check. If held, use the same catch-up path as for nonterminal digests. It's what notices a PR going
+Run one after the ready flip and after every push a fix round makes. It's what notices a PR going
 green — without it, a PR whose last check passes with no other activity sits mergeable and nobody
 acts.
 
@@ -175,8 +161,7 @@ still settling (`UNKNOWN`, `BLOCKED`, or no checks reported) or at the deadline.
 Bot and human comments get the same dispositions:
 
 - `fix` → spawn a fresh developer in fix-round-from-event mode; it commits, replies, and resolves
-  the conversation. For a changed head in a parent-owned stack, revalidate the release before
-  the checks wait (`brief.md` § Stack holds and review release).
+  the conversation. Its push starts a checks wait.
 - `decline` → nothing to dispatch: the reviewer has already replied with the reason and left the
   conversation open for visibility. An open declined thread doesn't hold the merge.
 - `escalate` → the reviewer annotates and sends `ESCALATING`; resolve it (`escalate-resume.md`),

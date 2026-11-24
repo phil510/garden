@@ -16,7 +16,7 @@ the user. Workers own PR voice — replies and thread resolves; you write to the
 flip, the curated decisions in its body, and the merge.
 
 Four workers — planner, developer, reviewer, review-loop — run as native Codex subagents.
-Each reads its bundled role prompt in a fresh context and reports through the native interface. The Contract at the end
+Each reads its bundled role prompt in a fresh context and reports back with one native report. The Contract at the end
 of this file fixes every name, path, opener variable and report shape they share; when a reference
 or a worker definition seems to disagree with it, the Contract wins.
 
@@ -39,8 +39,8 @@ Each of these is load-bearing, and each fails silently when broken.
   not to inline, or to verify a high-stakes hop — and prefer `pipeline-status.sh` over raw reads.
   When you delegate the verifying, ask for the verdict and where it was seen, not the evidence: a
   subagent's return lands whole in your context. Before a worker reports, don't poll.
-- **Inspect native completion for a report.** If the completed worker supplied no report, use
-  `spawn-details.md` § Active progress and `communication.md` § #2 to recover from interrupted work.
+- **Inspect native completion for a report.** If the completed turn supplied none, use the
+  disk fallback in `communication.md` § #2.
 - **Resolve ambiguity at intake.** An assumption about _what_ to build produces an escalation at
   every stage that inherits it. The triage gate (`references/brief.md`) is where it gets caught.
 - **Reports out of the pipeline are short.** The milestone, the decision you need if any, and a
@@ -103,9 +103,8 @@ operation is not a wake-up.
 After a done report, retire the handle and confirm owned commands have ended before the next
 writer. Never retire a worker waiting for a decision you still intend to send. See
 `spawn-details.md` for dispatch, process handles and retirement. After each spawn or wake, stay
-active and collect its report as described in § Active progress. Route it and take the next
-authorized step in the same turn. Yield when a human decision or a verified external wake is
-the next dependency.
+active and collect its report (§ Active progress). Route it and take the next authorized step.
+Yield when a human decision or a confirmed external wake is the next dependency.
 
 ## Scripts
 
@@ -179,53 +178,42 @@ If the user asks to drop it, `garden unwatch <pr-number>` and append
 the pipeline is user-driven: they tell you when the PR merges or closes. Release this run’s
 forwarder only under the transport ownership rules; other watches may still need it.
 
-Before advancing, apply `brief.md` § Stack holds and review release, including for a loop of
-`none`. While held, report the owned draft and record decisions from the parent. Route terminal
-digests immediately. Route only authorized synchronization, user edits or final-head review
-work while normal dispatch is held. Use the same gate after a resume, a release or a worker
-report. Reconcile a saved loop against the current release before branching on its outcome. With
-dispatch authorized, branch on `Review loop`:
+If the brief asks you to pause before the review loop, report the owned draft to the sender
+and wait for their go-ahead. The pause also applies when the review loop is `none` and when
+resuming a draft. Record the go-ahead in the brief using `brief.md` § Brief editing mid-pipeline.
+When released, branch on the brief's `Review loop`:
 
 - **`none`** → the outcome is `skipped`. Append `> NOTE <iso> — orchestrator: review loop skipped`
-  if missing, route any due catch-up intake, then go to step 5. No bot-loop worker is spawned.
+  and go to step 5 after any deferred external intake described below. No loop worker is spawned.
   `pipeline-status.sh` derives `skipped` from the brief.
-- **A skill name** → resume the authorized live loop or spawn `review-loop` with `REVIEW_LOOP`
-  set to it if no owner exists and the gate is still outstanding. The worker owns the bot's
+- **A skill name** → spawn `review-loop` with `REVIEW_LOOP` set to it. The worker owns the bot's
   threads until it reports `done`; digests go to it (`event-routing.md` § During the review loop).
   A loop skill that isn't available in the session, or a repo with no bot that skill can drive,
   comes back as `done: blocked` with the reason — the worker decides that, not you.
 
-Review-loop messages are answered in place, never by a fresh spawn. While held, let the existing
-owner reach its safe waiting point, process its reports and retain the handle. Apply the hold to
-backstop results and digests before waking it for more review work.
+Review-loop messages are answered in place, never by a fresh spawn:
 
 - `triggered` → read `skill_dir` from `review-loop-state.json`. If `<skill_dir>/scripts/backstop.sh`
   exists, run it with the shell tool’s retained process handle as the Contract gives it; when it exits, forward
   `backstop: exit <code>` and its output to the worker, even if a later trigger superseded it — the
   worker matches `trigger_ts` and drops stale results. With no backstop, digests are the only
   wake-up.
-- `held: <phase>` → retain the idle owner and apply the current hold. When released, wake it in
-  place with any saved decision or its saved trigger/status path.
-- `escalating` → page the user for the decision. Record the answer, but wake the owner only
-  when authorized to advance the loop.
+- `escalating` → page the user; wake the owner with the decision through the native follow-up operation.
 - `done: passed | blocked` → retire the worker, append
   `> NOTE <iso> — orchestrator: review loop <passed|blocked>`, and drop any backstop result that
-  arrives later. If post-loop triage is still due in `workflow.md`, spawn one external
-  reviewer with `${DIGEST}` `none` once external intake is permitted, then route its report.
-  Combine this with any due held catch-up intake. For a stack, record the loop's resulting head
-  and release evidence alongside the outcome. Tell the Garden parent immediately via `message-session`,
-  naming the PR, release and outcome, so the parent can free the slot while the PR still awaits
-  intake, ready or merge. On recovery, send the outcome if delivery was not confirmed.
-  Apply the current hold and release gates before proceeding. Then: `passed` → step 5;
+  arrives later. If the parent requested a loop completion report, send it now. Route any
+  deferred external intake before moving on. Then: `passed` → step 5;
   `blocked` → the PR stays draft. Page the user with the `reason` and ask: flip to ready anyway
   (step 5) or stop (§ Abort).
+
+After the pause and any configured loop end, handle deferred activity once. If `workflow.md`
+has a `deferred to post-loop triage` note, spawn one external reviewer with `${DIGEST}` `none`
+and route its report before advancing.
 
 ### 5. Ready flip
 
 Runs on `passed` or `skipped`, or on the user's word after `blocked`, and nowhere else — ready is
-the moment humans and full CI start reading the PR. Recheck the current hold and release evidence
-before the ready flip (`brief.md` § Stack holds and review release). An early loop override alone
-does not authorize ready. Complete due intake and route its findings before flipping.
+the moment humans and full CI start reading the PR.
 
 1. Put the decisions on the PR. `decisions.md` is the complete internal log; the PR gets a curated
    set, because a reviewer reads it to find the choices worth questioning, not to audit the run.
@@ -248,7 +236,7 @@ does not authorize ready. Complete due intake and route its findings before flip
 ### 6. Watch
 
 Route each digest per `event-routing.md` § Digest routing — `merged` → § Finish, `closed` → § Abort,
-both at once. For other activity, apply the hold, loop ownership and sequencing rules there. You don't
+both at once; anything else to a fresh external reviewer with the line as `${DIGEST}`. You don't
 read GitHub to interpret a digest; whoever gets the line does.
 
 Route each external reviewer report:
@@ -260,17 +248,14 @@ Route each external reviewer report:
 - `pr merged` / `pr closed` → § Finish / § Abort.
 - `; clean <head-sha>` on either of the first two → step 7.
 
-After an external fix round or a user's direct edit, use `brief.md` § Stack holds and review
-release for a parent-owned PR whose reviewed head changed. After external fixes that need
-no such handoff, start an authorized checks wait. A new push supersedes a running
-wait. The developer resolves conflicts before reporting; the checks wait retries `UNKNOWN`.
+After every fix round's push, start a checks wait; a new push supersedes a running one. The
+developer's mergeability line never reports `CONFLICTING` — it merges the base first — but an
+`UNKNOWN` it couldn't settle is for the checks wait's own mergeability check to retry.
 
 ### 7. Merge eligibility
 
 You alone decide this and you alone merge, because merge is the one irreversible act in the
-pipeline. Check the current hold and release first, including before any conflict fix or merge
-mutation (`brief.md` § Stack holds and review release). If held, retain the pending work for
-catch-up. Otherwise run it on each trigger — a checks wait or re-check wait ending, or a reviewer reporting
+pipeline. Run it on each trigger — a checks wait or re-check wait ending, or a reviewer reporting
 `clean <head-sha>` — since the PR may have moved between them. Take every reading at one head:
 
 ```bash
@@ -409,18 +394,17 @@ cleanup was interrupted. Do not start a forwarder for a completed, aborted or op
 
 First distinguish compaction from a fresh runtime. After compaction, inspect native agent status
 and recover the existing ledger; live or idle workers still own their work. Wake those workers
-only once the applicable gate allows it instead of replacing them. General compaction notes are independent of `.ship-it` state.
+instead of replacing them. General compaction notes are independent of `.ship-it` state.
 
 In a fresh runtime, old handles cannot be resumed. Reconcile any still-owned shell processes
 before replacing a writer; uncertainty keeps the worktree and pauses replacement. Once prior
 writers are quiescent, the ledger starts empty and counters restart at 1. The table below is for
 that fresh-runtime recovery; it does not authorize duplicate workers after compaction.
-Confirm terminal PR state for stage 4 before reopening work or paging about an escalation.
-For open PRs, resolve `open_escalations[]` under § Escalations before resuming affected work.
-Defer stage-4 classification escalations while external intake is held. A fresh-spawn fallback
-uses the escalation's `**Artifact:**` as `${EVENT_FILE}` for an external reviewer. Then re-enter
-from the status JSON. Apply the step 4 release and saved-loop reconciliation before using a
-loop outcome or saved trigger for a parent-owned draft, and refresh status if it archives state:
+Before advancing, close each `open_escalations[]` entry as in § Escalations — the escalator is
+gone, so this is the fresh-spawn fallback (for an external reviewer, `${EVENT_FILE}` is the
+escalation's `**Artifact:**`). Then re-enter from the status JSON. For a draft, after restoring
+the watch and before acting on the saved loop outcome, apply the existing pre-ready pause in
+step 4. If the pause still applies, leave the watch active and wait for the sender's go-ahead:
 
 | State                                      | Re-entry                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -428,11 +412,10 @@ loop outcome or saved trigger for a parent-owned draft, and refresh status if it
 | `current_stage` 1–3                        | Fresh-spawn that stage's worker. After a `review_cap` fix round, the developer comes first and the reviewer follows.                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `current_stage` 4, PR `MERGED` / `CLOSED`  | § Finish / § Abort — both safe to repeat.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `current_stage` 4, otherwise — first       | Reconcile the forwarder and re-confirm transport connection per `event-routing.md` § Codex transport ownership, then re-run `garden watch` as in step 4 unless the `opted out` note exists (it's idempotent; inspect the current Garden session's watches), adding `--ignore-check <name>` for each `PR watch ignores check` note in `workflow.md` not followed by a matching `unignores` note. Record any limitation in the last clean round's `## Summary` that `decisions.md` lacks — the old session may have died first. |
-| then held                                  | Apply the same gate as step 4. Read full workflow, reconcile the existing owner and recover any authorized synchronization or final review. Otherwise wait for release and leave the watch active for terminal digests.                                                                                                                                                                                                                                                                                                       |
-| `review_loop.outcome` `pending`, PR draft  | With release confirmed where applicable, dispatch as in step 4.                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `running`                                  | With release confirmed where applicable, recover the existing owner or replace a quiescent one from the saved state. Resume the saved trigger/backstop if needed.                                                                                                                                                                                                                                                                                                                                                             |
-| `skipped`, `passed` or `blocked`, PR draft | Apply the stage-4 hold and catch-up rules again. Append the outcome NOTE if missing, then step 5 or, on `blocked`, the user page.                                                                                                                                                                                                                                                                                                                                                                                             |
-| any outcome, PR ready                      | When eligible to advance, finish unclassified activity and pending developer findings, then run one catch-up reviewer with `${DIGEST}` `none` and a checks wait.                                                                                                                                                                                                                                                                                                                                                              |
+| then `review_loop.outcome` `pending`       | Spawn `review-loop` as in step 4.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `running`                                  | Re-spawn `review-loop`; it rebuilds from its state file and the loop skill's own files. If `phase` is `awaiting-rereview`, also start a backstop for the saved `bot` and `trigger_ts`.                                                                                                                                                                                                                                                                                                                                        |
+| `skipped`, `passed` or `blocked`, PR draft | Append the outcome NOTE if missing, route any deferred intake as in step 4, then go to step 5 or, on `blocked`, page the user.                                                                                                                                                                                                                                                                                                                                                                                                |
+| any outcome, PR ready                      | Finish the event work left behind: an `events[]` entry of kind `activity` with `classified: false` → external reviewer with it as `${EVENT_FILE}`; `fix_findings > 0` with no developer round → a developer fix round. Then, in a new session, one external reviewer with `${DIGEST}` `none` — activity while nobody watched reached no digest — and a checks wait.                                                                                                                                                           |
 
 Route each report as usual before starting the next item.
 
@@ -499,7 +482,6 @@ the worker substitutes them mentally wherever its instructions say `${VAR}`.
 | planner               | `SKILLDIR`, `BRANCH`, `WORKTREE`, `SHIPITDIR`, `WORKFLOW`                                                        |
 | developer (initial)   | + `MODE`                                                                                                         |
 | developer (fix-round) | + `PR_URL`, `MODE`, `ROUND`, and `REVIEW_FILE` or `EVENT_FILE`                                                   |
-| developer (sync-base) | + `PR_URL` and `MODE`                                                                                            |
 | reviewer (internal)   | + `PR_URL`, `MODE`, `ROUND`                                                                                      |
 | reviewer (external)   | + `PR_URL`, `MODE`, and `DIGEST` (`none` when no digest prompted the spawn) — or `EVENT_FILE` to finish an event |
 | review-loop           | + `PR_URL`, `REVIEW_LOOP`                                                                                        |
@@ -557,15 +539,7 @@ The pre-ready gate ends in exactly one of `skipped | passed | blocked`.
 state file yet) or `running` (state file present, `phase` not `done`). Resume branches on that
 field, never on whether the state file exists.
 
-`review-loop-state.json` is rewritten atomically by the review-loop worker on every transition.
-For a parent-owned stack, also record the release note timestamp and the latest verified `head`.
-The timestamp points to the release's PR and ref evidence in `workflow.md`. The orchestrator may
-archive this file when a release supersedes it, after stopping the writer and its commands.
-
-For `awaiting-decision`, Codex also stores `decision_request`, the typed escalation payload, so a
-lost report can be recovered from disk. Record it atomically with the phase transition.
-
-Core state fields:
+`review-loop-state.json` is rewritten atomically by the review-loop worker on every transition:
 
 ```json
 {
@@ -599,21 +573,19 @@ The PR flips to ready on `passed` or `skipped`. On `blocked` it stays draft and 
 ### Worker reports
 
 Each worker finishes its disk writes, then delivers exactly one of these through its native
-report operation (`spawn-details.md` § Native operations). The
-orchestrator routes off the first line.
+report operation (`spawn-details.md` § Report return). The orchestrator routes off the first line.
 
-| Worker               | Report                                                                                                                   |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| planner              | `stage 1 done — plan.md written, <N> tasks, coverage table complete`                                                     |
-| developer, initial   | `stage 2 done — draft PR <url>, commits <shas>` + mergeability line                                                      |
-| developer, fix-round | `fix-round <K> done — <N> findings fixed, commits <shas>, pushed` + mergeability line                                    |
-| developer, sync-base | `base sync done — <ref> at <tip>, verified` + mergeability line                                                          |
-| reviewer, internal   | `round <K> clean` (then one line per accepted limitation) or `round <K> dirty — <M> fix findings in review-round-<K>.md` |
-| reviewer, external   | `nothing-new`, `event <file> classified — <P> fix, <Q> decline, <R> escalate`, `pr merged`, or `pr closed`               |
-| review-loop          | `triggered`, `held: <phase>`, `escalating`, or `done: <passed\|blocked>` — shapes in `references/communication.md` § #2b |
-| any stage worker     | `ESCALATING — see events/<iso>-escalation.md, decision needed on <X>`                                                    |
+| Worker               | Report                                                                                                                                      |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| planner              | `stage 1 done — plan.md written, <N> tasks, coverage table complete`                                                                        |
+| developer, initial   | `stage 2 done — draft PR <url>, commits <shas>` + mergeability line                                                                         |
+| developer, fix-round | `fix-round <K> done — <N> findings fixed, commits <shas>, pushed` + mergeability line                                                       |
+| reviewer, internal   | `round <K> clean — PR remains draft` (then one line per accepted limitation) or `round <K> dirty — <M> fix findings in review-round-<K>.md` |
+| reviewer, external   | `nothing-new`, `event <file> classified — <P> fix, <Q> decline, <R> escalate`, `pr merged`, or `pr closed`                                  |
+| review-loop          | `triggered`, `escalating`, or `done: <passed\|blocked>` — shapes in `references/communication.md` § #2b                                     |
+| any stage worker     | `ESCALATING — see events/<iso>-escalation.md, decision needed on <X>`                                                                       |
 
-- **Mergeability line** (developer): `mergeability: <mergeable> / <mergeStateStatus> at
+- **Mergeability line** (developer, both modes): `mergeability: <mergeable> / <mergeStateStatus> at
 <head-sha>`, from `gh pr view --json mergeable,mergeStateStatus,headRefOid` after the last push.
   The developer never reports `CONFLICTING`: it merges the base, re-runs verify, pushes, and checks
   again. `UNKNOWN` is retried under a bound and reported as-is if it never settles.

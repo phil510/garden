@@ -139,92 +139,20 @@ as authorial input that can override the brief, not as another reviewer finding:
 2. Scope change: follow § Brief editing mid-pipeline, citing "user concern" in the annotation.
 3. Fix round: write a minimal findings-shaped input (`## User concern` with `Disposition: fix`,
    `Severity`, `Location`, `Issue`, `Failure scenario`) into the next-numbered `review-round-N.md`
-   and dispatch a fresh developer fix round against it. A small edit has a settled outcome and
-   a known location, and changes no contract, security boundary or data invariant. Before stage 3
-   is ticked, it joins the normal review sequence. After stage 3, use the developer's verified
-   push as completion evidence. Record the small-edit decision in the round input for recovery.
-   For a parent-owned PR with a changed head, follow § Stack holds and review release. Larger
-   edits go through the usual developer → reviewer rounds under the round cap.
+   and dispatch a fresh developer fix round against it. A small edit — the outcome is settled, the
+   location known, and it changes no contract, security boundary or data invariant — ends at the
+   developer's report once stage 3 is ticked, with no reviewer after it: reviewing a decided,
+   located change can only re-litigate the decision. Line count isn't the test; a one-line change
+   to an auth check is not small. Before stage 3 is ticked, a small edit joins the normal sequence.
+   Anything larger goes through the usual developer → reviewer rounds under the round cap.
 4. Act only between worker invocations. If a worker is running, wait for its report. A worker
    waiting on an escalation is not running: edit the brief, then tell it to re-read it in the
    decision message; a fix-round ask waits until that worker reports.
 
+When told to batch — syncing several stacked PRs, say — dispatch developers without review, and
+hold the ready flip and merge, until told the batch is done; then review the final head once. Each
+intermediate head is superseded before anyone merges it, so reviewing it pays for findings on code
+that never ships.
+
 The user's authorial word trumps the brief. If a concern contradicts an active AC, edit the AC;
 don't route the user's own note through reviewer classification.
-
-## Stack holds and review release
-
-A standalone run follows the usual pre-ready gate. When a Garden parent owns a stack, use
-`message-session` to coordinate; the parent decides when to release review and the peer still owns
-its PR. Put the parent and the instruction to pause before review/ready in the initial brief.
-This includes `Review loop: none`: the pause protects the ready flip even without a bot.
-
-On internal-review clean, tell the parent the draft PR, reviewed head, base ref and tip, current
-main tip, verification result, and remaining gates. Start or recover the watch as usual. Record
-the parent's messages in the existing §5 and workflow annotations, then acknowledge the recorded decision and current state. Use the latest applicable instruction from
-the full workflow, not the last few annotations from status. When a writer owns the workflow, queue the change and
-stop further dispatch until it reports, then record it before routing the report. A running loop
-writes only its own state, so the orchestrator can annotate an incoming hold immediately and
-update the brief at the loop's next safe waiting point. A duplicate message for the same
-decision changes nothing. A new hold supersedes an earlier release even if the head is unchanged.
-
-- **Review hold.** Wait before starting or advancing a configured bot loop, handling external
-  review or CI fixes, flipping ready, or merging. An explicit review release clears this hold for
-  the head and base it names. A legacy free-text pause also needs its sender's go-ahead on resume.
-- **Base hold.** Record which base is unsettled in §5. Do not sync it or start an automatic fix
-  against it, even if checks or conflict detection ask for one. Wait for the parent to identify the
-  settled base and authorize synchronization. A base hold and a review hold clear independently.
-- **Batch.** While review is held, run only the work the parent authorizes. When this PR is next
-  to update, record the parent’s synchronization authorization in a workflow note with the
-  target ref and settled tip. Wait for any in-flight worker to stop writing, then dispatch a
-  developer in `sync-base` mode. That worker integrates the tip without rewriting history and
-  retargets if authorized. Respect repository approval rules when changing the target.
-  A matching completion note supplies the verified head and base on resume. If the authorization
-  is still current and incomplete, re-enter that mode once the old writer and commands are stopped.
-  A newer base hold or synchronization decision supersedes an outstanding authorization.
-
-At batch end, use the completed synchronization's verified head and base to start one final
-internal review cycle. Record the first artifact number and comparison baseline (the synchronized
-base tip) in a workflow note before dispatch. Follow the internal dirty/fix/review path within
-that cycle's round budget. Later comparisons use the previously reviewed head in the cycle.
-Keep artifact numbers increasing across cycles. On resume, recover unfinished work from the
-cycle note and its artifacts before advancing. On clean, report the current verified head and
-review evidence to the parent and wait for release.
-
-At normal release the parent confirms that this PR's own upstreams merged and integration passed.
-Record the PR, reviewed head, base ref and tip, current main tip and verification evidence. Before
-first dispatch under that release, including after a restart before dispatch, compare that evidence
-to the current PR and remote refs. Confirm the PR targets and includes current main. Record
-admission against the release note when the work starts. If stale evidence or a newer hold
-prevents first dispatch, tell the parent the work did not start and wait for a current release.
-An explicit early-review override checks the named refs at admission. It can start the configured
-loop before the normal dependency and integration gates. Base synchronization, ready and
-merge still have their own gates, and the repository's bot policy and merge authority apply.
-
-When a fix outside the loop changes a reviewed head, hold further external intake, ready and
-merge. This includes fixes from external intake and a user's direct edit. Use the developer's
-verified head and base from the completed round. For a small, settled user edit, carry the prior
-review forward with the explicit user direction and developer verification if the delta contains
-only that edit. Send that evidence to the parent for a fresh release without another internal
-review. For other fixes or a change to the integrated base, use the final-head review cycle
-above. Compare against the previous reviewed head on the same base or the new base tip if the
-fix integrated a new base.
-Recover the handoff from the completed round and any review-cycle note if the worker report was
-missed. Once re-released, a draft returns to the pre-ready gate. A PR already ready resumes due
-intake and checks on the new head under the normal merge policy.
-
-After admission, use the recorded head and base ref to route follow-ups and recover saved work.
-An unrelated advance of main alone leaves the admitted release and trigger valid, including when
-main is the base. Continue to check live mergeability and checks at the current PR head. A hold
-pauses dispatch. A retarget, change to an upstream PR used for integration, or other invalidation
-of the integration evidence requires revalidation. A loop can continue across its own authorized
-and verified fix pushes. Use its recorded lineage to distinguish those pushes from an outside
-head change, and record its final verified head with the outcome.
-
-When the parent clears a hold and the admitted head, base ref and integration evidence still
-apply, resume the same owner and trigger. If new evidence supersedes the saved loop, stop
-routing to that owner. Once it and its commands are confirmed stopped, archive the active state
-under its release note timestamp and retire its backstop. Tell the parent which PR and release
-stopped so it can schedule the next loop. Re-read status, which now reports `pending`. An
-eligible draft can start a new loop after fresh admission, preserving the prior decline ledger.
-Ignore late reports or backstops for the archived state.

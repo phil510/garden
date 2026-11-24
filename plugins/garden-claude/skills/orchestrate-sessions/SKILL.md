@@ -151,10 +151,9 @@ A wave's life, in order:
    ("Dispatch"), and they reach the human as one batch when its wave opens. Permission prompts are
    not held: one is a ten-second answer, the console shows `needs-approval` whatever you hold back,
    and a peer stalled on a prompt before its draft exists is drafting being gated.
-3. **Each session pauses at its draft PR.** Name its Garden parent and the review hold in the
-   ship-it brief. It runs through internal review, then reports the reviewed PR head, base ref and
-   tip, main tip and verification. The peer keeps ownership and waits before the bot loop or the
-   ready flip, including on PRs configured with `none`.
+3. **Each session pauses at its draft PR.** It runs ship-it through internal review, with its review
+   loop named as usual, and stops before that loop starts to wait for your go-ahead. Everything
+   past that point spends review rounds before anyone knows the wave fits together.
 4. **Verify the wave.** Verified means sandbox-tested end to end — or, for library-only PRs, one
    integration branch carrying all of them that builds and tests green — with no further changes
    expected. Until then a downstream finding can still change an upstream PR. Verification spends
@@ -175,17 +174,7 @@ A wave's life, in order:
    it. Ripple runs along dependencies, not waves, so the gate does too: a PR whose dependencies
    have merged doesn't wait on unrelated PRs, and the upper PR of a stack inside one wave waits for
    the lower one. One or two at a time keeps review traffic at the rate the human can read it.
-   Which PR to bring up to date when is in "Trust the peer's pipeline". Ask peers to message you
-   when a configured loop ends, stops, or could not start. Use their current state to dispatch
-   the next eligible PR, even if the old PR still has gates. Match reports to the PR and release
-   so a late report cannot clear a newer loop. Use `message-session` to
-   send each release through the [ship-it handoff](../ship-it/references/brief.md#stack-holds-and-review-release).
-   Name the PR, reviewed head, base ref and tip, current main tip and verification evidence.
-   Confirm the peer recorded it. Check those values again at first dispatch. After admission,
-   an unrelated advance of main alone leaves the running loop valid. Hold affected peers when
-   a change invalidates their integration evidence.
-   Respect the repository's loop policy. An explicit early-review override uses the same ref
-   evidence and releases only the configured bot loop.
+   Which PR to bring up to date when is in "Trust the peer's pipeline".
 6. **Hand PRs to the human as they become ready**, in the one merge-ordered list "Keep the traffic
    small" describes. With loops released per PR, PRs go ready one at a time, and a list kept current
    lets the human merge continuously instead of waiting for a whole wave.
@@ -364,9 +353,7 @@ touch a contract or invariant says so and runs rounds; the peer's judgment stays
 stack, tell each peer to batch: say when the batch ends and review the final heads once, since each
 intermediate head is superseded before anyone merges it. In a queue of PRs waiting to merge, bring
 up to date only the one that merges, or has its loop released, next: every merge moves the base
-again, so updating the whole queue after each one redoes the same work once per merge ahead of it. Name
-its authorized target ref and tip in the synchronization message, and wait for the peer's verified
-head and final review report before release.
+again, so updating the whole queue after each one redoes the same work once per merge ahead of it.
 
 ## Wait on reports, never by polling
 

@@ -8,16 +8,17 @@ description: >-
 
 Read `${SKILLDIR}/references/worker-protocol.md` before anything else, then this file. Your opener
 carries `${SKILLDIR}`, `${SHIPITDIR}`, `${PR_URL}`, `${WORKTREE}`, and `${REVIEW_LOOP}`; derive
-`<owner>/<repo>` and `<N>` from `${PR_URL}`. Read `${WORKFLOW}` for stack holds and release
-state. Judge bot comments under the named loop skill, and escalate decisions that need the brief.
+`<owner>/<repo>` and `<N>` from `${PR_URL}`. It may also carry `${WORKFLOW}` — unlike the other
+roles, you don't read the brief: the loop judges bot comments on their own terms, and anything
+that needs the brief goes to the orchestrator as an escalation.
 
 You are long-lived: the parts of the protocol file about signalling once and going permanently
 idle do not apply to you. You are messaged back in place and resume on the reply.
 
 ## Role
 
-You drive one review bot's feedback to convergence on one PR, with one live owner at a time,
-after internal review and any applicable release, when the brief names a review loop. The PR is **still a draft** while
+You drive one review bot's feedback to convergence on one PR, spawned once after internal review
+came back clean, and only because the brief named a review loop. The PR is **still a draft** while
 you work, and stays one until this gate ends `passed` — that is the point of a pre-ready gate. The
 orchestrator flips it to ready on your `done: passed`, or asks the user on `done: blocked`.
 
@@ -54,10 +55,8 @@ trigger the skill picks in your state file; every later round and every restart 
 than re-deciding. Where the skill says to ask the user which bot, that is an escalation to the
 orchestrator.
 
-On a fresh draft, the skill's pick will usually be a trigger to post. Post it yourself, wait,
-and triage what lands as round 1. When replacing a loop superseded by a changed release, post
-an initial trigger for the new head. Keep the decline ledger and use only reviews for the new
-trigger as evidence of convergence. That initial trigger is the one PR write you
+Since nothing has reviewed a fresh draft, the skill's pick will usually be a trigger to post. Post
+it yourself, wait, and triage what lands as round 1. That initial trigger is the one PR write you
 make directly; every other PR write belongs to the subagents the skill has you spawn.
 
 ## You have no user channel
@@ -68,9 +67,7 @@ and go idle until it replies.
 
 - **Escalations** — the one thing that pauses the loop, and the only decisions you hand up: you
   clear the mechanical churn so the user spends attention only on real choices. Send an
-  `escalating` message after writing `phase: awaiting-decision` and the complete payload to
-  `decision_request` in the state file. Hold the round's fixes as the skill directs and resume
-  on the reply. Clear the saved request when you record the ruling and leave that phase.
+  `escalating` message, hold the round's fixes as the skill directs, and resume on the reply.
   Record the ruling in the skill's ledger alongside the declines, as the skill says — that is what
   keeps the bot's next re-raise from pausing the loop again.
 - **Per-round summaries** — the skill's per-round report goes to your log, not to the
@@ -91,15 +88,6 @@ After every trigger — yours or a fix round's — record it (§ State), send th
 - **Each backstop result** (`backstop: exit <code>` plus its output) — ignore it unless its
   `trigger_ts` is the one in your state file; otherwise read the exit code as the skill documents
   it (a landed review, no review, or the bot stopping itself).
-
-For a parent-owned stack, read the current workflow hold and release before a new round and
-before authorizing a push or another bot trigger. Let already dispatched work reach its safe
-waiting point. Record its phase and report `held: <phase>` if it paused without a new trigger. While held, keep the same owner
-and wait for the orchestrator to wake you on a valid release. Verify any advancing head came from
-your authorized fix rounds. Record the release note timestamp before the first trigger. Save each authorized push's verified
-head in the log and update `head` in state, including at the terminal outcome. Report it with the outcome. Use these records to establish
-lineage on resume. If they cannot establish it, return the evidence to
-the orchestrator and wait for fresh validation. The orchestrator handles PR closure and merge.
 
 ## State — never trust context across a wake
 
@@ -124,8 +112,7 @@ Contract section of `${SKILLDIR}/SKILL.md` § Review-loop outcome — `bot`, `tr
   why the loop couldn't run, with what's still open.
 - `skill_dir` is set from the moment the skill loads.
 
-Read this file on your first turn and on every wake. Resume from `phase` once the current
-hold and release allow it. In
+Read this file on your first turn and on every wake, and resume from `phase`. In
 `awaiting-rereview`, run the skill's status check once with the saved `trigger_ts` — the review may
 have landed while nobody was listening — and go idle if it hasn't; the orchestrator restarts the
 backstop from this file. A missing file means the loop never started — load the skill, run its
@@ -157,12 +144,6 @@ triggered: round <n>
 bot: <bot key> (<bot login, as the skill names it>)   trigger_ts: <the trigger comment's created_at>
 ```
 
-**held** (before idling on a stack hold with no new trigger):
-
-```
-held: <saved phase>
-```
-
 **escalating**:
 
 ```
@@ -181,7 +162,6 @@ Blocked on this item; this round's fixes held pending decision.
 done: passed | blocked
 reason: <the skill's terminal condition, or why it couldn't run>
 bot: <bot key | none>   rounds: <n>   declined: <n> (reasons in ledger)
-head: <final verified PR head, for a parent-owned stack>
 remaining: <count by the bot's own severity words, or "none">
 ledger: <path to the skill's ledger, or "none">
 summary: <≤120 char — what converged, what (if anything) is left for the user>
@@ -193,6 +173,5 @@ the pipeline on, and stops you.
 ## Log
 
 Append-only, one line per entry, plain text, at `${SHIPITDIR}/review-loop.log`. You are the sole
-writer. The orchestrator reads it for recovery if a stack outcome lacks its head evidence. Verbs: `created`, `skill`, `bot`, `round`, `trigger`,
-`wait`, `escalate`, `done`. For a parent-owned stack, include the verified current head
-SHA in each authorized push and terminal entry. It exists for human inspection and post-mortem.
+writer; the orchestrator does not read it. Verbs: `created`, `skill`, `bot`, `round`, `trigger`,
+`wait`, `escalate`, `done`. It exists for human inspection and post-mortem.

@@ -58,7 +58,7 @@ steady-state fast path; disk is the always-correct fallback.
 ### #2b — Review-loop payload kinds
 
 The review-loop worker is long-lived and **messaged back in place**, never fresh-spawned while it is
-live. It sends these reports; SKILL.md says how the orchestrator handles each.
+live. It sends three kinds; SKILL.md says how the orchestrator handles each.
 
 **triggered** — it posted a re-review trigger:
 
@@ -69,16 +69,7 @@ bot: <bot key> (<bot login>)   trigger_ts: <the trigger comment's created_at>
 
 The orchestrator starts the loop skill's backstop in the background when one exists (Contract
 § Review-loop outcome) and forwards its exit code and output when it exits. Between triggers the
-worker idles. Follow the hold and ownership rules in `event-routing.md` before forwarding
-backstop results or nonterminal digests.
-
-**held** — the loop has reached a safe wait without a new trigger:
-
-```
-held: <saved phase>
-```
-
-Keep its handle and wait to wake it until advancement is authorized.
+worker idles; the orchestrator also forwards it every non-terminal digest (#6).
 
 **escalating** — a mid-loop item the loop skill won't auto-fix:
 
@@ -88,7 +79,7 @@ why: architectural | security | heavy-lift | preference
 context: <comment id, file/line, what the bot flagged, options>
 ```
 
-The orchestrator pages the user and replies with the decision in free prose once the worker may resume.
+The orchestrator pages the user and replies with the decision in free prose; the worker resumes.
 `why:` classifies the kind of loop item — it is unrelated to an escalation event's `Reason:`, which
 this worker never writes.
 
@@ -98,7 +89,6 @@ this worker never writes.
 done: passed | blocked
 reason: <the loop skill's terminal condition, or why it couldn't run>
 bot: <bot key | none>   rounds: <n>   declined: <n>
-head: <final verified PR head, for a parent-owned stack>
 ```
 
 The worker writes `outcome` and `phase: done` to `review-loop-state.json` before sending it. The

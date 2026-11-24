@@ -13,15 +13,14 @@ The Codex package still uses `.claude-plugin/plugin.json` for legacy plugin load
 [pinned Codex catalog loader](https://github.com/openai/codex/blob/rust-v0.169.0/codex-rs/core-plugins/src/marketplace.rs)
 for discovery and source resolution.
 
-| Surface                                | Claude                                       | Codex                                                   |
-| -------------------------------------- | -------------------------------------------- | ------------------------------------------------------- |
-| Installation identity                  | `garden-claude`                              | `garden-codex`                                          |
-| Session controls, alerts, review queue | Garden CLI skills                            | Garden CLI skills                                       |
-| Cross-session messaging                | Claude registry resolution and `SendMessage` | Garden session UUID and `garden send`                   |
-| PR digests                             | Plugin monitor                               | Explicitly owned foreground forwarder                   |
-| Specialist reviews                     | Registered bundled Markdown agents           | Bundled prompts read by fresh native subagents          |
-| Compaction note                        | Claude scratchpad and transcript occupancy   | Private temporary directory and Codex rollout occupancy |
-| Ship-it                                | Existing background workflow                 | Native worker workflow with matching stages and policy  |
+| Surface                                           | Claude                                     | Codex                                                   |
+| ------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------- |
+| Installation identity                             | `garden-claude`                            | `garden-codex`                                          |
+| Session controls, messaging, alerts, review queue | Garden CLI skills                          | Garden CLI skills                                       |
+| PR digests                                        | Plugin monitor                             | Explicitly owned foreground forwarder                   |
+| Specialist reviews                                | Registered bundled Markdown agents         | Bundled prompts read by fresh native subagents          |
+| Compaction note                                   | Claude scratchpad and transcript occupancy | Private temporary directory and Codex rollout occupancy |
+| Ship-it                                           | Existing background workflow               | Native worker workflow with matching stages and policy  |
 
 Review every change for semantic parity and record intentional differences in the affected
 package README. Claude ship-it's stages and policy remain the reference for the Codex implementation;
