@@ -14,7 +14,8 @@ import { reportCommandFailure } from '../../api/reportCommandFailure'
 import { useSessionStore } from '../../state/sessionStore'
 import { useUiStore } from '../../state/uiStore'
 import { detachPane } from '../../terminals/registry'
-import { applyLayout, exitMaximizedUnlessFocused } from './applyLayout'
+import { exitMaximizedUnlessFocused } from './applyLayout'
+import { wireMaximizedLayout } from './maximizedLayout'
 import { wireRowMirror } from './mirrorRows'
 import {
   EMPTY_SLOT_COMPONENT,
@@ -47,13 +48,23 @@ export function Stage() {
     draggedId === null ? undefined : state.sessions[draggedId],
   )
 
+  const maximizedLayout = useRef<ReturnType<typeof wireMaximizedLayout> | null>(null)
+  useEffect(() => {
+    if (api === null) return
+    const layout = wireMaximizedLayout(api)
+    maximizedLayout.current = layout
+    return () => {
+      layout.dispose()
+      maximizedLayout.current = null
+    }
+  }, [api])
+
   // The layout the server's state asks for. Read through a ref inside the effects so a change
   // to the stored blob — which every persist round-trips back — never itself re-applies a layout.
   const applyRef = useRef<() => void>(() => undefined)
   useLayoutEffect(() => {
     applyRef.current = () => {
-      if (api === null) return
-      applyLayout(api, stageLayout(presetLayout(preset, slots), storedLayout))
+      maximizedLayout.current?.apply(stageLayout(presetLayout(preset, slots), storedLayout))
     }
   })
 

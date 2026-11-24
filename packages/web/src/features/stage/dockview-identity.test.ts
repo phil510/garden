@@ -2,6 +2,7 @@
 import { DockviewComponent } from 'dockview-core'
 import { describe, expect, it, vi } from 'vitest'
 import { applyLayout, exitMaximizedUnlessFocused, togglePaneMaximised } from './applyLayout'
+import { wireMaximizedLayout } from './maximizedLayout'
 import { groupIdsFromSlots, wireRowMirror } from './mirrorRows'
 import { PANE_COMPONENT, groupIdForSlot, presetLayout } from './presetLayout'
 
@@ -138,6 +139,54 @@ describe('grid-2x2 leaf group resize', () => {
     expect(component.api.getGroup(topRight)?.api.width).toBe(700)
     expect(component.api.getGroup(bottomLeft)?.api.width).toBe(500)
     expect(component.api.getGroup(bottomRight)?.api.width).toBe(500)
+  })
+})
+
+describe('restoring a maximized 2x2 stage', () => {
+  const slots = ['a', 'b', 'c', null]
+  const groupIds = groupIdsFromSlots(slots)
+
+  function makeGrid(width: number): DockviewComponent {
+    const component = makeComponent()
+    component.layout(width, 800)
+    applyLayout(component.api, presetLayout('grid-2x2', slots))
+    return component
+  }
+
+  function widths(component: DockviewComponent) {
+    return groupIds.map((id) => component.api.getGroup(id)?.api.width)
+  }
+
+  it.each([
+    { from: 656, to: 980, left: 328 },
+    { from: 1000, to: 800, left: 380 },
+  ])('preserves both row splits when resizing from $from to $to', async ({ from, to, left }) => {
+    const visible = makeGrid(from)
+    const maximized = makeGrid(from)
+    const lifecycle = wireMaximizedLayout(maximized.api)
+    try {
+      for (const component of [visible, maximized]) {
+        for (const id of [groupIds[0], groupIds[2]]) {
+          component.api.getGroup(id)?.api.setSize({ width: left })
+        }
+        wireRowMirror(component.api, slots)
+      }
+      const panel = maximized.api.getPanel('a')!
+      togglePaneMaximised(panel.api, () => undefined)
+      await Promise.resolve()
+
+      visible.layout(to, 800)
+      maximized.layout(to, 800)
+      await Promise.resolve()
+      togglePaneMaximised(panel.api, () => undefined)
+      await Promise.resolve()
+
+      expect(widths(maximized)).toEqual(widths(visible))
+    } finally {
+      lifecycle.dispose()
+      visible.dispose()
+      maximized.dispose()
+    }
   })
 })
 

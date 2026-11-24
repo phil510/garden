@@ -66,6 +66,7 @@ export function wireRowMirror(api: DockviewApi, slots: readonly (string | null)[
   let previousTop = rowWidths(api, [topLeft, topRight])
   let previousBottom = rowWidths(api, [bottomLeft, bottomRight])
   const disposable = api.onDidLayoutChange(() => {
+    if (api.hasMaximizedGroup()) return
     const top = rowWidths(api, [topLeft, topRight])
     const bottom = rowWidths(api, [bottomLeft, bottomRight])
     const mirror = resolveRowMirror(top, bottom, previousTop, previousBottom)
