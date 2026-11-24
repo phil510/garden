@@ -174,7 +174,9 @@ A wave's life, in order:
    it. Ripple runs along dependencies, not waves, so the gate does too: a PR whose dependencies
    have merged doesn't wait on unrelated PRs, and the upper PR of a stack inside one wave waits for
    the lower one. One or two at a time keeps review traffic at the rate the human can read it.
-   Which PR to bring up to date when is in "Trust the peer's pipeline".
+   Which PR to bring up to date when is in "Trust the peer's pipeline". Ask peers to message you
+   when a configured loop ends. On `passed` or `blocked`, free the slot for that PR and release
+   and dispatch the next eligible PR, even if the old PR still has gates.
 6. **Hand PRs to the human as they become ready**, in the one merge-ordered list "Keep the traffic
    small" describes. With loops released per PR, PRs go ready one at a time, and a list kept current
    lets the human merge continuously instead of waiting for a whole wave.

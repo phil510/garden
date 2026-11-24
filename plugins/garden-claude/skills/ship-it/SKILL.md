@@ -216,7 +216,9 @@ backstop results and digests before waking it for more review work.
   arrives later. If post-loop triage is still due in `workflow.md`, spawn one external
   reviewer with `${DIGEST}` `none` once external intake is permitted, then route its report.
   Combine this with any due held catch-up intake. For a stack, record the loop's resulting head
-  and release evidence alongside the outcome.
+  and release evidence alongside the outcome. Tell the Garden parent immediately via `message-session`,
+  naming the PR, release and outcome, so the parent can free the slot while the PR still awaits
+  intake, ready or merge. On recovery, send the outcome if delivery was not confirmed.
   Apply the current hold and release gates before proceeding. Then: `passed` → step 5;
   `blocked` → the PR stays draft. Page the user with the `reason` and ask: flip to ready anyway
   (step 5) or stop (§ Abort).

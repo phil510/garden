@@ -89,7 +89,9 @@ If any of those values change before dispatch or on recovery, get current eviden
   serialize runs that write to it. Invalidate evidence if a change affects what it verified.
 - Release one or two eligible configured bot loops at a time. An independent PR can advance on
   its own verified integration and dependencies. A free slot alone cannot release a descendant
-  of an unmerged PR.
+  of an unmerged PR. Ask peers to message you when a configured loop ends, even when
+  its PR still has gates. On `passed` or `blocked`, free that release's slot and dispatch the next
+  eligible PR. Deduplicate by PR and release so late reports cannot free a newer slot.
 - A PR configured with `none` uses the same release gate and goes directly to the normal ready
   gate without using a bot slot. Respect the repository's loop policy. An explicit early-review
   override can release a configured bot loop before dependencies merge and the PR is current with
