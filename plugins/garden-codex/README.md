@@ -1,74 +1,96 @@
 # garden Codex plugin
 
-Six skills for a Codex-only garden instance: `orchestrate-sessions`, `message-session`, `alert`,
-`review-queue`, `watch-pr` and `ship-it`. Install `garden-codex` from this repo's `garden`
-marketplace through `.agents/plugins/marketplace.json`, which lists only `garden-codex`.
-The separate Claude catalog lists `garden-claude`. This package includes Codex hooks
-and bundled reviewer prompts, with no Claude monitors or automatic named-agent installation.
+The Codex plugin for garden ships six skills. `orchestrate-sessions` manages sessions through the
+Garden CLI, `alert` tells an agent when to raise `garden alert` for the human, `message-session`
+addresses another Garden session, `review-queue` reads and acts on review requests with
+`garden reviews`, and `watch-pr` starts, handles and stops PR watches. `ship-it` plans and develops
+a scoped change, opens a draft PR, runs internal review and any configured bot loop, then marks the
+PR ready, watches it through merge and cleans up. In a Codex Garden session, ask Codex to run
+`garden-codex:ship-it <ref | free text>`. The planner, developer, reviewer and review-loop workers
+run as native Codex subagents, each reading its bundled role prompt in a fresh context. The parent
+waits for their reports and advances each run through the authorized stages.
 
-The CLI/server build must include Codex instance selection, `garden send`, Codex pipe identity,
-and `garden events --follow --forward-to-session`. A skill listing alone does not verify those
-runtime dependencies. In a garden-spawned pane the inherited instance environment selects the
-right server; outside one, explicitly select the Codex instance.
+The plugin also ships compaction hooks that require Node 22. The first tool completion, prompt
+submission or end of turn that sees context reach 175K tokens asks the agent to write a continuity
+note with the goal, decisions, current state, next step, named skills and live workers. A warning at
+end of turn blocks `Stop` once so the agent can write the note. After compaction, `SessionStart`
+points the agent to the note to read in full and resets the warning marker. The note lives in a
+private per-session directory under `os.tmpdir()/garden-codex-compaction-<uid>/`. The session-end hook
+removes it, and session start checks up to 100 entries for directories inactive for more than a week.
 
-PR notification forwarding is an explicitly owned foreground process started by `watch-pr`.
-It reconnects, and a failed enqueue leaves the digest unacknowledged for retry. A successful
-queue write followed by a lost ack can repeat a message. It does not prove the model consumed
-that message. There is no Codex plugin monitor startup or automatic sidecar cleanup on session
-exit; stop the owned task when the run ends. The forwarding process must remain owned by the session that started it.
+## The watch-digest forwarder
 
-The package keeps `.claude-plugin/plugin.json` for Codex’s legacy plugin loading; the native
-marketplace catalog does not change that package format. The manifests omit `version`. Codex
-CLI 0.169.0 installs this unversioned legacy plugin as `local`. For a Git marketplace, explicit `codex plugin marketplace upgrade garden` refreshes
-the installed contents after a Git revision change even when the version and cache path stay
-`local`. This was verified with changed skill discovery in a new app-server; live-session
-reloading and automatic update timing were not tested. See the pinned upstream
+In the Codex Garden pane that owns the watch, `watch-pr` starts
+`garden events --follow --forward-to-session` as a foreground shell task and keeps its process
+handle. The command uses the pane's inherited instance and session ID to forward digests through
+the same route as `garden send`. Use the owning pane because nested Codex processes inherit that
+same ID. Installing the plugin leaves the forwarder to `watch-pr` or `ship-it` to start on demand.
+
+After starting a watch, check that `garden watches --json` shows it as `active` and
+`garden ls --json` shows `pipeConnected: true` for the session. The forwarder reconnects and
+acknowledges a digest after enqueue succeeds. A disconnect between enqueue and acknowledgment can
+repeat a digest, and queue acceptance alone leaves model consumption unverified. Once the session's
+last watch ends, stop the owned forwarder explicitly because it can outlive Codex. `ship-it` can
+reuse a connected forwarder and releases only its own task when the session no longer needs it.
+See the [watch-pr skill](skills/watch-pr/SKILL.md) for the full procedure.
+
+## Upgrading and resuming
+
+For a Git marketplace, run `codex plugin marketplace upgrade garden` and start a new Codex
+session to pick up the refreshed plugin. The upgrade was verified through skill discovery in a new
+app-server. Live-session reload and automatic update timing remain unverified.
+
+A `ship-it` pipeline saves its state in the pipeline worktree's `.ship-it/` directory. After
+upgrading or restarting, ask Codex to run `garden-codex:ship-it resume [<branch | worktree path>]`
+in a Garden session. Use the branch or worktree path to identify the run when more than one is
+active. A fresh runtime reconstructs the run from disk and accounts for any still-running shell
+processes before replacing workers. Compaction can leave workers active in the same runtime, so
+the orchestrator checks their status before assigning more work. The watch belongs to its Garden
+session and is re-established on resume when needed. See the [ship-it skill](skills/ship-it/SKILL.md).
+
+## Plugin manifest and version
+
+The package uses `.claude-plugin/plugin.json` for Codex's legacy plugin loading. Both that manifest
+and the native marketplace entry omit `version`. Codex CLI 0.169.0 caches the unversioned package
+as `local`. An explicit Git marketplace upgrade refreshed the installed contents after a Git
+revision change while keeping the same `local` cache path. See the pinned sources for
 [marketplace upgrade](https://github.com/openai/codex/blob/rust-v0.169.0/codex-rs/core-plugins/src/manager.rs)
 and [cache replacement](https://github.com/openai/codex/blob/rust-v0.169.0/codex-rs/core-plugins/src/store.rs).
 
-## Bundled reviews
+## Plugin descriptions
 
-`ship-it` dispatches fresh native Codex subagents with bundled Anthropic reviewer prompts
-selected for each internal review round. It passes the review scope and project instructions,
-and aggregates findings. The prompt files are not automatically registered native roles; there is no
-TOML installation or user configuration change. See the [upstream source, license and update
-procedure](third-party.md). Internal review constrains the simplifier to findings.
+The native catalog entry supplies the marketplace description. The package manifest carries its
+own description for legacy loading. Review both when changing how the plugin is described.
 
-## Ship-it
+## Installation identity
 
-`ship-it` preserves the Claude pipeline: plan and plan review, development and self-review,
-draft PR, internal review, optional configured bot loop, ready gate, watch, merge and cleanup.
-Merge defaults to asking the user; the optional review loop defaults to `none`. Its four durable
-pipeline helpers and `.ship-it` artifacts use the same format as the Claude package. Stack peers
-keep ownership of draft PRs through parent-controlled review release, including when the loop is
-`none`.
+Install `garden-codex@garden` in Codex. The repository's native catalog at
+`.agents/plugins/marketplace.json` lists `garden-codex`.
 
-Codex workers read bundled role prompts in fresh native contexts. Workers use the exposed native interface for
-reporting, waking idle owners and stopping. The parent keeps the active wait and advances on each
-report through the next authorized stage. To stop a worker, close when available, otherwise interrupt and retire
-the handle. Neither proves its shell commands stopped. Replacement and cleanup reconcile owned processes first. Compaction preserves live
-workers, while a fresh runtime reconstructs stage state from disk. Ship-it owns or reuses the
-Codex digest forwarder, verifies its connection before watching, and cleans up only its own
-transport when no other watch needs it.
+```sh
+codex plugin marketplace add phil510/garden
+codex plugin add garden-codex@garden
+```
 
-## Compaction notes
+Use a Garden CLI and server build with Codex instance selection, `garden send` and
+`garden events --follow --forward-to-session`. Run `garden --codex ls` to check the Codex instance
+from outside Garden. A Garden-spawned Codex pane selects its own instance through the inherited
+environment. See [Garden's Codex hook trust instructions](../../README.md#codex-sessions).
 
-The hooks require Node 22 and use built-in modules. The fixed 175K warning assumes the user has
-already configured 200K auto-compaction, matching the Claude setup; it does not read or change
-user settings. The headroom allows time to write a recovery note. The warning uses the latest native `event_msg/token_count` record's
-`info.last_token_usage.total_tokens`; cached and reasoning tokens are already included. A
-`compacted` record resets the reported meter. Native compaction may also account for unreported
-context and retained reasoning, so this is a best-effort warning, not a guarantee before every
-compaction. It does not use lifetime cumulative tokens or the model's maximum context window.
+## Reviewers and parity
 
-Notes live in a private per-session directory below
-`os.tmpdir()/garden-codex-compaction-<uid>/`, independent of ship-it and permanent plugin data.
-Normal session end removes that session's files. Session start examines at most 100 entries and
-removes directories inactive for more than seven days, bounding cleanup work after crashes.
-`PostToolUse` and `UserPromptSubmit` deliver warning context; `Stop` blocks once so the agent can
-write the note. `SessionStart` after compaction points the agent to its note to read in full and
-resets the warning marker. These hooks preserve live agents; recovery does not start a new run.
+`ship-it` uses the specialist reviewer prompts bundled in `agents/`. The reviewer sends the scope,
+project instructions and prompt paths to fresh native subagents, then aggregates their findings.
+The simplifier reports findings for the developer to act on. See the
+[source, license and update procedure](third-party.md).
 
-See [plugin maintenance and intended differences](../maintaining.md) for parity review. The
-optional review-loop boundary defaults to `none`; Garden does not require personal bot-loop or
-comment-fetching skills. Ship-it preserves that boundary.
+The optional review loop defaults to `none`. An unavailable configured loop leaves the PR
+in draft until the user decides whether to proceed to ready. Merge defaults to asking the user.
+In a stacked run with a parent-controlled review pause, each peer keeps ownership of its draft
+and waits for release even when the loop is `none`.
+
+The 175K warning assumes you configured auto-compaction at 200K. The plugin reads the latest
+native `event_msg/token_count` record's `info.last_token_usage.total_tokens`, which includes cached
+and reasoning tokens, and resets the meter at compaction. Native compaction can account for context
+the hook cannot see, so the warning is best effort. See the
+[plugin maintenance guide](../maintaining.md) before changing these workflows.
