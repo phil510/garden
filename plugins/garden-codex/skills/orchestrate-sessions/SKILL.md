@@ -8,8 +8,9 @@ description: >-
   session", "resume a session", the bare CLI verbs (`garden new`, `garden ls`,
   `garden kill`, `garden resume`), and for anything spanning several sessions:
   "spin up sessions for these three issues", "check on the sessions I started",
-  "is that one done yet", "wind these down", or coordinating a stacked PR
-  review. Use it to wait on peers, size reports, or interpret session status. Not for the garden server itself — "stop the server", "shut garden
+  "is that one done yet", "wind these down". Reach for it before improvising a
+  wait, sizing a message or a status report, or reading a session's status as
+  done. Not for the garden server itself — "stop the server", "shut garden
   down", "restart the server", "uninstall garden" (`garden stop`, `garden uninstall`) name the server process, not a
   session. Composing and addressing a note to one named session belongs to
   `message-session`; waiting on a PR belongs to `watch-pr`.
@@ -17,18 +18,21 @@ description: >-
 
 # Orchestrating Codex garden sessions
 
-Garden runs each Codex session as a tmux session behind a local server. The Garden CLI is the
-control surface. The commands below cover session lifecycle. `message-session` covers peer
-messaging and `watch-pr` covers PR-watch flags. Use the native collaboration tools exposed in your current conversation to dispatch and await
-native subagents for work you need to collect inside that conversation.
+Garden runs each Codex session as a tmux session behind a local server, and its CLI is the
+control surface. `references/cli.md` carries the mechanics — subcommands, flags, output shapes,
+exit codes, the `SessionState` fields, the `ls` filters — and this file is about using them
+together. Use the native collaboration tools exposed in your current conversation to dispatch and
+await native subagents for work you need to collect inside that conversation.
 
-A Garden session is an independent peer with its own context window, permission boundary and
-user channel. Its reports arrive by message, and its transcript stays in its own pane. Garden
-reads the launch permission policy from the instance's `<appDir>/config.json` at server start.
-`GARDEN_APP_DIR` overrides the Codex default `~/.garden-codex`. With `permissionMode: default`,
-Garden leaves approvals and sandboxing to the peer's Codex settings. An instance already
-configured to bypass permissions passes its bypass setting at launch. The peer uses local
-Codex model and effort defaults unless you pass `--model` or `--effort` to `garden new`.
+The one thing to hold onto: **a garden session is a peer, not a subagent.** It has its own
+context window, its own permission boundary, and its own user. You cannot await it, you do not
+see its transcript by default, and it inherits nothing from you — not your permission mode, not
+your model or effort. The permission mode is set by garden's server config (`permissionMode` in
+`<appDir>/config.json`, read at server start; `GARDEN_APP_DIR` overrides the Codex default
+`~/.garden-codex`): `bypassPermissions` passes the bypass flag, while `default`
+passes none, so the peer falls back to its own Codex settings. Either way it never comes from
+you. The model and effort are whatever the local `codex` would use alone unless you pass `--model`
+or `--effort` to `garden new`.
 
 The second thing: **your context only grows.** Every brief you send and every report you receive
 is re-read on each later turn for the rest of the run, and nothing already in the window gets
@@ -41,11 +45,10 @@ the PRs, not in your window.
 `garden new <dir> --json` places the new peer under you as it spawns: the CLI reads your own
 `GARDEN_SESSION_ID` and hands it to the server as the caller, which records the child's `parent`
 as you — minting you a swarm on the first dispatch if you're top-level — so the
-relationship lands in Garden's own swarm data with no second call. Keep the returned `id` as
-the peer's message address. A new Codex session can accept its first brief before the thread
-binds. Once the peer appears in `garden ls --json`, confirm its `parent` matches your
-`GARDEN_SESSION_ID`. If the row is missing just after launch, allow startup before diagnosing
-the placement.
+relationship lands in garden's own swarm data with no second call. The `id` is the address you
+send messages to — see "Session identity and display names" below. The id exists before the
+Codex thread binds, so a send that misses right after `new` means not-yet-started: retry before
+concluding anything.
 
 Leave `--model` and `--effort` off by default: which model and how much effort a piece of work
 deserves is the user's cost-versus-quality call, and a bare `garden new` gives the peer what a
@@ -53,11 +56,10 @@ deserves is the user's cost-versus-quality call, and a bare `garden new` gives t
 the work, or the brief you are relaying pins one — and pass them again on `garden resume`, because
 garden doesn't store them and a bare resume sends none.
 
-Before the first spawn, check for the inherited `GARDEN_HARNESS=codex` and `GARDEN_SESSION_ID`.
-Preserve the inherited port, app directory and tmux socket so commands reach the same
-instance. From an outside shell, select the Codex instance explicitly with `garden --codex …`
-and use the intended instance's settings. An older Garden launch or an outside session may
-have no `GARDEN_SESSION_ID`. `garden new` still exits 0
+Check `GARDEN_SESSION_ID` is set in your own environment before that first spawn — a session
+started by an older garden, or never started by garden at all, has it unset. Keep the inherited
+`GARDEN_HARNESS=codex`, port, app directory and tmux socket so commands reach the same instance;
+from an outside shell, select the Codex instance explicitly with `garden --codex …`. `garden new` still exits 0
 and returns a normal `{id, tmuxName}` in that case, but records no parent: the peer lands in Solo,
 untracked, and `garden adopt` on it exits 1 (`GARDEN_SESSION_ID is not set`), since that verb
 reads the same variable from the caller. If it's unset, say so before dispatching rather than
@@ -70,8 +72,7 @@ it under you after the fact. Look up and retain its Garden `id` from `garden ls 
 adopting it into the run. Brief the peer like a fresh spawn and use that UUID for its
 `<session-id>.md` file.
 
-**Decide where new work goes when you assign it.** Give concurrent writers their own worktrees
-and explicit ownership. Reuse a session when the next task shares its
+**Decide where new work goes when you assign it.** Reuse a session when the next task shares its
 files and decisions and its current work has reached a stopping point; it
 already holds the context a fresh peer would have to rebuild. Start a fresh one when the task needs
 its own plan, or when it would leave the session running two pipelines at once, because two
@@ -79,18 +80,17 @@ pipelines in one session collide. A peer whose PR is ready but waiting on the us
 next task waits or goes elsewhere. Serial reuse is fine; this
 is not one peer per PR. Reusing a peer means updating the task line that opens its member file.
 
-**Ask for a report in the brief.** Give the peer your full Garden UUID and tell it to report by
-`message-session` at milestones and completion, and immediately if blocked. Ask for the result
-pointer, current state and what it needs from you. Without that contract a peer goes silent on
-completion or returns the whole story. Include the run folder's absolute path too, and
+**Ask for a report in the brief.** Tell the peer to message you when it
+finishes, and immediately if blocked, with a pointer to the result, its state, and what it needs
+from you. Give it your full Garden UUID (your `GARDEN_SESSION_ID`); the peer cannot derive it. Without that contract a peer goes
+silent on completion or returns the whole story. Include the run folder's absolute path too, and
 tell the peer its member file is `<its own $GARDEN_SESSION_ID>.md` — the id `garden new --json`
 just returned. It opens with a line naming the peer's task and stays maintained at milestones
 (see "Write the run down" below for why the id, not a label). `message-session` covers the rest
 of the brief.
 
-Tell a peer working in a stack or a wave to use the
-[ship-it pre-ready pause](../ship-it/SKILL.md#4-pre-ready-gate) at its draft PR and to report
-when the draft is waiting for your go-ahead ("Pace a large swarm in waves" below says why). In a swarm paced in waves, the brief also names the peer's wave, and the member
+Tell a peer working in a stack or a wave to pause at its draft PR ("Pace a large swarm in waves"
+below says why). In a swarm paced in waves, the brief also names the peer's wave, and the member
 file's task line records it. Tell a later-wave peer its questions wait until you say its wave is
 open: it parks each in its member file and carries on with whatever doesn't depend on the answer,
 or on a stated default where the decision is cheap to reverse ("Write the run down" says which).
@@ -177,11 +177,7 @@ A wave's life, in order:
    it. Ripple runs along dependencies, not waves, so the gate does too: a PR whose dependencies
    have merged doesn't wait on unrelated PRs, and the upper PR of a stack inside one wave waits for
    the lower one. One or two at a time keeps review traffic at the rate the human can read it.
-   Which PR to bring up to date when is in "Trust the peer's pipeline". Ask each peer to report
-   a finished or blocked loop so you can release the next eligible PR immediately. With
-   `Review loop: none`, the same go-ahead clears the draft pause without using a slot.
-   Follow repo bot policy and any explicit user override to the review timing, such as an
-   early stack review. Merge still follows its own approval policy.
+   Which PR to bring up to date when is in "Trust the peer's pipeline".
 6. **Hand PRs to the human as they become ready**, in the one merge-ordered list "Keep the traffic
    small" describes. With loops released per PR, PRs go ready one at a time, and a list kept current
    lets the human merge continuously instead of waiting for a whole wave.
@@ -219,8 +215,8 @@ sessions keep `message-session`'s `owner/repo#N`.
 
 ## Write the run down
 
-Context windows are the one place run state does not survive: yours fills up, a peer exits,
-and working details fall out of context or are lost when a run moves to a new conversation. So keep it on disk — a run folder,
+Context windows are the one place run state does not survive: yours fills up, a peer dies, and
+what you knew goes with it. So keep it on disk — a run folder,
 `.orchestration/<run>/` in the repo you are orchestrating from. Add it to `.git/info/exclude` with
 a trailing slash so the whole tree is excluded, where the repo doesn't already ignore it. Give
 peers the folder's **absolute** path in the brief: the same relative path in a peer's worktree is
@@ -293,19 +289,15 @@ session picking the run up, not live status.
 
 `<session-id>.md` belongs to one member and no one else writes it, named for the member's own
 `$GARDEN_SESSION_ID`. Garden assigns the UUID at creation and retains it as the peer's native
-Codex thread changes. Use it for the same member file after a kill and resume or a conversation
-reset. You already have it — from
+Codex thread changes, so the id outlives a kill-then-resume and a conversation reset. You already have it — from
 `garden new --json`'s `id` field or `garden ls --json` before adoption — so there's
 nothing to assign or check for collisions. Open the file with a line naming the member's task, so
 a folder of ids stays readable. It's a short snapshot of that member's goal, decisions, state, and
 next step — updated at milestones (assignment accepted, a material decision, a blocker,
 completion), not every turn.
 
-After compaction or when taking over a run, reread `run.md` and every member's file before
-acting. Recheck outstanding blockers against their owning sources. If an authorized peer
-stopped before reporting and its work still needs doing, use `garden resume <id> --json` and
-brief it from the existing run and member files. It should check the current PR and worktree
-state before continuing.
+After a compaction, reread `run.md` and every member's file before acting — they're the head start
+that survived what your own context didn't.
 
 ## Keep the traffic small
 
@@ -354,36 +346,25 @@ intermediate head is superseded before anyone merges it. In a queue of PRs waiti
 up to date only the one that merges, or has its loop released, next: every merge moves the base
 again, so updating the whole queue after each one redoes the same work once per merge ahead of it.
 
-## Wait on reports and PR events
+## Wait on reports, never by polling
 
-The report contract is how you wait on a peer. It messages you at a milestone, at completion
-or when blocked. Garden routes the note to your Codex thread. The send acknowledgment
-confirms acceptance by the transport. Use the peer's reply or independently verified evidence
-to establish what happened.
+The brief's report contract is how you wait: a peer messages you when it finishes or blocks, and
+that message carries the substance. Garden routes the note to your Codex thread, and a send
+acknowledgment confirms only that the transport accepted it.
 
-Use `watch-pr` for PR events you need to act on, such as an upstream merge or a check the parent
-needs for integration. Confirm the session's forwarder is connected and the relevant watch is active
-before relying on it. When a report, decision or digest unblocks work, reconcile the blocker
-against its source, update `run.md` and tell the authorized peer on the same turn. Once a human
-decision or a confirmed external wake is the next dependency, yield with the outstanding action
-recorded.
+Codex has no garden notification for a peer's next idle or exit, so a report is the only signal.
+When one is missing, one filtered `garden ls --live --status waiting --json` reads a recap and is
+cheap; what burns context is repeating it, and no amount of repetition makes the list answer "done
+or stuck". Ask the peer for a short answer if the recap leaves the outcome open. A peer expected to
+end by exiting can leave its result in its member file first; read that file if the peer is gone.
 
-Codex has no Garden notification for a peer's next idle or exit. For a missing report, use one
-targeted `garden ls --json` check and ask the peer for a short answer if the status and recap
-leave the outcome open. A peer expected to finish by exiting can leave its result in its member
-file before exiting. Read that file and verify the result on the owning surface if the peer is
-gone. Use `garden ls --json --swarm <id>` to narrow diagnostics, or
-`garden ls --live --status waiting --json` to read idle peers' recaps. Repeated status checks
-cannot tell you whether a peer finished or is waiting on a decision.
-
-Keep peer dispatch and message collection in the orchestrating conversation. Native subagents
-working within it report through the current Codex collaboration tools. Garden messages use the
-pane's inherited session UUID, so replies to those messages reach the pane's thread.
+Dispatch from the orchestrating conversation: a subagent's garden messages go out under the pane's
+inherited session UUID, so replies land in the pane's thread rather than the subagent's.
 
 ## Status does not mean what it looks like
 
 Garden derives Codex `status` from the linked app-server thread and reconciles it with process
-liveness:
+liveness, so it reports what the thread is doing, not what a session means:
 
 | status           | what actually set it                            |
 | ---------------- | ----------------------------------------------- |
@@ -393,11 +374,13 @@ liveness:
 | `unknown`        | there is no usable thread status                |
 | `null`           | the session has exited                          |
 
-A finished pipeline and a peer stalled on an unanswered question can both be `waiting`. Read
-`recap` for the last reply and `lastActivity` for its age. Codex's thread status does not supply
-a reason string. For an approval prompt, inspect the peer's pane to see what's being asked. For
-an exited peer, use `liveness` and `exitCode`. When the result still isn't clear, ask the peer for
-a couple of lines describing its state and its next step.
+So **`waiting` means Codex stopped talking.** A pipeline that finished an hour ago and one
+stalled on a question it asked an hour ago are both `waiting`, and `status` alone cannot separate
+them. `recap` carries the last thing the session said and `lastActivity` its age — read those
+first; usually they settle it. Codex's thread status supplies no reason string, so for an approval
+prompt inspect the peer's pane to see what is being asked, and for an exited peer `liveness` and
+`exitCode` speak for it. When they don't settle it, ask: a message costs one turn and gets an
+answer written for you rather than inferred, so ask for a couple of lines, not a write-up.
 
 `needs-approval` is narrower than it sounds too — a permission prompt specifically, not any kind
 of being-stuck — and it waits on a **person**. Surface it to your user with what it asks for. Don't
@@ -408,15 +391,18 @@ user.
 
 ## Watch the context budget, report it, don't act on it
 
-A peer's context fills as it works, and performance can drop near its limit. When it matters,
-ask whether the peer has a current usage reading or received its compaction warning. The warning
-uses the latest native per-turn token-usage record as an occupancy estimate. After compaction the
-peer may have no fresh reading. Report the evidence available.
+A peer's context fills as it works, and a session near the end of its window gets worse at its
+job before it says anything about it. Nothing here reads a Codex peer's token usage for you, so
+ask the peer for its current occupancy: the compaction hook warns it at about 175K tokens, using
+its latest native per-turn token-usage record. A number that drops means the session shed detail,
+not that it is healthier. Right after a compaction the peer has no fresh reading until its first
+reply; that means "just compacted", not a low number.
 
-Report high context usage to the user with the session's name and what it is working on. The
-user decides whether to compact or start a fresh session from the run folder. Consider the model,
-the work subagents are carrying and how close the peer is to finishing when reporting context
-pressure.
+Report a high number to your user with the session's name and what it is working on, and let them
+decide; compacting in place, or starting a fresh session to pick up from the run folder, is the response
+to a high number, and it is theirs to choose. There is no threshold that means "act" —
+the right number depends on the model behind that session, on whether subagents carry most of the work, and on how
+close the task is to done.
 
 ## Relay findings and decisions between peers
 
@@ -428,8 +414,7 @@ will hit, send them three lines about it.
 merge it down until the upstream head is settled and validated; then sync in dependency order and
 review once. Each premature sync triggers a review of code the next upstream change replaces. While
 an upstream is on hold, tell its downstream peers so their conflict handling doesn't merge it down,
-and have each record it in its brief. Use the
-[existing ship-it base hold and batch controls](../ship-it/references/brief.md#mid-pipeline-user-concerns). When to release a stack's review loops is in "Pace a large
+and have each record it in its brief. When to release a stack's review loops is in "Pace a large
 swarm in waves".
 
 **Pivots**, where the user replaces a requirement rather than adjusting it, are rare. Hold peers at
@@ -439,24 +424,21 @@ the old code is deleted or kept after checking what still calls it.
 
 **Deferred checks.** When the user defers a known-failing check, tell every affected peer once, so
 none re-reports or escalates it. The relay records the user's decision about the work; merge still
-needs the user directly (see "Dispatch"). Use `watch-pr` to apply
-`garden watch <pr> --ignore-check <name>` to the owning watch.
+needs the user directly (see "Dispatch"). Where the installed garden has the flag
+(`garden watch --help`), `garden watch <pr> --ignore-check <name>` stops that watch's wakes for it.
 
 ## Winding down
 
-A session is resumable, but killing one early costs a `garden resume` and the turn it was in.
-Its Garden UUID persists. End it after the peer reports completion and you decide against
-reusing it, or when the user asks you to end it. If the expected report is missing and status
-is ambiguous, read its recap or ask before deciding.
+The asymmetry decides it. A session is resumable, so killing one early costs a `garden resume`
+plus the turn it was mid-way through. An unanswered gate stalls indefinitely and nothing will tell you. So kill on evidence,
+not on ceremony: a peer that reported done is evidence, once you've decided not to reuse it, and so is your user
+saying kill it. Only
+when nothing has reported and the status is ambiguous do you read `recap` or ask.
 
-Kill by full Garden id and verify the id is one of your children:
-
-```sh
-garden ls --json | jq -r --arg me "$GARDEN_SESSION_ID" '.[] | select(.parent==$me) | .id'
-```
-
-If the id is outside that list, ask the user. Check the UUID, ownership and worktree before
-ending the peer. A reused visible name can point to another session.
+Kill only by full garden id, and only an id that appears in the list of your children:
+`garden ls --json | jq -r --arg me "$GARDEN_SESSION_ID" '.[] | select(.parent==$me) | .id'`. A
+session not in it is not yours to kill — ask your user. A visible name can be reused or shared, so a name picks the wrong session easily, and a
+mis-kill is silent: its owner is never told.
 
 Winding down a peer leaves the run folder in place: other members still need their files, and a
 peer mid-write to its own has no way to know it just disappeared. Remove `.orchestration/<run>/`
