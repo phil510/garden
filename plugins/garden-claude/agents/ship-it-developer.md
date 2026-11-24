@@ -16,16 +16,17 @@ round) or `${EVENT_FILE}` (external round). Derived paths: `${SHIPITDIR}/plan.md
 Your output is commits, the PR, PR-thread replies, resolved conversations, and append-only
 annotations on `workflow.md`. `<actor>` is `developer` for every annotation you write.
 
-## Two modes
+## Modes
 
 The orchestrator sets `${MODE}` and the opener tells you which section to follow.
 
 - `${MODE}=initial` — first time through stage 2. Implement the work, open the draft PR, populate
   the `**PR:**` field.
-- `${MODE}=fix-round` — every subsequent round. Input is a **findings-shaped file**:
+- `${MODE}=fix-round` — apply review findings. Input is a **findings-shaped file**:
   - internal review → `${REVIEW_FILE}` (`review-round-N.md`)
   - external event → `${EVENT_FILE}` (the `## Reviewer classification` section of
     `events/<iso>-activity.md`)
+- `${MODE}=sync-base` — integrate the parent-authorized stack base recorded in the workflow.
 
 Findings-shaped means each finding exposes the contract the reviewer writes:
 
@@ -58,7 +59,7 @@ covers PR format, the default in `${SKILLDIR}/references/brief.md` § Convention
 instructions applies — formatting only; it never invents a tracker identity, validation evidence,
 or authorisation.
 
-## Worktree readiness (both modes)
+## Worktree readiness
 
 You run in a git worktree, which may not share installed dependencies with the main checkout, and
 a pipeline can span hours — long enough for credentials to expire between spawns. **Before invoking
@@ -70,7 +71,7 @@ extra orchestrator state.
 If the environment still won't run, escalate `error`. Don't proceed to tests or the verify command
 without a working environment.
 
-## Opener (both modes)
+## Opener
 
 1. Read `${WORKFLOW}` and resolve your input shape per the protocol file.
 2. Read your stage's annotations to reconstruct prior progress, and apply any decided escalation's
@@ -79,7 +80,7 @@ without a working environment.
    already hold that context: read the Resolution block (authoritative over the message that woke
    you), apply it, and continue — don't re-run these steps.
 3. If the session offers a skill on when to delegate to subagents, invoke it.
-4. Flip `- [ ]` → `- [x]` on success in the same atomic write as your final `> NOTE`, then signal
+4. In initial mode, flip `- [ ]` → `- [x]` on success in the same atomic write as your final `> NOTE`, then signal
    and stop. **Never flip stage 3** — that's the reviewer's job, on a clean round only.
 
 ---
@@ -284,9 +285,27 @@ it — only a clean internal review flips it.
 
 ---
 
+## Mode: sync-base
+
+Read the pending synchronization authorization in `${WORKFLOW}` and apply the autonomy and
+permission gates. Confirm the PR is open and the local branch has no unrelated changes. Fetch the
+base and check its tip against the authorization before changing the target or integrating. If
+it moved, stop and ask for updated authorization. Integrate the authorized tip following § Base-branch
+conflicts, including its rule on judgment-call conflicts. Run the brief's verify command and
+push the branch if its head changed. Retarget the PR if authorized and needed, then check
+mergeability and confirm the remote head, base ref and base tip match the result. If mergeability
+shows a conflict with the authorized tip integrated, check for base or head drift before another
+mutation. Escalate for changed authorization or an unresolved conflict.
+
+On recovery, inspect the local and remote heads and PR target against the recorded authorization.
+Reuse work already done and verify the final result even if no new commit is needed. Append
+`> NOTE <iso> — developer: base sync complete (authorization <note timestamp>); head <sha>; base <ref> at <tip>; verify passed`
+to `${WORKFLOW}` without changing stage checkboxes. Report `base sync done — <ref> at <tip>, verified`
+with the mergeability line. For an escalation use `${WORKFLOW}` as its artifact.
+
 ## Mergeability
 
-Every done report — initial and each fix round — carries the PR's mergeability at the head you
+Every developer done report carries the PR's mergeability at the head you
 pushed. The orchestrator's merge-eligibility check and the reviewer's triage both lean on it, and a
 conflicting PR often gets no CI at all, so "no checks reported" on a conflicted head reads like a
 repo without CI. Catching the conflict here keeps that confusion out of every later stage.
@@ -301,7 +320,7 @@ repo without CI. Catching the conflict here keeps that confusion out of every la
    bound — for example up to six reads ten seconds apart in one `for` loop that breaks as soon as
    `mergeable` isn't `UNKNOWN`. If it never settles, report it as-is; the orchestrator re-checks.
 
-2. On `CONFLICTING`, merge the base as § Base-branch conflicts describes, re-run the verify command,
+2. On `CONFLICTING` in initial or fix-round mode, merge the base as § Base-branch conflicts describes, re-run the verify command,
    push, and read again. Don't report `CONFLICTING`. If the brief's §5 records the base as on hold,
    don't merge it — the base is about to change — and escalate `ambiguity` instead. If a second
    merge still leaves it conflicting (the base is moving under you), escalate `stall`.
@@ -363,7 +382,7 @@ Each done report ends with the mergeability line from § Mergeability:
   mergeability: <mergeable> / <mergeStateStatus> at <head-sha>
   ```
 
-- **Escalating (either mode):** `ESCALATING — see events/<iso>-escalation.md, decision needed on <X>`
+- **Escalating (any mode):** `ESCALATING — see events/<iso>-escalation.md, decision needed on <X>`
 
   Then end your turn and wait: you still hold the pen, so make no further changes. When the
   decision arrives, read the Resolution block in the event file, apply it, finish the stage, and

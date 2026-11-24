@@ -115,7 +115,7 @@ About five lines, carrying only what the role prompt can't know:
 - your verified native return address when exposed, for V2 messaging;
 - the values for the variables the Contract's opener table lists for the role — absolute paths
   spelled out in full, since there is no `envsubst`, no shell export, and no expansion at spawn;
-- for dual-mode roles, the mode: _"You are in `fix-round` mode — follow that section."_ Mode
+- for multi-mode roles, the mode: _"You are in `fix-round` mode — follow that section."_ Mode
   sections are the only branching primitive in the role prompts.
 
 Example (developer fix-round on an internal review file):

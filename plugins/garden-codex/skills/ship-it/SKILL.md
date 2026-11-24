@@ -182,7 +182,7 @@ forwarder only under the transport ownership rules; other watches may still need
 Before advancing, apply `brief.md` § Stack holds and review release, including for a loop of
 `none`. While held, report the owned draft and record decisions from the parent. Route terminal
 digests immediately. Route only explicitly authorized synchronization work or its final internal
-review while normal dispatch is held. Use the same gate after a resume, a release or a worker
+review while normal dispatch is held (`brief.md` § Stack holds and review release). Use the same gate after a resume, a release or a worker
 report. With dispatch authorized, branch on `Review loop`:
 
 - **`none`** → the outcome is `skipped`. Append `> NOTE <iso> — orchestrator: review loop skipped`
@@ -495,6 +495,7 @@ the worker substitutes them mentally wherever its instructions say `${VAR}`.
 | planner               | `SKILLDIR`, `BRANCH`, `WORKTREE`, `SHIPITDIR`, `WORKFLOW`                                                        |
 | developer (initial)   | + `MODE`                                                                                                         |
 | developer (fix-round) | + `PR_URL`, `MODE`, `ROUND`, and `REVIEW_FILE` or `EVENT_FILE`                                                   |
+| developer (sync-base) | + `PR_URL` and `MODE`                                                                                            |
 | reviewer (internal)   | + `PR_URL`, `MODE`, `ROUND`                                                                                      |
 | reviewer (external)   | + `PR_URL`, `MODE`, and `DIGEST` (`none` when no digest prompted the spawn) — or `EVENT_FILE` to finish an event |
 | review-loop           | + `PR_URL`, `REVIEW_LOOP`                                                                                        |
@@ -594,12 +595,13 @@ orchestrator routes off the first line.
 | planner              | `stage 1 done — plan.md written, <N> tasks, coverage table complete`                                                                        |
 | developer, initial   | `stage 2 done — draft PR <url>, commits <shas>` + mergeability line                                                                         |
 | developer, fix-round | `fix-round <K> done — <N> findings fixed, commits <shas>, pushed` + mergeability line                                                       |
+| developer, sync-base | `base sync done — <ref> at <tip>, verified` + mergeability line                                                                             |
 | reviewer, internal   | `round <K> clean — PR remains draft` (then one line per accepted limitation) or `round <K> dirty — <M> fix findings in review-round-<K>.md` |
 | reviewer, external   | `nothing-new`, `event <file> classified — <P> fix, <Q> decline, <R> escalate`, `pr merged`, or `pr closed`                                  |
 | review-loop          | `triggered`, `escalating`, or `done: <passed\|blocked>` — shapes in `references/communication.md` § #2b                                     |
 | any stage worker     | `ESCALATING — see events/<iso>-escalation.md, decision needed on <X>`                                                                       |
 
-- **Mergeability line** (developer, both modes): `mergeability: <mergeable> / <mergeStateStatus> at
+- **Mergeability line** (developer): `mergeability: <mergeable> / <mergeStateStatus> at
 <head-sha>`, from `gh pr view --json mergeable,mergeStateStatus,headRefOid` after the last push.
   The developer never reports `CONFLICTING`: it merges the base, re-runs verify, pushes, and checks
   again. `UNKNOWN` is retried under a bound and reported as-is if it never settles.

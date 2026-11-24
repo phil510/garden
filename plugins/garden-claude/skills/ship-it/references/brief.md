@@ -174,18 +174,22 @@ decision changes nothing. A new hold supersedes an earlier release even if the h
 - **Base hold.** Record which base is unsettled in §5. Do not sync it or start an automatic fix
   against it, even if checks or conflict detection ask for one. Wait for the parent to identify the
   settled base and authorize synchronization. A base hold and a review hold clear independently.
-- **Batch.** When authorized, run only the requested fix or synchronization rounds as each base
-  settles, holding intermediate review, ready and merge. Once the dependency merges and this
-  PR is next to update, check the PR target. As part of the authorized synchronization, retarget
-  to main if needed and integrate its current tip without rewriting published history. Respect
-  repository approval rules when changing the target. Record the settled base ref and tip. At batch end verify and review the final
-  synchronized head once, and report the result to the parent. A dirty result follows the usual
-  fix and review path within its round budget. For that review cycle, record its first artifact
-  number and comparison baseline in a workflow note before dispatch. Use the settled PR base tip
-  for the first comparison and the previously reviewed head in that cycle for later comparisons.
-  Review artifacts keep increasing across cycles; each cycle gets the usual round budget. Record
-  the reviewed head and base in the review artifact, and require it to still match before
-  reporting clean.
+- **Batch.** While review is held, run only the work the parent authorizes. When this PR is next
+  to update, record the parent’s synchronization authorization in a workflow note with the
+  target ref and settled tip. Wait for any in-flight worker to stop writing, then dispatch a
+  developer in `sync-base` mode. That worker integrates the tip without rewriting history and
+  retargets if authorized. Respect repository approval rules when changing the target.
+  A matching completion note supplies the verified head and base on resume. If the authorization
+  is still current and incomplete, re-enter that mode once the old writer and commands are stopped.
+  A newer hold or synchronization decision supersedes an outstanding authorization.
+
+At batch end, use the completed synchronization's verified head and base to start one final
+internal review cycle. Record the first artifact number and comparison baseline (the synchronized
+base tip) in a workflow note before dispatch. Follow the internal dirty/fix/review path within
+that cycle's round budget. Later comparisons use the previously reviewed head in the cycle.
+Keep artifact numbers increasing across cycles. On resume, recover unfinished work from the
+cycle note and its artifacts before advancing. On clean, report the current verified head and
+review evidence to the parent and wait for release.
 
 At normal release the parent confirms that this PR's own upstreams merged and integration passed.
 The peer records the release with the PR, reviewed head, base ref and tip, current main tip and
