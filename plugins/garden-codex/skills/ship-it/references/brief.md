@@ -139,12 +139,12 @@ as authorial input that can override the brief, not as another reviewer finding:
 2. Scope change: follow § Brief editing mid-pipeline, citing "user concern" in the annotation.
 3. Fix round: write a minimal findings-shaped input (`## User concern` with `Disposition: fix`,
    `Severity`, `Location`, `Issue`, `Failure scenario`) into the next-numbered `review-round-N.md`
-   and dispatch a fresh developer fix round against it. A small edit — the outcome is settled, the
-   location known, and it changes no contract, security boundary or data invariant — ends at the
-   developer's report once stage 3 is ticked, with no reviewer after it: reviewing a decided,
-   located change can only re-litigate the decision. Line count isn't the test; a one-line change
-   to an auth check is not small. Before stage 3 is ticked, a small edit joins the normal sequence.
-   Anything larger goes through the usual developer → reviewer rounds under the round cap.
+   and dispatch a fresh developer fix round against it. A small edit has a settled outcome and
+   a known location, and changes no contract, security boundary or data invariant. Before stage 3
+   is ticked, it joins the normal review sequence. After stage 3, use the developer's verified
+   push as completion evidence. Record the small-edit decision in the round input for recovery.
+   For a parent-owned PR with a changed head, follow § Stack holds and review release. Larger
+   edits go through the usual developer → reviewer rounds under the round cap.
 4. Act only between worker invocations. If a worker is running, wait for its report. A worker
    waiting on an escalation is not running: edit the brief, then tell it to re-read it in the
    decision message; a fix-round ask waits until that worker reports.
@@ -196,18 +196,22 @@ Record the PR, reviewed head, base ref and tip, current main tip and verificatio
 first dispatch under that release, including after a restart before dispatch, compare that evidence
 to the current PR and remote refs. Confirm the PR targets and includes current main. Record
 admission against the release note when the work starts. If stale evidence or a newer hold
-prevents first dispatch, tell the parent the work did not start and wait for a current release. An explicit early-review
-override checks the named refs at admission but may start only the configured loop before the
-normal dependency and integration gates. Base synchronization, ready and merge still have their
-own gates, and the repository's bot policy and merge authority still apply.
+prevents first dispatch, tell the parent the work did not start and wait for a current release.
+An explicit early-review override checks the named refs at admission. It can start the configured
+loop before the normal dependency and integration gates. Base synchronization, ready and
+merge still have their own gates, and the repository's bot policy and merge authority apply.
 
-When external intake classifies a review or CI fix, use the usual developer round under the
-current release. If it pushes a new head, hold further external intake, ready and merge. Use the
-event's verified head to start a new internal review cycle at the previous reviewed head on the
-same base, or at the new base tip if the fix integrated a new base. Follow the same cycle, report
-and release path as for synchronization. Recover from the completed event and cycle note if the
-worker report was missed. Once re-released, a draft returns to the pre-ready gate. A PR already
-ready resumes due intake and checks on the new head under the normal merge policy.
+When a fix outside the loop changes a reviewed head, hold further external intake, ready and
+merge. This includes fixes from external intake and a user's direct edit. Use the developer's
+verified head and base from the completed round. For a small, settled user edit, carry the prior
+review forward with the explicit user direction and developer verification if the delta contains
+only that edit. Send that evidence to the parent for a fresh release without another internal
+review. For other fixes or a change to the integrated base, use the final-head review cycle
+above. Compare against the previous reviewed head on the same base or the new base tip if the
+fix integrated a new base.
+Recover the handoff from the completed round and any review-cycle note if the worker report was
+missed. Once re-released, a draft returns to the pre-ready gate. A PR already ready resumes due
+intake and checks on the new head under the normal merge policy.
 
 After admission, use the recorded head and base ref to route follow-ups and recover saved work.
 An unrelated advance of main alone leaves the admitted release and trigger valid, including when
@@ -219,8 +223,8 @@ head change, and record its final verified head with the outcome.
 
 When the parent clears a hold and the admitted head, base ref and integration evidence still
 apply, resume the same owner and trigger. If new evidence supersedes the saved loop, stop
-routing to that owner. Once it and its commands are confirmed
-stopped, archive the active state under its release note timestamp and retire its backstop. Tell
-the parent which PR and release stopped so it can schedule the next loop. Re-read status, which
-now reports `pending`. An eligible draft can start a new loop after fresh admission, preserving
-the prior decline ledger. Ignore late reports or backstops for the archived state.
+routing to that owner. Once it and its commands are confirmed stopped, archive the active state
+under its release note timestamp and retire its backstop. Tell the parent which PR and release
+stopped so it can schedule the next loop. Re-read status, which now reports `pending`. An
+eligible draft can start a new loop after fresh admission, preserving the prior decline ledger.
+Ignore late reports or backstops for the archived state.

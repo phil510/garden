@@ -275,8 +275,8 @@ it — only a clean internal review flips it.
     ```
 
     A base merge from § Mergeability gets its own line, `base merge — <commit-sha>`. For an
-    external round on a parent-owned stack, also record the verified pushed head and current base
-    ref/tip for release revalidation.
+    external round or a direct edit after stage 3 on a parent-owned stack, also record the
+    verified pushed head and current base ref/tip for release revalidation.
 
 11. **Annotate completion** in `${WORKFLOW}` (do not flip stage 3):
 

@@ -184,10 +184,10 @@ the pipeline is user-driven: they tell you when the PR merges or closes.
 
 Before advancing, apply `brief.md` § Stack holds and review release, including for a loop of
 `none`. While held, report the owned draft and record decisions from the parent. Route terminal
-digests immediately. Route only explicitly authorized synchronization work or its final internal
-review while normal dispatch is held (`brief.md` § Stack holds and review release). Use the same gate after a resume, a release or a worker
-report. Reconcile a saved loop against the current release before branching on its outcome, as
-`brief.md` describes. With dispatch authorized, branch on `Review loop`:
+digests immediately. Route only authorized synchronization, user edits or final-head review
+work while normal dispatch is held. Use the same gate after a resume, a release or a worker
+report. Reconcile a saved loop against the current release before branching on its outcome. With
+dispatch authorized, branch on `Review loop`:
 
 - **`none`** → the outcome is `skipped`. Append `> NOTE <iso> — orchestrator: review loop skipped`
   if missing, route any due catch-up intake, then go to step 5. No bot-loop worker is spawned.
@@ -263,8 +263,9 @@ Route each external reviewer report:
 - `pr merged` / `pr closed` → § Finish / § Abort.
 - `; clean <head-sha>` on either of the first two → step 7.
 
-After an external fix round, use `brief.md` § Stack holds and review release for a parent-owned
-PR whose head changed. Otherwise start an authorized checks wait. A new push supersedes a running
+After an external fix round or a user's direct edit, use `brief.md` § Stack holds and review
+release for a parent-owned PR whose reviewed head changed. After external fixes that need
+no such handoff, start an authorized checks wait. A new push supersedes a running
 wait. The developer resolves conflicts before reporting; the checks wait retries `UNKNOWN`.
 
 ### 7. Merge eligibility
