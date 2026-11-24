@@ -11,7 +11,7 @@ description: |
   assistant: "I've implemented the authentication for the /api/users endpoint. Here's the code:"
   <function call omitted for brevity>
   <commentary>
-  Since a logical chunk of code has been written (authentication feature), use the Task tool to launch the code-simplifier agent to improve the code's clarity and maintainability while preserving functionality.
+  Since a logical chunk of code has been written (authentication feature), spawn the code-simplifier agent to improve the code's clarity and maintainability while preserving functionality.
   </commentary>
   assistant: "Now let me use the code-simplifier agent to refine this implementation for better clarity and maintainability"
   </example>
@@ -37,7 +37,6 @@ description: |
   </commentary>
   assistant: "Now I'll use the code-simplifier agent to ensure the optimized code is also clear and follows our coding standards"
   </example>
-model: opus
 ---
 
 <!-- Garden-maintained fork; formatting adapted. Source and license: ../third-party.md. -->
