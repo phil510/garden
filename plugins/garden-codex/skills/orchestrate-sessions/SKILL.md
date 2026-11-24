@@ -27,8 +27,9 @@ caller id, new peers are ungrouped. Say so before dispatching if the run needs a
 - Run `garden new <absolute-worktree> --json` to spawn a peer under your session, or `garden adopt
 <id> --json` to group an existing one. Retain the Garden UUID, which survives changes to the
   native conversation. A visible session name can help the user find a pane. Use the UUID for
-  tracked operations and messages. If `new` reports `unknownCaller`, fix the grouping before
-  counting the new peer as a child.
+  tracked operations and messages. Once the peer appears in `garden ls --json`, confirm its
+  `parent` equals your `GARDEN_SESSION_ID`. If ungrouped, check the instance and caller id, then
+  adopt it before counting it as a child.
 - Pass model and effort overrides on `new` and `resume` only if the user's direction calls for
   them. Peers use their own defaults and permissions. A bare resume sends no overrides.
 - Load `message-session` before you send the brief and tell each peer to use it when reporting.
