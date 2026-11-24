@@ -176,11 +176,14 @@ A wave's life, in order:
    have merged doesn't wait on unrelated PRs, and the upper PR of a stack inside one wave waits for
    the lower one. One or two at a time keeps review traffic at the rate the human can read it.
    Which PR to bring up to date when is in "Trust the peer's pipeline". Ask peers to message you
-   when a configured loop ends. On `passed` or `blocked`, free the slot for that PR and release
-   and dispatch the next eligible PR, even if the old PR still has gates. Use `message-session` to
+   when a configured loop ends, stops, or could not start. Use their current state to dispatch
+   the next eligible PR, even if the old PR still has gates. Match reports to the PR and release
+   so a late report cannot clear a newer loop. Use `message-session` to
    send each release through the [ship-it handoff](../ship-it/references/brief.md#stack-holds-and-review-release).
    Name the PR, reviewed head, base ref and tip, current main tip and verification evidence.
-   Confirm the peer recorded it. A later hold or changed evidence requires a fresh release.
+   Confirm the peer recorded it. Check those values again at first dispatch. After admission,
+   an unrelated advance of main alone leaves the running loop valid. Hold affected peers when
+   a change invalidates their integration evidence.
    Respect the repository's loop policy. An explicit early-review override uses the same ref
    evidence and releases only the configured bot loop.
 6. **Hand PRs to the human as they become ready**, in the one merge-ordered list "Keep the traffic

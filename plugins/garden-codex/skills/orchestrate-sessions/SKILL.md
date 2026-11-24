@@ -83,16 +83,18 @@ targets and is current with main. Upstream work still under review can change th
 result even if the descendant's SHA stays the same. Confirm the current PR head, base ref and tip, and
 main SHA against the evidence before sending a release. Name those values and the verification
 pointer in the message, and confirm the peer has recorded it. A later hold supersedes that release.
-If any of those values change before dispatch or on recovery, get current evidence before release.
+Confirm these values again at first dispatch. After admission, an unrelated advance of main
+alone leaves the running loop valid. Hold affected peers when a change invalidates their
+integration evidence.
 
 - Use sandbox integration evidence for behavior that needs it or builds and tests on the
   integrated code for library-only changes. Keep a shared environment stable for the test and
   serialize runs that write to it. Invalidate evidence if a change affects what it verified.
 - Release one or two eligible configured bot loops at a time. An independent PR can advance on
   its own verified integration and dependencies. A free slot alone cannot release a descendant
-  of an unmerged PR. Ask peers to message you when a configured loop ends, even when
-  its PR still has gates. On `passed` or `blocked`, free that release's slot and dispatch the next
-  eligible PR. Deduplicate by PR and release so late reports cannot free a newer slot.
+  of an unmerged PR. Have peers report when a configured loop ends, stops, or could not start.
+  Use their current state to dispatch the next eligible PR, even if the old PR still has gates.
+  Match reports to the PR and release so a late report cannot clear a newer loop.
 - A PR configured with `none` uses the same release gate and goes directly to the normal ready
   gate without using a bot slot. Respect the repository's loop policy. An explicit early-review
   override can release a configured bot loop before dependencies merge and the PR is current with

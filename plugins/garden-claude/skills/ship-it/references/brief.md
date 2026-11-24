@@ -192,14 +192,14 @@ cycle note and its artifacts before advancing. On clean, report the current veri
 review evidence to the parent and wait for release.
 
 At normal release the parent confirms that this PR's own upstreams merged and integration passed.
-The peer records the release with the PR, reviewed head, base ref and tip, current main tip and
-verification evidence. Use these invariants before dispatching and again on recovery: read the PR
-head and base ref and fetch the current base and main tips from the remote. Require the released
-values and recorded review/verification to match, and confirm that the PR targets and includes
-current main. Tell the parent when evidence no longer matches and obtain a fresh release. An
-explicit early-review override records the same evidence for the refs it releases and may start
-only the configured loop before the normal dependency and integration gates. It leaves base synchronization,
-ready and merge held. No override supplies merge approval or changes repo bot policy.
+Record the PR, reviewed head, base ref and tip, current main tip and verification evidence. Before
+first dispatch under that release, including after a restart before dispatch, compare that evidence
+to the current PR and remote refs. Confirm the PR targets and includes current main. Record
+admission against the release note when the work starts. If stale evidence or a newer hold
+prevents first dispatch, tell the parent the work did not start and wait for a current release. An explicit early-review
+override checks the named refs at admission but may start only the configured loop before the
+normal dependency and integration gates. Base synchronization, ready and merge still have their
+own gates, and the repository's bot policy and merge authority still apply.
 
 When external intake classifies a review or CI fix, use the usual developer round under the
 current release. If it pushes a new head, hold further external intake, ready and merge. Use the
@@ -209,17 +209,18 @@ and release path as for synchronization. Recover from the completed event and cy
 worker report was missed. Once re-released, a draft returns to the pre-ready gate. A PR already
 ready resumes due intake and checks on the new head under the normal merge policy.
 
-A live loop can continue across pushes it made through authorized fix rounds after the loop
-skill's verification and review. Verify lineage from the release head through those pushes, and
-require the released base and main to still match. Record the final verified head with the loop
-outcome. A separate synchronization, outside commit, or base/main move requires fresh validation.
+After admission, use the recorded head and base ref to route follow-ups and recover saved work.
+An unrelated advance of main alone leaves the admitted release and trigger valid, including when
+main is the base. Continue to check live mergeability and checks at the current PR head. A hold
+pauses dispatch. A retarget, change to an upstream PR used for integration, or other invalidation
+of the integration evidence requires revalidation. A loop can continue across its own authorized
+and verified fix pushes. Use its recorded lineage to distinguish those pushes from an outside
+head change, and record its final verified head with the outcome.
 
-Before routing a saved loop on a new release or on resume, compare its recorded release and
-verified head to the current release. A result or waiting trigger still applies if its base ref,
-base tip and main tip match, and the current head is covered by its verified lineage. If not,
-stop routing to that owner. Once it and its commands are confirmed stopped, archive the active
-state file under its release note timestamp and retire any matching backstop. The archived state
-is history with its release and trigger intact. Re-read status, which now reports `pending`.
-For an eligible draft, start the configured loop on the newly released head, with a new trigger
-and the prior decline ledger retained. An unchanged release after a hold resumes the same owner
-and trigger. Late reports or backstops for the archived state cannot advance the new loop.
+When the parent clears a hold and the admitted head, base ref and integration evidence still
+apply, resume the same owner and trigger. If new evidence supersedes the saved loop, stop
+routing to that owner. Once it and its commands are confirmed
+stopped, archive the active state under its release note timestamp and retire its backstop. Tell
+the parent which PR and release stopped so it can schedule the next loop. Re-read status, which
+now reports `pending`. An eligible draft can start a new loop after fresh admission, preserving
+the prior decline ledger. Ignore late reports or backstops for the archived state.
