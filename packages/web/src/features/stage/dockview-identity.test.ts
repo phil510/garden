@@ -2,8 +2,10 @@
 import { DockviewComponent } from 'dockview-core'
 import { describe, expect, it, vi } from 'vitest'
 import { applyLayout, exitMaximizedUnlessFocused, togglePaneMaximised } from './applyLayout'
+import { wireMaximizedLayout } from './maximizedLayout'
 import { groupIdsFromSlots, wireRowMirror } from './mirrorRows'
-import { PANE_COMPONENT, groupIdForSlot, presetLayout } from './presetLayout'
+import { PANE_COMPONENT, collectViews, groupIdForSlot, presetLayout } from './presetLayout'
+import { stageLayout } from './storedLayout'
 
 /** Stands in for garden's xterm pane: what matters is that it is one long-lived instance per
  *  panel id, the same relationship a real pane holds with its socket. */
@@ -138,6 +140,142 @@ describe('grid-2x2 leaf group resize', () => {
     expect(component.api.getGroup(topRight)?.api.width).toBe(700)
     expect(component.api.getGroup(bottomLeft)?.api.width).toBe(500)
     expect(component.api.getGroup(bottomRight)?.api.width).toBe(500)
+  })
+})
+
+describe('restoring a maximized 2x2 stage', () => {
+  const slots = ['a', 'b', 'c', null]
+  const groupIds = groupIdsFromSlots(slots)
+
+  function makeGrid(width: number): DockviewComponent {
+    const component = makeComponent()
+    component.layout(width, 800)
+    applyLayout(component.api, presetLayout('grid-2x2', slots))
+    return component
+  }
+
+  function widths(component: DockviewComponent) {
+    return groupIds.map((id) => component.api.getGroup(id)?.api.width)
+  }
+
+  it.each([
+    { from: 656, to: 980, left: 328, restore: 'the pane control' },
+    { from: 1000, to: 800, left: 380, restore: 'session selection' },
+  ])(
+    'preserves both row splits at $to px when restoring from $restore',
+    async ({ from, to, left, restore }) => {
+      const visible = makeGrid(from)
+      const maximized = makeGrid(from)
+      const lifecycle = wireMaximizedLayout(maximized.api)
+      try {
+        for (const component of [visible, maximized]) {
+          for (const id of [groupIds[0], groupIds[2]]) {
+            component.api.getGroup(id)?.api.setSize({ width: left })
+          }
+          wireRowMirror(component.api, slots)
+        }
+        const panelIds = ['a', 'b', 'c', 'empty-slot-3']
+        const panels = panelIds.map((id) => maximized.api.getPanel(id))
+        const panel = maximized.api.getPanel('a')!
+        const rendererCount = RecordingRenderer.instances.length
+        const removed = vi.fn()
+        maximized.api.onDidRemovePanel(removed)
+        togglePaneMaximised(panel.api, () => undefined)
+        await Promise.resolve()
+
+        visible.layout(to, 800)
+        maximized.layout(to, 800)
+        await Promise.resolve()
+        exitMaximizedUnlessFocused(maximized.api, groupIds[0])
+        expect(maximized.api.hasMaximizedGroup()).toBe(true)
+        if (restore === 'the pane control') {
+          togglePaneMaximised(panel.api, () => undefined)
+        } else {
+          exitMaximizedUnlessFocused(maximized.api, groupIds[1])
+        }
+        await Promise.resolve()
+
+        expect(maximized.api.hasMaximizedGroup()).toBe(false)
+        expect(widths(maximized)).toEqual(widths(visible))
+        expect(collectViews(maximized.toJSON().grid.root)).toEqual(panelIds)
+        panelIds.forEach((id, index) => expect(maximized.api.getPanel(id)).toBe(panels[index]))
+        expect(RecordingRenderer.instances).toHaveLength(rendererCount)
+        expect(removed).not.toHaveBeenCalled()
+      } finally {
+        lifecycle.dispose()
+        visible.dispose()
+        maximized.dispose()
+      }
+    },
+  )
+
+  it('saves the visible row heights while maximized and scales them on restore and reload', () => {
+    const visible = makeGrid(1000)
+    const maximized = makeGrid(1000)
+    const reloaded = makeGrid(1000)
+    const lifecycle = wireMaximizedLayout(maximized.api)
+    try {
+      for (const component of [visible, maximized]) {
+        component.api.getGroup(groupIds[0])?.api.setSize({ height: 300 })
+      }
+      const panel = maximized.api.getPanel('b')!
+      const visibleLayout = maximized.toJSON()
+      togglePaneMaximised(panel.api, () => undefined)
+
+      visible.layout(1000, 600)
+      maximized.layout(1000, 600)
+      const liveSerialize = vi.spyOn(maximized.api, 'toJSON')
+      const stored = JSON.parse(JSON.stringify(lifecycle.serialize())) as unknown
+
+      expect(liveSerialize).not.toHaveBeenCalled()
+      expect(stored).toEqual(visibleLayout)
+      expect(maximized.api.hasMaximizedGroup()).toBe(true)
+
+      togglePaneMaximised(panel.api, () => undefined)
+      reloaded.layout(1000, 600)
+      applyLayout(reloaded.api, stageLayout(presetLayout('grid-2x2', slots), stored))
+
+      const heights = (component: DockviewComponent) =>
+        groupIds.map((id) => component.api.getGroup(id)?.api.height)
+      expect(heights(visible)).toEqual([225, 225, 375, 375])
+      expect(heights(maximized)).toEqual(heights(visible))
+      expect(heights(reloaded)).toEqual(heights(visible))
+      expect(reloaded.api.hasMaximizedGroup()).toBe(false)
+    } finally {
+      lifecycle.dispose()
+      visible.dispose()
+      maximized.dispose()
+      reloaded.dispose()
+    }
+  })
+
+  it.each([
+    { name: 'slot order', nextLayout: presetLayout('grid-2x2', ['b', 'a', 'c', null]) },
+    { name: 'preset', nextLayout: presetLayout('two-across', ['a', 'b']) },
+  ])('clears the previous snapshot when the $name changes', ({ nextLayout }) => {
+    const component = makeGrid(1000)
+    const lifecycle = wireMaximizedLayout(component.api)
+    try {
+      const panel = component.api.getPanel('a')!
+      togglePaneMaximised(panel.api, () => undefined)
+      component.layout(800, 800)
+      const applied = vi.fn()
+      component.api.onDidLayoutFromJSON(applied)
+
+      lifecycle.apply(nextLayout)
+
+      expect(component.api.hasMaximizedGroup()).toBe(false)
+      expect(applied).toHaveBeenCalledOnce()
+      const visibleLayout = component.toJSON()
+      expect(collectViews(visibleLayout.grid.root)).toEqual(collectViews(nextLayout.grid.root))
+
+      togglePaneMaximised(panel.api, () => undefined)
+      expect(lifecycle.serialize()).toEqual(visibleLayout)
+      expect(component.api.hasMaximizedGroup()).toBe(true)
+    } finally {
+      lifecycle.dispose()
+      component.dispose()
+    }
   })
 })
 
