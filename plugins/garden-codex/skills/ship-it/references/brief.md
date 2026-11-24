@@ -201,6 +201,14 @@ explicit early-review override records the same evidence for the refs it release
 only the configured loop before the normal dependency and integration gates. It leaves base synchronization,
 ready and merge held. No override supplies merge approval or changes repo bot policy.
 
+When external intake classifies a review or CI fix, use the usual developer round under the
+current release. If it pushes a new head, hold further external intake, ready and merge. Use the
+event's verified head to start a new internal review cycle at the previous reviewed head on the
+same base, or at the new base tip if the fix integrated a new base. Follow the same cycle, report
+and release path as for synchronization. Recover from the completed event and cycle note if the
+worker report was missed. Once re-released, a draft returns to the pre-ready gate. A PR already
+ready resumes due intake and checks on the new head under the normal merge policy.
+
 A live loop can continue across pushes it made through authorized fix rounds after the loop
 skill's verification and review. Verify lineage from the release head through those pushes, and
 require the released base and main to still match. Record the final verified head with the loop

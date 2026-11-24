@@ -139,7 +139,8 @@ still settling (`UNKNOWN`, `BLOCKED`, or no checks reported) or at the deadline.
 Bot and human comments get the same dispositions:
 
 - `fix` → spawn a fresh developer in fix-round-from-event mode; it commits, replies, and resolves
-  the conversation. Its push starts a checks wait.
+  the conversation. For a changed head in a parent-owned stack, revalidate the release before
+  the checks wait (`brief.md` § Stack holds and review release).
 - `decline` → nothing to dispatch: the reviewer has already replied with the reason and left the
   conversation open for visibility. An open declined thread doesn't hold the merge.
 - `escalate` → the reviewer annotates and sends `ESCALATING`; resolve it (`escalate-resume.md`),

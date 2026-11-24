@@ -258,10 +258,9 @@ Route each external reviewer report:
 - `pr merged` / `pr closed` → § Finish / § Abort.
 - `; clean <head-sha>` on either of the first two → step 7.
 
-After every fix round's push, start an authorized checks wait; a new push supersedes a running one.
-A synchronized stack batch follows its own final verify/review path before release. The
-developer's mergeability line never reports `CONFLICTING` — it merges the base first — but an
-`UNKNOWN` it couldn't settle is for the checks wait's own mergeability check to retry.
+After an external fix round, use `brief.md` § Stack holds and review release for a parent-owned
+PR whose head changed. Otherwise start an authorized checks wait. A new push supersedes a running
+wait. The developer resolves conflicts before reporting; the checks wait retries `UNKNOWN`.
 
 ### 7. Merge eligibility
 
@@ -597,16 +596,16 @@ Each worker finishes its disk writes, then delivers exactly one of these through
 report operation (`spawn-details.md` § Native operations). The
 orchestrator routes off the first line.
 
-| Worker               | Report                                                                                                                                      |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| planner              | `stage 1 done — plan.md written, <N> tasks, coverage table complete`                                                                        |
-| developer, initial   | `stage 2 done — draft PR <url>, commits <shas>` + mergeability line                                                                         |
-| developer, fix-round | `fix-round <K> done — <N> findings fixed, commits <shas>, pushed` + mergeability line                                                       |
-| developer, sync-base | `base sync done — <ref> at <tip>, verified` + mergeability line                                                                             |
-| reviewer, internal   | `round <K> clean — PR remains draft` (then one line per accepted limitation) or `round <K> dirty — <M> fix findings in review-round-<K>.md` |
-| reviewer, external   | `nothing-new`, `event <file> classified — <P> fix, <Q> decline, <R> escalate`, `pr merged`, or `pr closed`                                  |
-| review-loop          | `triggered`, `escalating`, or `done: <passed\|blocked>` — shapes in `references/communication.md` § #2b                                     |
-| any stage worker     | `ESCALATING — see events/<iso>-escalation.md, decision needed on <X>`                                                                       |
+| Worker               | Report                                                                                                                   |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| planner              | `stage 1 done — plan.md written, <N> tasks, coverage table complete`                                                     |
+| developer, initial   | `stage 2 done — draft PR <url>, commits <shas>` + mergeability line                                                      |
+| developer, fix-round | `fix-round <K> done — <N> findings fixed, commits <shas>, pushed` + mergeability line                                    |
+| developer, sync-base | `base sync done — <ref> at <tip>, verified` + mergeability line                                                          |
+| reviewer, internal   | `round <K> clean` (then one line per accepted limitation) or `round <K> dirty — <M> fix findings in review-round-<K>.md` |
+| reviewer, external   | `nothing-new`, `event <file> classified — <P> fix, <Q> decline, <R> escalate`, `pr merged`, or `pr closed`               |
+| review-loop          | `triggered`, `escalating`, or `done: <passed\|blocked>` — shapes in `references/communication.md` § #2b                  |
+| any stage worker     | `ESCALATING — see events/<iso>-escalation.md, decision needed on <X>`                                                    |
 
 - **Mergeability line** (developer): `mergeability: <mergeable> / <mergeStateStatus> at
 <head-sha>`, from `gh pr view --json mergeable,mergeStateStatus,headRefOid` after the last push.
